@@ -1,0 +1,32 @@
+#!/usr/sbin/nft -f
+# newton-ap.nft — isolation policy for the Newton subnet.
+# Additive: manages ONLY its own table, never flushes or alters the
+# docker/libvirt/NM rules already living in nftables.
+# Idempotent: destroy + re-add means `nft -f` can run any number of times.
+
+destroy table inet newton-ap
+
+table inet newton-ap {
+	# Traffic from the Newton subnet to this host: DHCP, DNS, harness 6801 only.
+	# Policy stays accept — we only drop what matches wlan0/10.42.0.0/24,
+	# all other host traffic is unaffected.
+	chain input {
+		type filter hook input priority filter; policy accept;
+
+		# DHCP: client starts from 0.0.0.0, so no saddr match here.
+		iifname "wlan0" udp dport 67 accept
+		iifname "wlan0" ip saddr 10.42.0.0/24 udp dport 53 accept
+		iifname "wlan0" ip saddr 10.42.0.0/24 tcp dport 6801 accept
+		# Everything else from the AP interface to the host: drop.
+		iifname "wlan0" drop
+	}
+
+	# No forwarding in either direction: no internet/LAN for the subnet,
+	# no inbound from LAN to the subnet. ip_forward stays off.
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+
+		iifname "wlan0" ip saddr 10.42.0.0/24 drop
+		oifname "wlan0" ip daddr 10.42.0.0/24 drop
+	}
+}
