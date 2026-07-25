@@ -414,3 +414,15 @@ Stock PT100 payload did not reach the listener, so the Loader acceptance gate re
 - The Loader instead reverses the `Instantiate` arguments (`Instantiate(self.endpoint, options)`) and uses uppercase `Connect` and `Output` at `examples/harness-loader/Main.newt:65-88,159-164`. The ROM symbol table distinguishes old `CIConnect`/`CIOutput` (`TScriptEndpointClient`) from `CINewConnect`/`CINewOutput` (`TNewScriptEndpointClient`), matching the observed old-versus-new client behavior.
 - The minimum candidate fix is therefore to match PT100: pass configuration options first and the endpoint frame second, then call lowercase `connect` and `output`. No endpoint-class replacement or Einstein network patch is needed.
 
+### Fix applied and verification status
+
+- Applied the PT100-compatible call pattern in `examples/harness-loader/Main.newt`: `Instantiate(options, endpointFrame)`, lowercase `connect(options, requestSpec)`, and lowercase `output(data, nil, outputSpec)`. The package keeps the existing `HarnessLoaderR3O:jbfly` identity so it replaces the saved diagnostic Loader, while its visible version is `1.1-r7b`.
+- `make -B -C examples/harness-loader` succeeds; replacement package SHA-256 is `37b003f8c61b9c4299e87844409dbd7d189e018b30d332319ee86619776a4e71`. `runtime/evidence/round7b-fixed-loader-bytecode.txt` confirms the built package contains lowercase `connect` and `output` literals.
+- Independently validated that `containers/patches/einstein-nie-rom-trace.patch`, including the old-client addresses, builds successfully. `runtime/logs/round7b-romtrace-build.exit` is `0`; image ID is `f158c81fdc6d75e0ba3f86c9970919c10776e374d6acbb3975f262b6ab83b9f2`.
+- Backed up live flash before package installation as `runtime/backups/internal-before-round7b-loader-20260725-180001.flash`, SHA-256 `8a2c37ebcc2e922025537d50cc3c4a780a8dd8e2c1f6b2839ab8ee0d509db369`.
+- Installed both the uniquely named R7B diagnostic and then the R3O replacement; live-flash strings confirm `Harness Loader v1.1-r7b`. The replacement launches (`runtime/evidence/round7b-loader-open-clean.png`).
+- A decisive live send was not reached in this session: after the emulator restart, `InetGrabLink` first returned a non-connected state displayed as `Link: connect...`, and the next attempt remained at `Fetch attempt 1 of 2...` without a TCP SYN. Therefore no claim is made that the HTTP download/input path is fully verified. This does not contradict the source diagnosis: the test stopped before `Instantiate`, `connect`, or `output` could execute.
+
+### Round 7B bottom line
+
+The Loader never sent because it used the legacy endpoint API incorrectly: its `Instantiate` arguments were reversed and it invoked uppercase legacy `Connect`/`Output`. Stock PT100 proves the working Newton 2.x path uses the same `protoBasicEndpoint` but calls `Instantiate(configOptions, endpointFrame)`, lowercase `connect`, and lowercase `output`, which dispatch to `TNewScriptEndpointClient`. The Loader source now matches that pattern; the remaining verification step is to rerun it once `InetGrabLink` reports `connected` and confirm the built request reaches `runtime/raw_pkg_server.py`.

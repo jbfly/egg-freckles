@@ -1,5 +1,5 @@
 kAppSymbol := '|HarnessLoaderR3O:jbfly|;
-kVersion := "1.1-r3o";
+kVersion := "1.1-r7b";
 kAppTitle := "Harness Loader v" & kVersion;
 
 mainView := {
@@ -62,7 +62,7 @@ mainView := {
         self.endpoint := {_proto: protoBasicEndpoint, _parent: self};
         try
         begin
-            self.endpoint:Instantiate(self.endpoint, [
+            self.endpoint:Instantiate([
                 {label: "inet", type: 'service, opCode: opSetRequired},
                 {
                     label: "ilid", type: 'option, opCode: opSetRequired,
@@ -74,9 +74,9 @@ mainView := {
                     form: 'template,
                     data: {arglist: [1], typelist: ['struct, 'ulong]},
                 },
-            ]);
+            ], self.endpoint);
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
-            self.endpoint:Connect([
+            self.endpoint:connect([
                 {
                     label: "itrs", type: 'option, opCode: opSetRequired,
                     form: 'template,
@@ -156,7 +156,7 @@ mainView := {
         local done := nil;
 
         :SetStatus("Requesting /harness-client.pkg...");
-        self.endpoint:Output(
+        self.endpoint:output(
             MakeBinaryFromHex(
                 "474554202F6861726E6573732D636C69656E742E706B6720485454502F312E300D0A486F73743A2031302E34322E302E310D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A",
                 'binary),
