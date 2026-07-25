@@ -611,3 +611,7 @@ Einstein now accepts package-install and NewtonScript requests through a mode-`0
 - `containers/patches/einstein-control-socket.patch` applies to pinned Einstein commit `f5544a039fc3964e18b217ccffa030c6bf1e4044`, and the image build completed. The socket was verified at `/state/einstein-control.sock`, owned by `newton:newton` with mode `0600`; invalid install paths and multiline commands return HTTP 400. Existing Python tests remain green (7/7).
 
 All temporary `podman logs -f` captures are stopped. The original package server remains the sole listener on `10.42.0.1:18081`; `examples/harness-client` and `examples/network-probe` were not touched.
+
+## One-command test-round setup
+
+Run `scripts/newton-round.sh <example-dir> <round-tag>` from anywhere in the repository, for example `scripts/newton-round.sh examples/harness-loader r15a`. It bumps both package identities, builds and verifies the package, starts a fresh emulator-log capture with a package-server baseline, installs and launches the app, and saves a Newton-screen screenshot after confirming the visible version with OCR. It deliberately does not tap the app's fetch button. The summary includes the capture PID and stop command; run `scripts/newton-round.sh --self-check` to check the identity rewrite without building or touching source.
