@@ -464,3 +464,22 @@ The Loader never sent because it used the legacy endpoint API incorrectly: its `
 ### Next boundary
 
 Capture the original communication exception before `Failed` calls `Stop`; the asynchronous `InetReleaseLink` event currently overlays the actual endpoint error. Do not change Einstein transport: Round 8 already proved it with PT100.
+
+## 2026-07-25 — Round 10: captured Loader endpoint exception
+
+### Bottom line
+
+The hard gate did **not** pass. The uniquely identified diagnostic package `-HarnessLoaderR10G:jbfly` / visible `- R10G Loader 1.1-r10g` catches the failure before cleanup and shows that `Instantiate` throws `|evt.ex.fr.type;type.ref.frame|`, error `-48400` (`kNSErrNotAFrame`, “Expected a frame”). No SYN, HTTP GET, or Loader success state followed.
+
+### Changes and evidence
+
+- Broadened the endpoint catch to `|evt.ex|`, captured `CurrentException()` as the handler's first statement, labeled the active `Instantiate`/`Bind`/`connect` call, and displayed the exception name, numeric error, data, and message without calling `Failed` or `Stop`. Evidence: `runtime/evidence/round10d-real-exception.png` and `runtime/evidence/round10-gate-summary.txt`.
+- Replaced orientation-specific bounds with Newton's runtime parent justification (`vjParentFullH + vjParentFullV` and negative margins). The tested screen remained 320×480 portrait.
+- Decoded PT100's actual option builders. Its configuration and connect options contain `result: nil` and case-sensitive `typeList` slots; the Loader now matches those frames. PT100 emits `opCode: 512`, equal to `opSetRequired`.
+- Tested both the direct ROM endpoint prototype and a PT100-like two-level endpoint subclass, and tested the second `Instantiate` argument as the endpoint frame. All still threw the same `-48400` at `Instantiate`; `Bind` and `connect` were never reached. Final screenshots: `runtime/evidence/round10g-loader-open.png` and `runtime/evidence/round10g-underlying-result.png`.
+- Every runtime-tested package had a unique identity (`r10a` through `r10g`). The final screenshot visibly shows `1.1-r10g`; live-flash evidence is `runtime/evidence/round10g-live-flash-identity.txt`.
+- Host setup could not be applied because noninteractive sudo required a password. `10.42.0.1` was never added, and no package server or capture process remained running.
+
+### Next boundary
+
+Inspect the exact endpoint instance frame that PT100's `eptClass:New` passes into ROM and the first frame dereference in `TNewScriptEndpointClient::InitScriptEndpointClient` at ROM symbol `0x001377B8`. The Loader's option array now matches PT100, so the remaining `-48400` is in the endpoint-instance contract, not transport or option encoding.

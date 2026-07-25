@@ -1,12 +1,14 @@
-kAppSymbol := '|HarnessLoaderR3O:jbfly|;
-kVersion := "1.1-r9";
-kAppTitle := "Harness Loader v" & kVersion;
+kAppSymbol := '|-HarnessLoaderR10G:jbfly|;
+kVersion := "1.1-r10g";
+kAppTitle := "- R10G Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
-    viewBounds: {left: 16, top: 72, right: 304, bottom: 264},
+    viewJustify: vjParentFullH + vjParentFullV,
+    viewBounds: {left: 16, top: 72, right: -16, bottom: -72},
     title: kAppTitle,
     appSymbol: kAppSymbol,
+    endpointClass: {_proto: protoBasicEndpoint},
     endpoint: nil,
     linkID: nil,
     resultView: nil,
@@ -60,30 +62,33 @@ mainView := {
     Resolved: func(results, error)
     begin
         local address := [10, 42, 0, 1];
-        self.endpoint := {_proto: protoBasicEndpoint, _parent: self};
+        local callName := "Instantiate";
+        self.endpoint := {_proto: self.endpointClass, _parent: self};
         try
         begin
             self.endpoint:Instantiate([
-                {label: "inet", type: 'service, opCode: opSetRequired},
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
                 {
-                    label: "ilid", type: 'option, opCode: opSetRequired,
+                    label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
-                    data: {arglist: [self.linkID], typelist: ['struct, 'ulong]},
+                    data: {arglist: [self.linkID], typeList: ['struct, 'ulong]},
                 },
                 {
-                    label: "itsv", type: 'option, opCode: opSetRequired,
+                    label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
-                    data: {arglist: [1], typelist: ['struct, 'ulong]},
+                    data: {arglist: [1], typeList: ['struct, 'ulong]},
                 },
-            ], self);
+            ], self.endpoint);
+            callName := "Bind";
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            callName := "connect";
             self.endpoint:connect([
                 {
-                    label: "itrs", type: 'option, opCode: opSetRequired,
+                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
                     data: {
                         arglist: [address[0], address[1], address[2], address[3], 18081],
-                        typelist: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
             ], {async: nil, reqTimeout: 10000});
@@ -96,9 +101,20 @@ mainView := {
                 :SetStatus("Deferred install queued");
             end;
         end
-        onexception |evt.ex.comm| do
-            :Failed("TCP failed: " &
-                call GetGlobalFn('InetGetExceptionError) with (CurrentException()));
+        onexception |evt.ex| do
+        begin
+            local exception := CurrentException();
+            local exceptionText := callName & " threw";
+            local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
+            if HasSlot(exception, 'name) then
+                exceptionText := exceptionText & "\nname=" & exception.name;
+            exceptionText := exceptionText & "\nerror=" & exceptionError;
+            if HasSlot(exception, 'data) then
+                exceptionText := exceptionText & "\ndata=" & exception.data;
+            if HasSlot(exception, 'message) then
+                exceptionText := exceptionText & "\nmessage=" & exception.message;
+            :SetStatus(exceptionText);
+        end;
     end,
 
     AppendHeaderByte: func(text, byte)
@@ -236,13 +252,15 @@ mainView := {
     stepChildren: [
         {
             _proto: protoStaticText,
-            viewBounds: {left: 12, top: 14, right: 276, bottom: 82},
-            text: "Harness Loader v1.1\nFetches Harness Client v1.1", 
+            viewJustify: vjParentFullH + vjParentTopV,
+            viewBounds: {left: 12, top: 14, right: -12, bottom: 82},
+            text: kAppTitle & "\nFetches Harness Client v1.1",
             viewFont: ROM_fontSystem12Bold,
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 20, top: 90, right: 268, bottom: 176},
+            viewJustify: vjParentFullH + vjParentFullV,
+            viewBounds: {left: 20, top: 90, right: -20, bottom: -12},
             text: "Install client update",
             viewFont: ROM_fontSystem12Bold,
             buttonClickScript: func() self:Parent():Install(self),

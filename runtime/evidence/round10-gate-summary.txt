@@ -1,0 +1,27 @@
+Round 10 Loader exception and gate summary
+2026-07-25T21:04:50+01:00
+
+Verbatim on-screen exception:
+Instantiate threw
+name=|evt.ex.fr.type;type.ref.frame|
+error=-48400
+data=
+
+Newton error lookup:
+-48400 = Expected a frame (kNSErrNotAFrame)
+
+Final tested identity:
+-HarnessLoaderR10G:jbfly
+-HarnessLoaderR10G:jbfly
+-HarnessLoaderR10G:jbfly
+-HarnessLoaderR10G:jbfly
+0-HarnessLoaderR10G:jbfly
+- R10G Loader 1.1-r10g
+
+Gate 1 SYN to 10.42.0.1:18081: FAIL (host address unavailable; Instantiate failed before connect)
+Gate 2 non-empty HTTP GET: FAIL
+Gate 3 Loader success screenshot: FAIL
+
+Host setup:
+sudo -n ap/emulator-only.sh -> sudo: a password is required
+No 10.42.0.1 address was added; no raw server or tcpdump remained running.
