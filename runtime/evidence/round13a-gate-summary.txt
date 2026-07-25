@@ -1,0 +1,30 @@
+Round 13A hard-gate result: FAIL — (a) PASS, (b) PASS, (c) FAIL
+
+Identity hard check PASS:
+- Built identity: -HarnessLoaderR13A:jbfly / 1.1-r13a
+- SHA-256: faca19baef84907d18f6b599901fff3d2df1bcf0c36403d72a562671b90e50d4
+- runtime/evidence/round13a-loader-open-hard-check.png is a 320x480 Newton-screen capture visibly reading "- R13A Loader 1.1-r13a".
+
+(a) PASS — fresh SYN to 10.42.0.1:18081.
+- runtime/evidence/round13a-baseline.txt records capture_initial_bytes=0 and command podman logs --since 0s -f newton-harness_emulator_1.
+- runtime/evidence/round13a-runtime-relevant.txt contains destination IP bytes 0a 2a 00 01, destination port bytes 46 a1, and decoded dst=18081.
+
+(b) PASS — exact request reached the package server.
+- runtime/evidence/round13a-server-delta.txt contains:
+  RAW b'GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n'
+- The runtime trace contains the exact 72-byte payload and ACK progression through ack=6569 (all 6567 response bytes plus sequence origin).
+
+(c) FAIL — no unobscured Loader success state.
+- runtime/evidence/round13a-after-tap-6s.png is a 320x480 Newton-screen capture showing the r13a Loader under Newton Internet Enabler event RemoveLinkClient, connected inetManagerFSM, error -48803.
+- The Grabbed guard therefore did not remove the overlay; no r13b source change was made.
+
+Required delayed-close ordering check:
+- runtime/evidence/round13a-delayed-close-ordering.txt records alert_time=2026-07-25T23:21:50.676943937+01:00 and server CLOSE_BEGIN=2026-07-25T23:22:20.085923+01:00.
+- The alert appeared about 29.4 seconds BEFORE server close, after SEND_DONE and while the socket was deliberately held open.
+- runtime/evidence/round13a-delayed-close-alert.png is the corresponding 320x480 Newton-screen capture.
+
+Cleanup:
+- Temporary delayed-close server exited.
+- runtime/raw_pkg_server.py SHA-256 matched its pre-test value and was not edited.
+- One original runtime/raw_pkg_server.py process is listening on 10.42.0.1:18081.
+- All podman log capture processes are stopped.

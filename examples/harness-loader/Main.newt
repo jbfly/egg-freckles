@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderR12N:jbfly|;
-kVersion := "1.1-r12n";
-kAppTitle := "- R12N Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderR13A:jbfly|;
+kVersion := "1.1-r13a";
+kAppTitle := "- R13A Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -52,12 +52,15 @@ mainView := {
 
     Grabbed: func(id, state, error)
     begin
+        // ponytail: NIE keeps notifying after we're up (incl. on peer close). Once the
+        // endpoint exists this callback has no job -- routing a late status into Failed()
+        // is what called InetReleaseLink mid-connection and raised -48803.
+        if self.endpoint then return nil;
         if error then return :Failed("Link failed: " & error);
         self.linkID := id;
         if state.linkStatus = 'connect then return nil;
         if state.linkStatus <> 'connected then
             return :Failed("Link: " & state.linkStatus);
-        if self.endpoint then return nil;
         :Resolved(nil, nil);
     end,
 

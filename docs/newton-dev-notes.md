@@ -547,3 +547,25 @@ The final preserved diagnostic package is `-HarnessLoaderR12N:jbfly`, visible ve
 All capture processes are stopped. `10.42.0.1/24` remains on loopback. The temporary delayed-close test server was stopped, and exactly one original `runtime/raw_pkg_server.py` process is listening on `10.42.0.1:18081`.
 
 The next boundary is the source of `InetReleaseLink` / `RemoveLinkClient` during active input completion. It occurs even with a no-op `InputScript` and while the test socket remains open, so do not continue tuning callback argument order or response parsing until that FSM event is traced.
+
+## 2026-07-25 — Round 13A: late `Grabbed` guard did not remove `-48803`
+
+### Bottom line
+
+The proposed `Grabbed` ordering guard did **not** pass the hard gate. The uniquely identified package `-HarnessLoaderR13A:jbfly`, visible version `1.1-r13a`, SHA-256 `faca19baef84907d18f6b599901fff3d2df1bcf0c36403d72a562671b90e50d4`, still reaches the correct server and receives the complete response, but Newton again overlays the Loader with `RemoveLinkClient` in connected `inetManagerFSM`, error `-48803`.
+
+Per the stop condition, no r13b receive-work restoration was made. A delayed-close control proves the alert occurs **before** the peer closes: it appeared at `23:21:50.676943937+01:00`, while the server held the socket open until `CLOSE_BEGIN` at `23:22:20.085923+01:00`, about 29.4 seconds later.
+
+### Runtime evidence
+
+- Identity hard check passes. `runtime/evidence/round13a-loader-open-hard-check.png` is a 320×480 Newton-screen capture visibly reading `- R13A Loader 1.1-r13a`; artifact identity and checksum are in `round13a-package-identity.txt` and `round13a-loader-package.sha256`.
+- Gate (a) passes. `runtime/evidence/round13a-baseline.txt` records `capture_initial_bytes=0` and `podman logs --since 0s -f`. `round13a-runtime-relevant.txt` contains the fresh SYN with destination bytes `0a 2a 00 01`, port bytes `46 a1`, and decoded `dst=18081`.
+- Gate (b) passes. `runtime/evidence/round13a-server-delta.txt` contains the exact 72-byte request `GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n`. The trace advances through `ack=6569`, covering all 6,567 response bytes.
+- Gate (c) fails. `runtime/evidence/round13a-after-tap-6s.png` is a distinct 320×480 Newton-screen capture showing r13a beneath the `RemoveLinkClient` / `-48803` alert. Consolidated evidence is `runtime/evidence/round13a-gate-summary.txt`.
+- The single delayed-close ordering result is `runtime/evidence/round13a-delayed-close-ordering.txt`, with the corresponding Newton-screen capture `round13a-delayed-close-alert.png`. `SEND_DONE` preceded the alert; `CLOSE_BEGIN` followed it by about 29.4 seconds.
+
+### Source and preserved state
+
+The only source change is the requested early `if self.endpoint then return nil` at the top of `Grabbed`, above error and `linkStatus` handling, plus the unique r13a identity in `Main.newt` and `harness-loader.nprj`. `examples/harness-client` and `examples/network-probe` were not touched.
+
+All emulator-log captures are stopped. The temporary delayed-close copy lived under `/tmp` and exited; `runtime/raw_pkg_server.py` matched its pre-test SHA-256 afterward. Exactly one original raw package server is listening on `10.42.0.1:18081`, and `10.42.0.1/24` remains on loopback.
