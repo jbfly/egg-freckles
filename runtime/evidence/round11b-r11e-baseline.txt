@@ -1,0 +1,5 @@
+capture_start_utc=2026-07-25T21:11:03Z
+command=podman logs --since 0s -f newton-harness_emulator_1
+server_log_bytes_before=215
+capture_initial_bytes=0
+capture_pid=1142012

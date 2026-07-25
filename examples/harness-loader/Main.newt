@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderR11A:jbfly|;
-kVersion := "1.1-r11a";
-kAppTitle := "- R11A Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderR11E:jbfly|;
+kVersion := "1.1-r11e";
+kAppTitle := "- R11E Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -56,6 +56,7 @@ mainView := {
         if state.linkStatus = 'connect then return nil;
         if state.linkStatus <> 'connected then
             return :Failed("Link: " & state.linkStatus);
+        if self.endpoint then return nil;
         :Resolved(nil, nil);
     end,
 
@@ -84,6 +85,7 @@ mainView := {
             callName := "Bind";
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
             callName := "connect";
+            :SetStatus("Connecting...");
             self.endpoint:connect([
                 {
                     label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
@@ -93,15 +95,12 @@ mainView := {
                         typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
-            ], {async: nil, reqTimeout: 10000});
-            local packageBinary := :DownloadPackage();
-            :Stop();
-            if packageBinary then
-            begin
-                :SetStatus("Installing client package...");
-                :InstallBinaryLater(packageBinary);
-                :SetStatus("Deferred install queued");
-            end;
+            ], {
+                async: nil,
+                reqTimeout: 45000,
+                completionScript: func(endpoint, result, error)
+                    self:Connected(result, error),
+            });
         end
         onexception |evt.ex| do
         begin
@@ -116,6 +115,19 @@ mainView := {
             if HasSlot(exception, 'message) then
                 exceptionText := exceptionText & "\nmessage=" & exception.message;
             :SetStatus(exceptionText);
+        end;
+    end,
+
+    Connected: func(result, error)
+    begin
+        if error then return :Failed("Connect failed: " & error);
+        local packageBinary := :DownloadPackage();
+        :Stop();
+        if packageBinary then
+        begin
+            :SetStatus("Installing client package...");
+            :InstallBinaryLater(packageBinary);
+            :SetStatus("Deferred install queued");
         end;
     end,
 

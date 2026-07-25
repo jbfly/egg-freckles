@@ -1,0 +1,34 @@
+Round 11B gate summary
+
+Result: endpoint-first Instantiate clears round-10 -48400 and reaches TCP connect.
+Gate (a) PASS: fresh r11e capture contains one SYN to 0a 2a 00 01, destination port 46 a1.
+Gate (b) FAIL: server accepted the connection but timed out with RAW b''; no HTTP GET.
+Gate (c) FAIL: no Loader success screenshot; r11e version is visible only in open/failure state.
+
+Fresh-capture baseline:
+capture_start_utc=2026-07-25T21:11:03Z
+command=podman logs --since 0s -f newton-harness_emulator_1
+server_log_bytes_before=215
+capture_initial_bytes=0
+capture_pid=1142012
+
+Target frames:
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 83 8c 46 a1 0e cc f1 a8 00 00 00 00 60 02 10 00 f1 86 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=248312232 ack=0 src=33676 dst=18081
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 83 8c 46 a1 0e cc f1 a9 00 00 00 01 50 10 10 00 09 33 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248312233 ack=1 src=33676 dst=18081
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 04 00 00 40 06 ae cf c0 a8 01 2a 0a 2a 00 01 83 8c 46 a1 0e cc f1 a9 00 00 00 02 50 10 10 00 09 32 00 00
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248312233 ack=2 src=33676 dst=18081
+
+Server log delta from byte 216:
+ERROR ('10.42.0.1', 51630) timed out
+RAW b''
+
+Final preserved state:
+    inet 10.42.0.1/24 scope global lo
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+LISTEN 0      5          10.42.0.1:18081      0.0.0.0:*    users:(("python3",pid=1102453,fd=3))
+1102453 python3 runtime/raw_pkg_server.py
+
+Capture processes after stop:
+none

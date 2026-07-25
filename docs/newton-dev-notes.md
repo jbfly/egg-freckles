@@ -484,24 +484,33 @@ The hard gate did **not** pass. The uniquely identified diagnostic package `-Har
 
 Inspect the exact endpoint instance frame that PT100's `eptClass:New` passes into ROM and the first frame dereference in `TNewScriptEndpointClient::InitScriptEndpointClient` at ROM symbol `0x001377B8`. The Loader's option array now matches PT100, so the remaining `-48400` is in the endpoint-instance contract, not transport or option encoding.
 
-## 2026-07-25 — Round 11: endpoint-first Instantiate reaches TCP, but no HTTP bytes
+## 2026-07-25 — Round 11B: endpoint-first runtime result
 
 ### Bottom line
 
-The endpoint-first `Instantiate(self.endpoint, options)` change disproves the Round 10 failure mode: the uniquely identified `-HarnessLoaderR11A:jbfly` / visible `- R11A Loader 1.1-r11a` build no longer throws `-48400` at `Instantiate`. It reaches `connect` and emits two TCP SYNs to `10.42.0.1:18081`, but `runtime/raw_pkg_server.py` receives zero request bytes on both accepted connections. The hard gate therefore fails: gate (a) passes, while gates (b) and (c) do not.
+The endpoint-first `Instantiate` hypothesis is confirmed: r11a no longer throws round 10's `-48400` at `Instantiate`. A demonstrably fresh trace reaches `10.42.0.1:18081` and completes the SYN/SYN-ACK/ACK handshake. The hard gate still does **not** pass because no HTTP request bytes follow; the raw server times out with `RAW b''`, and there is no Loader success screenshot.
 
-### Build and identity correction
+The final tested package is `-HarnessLoaderR11E:jbfly`, visible version `1.1-r11e`. It adds PT100's three-argument connect completion shape and prevents repeated `InetGrabLink` `connected` notifications from replacing an already-created endpoint. That guard reduces one tap from two simultaneous TCP connections to exactly one, but the completion remains stuck at `Connecting...` and never calls `output`.
 
-- `examples/harness-loader/Main.newt` uses endpoint-first `self.endpoint:Instantiate(self.endpoint, options)` and visible version `1.1-r11a`.
-- The first built candidate was correctly rejected as stale r10g because `examples/harness-loader/harness-loader.nprj` still named `-HarnessLoaderR10G:jbfly`; the binary contained both r10g and r11a strings. The project metadata was corrected to `-HarnessLoaderR11A:jbfly` and rebuilt before the real runtime test.
-- The tested package SHA-256 is `8c368b91abd520c275199e82e53ad16205a716afa44fd8d8d9fdccca157313f1`. `runtime/evidence/round11a-package-identity.txt` contains only the r11a package/title strings, and live-flash strings confirmed the installed r11a identity.
+### Runtime evidence
 
-### Hard-gate evidence
+- Freshness is explicit in `runtime/evidence/round11b-r11e-baseline.txt`: the capture command is `podman logs --since 0s -f`, its initial size is zero, and the package-server baseline is byte 215.
+- Gate (a) passes. `runtime/evidence/round11b-r11e-runtime-relevant.txt` contains one 58-byte SYN with destination IP bytes `0a 2a 00 01` and destination port bytes `46 a1`, followed by the handshake ACK. The decoded trace reports `dst=18081`.
+- Gate (b) fails. The server delta is `ERROR ('10.42.0.1', 51630) timed out` and `RAW b''`; no non-empty GET arrived. Consolidated evidence is `runtime/evidence/round11b-gate-summary.txt`.
+- Gate (c) fails. `runtime/evidence/round11b-r11e-open.png` visibly identifies `R11E Loader 1.1-r11e`, but the tested result remains `Connecting...` and no success screenshot exists.
+- Live-flash identity evidence is `runtime/evidence/round11b-r11e-live-flash.txt`; package build and checksum evidence are `runtime/evidence/round11b-r11e-build.log` and `runtime/evidence/round11b-r11e-package.sha256`.
 
-- **TCP SYN passed.** Einstein's native packet trace captured two SYN frames (`flags=0x002`) to destination port `18081`, from emulated source ports `33498` and `32788`. The frame bytes contain source `c0 a8 01 2a` (`192.168.1.42`) and destination `0a 2a 00 01` (`10.42.0.1`). Evidence: `runtime/evidence/round11a-tcp-syn-capture.txt`.
-- **Non-empty HTTP GET failed.** The raw server accepted connections from host-side ports `43618` and `43626`; each timed out with `RAW b''`. No `GET` bytes arrived. Evidence: `runtime/evidence/round11a-raw-server.log`.
-- **Success screenshot failed.** `runtime/evidence/round11a-loader-open.png` visibly identifies `-R11A Loader 1.1-r11a`; `runtime/evidence/round11a-loader-after-2s.png` shows the tested build's failure instead of success: `connect threw`, exception `evt.ex.fr.intrp;type.ref.frame`, error `-48808`. Einstein's toolkit maps `-48808` to “Undefined global function.”
+### Iterations and source result
 
-### Next boundary
+- r11a changed only the call to endpoint-first: `self.endpoint:Instantiate(self.endpoint, options)`. It cleared `-48400`, reached TCP, then surfaced connect-stage `-48808` (Einstein toolkit: “Undefined global function”) after the host timed out with no payload.
+- r11c mirrored PT100's connect completion frame. A captured local closure crashed `tntk`; replacing it with a non-capturing callback built cleanly. Runtime still remained at `Connecting...`.
+- r11d used PT100-like lexical `self` in the completion callback. One tap still created two TCP connections, both empty.
+- r11e added `if self.endpoint then return nil` before `Resolved`. One tap then created exactly one TCP connection, proving duplicate `InetGrabLink` notifications caused the double connect. It did not cause the GET to be emitted.
 
-Do not return to the Round 10 option-frame hypothesis: its trigger condition did not occur. Endpoint-first `Instantiate` progressed through endpoint setup to a real TCP handshake. The next investigation should identify which global function is unresolved during or immediately after synchronous lowercase `connect`, before `DownloadPackage` can output the HTTP request. No Einstein transport, harness-client, network-probe, or orientation-bound changes were made.
+`examples/harness-client` and `examples/network-probe` were not touched. Runtime parent-relative bounds remain `vjParentFullH + vjParentFullV`. Einstein transport and `ap/apply.sh` were not changed.
+
+### Preserved state and next boundary
+
+All capture processes were stopped. `10.42.0.1/24` remains on loopback. The original raw server exited after the r11a timeout attempts; after confirming no process and no listener remained, exactly one replacement was started and left listening as PID 1102453 on `10.42.0.1:18081`.
+
+The next boundary is why the new endpoint client's connect completion does not fire after a valid handshake. Do not revisit `Instantiate` argument order or Einstein transport: r11e proves both frame construction and the TCP path now reach a single established host socket. Compare the live completion event contract—not just its frame slots—with PT100's `MConnectCompProc`, or trace the ROM callback dispatch immediately after the handshake ACK.
