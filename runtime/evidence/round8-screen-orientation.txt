@@ -1,0 +1,6 @@
+Einstein screen orientation — Round 8
+
+containers/emulator.Dockerfile:128-129 sets NEWTON_SCREEN_WIDTH=320 and NEWTON_SCREEN_HEIGHT=480.
+README.md documents /screen.png as 320×480.
+Round 7B screenshots inspected with file(1) are 320×480 portrait.
+PLAN.md:45 says 480x320 and is stale.
