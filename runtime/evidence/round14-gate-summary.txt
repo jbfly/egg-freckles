@@ -1,0 +1,24 @@
+Round 14 Loader gate summary
+
+Experiment 1 (r14a): OUR call path identified.
+- The 1-second Newton-screen capture visibly reads "FAILED: Install failed twice: Link: connecting" before the RemoveLinkClient/-48803 overlay.
+- r14b then exposed the preceding normal progress state as "Link: initializing".
+- Root cause: Grabbed treated normal non-connected NIE progress notifications as failures; Failed called Stop("Failed"), which called InetReleaseLink and caused RemoveLinkClient/-48803.
+
+Final package: -HarnessLoaderR14G:jbfly, visible 1.1-r14g
+SHA-256: f0eff73afeff5f9849dc79ddc4973a98dd4bb861f6cea9aa9b765d3116189a78
+
+(a) PASS
+- round14g-baseline.txt proves the capture file began at 0 bytes and used `podman logs --since 0s -f`.
+- round14g-runtime-relevant.txt contains the fresh SYN to destination bytes 0a 2a 00 01 and port bytes 46 a1 (18081).
+
+(b) PASS
+- round14g-server-delta.txt contains exactly:
+  GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n
+- The trace records a 72-byte TCP payload and ACK progression through ack=6569, covering the full 6,567-byte response.
+
+(c) PASS
+- round14g-loader-open-hard-check.png is a distinct 320x480 Newton-screen image visibly identifying 1.1-r14g before the tap.
+- round14g-success.png is a distinct 320x480 Newton-screen image visibly reading "Harness Client install queued" with no RemoveLinkClient/-48803 overlay.
+- round14g-after-tap-4s.png through -6s.png preserve the unobscured success state; OCR across screenshots 1-6 found zero RemoveLinkClient/-48803 occurrences.
+- The callback copied exactly 6,456 bytes from offset 111 of the 65,536-byte input target, queued SuckPackageFromBinary, and the later Newton notice identified HarnessClient:jbfly. That notice says it was already installed on Internal, consistent with r14d having already installed the same client during callback validation.

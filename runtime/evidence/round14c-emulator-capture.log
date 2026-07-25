@@ -1,0 +1,79 @@
+[emulator-control] 10.89.0.41 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=42
+TCPDIAG native SendPacket addr=0cddff28 size=42
+TCPDIAG native frame ff ff ff ff ff ff 58 b0 35 77 d7 22 08 06 00 01 08 00 06 04 00 01 58 b0 35 77 d7 22 c0 a8 01 2a 00 00 00 00 00 00 c0 a8 01 01
+TCPDIAG inbound frame 58 b0 35 77 d7 22 ff ff ff ff ff ff 08 06 00 01 08 00 06 04 00 02 00 fa c0 a8 01 01 c0 a8 01 01 58 b0 35 77 d7 22 c0 a8 01 2a
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 00 00 00 00 00 60 02 10 00 5d ff 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122392576 ack=0 src=32829 dst=18081
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 46 a1 80 3d 00 00 00 00 07 4b 90 01 60 12 10 00 5d ee 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 01 00 00 00 01 50 10 10 00 75 ab 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392577 ack=1 src=32829 dst=18081
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c698d6c r1=0ce61c64 r2=0cd1e7ec r3=0ce61c6c sp=0cd1e7ec lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c698d6c r1=0ce61c64 r2=00000001 r3=00000001 sp=0cd1e7a4 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c699108 r1=0c698c30 r2=0cd1e764 r3=00000001 sp=0cd1e758 lr=00135560
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69932c r1=0c69932c r2=00010064 r3=00007919 sp=0cc82620 lr=600e14b8
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde330c r1=0c69948c r2=0cde34e4 r3=00007919 sp=0cc82640 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69948c r1=0c69948c r2=ffffffff r3=ffffffff sp=0cc82528 lr=600cfd30
+TCPDIAG native SendBuffer r1=0cddff28 r2=126
+TCPDIAG native SendPacket addr=0cddff28 size=126
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 70 00 04 00 00 40 06 ae 87 c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 01 00 00 00 01 50 10 10 00 ee f1 00 00 47 45 54 20 2f 68 61 72 6e 65 73 73 2d 63 6c 69 65 6e 74 2e 70 6b 67 20 48 54 54 50 2f 31 2e 30 0d 0a 48 6f 73 74 3a 20 31 30 2e 34 32 2e 30 2e 31 0d 0a 43 6f 6e 6e 65 63 74 69 6f 6e 3a 20 63 6c 6f 73 65 0d 0a 0d 0a
+TCPDIAG state=kStateConnected size=126 iptotal=112 iphdr=20 tcphdr=20 payload=72 flags=0x010 seq=122392577 ack=1 src=32829 dst=18081
+TCPDIAG host-send requested=72 sent=72 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69948c r1=00010064 r2=0cde5d60 r3=0cde617f sp=0cc82618 lr=600e0e90
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 46 a1 80 3d 00 00 00 01 07 4b 90 49 50 10 10 00 75 63 00 00
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69932c r1=0cde4d60 r2=000005a8 r3=0cdde24c sp=0cc8257c lr=600e17b0
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 05 00 00 40 06 ae ce c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 05 a9 50 10 10 00 6f bb 00 00
+TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392649 ack=1449 src=32829 dst=18081
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69932c r1=0cde4d60 r2=000005a8 r3=0cdde24c sp=0cc8257c lr=600e17b0
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 06 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 0b 51 50 10 10 00 6a 13 00 00
+TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392649 ack=2897 src=32829 dst=18081
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69932c r1=0cde4d60 r2=000005a8 r3=0cdde24c sp=0cc8257c lr=600e17b0
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 07 00 00 40 06 ae cc c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 10 f9 50 10 10 00 64 6b 00 00
+TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392649 ack=4345 src=32829 dst=18081
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69932c r1=0cde4d60 r2=000005a8 r3=0cdde24c sp=0cc8257c lr=600e17b0
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 08 00 00 40 06 ae cb c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 16 a1 50 10 10 00 5e c3 00 00
+TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392649 ack=5793 src=32829 dst=18081
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69932c r1=0cde4d60 r2=00000307 r3=0cdde24c sp=0cc8257c lr=600e17b0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69932c r1=0c69932c r2=00010064 r3=00007919 sp=0cc82620 lr=600e14b8
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 09 00 00 40 06 ae ca c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 19 a8 50 10 10 00 5b bc 00 00
+TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392649 ack=6568 src=32829 dst=18081
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ef 00 00 40 06 aa e4 0a 2a 00 01 c0 a8 01 2a 46 a1 80 3d 00 00 19 a8 07 4b 90 49 50 11 10 00 5b bb 00 00
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 0a 00 00 40 06 ae c9 c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 19 a9 50 10 10 00 5b bb 00 00
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392649 ack=6569 src=32829 dst=18081
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69932c r1=0cde4d60 r2=00000000 r3=0cdde24c sp=0cc8257c lr=600e17b0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69932c r1=0c69932c r2=00010064 r3=00007919 sp=0cc82620 lr=600e14b8
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 0b 00 00 40 06 ae c8 c0 a8 01 2a 0a 2a 00 01 80 3d 46 a1 07 4b 90 49 00 00 19 a9 50 11 10 00 5b ba 00 00
+TCPDIAG state=kStatePeerDiscWaitForFIN size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x011 seq=122392649 ack=6569 src=32829 dst=18081
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 f0 00 00 40 06 aa e3 0a 2a 00 01 c0 a8 01 2a 46 a1 80 3d 00 00 19 a9 07 4b 90 4a 50 04 10 00 5b c6 00 00
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.41 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -

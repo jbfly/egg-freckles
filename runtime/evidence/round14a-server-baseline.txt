@@ -1,0 +1,2 @@
+server_log_bytes_before=35
+server_log_lines_before=1

@@ -569,3 +569,29 @@ Per the stop condition, no r13b receive-work restoration was made. A delayed-clo
 The only source change is the requested early `if self.endpoint then return nil` at the top of `Grabbed`, above error and `linkStatus` handling, plus the unique r13a identity in `Main.newt` and `harness-loader.nprj`. `examples/harness-client` and `examples/network-probe` were not touched.
 
 All emulator-log captures are stopped. The temporary delayed-close copy lived under `/tmp` and exited; `runtime/raw_pkg_server.py` matched its pre-test SHA-256 afterward. Exactly one original raw package server is listening on `10.42.0.1:18081`, and `10.42.0.1/24` remains on loopback.
+
+## 2026-07-25 — Round 14: `Grabbed` progress handling removed `-48803`
+
+### Bottom line
+
+The hard gate **passes** with `-HarnessLoaderR14G:jbfly`, visible version `1.1-r14g`, SHA-256 `f0eff73afeff5f9849dc79ddc4973a98dd4bb861f6cea9aa9b765d3116189a78`. Experiment 1 proved the alert was our call path: r14a visibly reported `FAILED: Install failed twice: Link: connecting` before `RemoveLinkClient/-48803`, and r14b exposed the earlier normal state `Link: initializing`. `Grabbed` was incorrectly sending ordinary NIE progress notifications to `Failed`, which called `Stop("Failed")` and then `InetReleaseLink`.
+
+The fix is to ignore every non-error `Grabbed` state until `linkStatus = 'connected`. Experiment 2's link-layer deletion was therefore not run. With the call path fixed, the real receive callback copies the 6,456-byte package body from offset 111, queues installation, and visibly reports `Harness Client install queued` without the `RemoveLinkClient/-48803` overlay.
+
+### Runtime evidence
+
+- Identity hard check passes. `runtime/evidence/round14g-loader-open-hard-check.png` is a distinct 320×480 Newton-screen capture visibly reading `- R14G Loader 1.1-r14g`; checksum and exact chooser path are in `round14g-package-identity.txt` and `round14g-installer-exact-fullpath.png`.
+- Gate (a) passes. `round14g-baseline.txt` records `capture_initial_bytes=0` and `podman logs --since 0s -f`. `round14g-runtime-relevant.txt` contains the fresh SYN to `0a 2a 00 01`, destination port `46 a1` / 18081.
+- Gate (b) passes. `round14g-server-delta.txt` contains the exact 72-byte request `GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n`. The fresh trace records the 72-byte TCP payload and ACK progression through `ack=6569`, covering the complete 6,567-byte response.
+- Gate (c) passes. `round14g-success.png` and the distinct `round14g-after-tap-4s.png` through `-6s.png` visibly show `Harness Client install queued` with `1.1-r14g` and no `RemoveLinkClient/-48803` overlay. Consolidated evidence is `round14-gate-summary.txt`.
+- The later package notice identifies `HarnessClient:jbfly` and says it is already installed on Internal. That is expected in this preserved flash: r14d's restored callback had already passed the body to `SuckPackageFromBinary` while validating the receive path. `InstallBinaryLater` now uses NewtonOS `AddDelayedCall(..., 5000)` so the success state is visible before installation proceeds.
+
+### Iterations and source result
+
+- r14a added the requested `Stop(reason)` and `FAILED:` markers without changing behavior; it caught `Failed("Link: connecting")` before the overlay.
+- r14b accepted `'connecting` but then caught `Failed("Link: initializing")`, proving all pre-connected states are normal progress.
+- r14c changed `Grabbed` to return for every non-error state other than `'connected`; `RemoveLinkClient/-48803` disappeared while both transport gates continued to pass.
+- r14d restored the receive work: copy 6,456 bytes from input-target offset 111, clear the VBO cache, call `InstallBinaryLater`, and set a clear success status. The first nested callback form triggered an old `tntk` compiler segfault and produced no package; moving the work into `InputReceived` compiled normally.
+- r14e ignored the post-callback `evt.ex.comm` from `Input()` so it could no longer overwrite callback status. r14f/r14g calibrated the native delayed install from 300 ms to 5,000 ms, leaving a stable success-screen evidence window.
+
+`examples/harness-client` and `examples/network-probe` were not changed. All emulator-log captures are stopped, the original raw package server remains the sole listener on `10.42.0.1:18081`, and `10.42.0.1/24` remains on loopback.

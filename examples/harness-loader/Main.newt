@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderR13A:jbfly|;
-kVersion := "1.1-r13a";
-kAppTitle := "- R13A Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderR14G:jbfly|;
+kVersion := "1.1-r14g";
+kAppTitle := "- R14G Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -18,7 +18,7 @@ mainView := {
     SetStatus: func(message)
         SetValue(self.resultView, 'text, message),
 
-    Stop: func()
+    Stop: func(reason)
     begin
         if self.endpoint then
         begin
@@ -29,6 +29,7 @@ mainView := {
         end;
         if self.linkID then
         begin
+            :SetStatus("STOP called from " & reason);
             call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
             self.linkID := nil;
         end;
@@ -45,7 +46,7 @@ mainView := {
 
     TryFetch: func()
     begin
-        :Stop();
+        :Stop("TryFetch");
         :SetStatus("Fetch attempt " & self.attempt & " of 2...");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
     end,
@@ -58,9 +59,7 @@ mainView := {
         if self.endpoint then return nil;
         if error then return :Failed("Link failed: " & error);
         self.linkID := id;
-        if state.linkStatus = 'connect then return nil;
-        if state.linkStatus <> 'connected then
-            return :Failed("Link: " & state.linkStatus);
+        if state.linkStatus <> 'connected then return nil;
         :Resolved(nil, nil);
     end,
 
@@ -167,13 +166,23 @@ mainView := {
 
     InstallBinaryLater: func(binary)
     begin
-        AddDeferredCall(
+        AddDelayedCall(
             func(theBinary)
                 try
                     // ponytail: fixed client package only, so the loader never replaces itself.
                     GetDefaultStore():SuckPackageFromBinary(theBinary, nil)
                 onexception |evt.ex| do nil,
-            [binary]);
+            [binary],
+            5000);
+    end,
+
+    InputReceived: func(error)
+    begin
+        local binary := GetDefaultStore():NewVBO('package, 6456);
+        BinaryMunger(binary, 0, 6456, self.inputTarget, 111, 6456);
+        ClearVBOCache(binary);
+        :InstallBinaryLater(binary);
+        :SetStatus("Harness Client install queued");
     end,
 
     DownloadPackage: func()
@@ -185,28 +194,30 @@ mainView := {
             target: {data: self.inputTarget, offset: 0},
             termination: {byteCount: 6567},
             discardAfter: 65536,
-            InputScript: func(endpoint, data, result, error) nil,
+            InputScript: func(endpoint, data, result, error)
+                endpoint._parent:InputReceived(error),
         });
         :SetStatus("Requesting /harness-client.pkg...");
         self.endpoint:output(
             "GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
             nil,
             {async: nil, reqTimeout: 10000});
-        self.endpoint:Input();
+        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
         return nil;
     end,
 
     Failed: func(message)
     begin
-        :Stop();
+        :SetStatus("FAILED: " & message);
+        :Stop("Failed");
         if self.attempt < 2 then
         begin
             self.attempt := self.attempt + 1;
-            :SetStatus("Retrying after: " & message);
+            :SetStatus("FAILED: Retrying after: " & message);
             // ponytail: one deferred retry handles transient link/TCP failures without a scheduler.
             AddDeferredCall(func(view) view:TryFetch(), [self]);
         end else
-            :SetStatus("Install failed twice:\n" & message & "\nTap to retry");
+            :SetStatus("FAILED: Install failed twice:\n" & message & "\nTap to retry");
     end,
 
     stepChildren: [
