@@ -446,3 +446,21 @@ The Loader never sent because it used the legacy endpoint API incorrectly: its `
 - The host AX200 AP was not stable: each verified `ssid newton` / `type AP` launch was followed within seconds by repeated iwlwifi resets and loss of `10.42.0.1`. For the emulator-only test, the same address was temporarily assigned to loopback through the existing authorized AP script, the script text was immediately reverted, and `runtime/raw_pkg_server.py` was verified listening on `10.42.0.1:18081`. The temporary address and AP were removed afterward; the repository scripts have no diff. Evidence: `runtime/evidence/round8-ax200-reset.txt`, `runtime/evidence/round8-host-listener.txt`, and `runtime/logs/round8-ap-teardown.log`.
 - The fixed installed Loader still did **not** pass the runtime gate. Its first tap emitted link traffic only and ended `Install failed twice: Link: connect`. After the link transition settled, the bounded second tap reached `Fetch attempt 1 of 2...` and remained there for 16 seconds. The complete emulator delta contains only control-API requests: no `NIE7`, no `TCPDIAG`, and no `TNewScriptEndpointClient::DoOutput`. The package-server delta is empty, so no HTTP GET arrived. Evidence: `runtime/evidence/round8-loader-after-5s.png`, `runtime/evidence/round8-loader-retry-6s.png`, `runtime/evidence/round8-loader-retry-16s.png`, `runtime/evidence/round8-loader-retry-emulator-delta.txt`, and zero-byte `runtime/evidence/round8-loader-retry-server-delta.txt`.
 - **Hard-gate verdict:** transport itself is runtime-proven with PT100, but the fixed Loader remains stalled before endpoint setup/output. Goal 1 therefore fails; no claim is made that the endpoint fix completes an HTTP fetch. Per the gate, `examples/harness-client/Main.newt` and `examples/network-probe` were not changed or rebuilt.
+
+## 2026-07-25 — Round 9: Loader link-state correction (runtime gate still closed)
+
+### PT100 evidence and source changes
+
+- Reused the Round 7B decode rather than decoding PT100 again. `runtime/evidence/round9-pt100-call-sequence.txt` preserves the existing `MConnectAction` evidence: PT100 calls `Instantiate(configOptions, self)`, then `Bind`, then lowercase `connect`.
+- The preferred no-`InetGrabLink` path was tested in an independently named package (`HarnessLoaderR9D:jbfly`) so Newton could not retain the previously installed R3O package. It failed before a SYN with Newton error `-48400`; therefore this Loader configuration requires the `ilid` option and the deletion-only fix is not viable on the current image.
+- Restored the link-ID path with the three source corrections: `Instantiate(..., self)` uses the owner frame; the `'connect` callback is treated as an in-progress transition rather than a failure; and the link ID is saved immediately so `Stop` can release it before a retry. The project/package identity is restored to `HarnessLoaderR3O:jbfly`, visible version `1.1-r9`.
+
+### Runtime result
+
+- Built and installed uniquely named r9/r9b/r9c diagnostic packages to avoid the stale stable-identity package seen in Round 8. The fallback path progressed past the initial `'connect` callback, but endpoint setup failed before any TCP SYN or `TNewScriptEndpointClient::DoOutput`; cleanup then exposed Newton Internet Enabler event error `-48803` while removing the link client from the connected FSM. Representative evidence: `runtime/evidence/round9b-fetch-after-10s.png` and `runtime/evidence/round9c-fetch-result.png`.
+- The hard acceptance gate did **not** pass: `runtime/logs/round9-raw-server.log` remained empty, no SYN to `10.42.0.1:18081` appeared, and no HTTP GET arrived. No success screenshot exists. `examples/harness-client` and `examples/network-probe` were not touched.
+- The temporary `10.42.0.1/24` loopback address was added through the authorized `ap/apply.sh` workaround, the tracked script was restored immediately, and the address and raw package server were removed after testing. The final loopback has only `127.0.0.1/8` and `::1/128`.
+
+### Next boundary
+
+Capture the original communication exception before `Failed` calls `Stop`; the asynchronous `InetReleaseLink` event currently overlays the actual endpoint error. Do not change Einstein transport: Round 8 already proved it with PT100.

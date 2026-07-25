@@ -1,0 +1,95 @@
+Round 9 PT100 decoded call-sequence confirmation
+
+'MConnectAction
+[
+	literals:
+	'|evt.ex.comm|,
+	"Instantiating...",
+	'MMessage,
+	'Instantiate,
+	'CurrentException,
+	'error,
+	'MNotifyError,
+	'MSetEndPointState,
+	'Bind,
+	"Binding...",
+	'|PT100:Scrawl|,
+	<function, 2 arg(s) #17fe3b91>,
+	'RegPowerOff,
+	'fConnectAction,
+	'Listen,
+	"Waiting for connection...",
+	90000,
+	<function, 3 arg(s) #17fe3f41>,
+	[
+		2:
+		NIL,
+		'async,
+		'reqTimeout,
+		'completionScript
+	],
+	'connect,
+	"Connecting...",
+	'theSession,
+	'type,
+	'telnet,
+	'theAddress,
+	[
+		pathExpr:
+		'advanced,
+		'portNumber
+	],
+	'ToNumber,
+	'TBuildConnectOptions,
+	'fConnectAddress,
+	'array,
+	'prefs,
+	[
+		pathExpr:
+		'timing,
+		'TimeOut
+	],
+	[
+		pathExpr:
+		'timing,
+		'TimeOut
+	],
+	45000,
+	<function, 3 arg(s) #17fe4191>,
+	[
+		2:
+		NIL,
+		'async,
+		'reqTimeout,
+		'completionScript
+	],
+	'MDisconnect
+]
+
+Key bytecode: receiver gets config options then self for Instantiate
+]
+                           push (b =   0)
+ 00 58            push-constant (b =  88)
+                   new-handlers (b =   1)
+                           push (b =   1)
+                      push-self
+                           push (b =   2)
+                           send (b =   1)
+                            pop
+                      push-self
+                        get-var (b =   3)
+                      push-self
+                           push (b =   3)
+                           send (b =   2)
+                            pop
+ 00 07             pop-handlers
+ 00 28                   branch (b =  40)
+                           push (b =   4)
+                           call (b =   0)
+                           push (b =   5)
+                       get-path (b =   1)
+                      push-self
+                           push (b =   6)
+                           send (b =   1)
+                            pop
+                  push-constant (b =   0)

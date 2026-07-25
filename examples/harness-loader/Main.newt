@@ -1,5 +1,5 @@
 kAppSymbol := '|HarnessLoaderR3O:jbfly|;
-kVersion := "1.1-r7b";
+kVersion := "1.1-r9";
 kAppTitle := "Harness Loader v" & kVersion;
 
 mainView := {
@@ -50,9 +50,10 @@ mainView := {
     Grabbed: func(id, state, error)
     begin
         if error then return :Failed("Link failed: " & error);
+        self.linkID := id;
+        if state.linkStatus = 'connect then return nil;
         if state.linkStatus <> 'connected then
             return :Failed("Link: " & state.linkStatus);
-        self.linkID := id;
         :Resolved(nil, nil);
     end,
 
@@ -74,7 +75,7 @@ mainView := {
                     form: 'template,
                     data: {arglist: [1], typelist: ['struct, 'ulong]},
                 },
-            ], self.endpoint);
+            ], self);
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
             self.endpoint:connect([
                 {
