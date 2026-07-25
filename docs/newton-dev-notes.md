@@ -426,3 +426,12 @@ Stock PT100 payload did not reach the listener, so the Loader acceptance gate re
 ### Round 7B bottom line
 
 The Loader never sent because it used the legacy endpoint API incorrectly: its `Instantiate` arguments were reversed and it invoked uppercase legacy `Connect`/`Output`. Stock PT100 proves the working Newton 2.x path uses the same `protoBasicEndpoint` but calls `Instantiate(configOptions, endpointFrame)`, lowercase `connect`, and lowercase `output`, which dispatch to `TNewScriptEndpointClient`. The Loader source now matches that pattern; the remaining verification step is to rerun it once `InetGrabLink` reports `connected` and confirm the built request reaches `runtime/raw_pkg_server.py`.
+
+## 2026-07-25 — Round 8: runtime confirmation
+
+### Starting state
+
+- Began at clean `master` commit `3bb0def19f1c8cda521c3412cc5d2b06d08c85e1`; the Loader fix is commit `86be141` and its built package SHA-256 is `37b003f8c61b9c4299e87844409dbd7d189e018b30d332319ee86619776a4e71`.
+- Round 8 is gated on two live observations from the fixed Loader: a non-empty HTTP GET in `runtime/logs/raw-pkg-server.log` and `TNewScriptEndpointClient::DoOutput` in the emulator ROM trace. No harness-client or network-probe source will be changed unless both observations are captured.
+- Before the Round 8 install, copied the live 8,388,608-byte flash to `runtime/backups/internal-before-round8-loader-20260725-182141.flash`. Both source and backup SHA-256 are `813b401f22483bea8a5a772afe31e62bbf6f53f269b2668888a6b614c51cb2ba`; evidence is `runtime/evidence/round8-loader-backup-sha256.txt`.
+- Einstein's package installer opened the exact `/packages/harness-loader/harness-loader.pkg`, but Newton rejected it only because `HarnessLoaderR3O:jbfly` was already installed on Internal (`runtime/evidence/round8-after-loader-install-screen.png`). The live flash contains `Harness Loader v1.1-r7b`; the source package SHA-256 remains `37b003f8c61b9c4299e87844409dbd7d189e018b30d332319ee86619776a4e71`.
