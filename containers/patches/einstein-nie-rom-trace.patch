@@ -1,0 +1,43 @@
+diff --git a/Emulator/JIT/Generic/TJITGeneric.cpp b/Emulator/JIT/Generic/TJITGeneric.cpp
+--- a/Emulator/JIT/Generic/TJITGeneric.cpp
++++ b/Emulator/JIT/Generic/TJITGeneric.cpp
+@@ -154,6 +154,39 @@ TJITGeneric::Run(TARMProcessor* ioCPU, std::atomic<bool>* inSignal)
+ 	{
+ 		while (inSignal->load())
+ 		{
++			const KUInt32 pc = *pcPtr - 4;
++			const char* traceName = nullptr;
++			switch (pc)
++			{
++				case 0x00068E9C: traceName = "TScriptEndpointClient::DoOutput"; break;
++				case 0x00068FB8: traceName = "TScriptEndpointClient::DoOutputOne"; break;
++				case 0x000693F4: traceName = "TScriptEndpointClient::SndComplete"; break;
++				case 0x00134FDC: traceName = "TNewScriptEndpointClient::DoOutput"; break;
++				case 0x00135440: traceName = "TNewScriptEndpointClient::OutputData"; break;
++				case 0x0013558C: traceName = "TNewScriptEndpointClient::OutputRaw"; break;
++				case 0x00135778: traceName = "TNewScriptEndpointClient::OutputFrame"; break;
++				case 0x00135904: traceName = "TNewScriptEndpointClient::SndComplete"; break;
++				case 0x00382B20: traceName = "TEndpoint::Snd(raw)"; break;
++				case 0x00382B38: traceName = "TEndpoint::Snd(segment)"; break;
++				case 0x00382BBC: traceName = "TEndpoint::nSnd(raw)"; break;
++				case 0x00382BD4: traceName = "TEndpoint::nSnd(segment)"; break;
++				case 0x003835F0: traceName = "TCommToolProtocol::PutBytes"; break;
++				case 0x003835FC: traceName = "TCommToolProtocol::PutFramedBytes"; break;
++				case 0x00383854: traceName = "PConnectionEnd::PutBytesStart"; break;
++				case 0x00383860: traceName = "PConnectionEnd::PutFramedBytesStart"; break;
++				case 0x00045D74: traceName = "CBufferList::Putn"; break;
++				case 0x00046298: traceName = "CBufferList::GetSize"; break;
++			}
++			if (traceName)
++			{
++				fprintf(stderr,
++					"NIE7 pc=%08x %s r0=%08x r1=%08x r2=%08x r3=%08x sp=%08x lr=%08x\n",
++					pc, traceName,
++					ioCPU->mCurrentRegisters[0], ioCPU->mCurrentRegisters[1],
++					ioCPU->mCurrentRegisters[2], ioCPU->mCurrentRegisters[3],
++					ioCPU->mCurrentRegisters[13], ioCPU->mCurrentRegisters[14]);
++				fflush(stderr);
++			}
+ 			// Here we go, iterating...
+ 			// *pcPtr is 4 bytes ahead of the instruction that will
+ 			// actually be executed here
