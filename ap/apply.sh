@@ -27,6 +27,9 @@ nmcli device disconnect wlan0 2>/dev/null || true
 nmcli device set wlan0 managed no 2>/dev/null || true
 
 # 2. Static address for the isolated subnet.
+# ponytail: power save off before the radio comes up -- the AX200 firmware
+# resets itself out of AP mode with PS enabled (7 resets in one boot).
+iw dev wlan0 set power_save off || true
 ip link set wlan0 down
 ip addr flush dev wlan0
 ip addr add 10.42.0.1/24 dev wlan0
