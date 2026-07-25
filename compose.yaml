@@ -1,0 +1,76 @@
+name: newton-harness
+
+services:
+  server:
+    image: localhost/newton-harness-server:${NEWTON_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: containers/server.Dockerfile
+      args:
+        CODEX_VERSION: ${CODEX_VERSION:-0.145.0}
+    environment:
+      NEWTON_FAKE_BACKEND: ${NEWTON_FAKE_BACKEND:-0}
+      NEWTON_PORT: "6801"
+      NEWTON_STATE_DIR: /state
+    ports:
+      - "${NEWTON_SERVER_PORT:-6801}:6801"
+    dns:
+      - "${NEWTON_UPSTREAM_DNS:-1.1.1.1}"
+    volumes:
+      - server-state:/state
+      - codex-home:/home/node/.codex
+    userns_mode: keep-id
+    init: true
+    restart: unless-stopped
+
+  emulator:
+    profiles: [emulator]
+    image: localhost/newton-harness-dev:${NEWTON_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: containers/emulator.Dockerfile
+    environment:
+      NEWTON_ENABLE_VNC: ${NEWTON_ENABLE_VNC:-1}
+    ports:
+      - "127.0.0.1:${NEWTON_CONTROL_PORT:-18080}:8080"
+      - "127.0.0.1:${NEWTON_NOVNC_PORT:-6080}:6080"
+    volumes:
+      - "${NEWTON_ROM_PATH:-./secrets/717006}:/rom/717006:ro"
+      - emulator-state:/state
+      - ./examples:/packages:ro
+      - ./runtime/nie2:/nie2:ro
+    userns_mode: keep-id
+    shm_size: 256m
+    restart: unless-stopped
+    stop_grace_period: 15s
+    healthcheck:
+      test:
+        [
+          CMD,
+          python3,
+          -c,
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  toolchain:
+    profiles: [tools]
+    image: localhost/newton-harness-dev:${NEWTON_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: containers/emulator.Dockerfile
+    entrypoint: []
+    command: [sleep, infinity]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - "${NEWTON_PLATFORM_PATH:-./secrets/Newton 2.1}:/platforms/Newton 2.1:ro"
+    userns_mode: keep-id
+    init: true
+
+volumes:
+  codex-home:
+  emulator-state:
+  server-state:

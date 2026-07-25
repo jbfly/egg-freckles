@@ -1,0 +1,13 @@
+diff --git a/tntk.cpp b/tntk.cpp
+index 9db2e8f..608efbf 100644
+--- a/tntk.cpp
++++ b/tntk.cpp
+@@ -33,6 +33,8 @@ extern "C" {
+ #include "package.h"
+ #include "preferences.h"
+ 
++#include <cstring>
++
+ #define LOG(...) {printf(__VA_ARGS__); putchar(10);}
+ #define LOGFN() puts(__PRETTY_FUNCTION__);
+ 

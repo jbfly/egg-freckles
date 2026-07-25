@@ -1,0 +1,12 @@
+diff --git a/Toolkit/TFLScriptPanel.cpp b/Toolkit/TFLScriptPanel.cpp
+index f30bbd95..2f6f0e71 100644
+--- a/Toolkit/TFLScriptPanel.cpp
++++ b/Toolkit/TFLScriptPanel.cpp
+@@ -449,6 +449,7 @@ TFLScriptEditor::style_parse(const char* text,
+ 				current = 'A';
+ 		}
+ 	}
++	(void) col;
+ }
+ 
+ //

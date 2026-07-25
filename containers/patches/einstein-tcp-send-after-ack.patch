@@ -1,0 +1,18 @@
+diff --git a/Emulator/Network/TUsermodeNetwork.cpp b/Emulator/Network/TUsermodeNetwork.cpp
+index 80f7231f..c8b99120 100644
+--- a/Emulator/Network/TUsermodeNetwork.cpp
++++ b/Emulator/Network/TUsermodeNetwork.cpp
+@@ -1181,7 +1181,12 @@ public:
+ 			case kStateConnectionWaitACK:
+ 				mEinsteinPacketsSeq = packet.GetTCPAck();
+ 				state = kStateConnected;
+-				return 1;
++				if ((packet.GetTCPPayloadSize() == 0)
++					&& ((packet.GetTCPFlags() & Packet::kTCPFlagFIN) == 0))
++				{
++					return 1;
++				}
++				/* fall through: Newton can ACK the SYN and send payload in the same packet. */
+ 			case kStateConnected:
+ 			case kStateConnectedWaitACK:
+ 				// Make sure that we don;t forward packes until the last one was acknowledged

@@ -1,0 +1,55 @@
+; FLTK preferences file format 1.0
+; vendor: robowerk.com
+; application: einstein
+
+[.]
+
+dontShow:1
+
+[./ROM]
+
+path:/rom/717006
+builtInRex:1
+
+[./Flash]
+
+path:/state/internal.flash
+
+[./Screen]
+
+width:320
+height:480
+scale:100
+fullScreen:0
+hideMouse:0
+AppWindowPosX:0
+AppWindowPosY:0
+AllowScreenResize:0
+AllowFullscreen:0
+LaunchMonitorAtBoot:0
+BreakAtROMBoot:0
+ShowMenubar:1
+ShowToolbar:1
+
+[./Memory]
+
+RAMSize:64
+
+[./System]
+
+FetchDateAndTime:1
+
+[./Network]
+
+type:3
+
+[./PCMCIA]
+
+[./PCMCIA/CardList]
+
+[./PCMCIA/CardList/3C709CD5-6573-4D91-B3B2-7B0D122C6AB5]
+
+name:Einstein Network Card
+tag:>NET
+keepInSlot:0
+type:1

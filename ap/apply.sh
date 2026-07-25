@@ -19,7 +19,7 @@ ip addr flush dev wlan0
 ip addr add 10.42.0.1/24 dev wlan0
 ip link set wlan0 up
 
-# 3. Firewall: subnet may reach only this host's TCP 6801 + DHCP/DNS.
+# 3. Firewall: subnet may reach only this host's TCP 6801/18081 + DHCP/DNS.
 nft -f newton-ap.nft
 
 # 4. (Re)start the two daemons, cleanly replacing any previous run.
@@ -29,4 +29,4 @@ mkdir -p "$RUN"
 dnsmasq --conf-file=dnsmasq.conf
 hostapd -B -P "$RUN/hostapd.pid" hostapd.conf
 
-echo "AP up: SSID 'newton' (open, 802.11b ch6) on wlan0, host at 10.42.0.1, harness on tcp/6801"
+echo "AP up: SSID 'newton' (open, 802.11b ch6) on wlan0, host at 10.42.0.1, harness tcp/6801, packages tcp/18081"

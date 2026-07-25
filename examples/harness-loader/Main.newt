@@ -1,0 +1,256 @@
+kAppSymbol := '|HarnessLoaderR3O:jbfly|;
+kVersion := "1.1-r3o";
+kAppTitle := "Harness Loader v" & kVersion;
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 16, top: 72, right: 304, bottom: 264},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    endpoint: nil,
+    linkID: nil,
+    resultView: nil,
+    attempt: 0,
+
+    SetStatus: func(message)
+        SetValue(self.resultView, 'text, message),
+
+    Stop: func()
+    begin
+        if self.endpoint then
+        begin
+            try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.endpoint := nil;
+        end;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+    end,
+
+    Released: func(id, state, error) nil,
+
+    Install: func(resultView)
+    begin
+        self.resultView := resultView;
+        self.attempt := 1;
+        :TryFetch();
+    end,
+
+    TryFetch: func()
+    begin
+        :Stop();
+        :SetStatus("Fetch attempt " & self.attempt & " of 2...");
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+    end,
+
+    Grabbed: func(id, state, error)
+    begin
+        if error then return :Failed("Link failed: " & error);
+        if state.linkStatus <> 'connected then
+            return :Failed("Link: " & state.linkStatus);
+        self.linkID := id;
+        :Resolved(nil, nil);
+    end,
+
+    Resolved: func(results, error)
+    begin
+        local address := [10, 42, 0, 1];
+        self.endpoint := {_proto: protoBasicEndpoint, _parent: self};
+        try
+        begin
+            self.endpoint:Instantiate(self.endpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired},
+                {
+                    label: "ilid", type: 'option, opCode: opSetRequired,
+                    form: 'template,
+                    data: {arglist: [self.linkID], typelist: ['struct, 'ulong]},
+                },
+                {
+                    label: "itsv", type: 'option, opCode: opSetRequired,
+                    form: 'template,
+                    data: {arglist: [1], typelist: ['struct, 'ulong]},
+                },
+            ]);
+            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:Connect([
+                {
+                    label: "itrs", type: 'option, opCode: opSetRequired,
+                    form: 'template,
+                    data: {
+                        arglist: [address[0], address[1], address[2], address[3], 18081],
+                        typelist: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                    },
+                },
+            ], {async: nil, reqTimeout: 10000});
+            local packageBinary := :DownloadPackage();
+            :Stop();
+            if packageBinary then
+            begin
+                :SetStatus("Installing client package...");
+                :InstallBinaryLater(packageBinary);
+                :SetStatus("Deferred install queued");
+            end;
+        end
+        onexception |evt.ex.comm| do
+            :Failed("TCP failed: " &
+                call GetGlobalFn('InetGetExceptionError) with (CurrentException()));
+    end,
+
+    AppendHeaderByte: func(text, byte)
+    begin
+        text := text & CHR(byte);
+        if Length(text) > 4096 then return 'tooLong;
+        if Length(text) >= 4
+        and StrEqual(SubStr(text, -4, 4), "\r\n\r\n") then
+            return 'done;
+        return text;
+    end,
+
+    ParseContentLength: func(headers)
+    begin
+        foreach line in SplitString(headers, "\n") do
+            if BeginsWith(line, "Content-Length:") then
+            begin
+                local fields := SplitString(line, ":");
+                if Length(fields) > 1 then return StringToNumber(fields[1]);
+            end;
+        return nil;
+    end,
+
+    CopyChunk: func(target, targetOffset, contentLength, source, sourceOffset, count)
+    begin
+        if count <= 0 then return targetOffset;
+        if (targetOffset < 0) or ((targetOffset + count) > contentLength) then
+            return :Failed("Server sent more than Content-Length");
+        try
+        begin
+            BinaryMunger(target, targetOffset, count, source, sourceOffset, count);
+            ClearVBOCache(target);
+            return targetOffset + count;
+        end
+        onexception |evt.ex| do
+            :Failed("Package storage failed");
+    end,
+
+    InstallBinaryLater: func(binary)
+    begin
+        AddDeferredCall(
+            func(theBinary)
+                try
+                    // ponytail: fixed client package only, so the loader never replaces itself.
+                    GetDefaultStore():SuckPackageFromBinary(theBinary, nil)
+                onexception |evt.ex| do nil,
+            [binary]);
+    end,
+
+    DownloadPackage: func()
+    begin
+        local headers := "";
+        local contentLength := nil;
+        local packageBinary := nil;
+        local packageOffset := 0;
+        local done := nil;
+
+        :SetStatus("Requesting /harness-client.pkg...");
+        self.endpoint:Output(
+            MakeBinaryFromHex(
+                "474554202F6861726E6573732D636C69656E742E706B6720485454502F312E300D0A486F73743A2031302E34322E302E310D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A",
+                'binary),
+            nil,
+            {async: nil, reqTimeout: 10000});
+        while not done do
+        begin
+            local chunk := self.endpoint:Input({async: nil, reqTimeout: 10000});
+            if chunk = nil then
+                done := true
+            else begin
+                local chunkLength := Length(chunk);
+                if packageBinary = nil then
+                begin
+                    local bodyOffset := nil;
+                    for index := 0 to chunkLength - 1 do
+                        if bodyOffset = nil then
+                        begin
+                            local headerState := :AppendHeaderByte(headers, ExtractByte(chunk, index));
+                            if headerState = 'tooLong then
+                                return :Failed("Response headers exceeded 4096 bytes");
+                            if headerState = 'done then
+                            begin
+                                headers := headers & CHR(ExtractByte(chunk, index));
+                                bodyOffset := index + 1;
+                            end else
+                                headers := headerState;
+                        end;
+                    if bodyOffset <> nil then
+                    begin
+                        if not BeginsWith(headers, "HTTP/1.0 200") then
+                            return :Failed("HTTP status was not 200");
+                        contentLength := :ParseContentLength(headers);
+                        if (contentLength = nil) or (contentLength <= 0) or (contentLength > 65536) then
+                            return :Failed("Content-Length must be 1 to 65536");
+                        try
+                            packageBinary := GetDefaultStore():NewVBO('package, contentLength)
+                        onexception |evt.ex| do
+                            return :Failed("Package allocation failed");
+                        packageOffset := :CopyChunk(packageBinary, 0, contentLength, chunk, bodyOffset, chunkLength - bodyOffset);
+                        if packageOffset = nil then return nil;
+                    end;
+                end else begin
+                    packageOffset := :CopyChunk(packageBinary, packageOffset, contentLength, chunk, 0, chunkLength);
+                    if packageOffset = nil then return nil;
+                end;
+
+                if packageBinary then
+                begin
+                    :SetStatus("Received " & packageOffset & " / " & contentLength & " bytes...");
+                    if packageOffset = contentLength then
+                        done := true;
+                end;
+            end;
+        end;
+
+        if packageBinary = nil then return :Failed("Response headers were incomplete");
+        if packageOffset <> contentLength then
+            return :Failed("Expected " & contentLength & " bytes, got " & packageOffset);
+        return packageBinary;
+    end,
+
+    Failed: func(message)
+    begin
+        :Stop();
+        if self.attempt < 2 then
+        begin
+            self.attempt := self.attempt + 1;
+            :SetStatus("Retrying after: " & message);
+            // ponytail: one deferred retry handles transient link/TCP failures without a scheduler.
+            AddDeferredCall(func(view) view:TryFetch(), [self]);
+        end else
+            :SetStatus("Install failed twice:\n" & message & "\nTap to retry");
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 12, top: 14, right: 276, bottom: 82},
+            text: "Harness Loader v1.1\nFetches Harness Client v1.1", 
+            viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 20, top: 90, right: 268, bottom: 176},
+            text: "Install client update",
+            viewFont: ROM_fontSystem12Bold,
+            buttonClickScript: func() self:Parent():Install(self),
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

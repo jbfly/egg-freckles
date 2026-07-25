@@ -31,6 +31,16 @@ modeled on ~/git/model100. Client/server over wifi.
    handwriting/AI experiments.
 5. Portable networking (later): travel router w/ open SSID + WireGuard upstream.
 
+## Current checkpoint (2026-07-23)
+- Einstein and the Linux Newton toolchain build locally; the ROM reaches NewtonOS.
+- Headless rootless-Podman services are scaffolded separately for the always-on
+  server, Einstein/Xvfb/noVNC, and reproducible package builds.
+- The emulator control API provides cropped screenshots, full-window screenshots,
+  Newton-coordinate taps, full-window clicks, text, and key input.
+- Rootless Podman builds and runs the headless emulator; the corrected sample
+  package installs and launches successfully through the agent control API.
+- Remaining Phase 2 verification: connect the emulated Newton to `server:6801`.
+
 ## Constraints
 - Newton screen: 480x320 grayscale. PT100: 45 cols. No TLS on device — server
   proxies everything. ASCII only.

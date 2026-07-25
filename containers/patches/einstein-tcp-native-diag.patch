@@ -1,0 +1,43 @@
+diff --git a/Emulator/TNativePrimitives.cpp b/Emulator/TNativePrimitives.cpp
+--- a/Emulator/TNativePrimitives.cpp
++++ b/Emulator/TNativePrimitives.cpp
+@@ -2975,6 +2975,8 @@ TNativePrimitives::ExecuteNative(KUInt32 inInstruction)
+ 			{
+ 				mLog->LogLine("TNetworkManager::SendBuffer");
+ 			}
++			fprintf(stderr, "TCPDIAG native SendBuffer r1=%08x r2=%u\n",
++				mProcessor->GetRegister(1), mProcessor->GetRegister(2));
+ 			break;
+ 		case 0x09:
+ 			// Newton transfers data to the world (calls SendPacket)
+@@ -2982,6 +2984,8 @@ TNativePrimitives::ExecuteNative(KUInt32 inInstruction)
+ 			{
+ 				mLog->LogLine("TNetworkManager::SendCBufferList");
+ 			}
++			fprintf(stderr, "TCPDIAG native SendCBufferList r1=%08x r2=%u\n",
++				mProcessor->GetRegister(1), mProcessor->GetRegister(2));
+ 			break;
+ 		case 0x0a: {
+ 			// Newton wants to send a raw packet into the world
+@@ -2990,6 +2994,7 @@ TNativePrimitives::ExecuteNative(KUInt32 inInstruction)
+ 			if (LOG_NETWORKMANAGER)
+ 			{
+ 				mLog->FLogLine("TNetworkManager::SendPacket(0x%08x, %d)", (unsigned int) addr, (int) size);
+ 			}
++			fprintf(stderr, "TCPDIAG native SendPacket addr=%08x size=%u\n", addr, size);
+ 			if (mNetworkManager && size)
+ 			{
+@@ -3002,6 +3007,13 @@ TNativePrimitives::ExecuteNative(KUInt32 inInstruction)
+ 					mMemory->ReadB(addr + i, v);
+ 					data[i] = v;
+ 				}
++				if (size <= 128)
++				{
++					fprintf(stderr, "TCPDIAG native frame");
++					for (i = 0; i < size; i++)
++						fprintf(stderr, " %02x", data[i]);
++					fprintf(stderr, "\n");
++				}
+ 				mNetworkManager->SendPacket(data, size);
+ 				free(data);
+ 			}

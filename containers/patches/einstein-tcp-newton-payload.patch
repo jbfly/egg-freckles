@@ -1,0 +1,29 @@
+--- a/Emulator/Network/TUsermodeNetwork.cpp
++++ b/Emulator/Network/TUsermodeNetwork.cpp
+@@ -1173,6 +1173,14 @@
+ 			return 0;
+ 		LOG_PROTOCOL("|       Send: state=%s.", StateName());
+ 		LOG_HEADER_DO(mNet->Log(&packet, "| W E<N", __LINE__, mSeqBase, 0);)
++		fprintf(stderr,
++			"TCPDIAG state=%s size=%u iptotal=%u iphdr=%u tcphdr=%u payload=%zd flags=0x%03x seq=%u ack=%u src=%u dst=%u\n",
++			StateName(), (unsigned int) packet.Size(), (unsigned int) packet.GetIPTotalLength(),
++			(unsigned int) packet.GetIPHeaderLength(), (unsigned int) packet.GetTCPHeaderLength(),
++			packet.GetTCPPayloadSize(), (unsigned int) packet.GetTCPFlags(),
++			(unsigned int) packet.GetTCPSeq(), (unsigned int) packet.GetTCPAck(),
++			(unsigned int) packet.GetTCPSrcPort(), (unsigned int) packet.GetTCPDstPort());
++		fflush(stderr);
+ 		switch (state)
+ 		{
+ 			case kStateDisconnected:
+@@ -1200,7 +1208,10 @@
+ 				{
+ 					// this is a data packet: send data to the socket
+ 					LOG_HEADER_DO(mNet->Log(&packet, "| W<E N", __LINE__, mSeqBase, 0);)
+-					::send(mSocket, (char*) packet.GetTCPPayloadStart(), packet.GetTCPPayloadSize(), 0);
++					ssize_t sent = ::send(mSocket, (char*) packet.GetTCPPayloadStart(), packet.GetTCPPayloadSize(), 0);
++					fprintf(stderr, "TCPDIAG host-send requested=%zd sent=%zd errno=%d\n",
++						packet.GetTCPPayloadSize(), sent, sent < 0 ? errno : 0);
++					fflush(stderr);
+ 					// FIXME: use return value
+ 					mNewtonPacketsSeq = packet.GetTCPSeq() + (KUInt32) packet.GetTCPPayloadSize();
+ 					// return an ACK to Newton

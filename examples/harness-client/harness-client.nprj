@@ -1,0 +1,10 @@
+{
+    parts: [
+        {
+            main: "Main.newt",
+            files: [],
+        }
+    ],
+    name: "HarnessClient:jbfly",
+    platform: "Newton 2.1"
+}

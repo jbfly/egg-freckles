@@ -1,0 +1,400 @@
+
+## Pending integration — status heartbeat and emulator drag
+
+- `runtime/raw_pkg_server.py` now serves `GET /status` as HTTP/1.0 with the canonical `pkg_publisher.STATUS_BODY`: `Harness server v1.1 OK\n`.
+- `emulator/control.py` now accepts `POST /drag` with integer `start_x`, `start_y`, `end_x`, `end_y`, optional `duration` seconds (default `0.5`), and optional `steps` (default `20`). It issues mouse-down, interpolated moves, and mouse-up in Newton screen coordinates.
+- The control source is copied into the emulator image by `containers/emulator.Dockerfile`, so `/drag` needs an image rebuild and container restart before it is live. The raw server also needs a restart for `/status`. Neither service was restarted or rebuilt while preparing this change.
+
+Run these checks after the respective integration restarts:
+
+```sh
+curl --http1.0 -fsS http://10.42.0.1:18081/status | cmp - <(printf 'Harness server v1.1 OK\n')
+curl -fsS -X POST http://127.0.0.1:18080/drag -H 'Content-Type: application/json' -d '{"start_x":40,"start_y":120,"end_x":280,"end_y":360,"duration":0.5,"steps":20}'
+```
+
+## 2026-07-24 — Einstein TCP payload drop investigation (stopped after three failed fixes)
+
+### Bottom line
+
+The HTTP GET is not reaching `TUsermodeNetwork::SendPacket` at all. Einstein completes the host-side TCP connection and Newton completes the emulated SYN/SYN-ACK/ACK handshake, then the Loader visibly reaches `Requesting /harness-client.pkg...`; however, no Newton Ethernet data frame follows. The raw server times out after five seconds with `RAW b''`.
+
+The diagnostic boundary is now precise:
+
+1. NewtonScript's synchronous `protoBasicEndpoint:Connect` returns and `DownloadPackage` calls `endpoint:Output` (the Loader screen changes to `Requesting /harness-client.pkg...`).
+2. Einstein's native bridge logs every `EinsteinNetSendBuffer` and `EinsteinNetSendPacket` call.
+3. After the handshake ACK, there is no native send call for the GET. Therefore the payload is not being dropped by `TTCPPacketHandler::send`, its state guard, `GetTCPPayloadSize`, or host `::send`; Newton/NIE never hands a data frame to Einstein's NE2000 native primitive.
+
+### Reproduction and evidence
+
+- Fresh flash backup before restart testing: `runtime/backups/internal-before-tcpdiag-rebuild-20260724-060617.flash`, SHA-256 `d566009ec599651275091ac04efb7343ea87a8affe6fbc793c77f92ba861ba3d`.
+- Raw package server remained running as `python3 runtime/raw_pkg_server.py` on `10.42.0.1:18081`; it reports `bytes=1328`.
+- Baseline diagnostic attempt:
+  - SYN: `size=58 iptotal=44 tcphdr=24 payload=0 flags=0x002`.
+  - Handshake ACK: `size=54 iptotal=40 tcphdr=20 payload=0 flags=0x010`.
+  - No payload packet appears before the server FIN; raw log records `ERROR ... timed out` and `RAW b''`.
+- Native-bridge diagnostic attempt:
+  - Control packets call `native SendBuffer` followed by `native SendPacket` (58-byte SYN and 54-byte ACK).
+  - No `SendBuffer`/`SendPacket` call follows the Loader's `endpoint:Output`.
+- Consolidated trace: `runtime/evidence/tcpfix-three-failed-hypotheses-20260724.txt`.
+- Screenshots:
+  - `runtime/evidence/tcpfix-native-loader-ready.png`
+  - `runtime/evidence/tcpfix-isn-after.png` (status remains `Requesting /harness-client.pkg...`).
+
+### Three failed fix hypotheses
+
+1. **Remove the SYN-ACK acknowledgment increment.** Replaced `SetTCPAck(++mNewtonPacketsSeq)` with `SetTCPAck(mNewtonPacketsSeq)`. This was based on an initially mistaken reading that the constructor's `seq + 1` survived into `connect`; in fact, `connect` resets `mNewtonPacketsSeq` to the SYN sequence before incrementing it. Newton immediately sent RST (`flags=0x004`) and reported TCP error 10021. The patch was removed.
+2. **Send a duplicate ACK when entering `kStateConnected`.** This tested whether a missing interrupt/window update kept the synchronous endpoint blocked after its handshake ACK. Newton still sent no data frame; the Loader reached `Requesting...`, and the raw server again timed out with an empty request. The patch was removed.
+3. **Use a nonzero Einstein initial sequence number.** Set `mEinsteinPacketsSeq = 1` before generating the SYN-ACK, testing whether zero acted as a Newton TCP sentinel. Newton ACKed the new sequence (`ack=2`), but again emitted no data frame and the raw server received `b''`. The patch was removed from the canonical Dockerfile after the test.
+
+### Patch/build state
+
+- `containers/patches/einstein-tcp-newton-payload.patch` retains the TCP state/payload/host-send diagnostics.
+- `containers/patches/einstein-tcp-native-diag.patch` logs NE2000 native `SendBuffer`, `SendCBufferList`, and `SendPacket` calls.
+- `containers/patches/einstein-tcp-send-after-ack.patch` remains present but was already proven insufficient before this session.
+- The canonical `containers/emulator.Dockerfile` includes those three diagnostic patches and no failed hypothesis patch.
+- The currently running container was built with the third test (`mEinsteinPacketsSeq = 1`); it was not restarted again because the procedure requires stopping after three failed fixes. Rebuild/restart from the canonical Dockerfile before continuing.
+
+### Next investigation boundary
+
+Continue below `protoBasicEndpoint:Output` and above the NE2000 driver's `EinsteinNetSendBuffer` call: inspect the Newton NIE endpoint/transport state and the installed Loader's output object/options. Do not spend another cycle changing `TUsermodeNetwork` packet state or payload arithmetic unless a new trace first shows a data-bearing Ethernet frame reaching `EinsteinNetSendPacket`.
+
+## 2026-07-24 — Round 3 Loader endpoint investigation (stopped after three failed hypotheses)
+
+### Bottom line
+
+Round 3 disproved three Loader-side output hypotheses. A stock PT100 session proved that NewtonOS/NIE can emit an outbound frame through Einstein, but that frame was the 77-byte DNS lookup while PT100 displayed `Looking up machine address...`; it did not establish a known-good TCP data-bearing control. Every Loader build still completed TCP SYN/SYN-ACK/ACK and then delivered no payload to Einstein's native bridge. The raw server received `b''` for every connection.
+
+The remaining boundary is narrower but unresolved: the Loader calls the documented three-argument `protoBasicEndpoint:Output`, but NIE still never calls `EinsteinNetSendBuffer` with the request. Stop here because the round's three-hypothesis cap is reached.
+
+### Required reset and control experiment
+
+- Rebuilt the canonical `containers/emulator.Dockerfile` in the background and polled it to completion. `runtime/logs/round3-canonical-build.exit` is `0`; the canonical/running image is `63ee1f3db21b979939bfedc6c0a9fd489ce93a1c302515badab53db3d8e2e364`, with no nonzero-ISN patch.
+- The raw package server remained running on `10.42.0.1:18081` and continued to report `serving ... bytes=1328`.
+- Tried NewtonOS's stock PT100 client as the cheap control. It emitted a 77-byte native frame while the UI said `Looking up machine address...` (`runtime/evidence/round3-pt100-control-result2.txt`), but no TCP state diagnostic appeared. This is evidence that NIE can reach the NE2000 bridge for DNS/UDP, not evidence that stock outbound TCP payload works. No installed stock client was successfully configured far enough to produce a TCP payload this round.
+
+### Three failed Loader hypotheses
+
+1. **Send the HTTP request as a binary rather than a NewtonScript string.** Built and installed `HarnessLoaderR3:jbfly` using `MakeBinaryFromHex(..., 'binary)`. One button action triggered the Loader's two built-in attempts. Both handshakes completed, both raw-server reads timed out with `RAW b''`, and no data-bearing native frame appeared. Evidence: `runtime/evidence/round3-hypothesis1-result.txt`.
+2. **Explicitly flush after synchronous `Output`.** Built and installed `HarnessLoaderR3F:jbfly`, adding `endpoint:FlushOutput()` after the binary request. Fresh pre-install backup: `runtime/backups/internal-before-round3-loader-flush-20260724-071430.flash`, SHA-256 `87258706e3c83690d2b7421385430a4ff4a927569c1083414aa5f8d5238d51b6`. Both built-in attempts again timed out with `RAW b''`; the last Newton native calls were handshake ACKs. Evidence: `runtime/evidence/round3-hypothesis2-result.txt` and `runtime/evidence/round3-hypothesis2-after-fetch.png`.
+3. **Correct the `Output` call from two arguments to the documented three arguments.** A known-working EnRoute source image contains `Output: func(data, opts, outSpec)` and sends with `enRoute:Output(v_outStrBuff, nil, outSpec)`. It also defines async output specs with `async: true` and a `completionScript`. The Loader had incorrectly called `Output(data, {async: nil, reqTimeout: 10000})`, leaving the output-spec argument absent. Built and installed `HarnessLoaderR3O:jbfly` with `Output(binary, nil, {async: nil, reqTimeout: 10000})` and removed the disproven flush. Fresh pre-install backup: `runtime/backups/internal-before-round3-outputspec-20260724-072727.flash`, SHA-256 `2c878492b92cbfc046e73d02c549897e0ac79006bf73faf121f37f9e5e4d8161`. Both attempts still timed out with `RAW b''`, with no native payload frame. Evidence: `runtime/evidence/round3-hypothesis3-result.txt` and `runtime/evidence/round3-hypothesis3-after-fetch.png`.
+
+### Build and runtime state
+
+- Current Loader source/package symbol: `HarnessLoaderR3O:jbfly`; source uses the corrected three-argument call at `examples/harness-loader/Main.newt:159-164`.
+- Current staged Loader SHA-256: `f8646115a956f430878a750795dced212ae981875a783cd15d3a5201620d5232`.
+- Current staged client is 6,456 bytes, SHA-256 `dceacc8130d175c151b2261f0e06873d7e9e63752f035820428e820c125bbee3`. The long-running raw server intentionally stayed untouched as required and still serves the 1,328-byte package it loaded at startup; because no GET arrived, this size difference did not affect any result.
+- `HarnessClient:jbfly` was not installed and the acceptance criteria were not met. No client launch screenshot exists.
+- Emulator remains running on canonical image `63ee1f3d...`; raw server remains running; no AP/firewall settings changed; no physical Newton was touched; all backups were preserved.
+
+### Next boundary
+
+Do not make another Loader fix without a new round. First obtain a true stock TCP control (for example, configure PT100 with a numeric host and reachable TCP listener, or use Dock/NCX) and prove whether a data-bearing TCP frame reaches `EinsteinNetSendPacket`. If stock TCP works, inspect the endpoint's async output state/callback path and the full `Input`/`SetInputSpec` API shape; EnRoute's working code predominantly uses an async output spec with a completion callback rather than a synchronous spec.
+
+## Upstream prior art
+
+Research performed 2026-07-24 against the Einstein upstream repository, its
+GitHub issues and pull requests, and the NewtonTalk MARC archive.
+
+### No post-pin network fix exists upstream
+
+The pinned revision,
+[`f5544a039fc3964e18b217ccffa030c6bf1e4044`](https://github.com/pguyot/Einstein/commit/f5544a039fc3964e18b217ccffa030c6bf1e4044),
+is still the `HEAD` of `pguyot/Einstein`'s default branch. A comparison of all
+current remote branches found no later network implementation: the three
+post-pin branch differences in `TUsermodeNetwork.cpp` only change C++ empty
+initializers from `{ }` to `{}`. The only GitHub issue or PR created after the
+pin is unrelated [PR #220, “Fix Pulseaudio
+buffering”](https://github.com/pguyot/Einstein/pull/220).
+
+Therefore there is no later outbound-TCP fix available to cherry-pick from
+upstream.
+
+### Earlier upstream network fixes are already in the pinned revision
+
+The relevant upstream history predates the pin and is already ancestral to it:
+
+- [`6029f5320cd2108c899cab41a5a1f7c7224fe1bf`](https://github.com/pguyot/Einstein/commit/6029f5320cd2108c899cab41a5a1f7c7224fe1bf)
+  (2010-06-07) says: **“TCP is working OK. Closing a socket from either side
+  needs to be implemented.”** This changed `TUsermodeNetwork` and
+  `TNativePrimitives`.
+- [`dddd9e4ebfe578a799159ecde209d73f3bb700f0`](https://github.com/pguyot/Einstein/commit/dddd9e4ebfe578a799159ecde209d73f3bb700f0)
+  (2010-06-08) says: **“Courier is somewhat working now, but incredibly slow.
+  NewtsCape is also slower than expected.”**
+- [`dd19326f0f2f3f737fb5ad75bb28824a34bf2dba`](https://github.com/pguyot/Einstein/commit/dd19326f0f2f3f737fb5ad75bb28824a34bf2dba)
+  (2010-06-19) describes **“the first version of the User Mode Ethernet
+  connection that works ok.”**
+- [`1d1437602f6b4feb7878dcf53728b3f7e1e75787`](https://github.com/pguyot/Einstein/commit/1d1437602f6b4feb7878dcf53728b3f7e1e75787)
+  (2010-06-21) says: **“We can load web pages that are larger than 1000
+  bytes! Actually, we can load pretty large web pages now. I managed to load a
+  gif.”** Its remaining reported problem was premature peer close, not failure
+  to emit the first outbound request.
+- [Issue #58, “First byte is eaten in user mode
+  networking”](https://github.com/pguyot/Einstein/issues/58), concerned the
+  first byte of data sent *from the host to the Newton* immediately after
+  connection establishment. It explicitly reported that the Newton did echo
+  subsequent data, so it was not the present “no Newton data frame” symptom.
+  The issue was closed by
+  [`c3a030ec4ec04179923e677d5c09296f4a961ac6`](https://github.com/pguyot/Einstein/commit/c3a030ec4ec04179923e677d5c09296f4a961ac6);
+  the corresponding master-line commit is
+  [`9956874cba0a2fe3c3a830234cc7ed20cec13d09`](https://github.com/pguyot/Einstein/commit/9956874cba0a2fe3c3a830234cc7ed20cec13d09),
+  **“Fix network code, including #58.”** Besides correcting sequence tracking,
+  that change still sends Newton payload with
+  `write(mSocket, packet.GetTCPPayloadStart(), packet.GetTCPPayloadSize())`.
+- [`963556382aecce9a2ded6077d1c028732df5e1d4`](https://github.com/pguyot/Einstein/commit/963556382aecce9a2ded6077d1c028732df5e1d4)
+  (2022-01-07), **“Much improved UserMode network emulation,”** fixed sequence
+  and acknowledgment handling and throttled packets sent toward NewtonOS.
+  [Issue #119](https://github.com/pguyot/Einstein/issues/119) tracks remaining
+  user-mode-network work such as timeouts and disconnect handling; neither the
+  issue nor its comments mention missing outbound buffer chains.
+- [PR #132](https://github.com/pguyot/Einstein/pull/132), merge commit
+  [`5e3ea5afa36009b63012b19943719e0ab4433181`](https://github.com/pguyot/Einstein/commit/5e3ea5afa36009b63012b19943719e0ab4433181),
+  added emulated DHCP and DNS. It substantially changed
+  `TUsermodeNetwork.cpp` but did not change the NE2000 send primitives.
+
+No issue, pull request, commit message, or code-history change was found that
+implements `TNativePrimitives` primitive `0x08` or `0x09`, or that identifies
+either stub as an outbound TCP data-loss bug.
+
+### NIE/Lantern supports both a flat buffer and a buffer chain
+
+Einstein’s bundled driver is derived from Apple’s NIE 2.0 F1C2 Lantern driver
+sample. It registers handlers for both `kLanternSendBuffer` and
+`kLanternSendCBufferList`. Its own comment describes their contract:
+
+> “Send a packet in the buffer ptr or the CBufferList”
+>
+> “These events [are] sent to a driver when Lantern needs data to be sent. The
+> driver should send data asynchronously. The driver should buffer data to be
+> sent as it may receive more data to send.”
+
+The two handlers converge before crossing into native Einstein code. The
+single-buffer path directly calls `EinsteinNetSendPacket`:
+
+```cpp
+void TNE2000Sample::SendBuffer(Ptr thePacket, Size packetSize)
+{
+    NewtonErr err = noErr;
+
+    EinsteinNetSendBuffer(this);
+    EinsteinNetSendPacket(this, (UChar*)thePacket, packetSize);
+
+    fDriverAPI->PostReply(err);
+}
+```
+
+The chained-buffer path obtains the complete chain size, resets its read mark,
+copies the entire chain into a temporary contiguous buffer, and then invokes
+the same `EinsteinNetSendPacket` entry point:
+
+```cpp
+void TNE2000Sample::SendCBufferList(CBufferList* thePacket)
+{
+    NewtonErr err = noErr;
+
+    EinsteinNetSendCBufferList(this);
+
+    Size packetSize = thePacket->GetSize();
+    thePacket->ResetMark();
+    UChar *tmpBuffer = (UChar*)malloc(packetSize);
+    thePacket->Getn(tmpBuffer, packetSize);
+    EinsteinNetSendPacket(this, tmpBuffer, packetSize);
+    free(tmpBuffer);
+
+    fDriverAPI->PostReply(err);
+}
+```
+
+Source:
+[`Drivers/NE2000Driver/NE2000.cpp`](https://github.com/pguyot/Einstein/blob/f5544a039fc3964e18b217ccffa030c6bf1e4044/Drivers/NE2000Driver/NE2000.cpp).
+The same code is present in the initial network-emulation commit
+[`8b7ffd3214e142bff08f22b45bca9d468a844fc1`](https://github.com/pguyot/Einstein/commit/8b7ffd3214e142bff08f22b45bca9d468a844fc1),
+so this is not a later workaround.
+
+This explains the apparently suspicious native stubs. In
+[`TNativePrimitives.cpp` lines 2972–3003](https://github.com/pguyot/Einstein/blob/f5544a039fc3964e18b217ccffa030c6bf1e4044/Emulator/TNativePrimitives.cpp#L2972-L3003),
+`0x08` and `0x09` only log `SendBuffer` or `SendCBufferList`; `0x0a` reads the
+already-contiguous packet from Newton memory and calls
+`mNetworkManager->SendPacket(data, size)`. The driver, not native primitive
+`0x09`, owns traversal and flattening of the `CBufferList`.
+
+Consequently, a trace containing `SendCBufferList` but not the immediately
+following `SendPacket` would implicate the installed Newton driver’s
+`GetSize`/`ResetMark`/`Getn` path, a stale or different `NE2K.pkg`, or a fault
+between the two native calls. It would not show that native primitive `0x09`
+discarded the payload. In the current trace there is not even a post-`Output`
+`SendCBufferList` call, so the observed loss is still above this driver
+boundary.
+
+I found no NewtonTalk, 40hz.org, or UNNA list/documentation post that discusses
+`SendCBufferList` by name. Thus the single-buffer-versus-chain behavior above
+is supported by the recovered Apple-derived driver source, not independently
+confirmed by a community list post.
+
+### Public evidence of working outbound TCP
+
+There is direct historical evidence that user-mode networking emitted
+data-bearing outbound TCP frames:
+
+- Matthias Melcher’s 2010 NewtonTalk developer-preview post said Einstein could
+  **“load very minimal web pages via the host’s internet connection”** and gave
+  exact instructions for selecting the **“User Mode”** driver, installing
+  NIE 2.0, the Einstein NE2000 package, and Courier:
+  [NewtonTalk, 2010-06-19](https://marc.info/?l=newtontalk&m=127698576108716&w=2).
+  This was the OS X implementation.
+- Four days later he published an OS X binary and reported:
+  **“Network support just got a whole lot better”**; Courier could load simple
+  pages, while Newt’s Cape could eventually load Google:
+  [NewtonTalk, 2010-06-23](https://marc.info/?l=newtontalk&m=127727247206541&w=2).
+- Follow-up testing reported Courier receiving a 2,792-byte UNNA page but
+  cutting it off after a repeatable point:
+  [NewtonTalk, 2010-07-15](https://marc.info/?l=newtontalk&m=127919622201400&w=2).
+  That is evidence of a functioning HTTP request and response stream, although
+  with receive/close bugs.
+- The current source’s status comment still says **“TCP connections are
+  created and can send and receive,”** lists `TCP connect`, `TCP send`, and
+  `TCP receive` as done, and says TCP port 3679 **“works mostly well with NCX
+  2.0”**:
+  [`TUsermodeNetwork.cpp` lines 24–85](https://github.com/pguyot/Einstein/blob/f5544a039fc3964e18b217ccffa030c6bf1e4044/Emulator/Network/TUsermodeNetwork.cpp#L24-L85).
+  This is developer documentation rather than an independently reproduced
+  modern test.
+- In 2016, a Mac user reported that an NPDS tracker successfully received the
+  emulated Newton’s registration but inbound access to the NPDS server failed.
+  Matthias explained that the **User Mode network driver** did not support
+  opening listening ports:
+  [question](https://marc.info/?l=newtontalk&m=148304793012724&w=2),
+  [answer](https://marc.info/?l=newtontalk&m=148312495827573&w=2).
+  The successful tracker registration is additional evidence of outbound
+  application data; the “one way only” limitation concerned host-to-Newton
+  connection initiation, not Newton-to-host sends.
+- A 2022 NewtonTalk thread about NCU “via TCP” is *not* evidence for the
+  Ethernet user-mode path. Its detailed instructions show that it used
+  Einstein’s emulated serial port transported over a host TCP socket:
+  [NewtonTalk, 2022-02-01](https://marc.info/?l=newtontalk&m=164374899207138&w=2).
+
+I could not verify a modern, version-specific report of Courier or another
+HTTP client successfully sending through `TUsermodeNetwork` on the current
+2024–2026 releases. I also could not verify a user-mode Ethernet NCX session
+on a named release and platform; the source comment is the only explicit NCX
+claim found. UNNA supplied the application packages but yielded no relevant
+driver documentation, and no searchable 40hz.org or NewtonTalk material was
+found for the primitive names.
+
+### Verdict
+
+There is no known upstream fix to cherry-pick: the harness already pins
+upstream `HEAD`, and every relevant historical TCP, sequence-number, and
+user-mode-network fix is included. The evidence does **not** support the
+theory that native `SendCBufferList` primitive `0x09` discards outbound TCP
+payload. NIE/Lantern may hand the driver either a flat buffer or a
+`CBufferList`, but Einstein’s Newton-side NE2000 driver explicitly flattens
+the latter and always passes the resulting frame through primitive `0x0a`.
+Historical Courier and NPDS reports prove that outbound application TCP has
+worked through this architecture. Given the present trace’s absence of any
+post-`Output` `SendBuffer`, `SendCBufferList`, or `SendPacket` call, the
+remaining fault is more likely above the Lantern driver entry points—endpoint
+state, NIE transport scheduling/completion, or a difference between the
+installed `NE2K.pkg` and the driver source—rather than in
+`TUsermodeNetwork` or the native `0x09` stub.
+
+## 2026-07-24 — Round 4: stock PT100 control experiment
+
+### Bottom line
+
+The decisive stock control failed in the same way as the Loader. PT100 completed a TCP connection to a numeric host, displayed a connected terminal, and accepted typed input, but the host listener received zero payload bytes. This confirms that the missing outbound TCP payload is Einstein/NIE-side rather than a Loader NewtonScript problem; the Loader's data representation, flush behavior, and `Output` argument form are exonerated by an independent stock NewtonOS application.
+
+### Experimental setup and flash restores
+
+- Ran a logged TCP listener on host address `10.42.0.1`, port `18082`, with no DNS involved. Listener evidence is `runtime/logs/round4-pt100-listener.log`.
+- Configured stock PT100 with a Telnet session targeting numeric host `10.42.0.1` and custom port `18082`. The final visible configuration is captured in `runtime/evidence/round4-stock-config-final-decisive.png`.
+- Before any restore, preserved the then-current flash as `runtime/backups/internal-before-round4-stock-control-restore-20260724-074316.flash`, SHA-256 `65a216599b9700692ac70afaa0ffaf4d8d8480449002b99f31031e8a30f92833` (`runtime/evidence/round4-stock-control-restore-backup.sha256`).
+- First restored `runtime/backups/internal-before-tcpdiag-rebuild-20260724-060617.flash`, SHA-256 `d566009ec599651275091ac04efb7343ea87a8affe6fbc793c77f92ba861ba3d`, to clear PT100's wedged saved state. The matching restore stamp is `runtime/evidence/round4-restored-flash.sha256`. This produced a clean PT100 terminal but required constructing a session and custom port from scratch; the image was restored again while correcting mistaken session-editor actions and stale connection state.
+- For the decisive run, restored the Round 3 pre-binary-hypothesis image `runtime/backups/internal-before-round3-loader-binary-20260724-070952.flash`, SHA-256 `240f92fb95e690099448ba0a07e8d677d1b215107835bdc83112d87f3e208e0`. Its saved PT100 Telnet session (`ouagadougou`) avoided rebuilding the session from a blank editor; only the host and port were changed for this control.
+
+### Decisive result
+
+PT100 established the connection and showed its connected terminal (`runtime/evidence/round4-stock-connected-before-input.png` and `runtime/evidence/round4-stock-terminal-active.png`). The characters `xy` were then entered; the post-input state is captured in `runtime/evidence/round4-stock-final-xy.png` and `runtime/evidence/round4-stock-payload-verdict.png`.
+
+The listener recorded exactly:
+
+```text
+LISTEN 10.42.0.1:18082
+ACCEPT ('10.42.0.1', 35442)
+TIMEOUT
+TOTAL b''
+```
+
+Thus the TCP handshake reached the host, but no data-bearing frame or application byte followed. Stock PT100 TCP payload **DOES NOT** reach the host. Because a stock NewtonOS application reproduces the Loader's symptom, the defect is in the Einstein/NIE networking path, not in Loader NewtonScript. No Round 4 fix hypothesis was applied; the requested stock control alone moved the fault boundary decisively.
+
+### Key evidence
+
+- Listener acceptance and empty read: `runtime/logs/round4-pt100-listener.log`.
+- Final numeric host and custom port: `runtime/evidence/round4-stock-config-final-decisive.png`.
+- PT100 connected before typing: `runtime/evidence/round4-stock-connected-before-input.png`.
+- Connected terminal and typed-input state: `runtime/evidence/round4-stock-terminal-active.png`, `runtime/evidence/round4-stock-final-xy.png`, and `runtime/evidence/round4-stock-payload-verdict.png`.
+- Native-diagnostic baseline markers captured around attempts: `runtime/evidence/round4-decisive-native-before.txt`, `runtime/evidence/round4-stock-native-before.txt`, and `runtime/evidence/round4-stock-final-native-before.txt`.
+- Restore checksums: `runtime/evidence/round4-stock-control-restore-backup.sha256` and `runtime/evidence/round4-restored-flash.sha256`.
+
+### Flash state left behind
+
+The live flash is the restored `internal-before-round3-loader-binary-20260724-070952.flash` state plus PT100's saved `10.42.0.1:18082` session changes; it therefore no longer matches the backup byte-for-byte. Its final observed SHA-256 is `8cacf74b97f44c691372b46b89517e2a03d813acfeedb9b9c0bc7f52e31538e6`.
+
+That restored image still has the earlier `HarnessLoader:jbfly` Loader and `HarnessProbe:jbfly` diagnostic application installed. It does not contain the later Round 3 `HarnessLoaderR3*` variants, and `HarnessClient:jbfly` is not installed. PT100 and the NIE/NE2000 networking packages used by the control remain installed. No acceptance install occurred.
+
+### PT100 and control-API notes for future agents
+
+- The Extras drawer is paged. Do not trust a nearby text label alone: the icon initially mistaken for PT100 was Dock. Navigate to the page containing the actual PT100 icon and verify the resulting app screen.
+- PT100 normally opens to a blank terminal canvas; that does not mean launch failed. Open PT100's command/menu control and choose Connect to reach the connection slip.
+- Reusing the saved `ouagadougou` Telnet session is much more reliable than creating a blank session through the control API. The session editor is multipage, and the port is selected through a port-list editor rather than a simple port field.
+- To add port `18082`, enter a custom `Name: port` row on the port editor's input line, press **Add**, then select that new row. The adjacent unlabeled control is **Delete**; an exploratory tap there removed an entry and required a restore.
+- Fully select and clear PT100 text fields before typing replacements. A field can look correct while retaining stale characters or an old lookup state. If PT100 is already stuck in `Looking up machine address...` or a stale connection attempt, restart from the saved configuration before making the clean test connection.
+- The `/drag` control endpoint is useful for PT100's multipage forms and field selection, but screenshots after each action are still necessary because taps on small, unlabeled controls are easy to misidentify.
+
+## 2026-07-24 — Round 5 matched-driver verification
+
+### Bottom line
+
+The prime stale/mismatched-driver hypothesis is disproven. The pinned Einstein tree at `f5544a039fc3964e18b217ccffa030c6bf1e4044` contains a 4,768-byte `Drivers/NE2000Driver/NE2K.pkg` with SHA-256 `fa8df5d6c77d5d1e85cea72ce2fb80d9ec648c40a77d50ac6f1549f4d7290a85`. Reconstructing the installed package from the current flash's noncontiguous 1 KiB storage chunks produces the identical 4,768 bytes and the identical hash. The active PT100 setup is also bound to this package: its connection slip says `Card PCMCIA Ethernet`, exactly the package's `DeviceDisplayName`, and this FLTK Einstein build unconditionally constructs `TUsermodeNetwork` in `app/FLTK/TFLApp.cpp`.
+
+No package was installed, so no flash mutation or pre-install backup was required. The stock PT100 payload failure therefore remains above the matched NE2K driver's send entry points; the existing frame-hex instrumentation capture remains the decisive next-boundary evidence. The Loader acceptance cycle was not run because its required gate—stock PT100 payload bytes reaching the listener—did not pass.
+
+### Three evidence-backed hypotheses/results
+
+1. **The current flash contains a stale or mismatched `NE2K.pkg`. — Disproven.** A cached Docker builder stage materialized the exact pinned/patched source tree and confirmed commit `f5544a039fc3964e18b217ccffa030c6bf1e4044`. Its tracked `Drivers/NE2000Driver/NE2K.pkg` is 4,768 bytes, SHA-256 `fa8df5d6c77d5d1e85cea72ce2fb80d9ec648c40a77d50ac6f1549f4d7290a85`, and is byte-identical to `runtime/nie2/NE2K.pkg`. Newton stored the installed package across noncontiguous flash chunks: logical package offsets `0`, `1024`, `2048`, `3072`, and `4096` were recovered at physical offsets `1613196`, `1614240`, `1610064`, `1611108`, and `1612152`. Concatenation reconstructed all 4,768 source bytes exactly. Evidence: `runtime/evidence/round5-ne2k-flash-compare.txt`, `runtime/round5/NE2K-f5544a.pkg`, and `runtime/round5/NE2K-from-current-flash.pkg`.
+2. **The correct package is installed but Internet Setup is bound to another Ethernet driver/backend. — Disproven.** The stock PT100 configuration slip visibly reports `Using Untitled Ethernet Setup` and `Card PCMCIA Ethernet` (`runtime/evidence/round4-decisive-nie-slip.png`). `strings -el` on the pinned package reports `NE2K` and `PCMCIA Ethernet`; the latter is its `DeviceDisplayName`. On the host side, pinned `app/FLTK/TFLApp.cpp:1177-1183` unconditionally assigns `mNetworkManager = new TUsermodeNetwork(mLog)` for Linux, and the running native diagnostics identify frames crossing that backend. Thus both the Newton-side NE2K selection and Einstein-side User Mode backend are active.
+3. **With a matched and bound driver, the first application payload still fails before a driver send entry point. — Supported.** The frame-hex instrumentation already built for the single decisive stock PT100 attempt records a 58-byte SYN and 54-byte handshake ACK, then no data-bearing `EinsteinNetSendBuffer`, `EinsteinNetSendCBufferList`, or `EinsteinNetSendPacket` call. The host listener records `ACCEPT ('10.42.0.1', 35442)`, `TIMEOUT`, and `TOTAL b''`. Evidence: `runtime/logs/round4-pt100-listener.log`, the `TCPDIAG native frame` sequence in `podman logs newton-harness_emulator_1`, and `runtime/evidence/round4-stock-payload-verdict.png`. Because the trace was read before any patch and shows no driver-level payload submission, no new network patch was made.
+
+### Build and runtime actions
+
+- Built the Docker `builder` target in the background with `nohup`; `runtime/logs/round5-builder.exit` is `0` and the resulting image is `localhost/newton-harness-builder:round5` (`4bcd29b54f7c...`).
+- Extracted the pinned package to `runtime/round5/NE2K-f5544a.pkg` and reconstructed the current flash copy at `runtime/round5/NE2K-from-current-flash.pkg`.
+- Restarted only `newton-harness_emulator_1` to clear PT100's volatile stale connected state while attempting a fresh control. The health API returned `status: ready`; flash was not replaced or installed to, and the physical Newton, AP, and firewall were untouched.
+- Did not install NE2K, did not run the Loader acceptance cycle, and did not alter Einstein network code because the matched-driver check failed to open the stock-payload gate.
+
+### Next boundary
+
+Instrument NIE/endpoint scheduling above `TNE2000Sample::SendBuffer`/`SendCBufferList`, not `TUsermodeNetwork`: the matched driver receives control frames correctly, but stock PT100 application output never invokes either driver send handler. A useful next experiment is a Newton-side completion/error trace around Lantern's outbound queue and PT100's first `Output`, captured once before changing behavior.
+
+## 2026-07-24 — Round 6: synthesized SYN-ACK validation
+
+### Bottom line
+
+The prime malformed-SYN-ACK hypothesis is disproven. In one stock PT100 connection to a live listener on `10.42.0.1:18082`, Einstein handed Newton a 58-byte SYN-ACK with a nonzero 4,096-byte window, sequence `0`, acknowledgment `90412705` for Newton's SYN sequence `90412704`, a single MSS 1460 option, and valid IPv4 and TCP checksums. Newton returned the correct handshake ACK (`seq=90412705`, `ack=1`) but still emitted no payload after `xy` was typed; the listener accepted the connection and ended with `TOTAL b''`.
+
+No network behavior patch was made and the Loader acceptance cycle was not run, because the SYN-ACK is well formed and the required stock-PT100-payload gate still fails. The remaining boundary is the NewtonOS NIE/Lantern outbound scheduler above the registered `kLanternSendBuffer` / `kLanternSendCBufferList` driver callbacks.
+
+### Three evidence-backed hypotheses/results
+
+1. **Einstein synthesizes a malformed SYN-ACK that leaves Newton with no send window. — Disproven.** `TCPPacketHandler::NewPacket` creates an Ethernet/IP/TCP frame with a 20-byte IP header, default 20-byte TCP header, sequence `mEinsteinPacketsSeq` (initialized to `0`), acknowledgment `mNewtonPacketsSeq`, and TCP window `0x1000`. `connect()` reserves four TCP-option bytes, sets SYN+ACK, changes the TCP header to 24 bytes, keeps sequence `0`, sets acknowledgment to `++mNewtonPacketsSeq`, and writes MSS option `02 04 05 b4` (1460). It then recomputes both checksums. The existing `einstein-tcp-send-after-ack.patch` only changes handling of Newton's following ACK/payload in `kStateConnectionWaitACK`; it does not alter SYN-ACK construction. Static evidence: `runtime/evidence/round6-synack-static.txt`.
+2. **The correctly constructed SYN-ACK is corrupted or materially changed before Newton receives it. — Disproven.** New diagnostic patch `containers/patches/einstein-tcp-inbound-diag.patch`, wired into `containers/emulator.Dockerfile`, hex-dumps the final buffer in `TUsermodeNetwork::ReceiveData` immediately after the copy to Newton memory. The actual inbound SYN-ACK was `58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 46 a2 83 37 00 00 00 00 05 63 96 a1 60 12 10 00 56 3b 00 00 02 04 05 b4`. Independent decoding gives frame length 58, IP total length 44, source `10.42.0.1:18082`, destination `192.168.1.42:33591`, sequence `0`, acknowledgment `90412705`, SYN+ACK flags `0x012`, 24-byte TCP header, window 4096, MSS 1460, IPv4 checksum `0xaae7`, and TCP checksum `0x563b`; recomputing each checksum over the captured bytes returns zero. Evidence: `runtime/evidence/round6-capture-tcpdiag.txt` and `runtime/evidence/round6-synack-decode.txt`.
+3. **NewtonOS accepts the well-formed handshake but its NIE/Lantern outbound queue never schedules the first application payload to either registered driver send callback. — Supported.** The live listener recorded `ACCEPT ('10.42.0.1', 33316)`, then `TIMEOUT` and `TOTAL b''`. The native trace records the 58-byte SYN, the exact inbound SYN-ACK, and Newton's 54-byte ACK (`seq=90412705`, `ack=1`, window 4096), but no subsequent `EinsteinNetSendBuffer`, `EinsteinNetSendCBufferList`, or `EinsteinNetSendPacket` before the listener timed out. The pinned tree exposes only the Apple-derived driver-side registration (`fDriverAPI->AddEventHandler(kLanternSendBuffer, ...)` and `kLanternSendCBufferList`) and the two callback implementations; it does not contain the NewtonOS NIE/Lantern queue implementation that decides to dispatch those events. Thus further instrumentation above this boundary requires binary-level NIE tracing or separately recovered NIE source, not another Einstein host-network patch. Evidence: `runtime/logs/round6-live-listener.log`, `runtime/evidence/round6-capture-tcpdiag.txt`, and pinned `Drivers/NE2000Driver/NE2000.cpp`.
+
+### Build, runtime, and flash actions
+
+- Built the emulator in the background with `nohup` and polled `runtime/logs/round6-emulator-build.exit`; exit status is `0`. The running image is `112a018dabf0d709581abdd7dfa11bf968f8d823cc1e48e7947212aa48bf00c5`.
+- Added only inbound frame observation; packet construction and delivery behavior are unchanged.
+- PT100's saved machine field had a stale hidden `xy` suffix from earlier UI state. Preserved the live flash first as `runtime/backups/internal-before-round6-pt100-restore-20260724-090216.flash`, SHA-256 `b13243a39c3461180d857bce465880e4538cc24967d64045b5eef3ac5368782c`, then corrected the field to exactly `10.42.0.1` while preserving custom port `harness: 18082`.
+- No package was installed, so no pre-install backup/install transaction occurred. The physical Newton, AP, and firewall were untouched; all prior backups and evidence remain present.
+
+### Acceptance status and next boundary
+
+Stock PT100 payload did not reach the listener, so the Loader acceptance gate remains closed. `runtime/raw_pkg_server.py` was left running on `10.42.0.1:18081`, but no Loader install/download cycle was attempted. The next useful experiment is a NewtonOS-side trace at the NIE TCP output queue and the Lantern event-dispatch decision immediately above `kLanternSendBuffer` / `kLanternSendCBufferList`; the Einstein repository does not provide that scheduler source, so this needs recovered NIE symbols/source or targeted binary instrumentation of the installed NIE packages.

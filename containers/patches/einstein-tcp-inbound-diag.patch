@@ -1,0 +1,17 @@
+diff --git a/Emulator/Network/TUsermodeNetwork.cpp b/Emulator/Network/TUsermodeNetwork.cpp
+--- a/Emulator/Network/TUsermodeNetwork.cpp
++++ b/Emulator/Network/TUsermodeNetwork.cpp
+@@ -2272,6 +2272,13 @@ TUsermodeNetwork::ReceiveData(KUInt8* data, KUInt32 size)
+ 		if (size == pkt->Size())
+ 		{
+ 			memcpy(data, pkt->Data(), size);
++			if (size <= 128)
++			{
++				fprintf(stderr, "TCPDIAG inbound frame");
++				for (KUInt32 i = 0; i < size; i++)
++					fprintf(stderr, " %02x", data[i]);
++				fprintf(stderr, "\n");
++			}
+ 			DropPacket();
+ 			return 0;
+ 		} else

@@ -1,0 +1,148 @@
+kAppSymbol := '|HarnessClient:jbfly|;
+kAppName := "Harness Client";
+kVersion := "1.1";
+kAppTitle := kAppName & " v" & kVersion;
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 16, top: 72, right: 304, bottom: 244},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    endpoint: nil,
+    linkID: nil,
+    resultView: nil,
+
+    SetStatus: func(message)
+        SetValue(self.resultView, 'text, message),
+
+    Stop: func()
+    begin
+        if self.endpoint then
+        begin
+            try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.endpoint := nil;
+        end;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+    end,
+
+    Released: func(id, state, error) nil,
+
+    CheckStatus: func(resultView)
+    begin
+        self.resultView := resultView;
+        :Stop();
+        :SetStatus("Opening network...");
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+    end,
+
+    Grabbed: func(id, state, error)
+    begin
+        if error then return :Failed("Network failed: " & error);
+        if state.linkStatus <> 'connected then
+            return :Failed("Network: " & state.linkStatus);
+        self.linkID := id;
+        :FetchStatus();
+    end,
+
+    FetchStatus: func()
+    begin
+        local address := [10, 42, 0, 1];
+        local response := "";
+        self.endpoint := {_proto: protoBasicEndpoint, _parent: self};
+        :SetStatus("Contacting harness...");
+        try
+        begin
+            self.endpoint:Instantiate(self.endpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired},
+                {
+                    label: "ilid", type: 'option, opCode: opSetRequired,
+                    form: 'template,
+                    data: {arglist: [self.linkID], typelist: ['struct, 'ulong]},
+                },
+                {
+                    label: "itsv", type: 'option, opCode: opSetRequired,
+                    form: 'template,
+                    data: {arglist: [1], typelist: ['struct, 'ulong]},
+                },
+            ]);
+            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:Connect([
+                {
+                    label: "itrs", type: 'option, opCode: opSetRequired,
+                    form: 'template,
+                    data: {
+                        arglist: [address[0], address[1], address[2], address[3], 18081],
+                        typelist: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                    },
+                },
+            ], {async: nil, reqTimeout: 10000});
+            self.endpoint:Output("GET /status HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n", {async: nil, reqTimeout: 10000});
+
+            local done := nil;
+            while not done do
+            begin
+                local chunk := self.endpoint:Input({async: nil, reqTimeout: 10000});
+                if chunk = nil then
+                    done := true
+                else begin
+                    for index := 0 to Length(chunk) - 1 do
+                    begin
+                        response := response & CHR(ExtractByte(chunk, index));
+                        if Length(response) > 2048 then
+                            return :Failed("Status reply was too large");
+                    end;
+                end;
+            end;
+            :Stop();
+
+            if not BeginsWith(response, "HTTP/1.0 200") then
+                return :Failed("Harness HTTP error");
+            local bodyOffset := nil;
+            for index := 0 to Length(response) - 4 do
+                if bodyOffset = nil
+                and StrEqual(SubStr(response, index, 4), "\r\n\r\n") then
+                    bodyOffset := index + 4;
+            if bodyOffset = nil then return :Failed("Bad harness reply");
+            local body := SubStr(response, bodyOffset, Length(response) - bodyOffset);
+            if Length(body) > 80 then body := SubStr(body, 0, 80);
+            :SetStatus("Online: " & body);
+        end
+        onexception |evt.ex.comm| do
+            :Failed("TCP failed: " &
+                call GetGlobalFn('InetGetExceptionError) with (CurrentException()));
+    end,
+
+    Failed: func(message)
+    begin
+        :Stop();
+        :SetStatus(message & "\nTap to retry");
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 12, top: 10, right: 276, bottom: 48},
+            text: kAppTitle,
+            viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 20, top: 58, right: 268, bottom: 142},
+            text: "Check harness status",
+            viewFont: ROM_fontSystem12Bold,
+            buttonClickScript: func() self:Parent():CheckStatus(self),
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

@@ -1,2 +1,6 @@
 state/
 __pycache__/
+examples/hello/*.pkg
+runtime/
+secrets/
+.env

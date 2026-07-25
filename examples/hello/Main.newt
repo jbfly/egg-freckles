@@ -1,0 +1,24 @@
+kAppSymbol := '|HarnessHello:jbfly|;
+kAppTitle := "Harness Hello";
+kVersion := "0.1";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 24, top: 120, right: 296, bottom: 210},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 16, top: 16, right: 250, bottom: 48},
+            text: "Newton harness is alive!",
+            viewFont: ROM_fontSystem12Bold,
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

@@ -1,0 +1,13 @@
+diff --git a/Emulator/Network/TUsermodeNetwork.cpp b/Emulator/Network/TUsermodeNetwork.cpp
+index 9a6b82ab..d053acb9 100644
+--- a/Emulator/Network/TUsermodeNetwork.cpp
++++ b/Emulator/Network/TUsermodeNetwork.cpp
+@@ -219,7 +219,7 @@ static const KUInt32    kNameServerIP   = MakeIP(192, 168, 1, 1);
+ static const KUInt32 kClientIP = MakeIP(192, 168, 1, 42);
+ static const KUInt32 kClientIPMask = MakeIP(255, 255, 255, 0);
+ static const KUInt32 kGatewayIP = MakeIP(192, 168, 1, 1);
+-static const KUInt32 kNameServerIP = MakeIP(127, 0, 0, 53);
++static const KUInt32 kNameServerIP = MakeIP(192, 168, 1, 1);
+ #endif
+ 
+ /**

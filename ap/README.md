@@ -2,7 +2,8 @@
 
 Open 802.11b AP (`SSID: newton`) on wlan0 with an isolated subnet
 (10.42.0.0/24). The Newton may reach **only** this host's TCP 6801 (the
-harness) plus DHCP/DNS on this host. No LAN, no internet, nothing inbound.
+harness), TCP 18081 (package bootstrap), and DHCP/DNS. No LAN, no internet,
+nothing inbound.
 
 Everything here is runtime-only: nothing is installed to /etc, no system
 services are enabled, and a reboot (or `teardown.sh`) returns the machine
@@ -42,7 +43,8 @@ ip addr show wlan0                                  # 10.42.0.1/24
 ```
 
 With the Newton associated (`hostapd_cli ... all_sta` shows its MAC) it
-should get 10.42.0.10–10.42.0.50. Then, from the Newton: `10.42.0.1:6801`
+should get 10.42.0.10–10.42.0.50. Then, from the Newton: `10.42.0.1:6801`.
+The package bootstrap server is separately allowed on TCP `18081`.
 connects; DNS resolves; **everything else fails** (ping the LAN gateway,
 any other host port, any internet address — all dropped).
 
