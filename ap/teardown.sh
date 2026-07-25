@@ -21,6 +21,10 @@ ip link set wlan0 down
 rm -rf "$RUN"
 
 # 4. Hand wlan0 back; NM auto-reconnects the saved fallback uplink.
+#    The conf.d drop-in outranks `managed yes`, so it has to go first.
+rm -f /etc/NetworkManager/conf.d/99-newton-ap.conf
+nmcli general reload 2>/dev/null
+sleep 1
 nmcli device set wlan0 managed yes
 nmcli device connect wlan0 2>/dev/null
 

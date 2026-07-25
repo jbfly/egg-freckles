@@ -1,0 +1,22 @@
+# newton-ap sudoers rule — let agents bring the Newton AP up/down unattended.
+#
+# Install:  sudo install -m 0440 -o root -g root ap/newton-ap-sudoers \
+#             /etc/sudoers.d/newton-ap
+# Verify:   sudo visudo -c -f /etc/sudoers.d/newton-ap
+# Remove:   sudo rm /etc/sudoers.d/newton-ap
+#
+# Scope: exactly two scripts, by absolute path, no arguments. Not a general
+# network-admin grant. The scripts themselves are jbfly-writable, so this is
+# effectively "jbfly may run root code" — which sudoers already allows via the
+# blanket (ALL) ALL rule above it. What this adds is only NOPASSWD, so an agent
+# does not stall on a FIDO touch prompt mid-session.
+#
+# ponytail: two literal paths, no wildcards. A wildcard like ap/*.sh would let
+# any future script in that directory run as root without review.
+
+jbfly ALL=(root) NOPASSWD: /home/jbfly/git/newton-harness/ap/apply.sh
+jbfly ALL=(root) NOPASSWD: /home/jbfly/git/newton-harness/ap/teardown.sh
+
+# Firmware recovery: the AX200 needs a module reload when its firmware wedges.
+jbfly ALL=(root) NOPASSWD: /usr/bin/modprobe -r iwlmvm iwlwifi
+jbfly ALL=(root) NOPASSWD: /usr/bin/modprobe iwlwifi
