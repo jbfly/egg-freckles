@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderR10G:jbfly|;
-kVersion := "1.1-r10g";
-kAppTitle := "- R10G Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderR11A:jbfly|;
+kVersion := "1.1-r11a";
+kAppTitle := "- R11A Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -66,7 +66,9 @@ mainView := {
         self.endpoint := {_proto: self.endpointClass, _parent: self};
         try
         begin
-            self.endpoint:Instantiate([
+            // ponytail: endpoint frame FIRST, options second -- per the Programmer's
+            // Guide. Round 7B's options-first order is what threw -48400 kNSErrNotAFrame.
+            self.endpoint:Instantiate(self.endpoint, [
                 {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
                 {
                     label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
@@ -78,7 +80,7 @@ mainView := {
                     form: 'template,
                     data: {arglist: [1], typeList: ['struct, 'ulong]},
                 },
-            ], self.endpoint);
+            ]);
             callName := "Bind";
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
             callName := "connect";

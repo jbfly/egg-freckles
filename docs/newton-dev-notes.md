@@ -483,3 +483,25 @@ The hard gate did **not** pass. The uniquely identified diagnostic package `-Har
 ### Next boundary
 
 Inspect the exact endpoint instance frame that PT100's `eptClass:New` passes into ROM and the first frame dereference in `TNewScriptEndpointClient::InitScriptEndpointClient` at ROM symbol `0x001377B8`. The Loader's option array now matches PT100, so the remaining `-48400` is in the endpoint-instance contract, not transport or option encoding.
+
+## 2026-07-25 — Round 11: endpoint-first Instantiate reaches TCP, but no HTTP bytes
+
+### Bottom line
+
+The endpoint-first `Instantiate(self.endpoint, options)` change disproves the Round 10 failure mode: the uniquely identified `-HarnessLoaderR11A:jbfly` / visible `- R11A Loader 1.1-r11a` build no longer throws `-48400` at `Instantiate`. It reaches `connect` and emits two TCP SYNs to `10.42.0.1:18081`, but `runtime/raw_pkg_server.py` receives zero request bytes on both accepted connections. The hard gate therefore fails: gate (a) passes, while gates (b) and (c) do not.
+
+### Build and identity correction
+
+- `examples/harness-loader/Main.newt` uses endpoint-first `self.endpoint:Instantiate(self.endpoint, options)` and visible version `1.1-r11a`.
+- The first built candidate was correctly rejected as stale r10g because `examples/harness-loader/harness-loader.nprj` still named `-HarnessLoaderR10G:jbfly`; the binary contained both r10g and r11a strings. The project metadata was corrected to `-HarnessLoaderR11A:jbfly` and rebuilt before the real runtime test.
+- The tested package SHA-256 is `8c368b91abd520c275199e82e53ad16205a716afa44fd8d8d9fdccca157313f1`. `runtime/evidence/round11a-package-identity.txt` contains only the r11a package/title strings, and live-flash strings confirmed the installed r11a identity.
+
+### Hard-gate evidence
+
+- **TCP SYN passed.** Einstein's native packet trace captured two SYN frames (`flags=0x002`) to destination port `18081`, from emulated source ports `33498` and `32788`. The frame bytes contain source `c0 a8 01 2a` (`192.168.1.42`) and destination `0a 2a 00 01` (`10.42.0.1`). Evidence: `runtime/evidence/round11a-tcp-syn-capture.txt`.
+- **Non-empty HTTP GET failed.** The raw server accepted connections from host-side ports `43618` and `43626`; each timed out with `RAW b''`. No `GET` bytes arrived. Evidence: `runtime/evidence/round11a-raw-server.log`.
+- **Success screenshot failed.** `runtime/evidence/round11a-loader-open.png` visibly identifies `-R11A Loader 1.1-r11a`; `runtime/evidence/round11a-loader-after-2s.png` shows the tested build's failure instead of success: `connect threw`, exception `evt.ex.fr.intrp;type.ref.frame`, error `-48808`. Einstein's toolkit maps `-48808` to “Undefined global function.”
+
+### Next boundary
+
+Do not return to the Round 10 option-frame hypothesis: its trigger condition did not occur. Endpoint-first `Instantiate` progressed through endpoint setup to a real TCP handshake. The next investigation should identify which global function is unresolved during or immediately after synchronous lowercase `connect`, before `DownloadPackage` can output the HTTP request. No Einstein transport, harness-client, network-probe, or orientation-bound changes were made.

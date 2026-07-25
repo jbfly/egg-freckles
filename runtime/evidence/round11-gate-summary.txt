@@ -1,0 +1,27 @@
+Round 11A hard-gate result: FAIL (partial progress)
+
+Build identity:
+- Package: -HarnessLoaderR11A:jbfly
+- Visible title/version: - R11A Loader 1.1-r11a
+- SHA-256: 8c368b91abd520c275199e82e53ad16205a716afa44fd8d8d9fdccca157313f1
+
+Gate (a) TCP SYN: PASS.
+- Einstein's native packet trace captured two SYNs from the emulated Newton to 10.42.0.1:18081.
+- Decoded trace lines: flags=0x002, dst=18081, source ports 33498 and 32788.
+- Evidence: runtime/evidence/round11a-tcp-syn-capture.txt
+
+Gate (b) non-empty HTTP GET: FAIL.
+- runtime/raw_pkg_server.py accepted two connections, but both timed out with RAW b''.
+- No GET request bytes arrived.
+- Evidence: runtime/evidence/round11a-raw-server.log
+
+Gate (c) Loader success screenshot with visible version: FAIL.
+- The tested build is visibly identified as -R11A Loader 1.1-r11a, but it did not reach success.
+- The runtime result is connect threw, name=evt.ex.fr.intrp;type.ref.frame, error=-48808.
+- Einstein's toolkit identifies -48808 as "Undefined global function."
+- Evidence: runtime/evidence/round11a-loader-open.png and runtime/evidence/round11a-loader-after-2s.png
+
+Hypothesis verdict:
+- Endpoint-first Instantiate disproves the Round 10 failure mode: Instantiate no longer throws -48400 and execution reaches connect/TCP SYN.
+- Because Instantiate did not throw -48400, the prompt's conditional form-slot-name fallback was not triggered.
+- The next boundary is the -48808 undefined-global-function exception reached during connect after the TCP handshake, before any HTTP request bytes are output.
