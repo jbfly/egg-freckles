@@ -8,9 +8,11 @@ mainView := {
     viewBounds: {left: 16, top: 72, right: 304, bottom: 244},
     title: kAppTitle,
     appSymbol: kAppSymbol,
+    endpointClass: {_proto: protoBasicEndpoint},
     endpoint: nil,
     linkID: nil,
     resultView: nil,
+    inputTarget: nil,
 
     SetStatus: func(message)
         SetValue(self.resultView, 'text, message),
@@ -43,63 +45,92 @@ mainView := {
 
     Grabbed: func(id, state, error)
     begin
+        if self.endpoint then return nil;
         if error then return :Failed("Network failed: " & error);
-        if state.linkStatus <> 'connected then
-            return :Failed("Network: " & state.linkStatus);
         self.linkID := id;
+        if state.linkStatus <> 'connected then return nil;
         :FetchStatus();
     end,
 
     FetchStatus: func()
     begin
         local address := [10, 42, 0, 1];
-        local response := "";
-        self.endpoint := {_proto: protoBasicEndpoint, _parent: self};
+        local callName := "Instantiate";
+        self.endpoint := {_proto: self.endpointClass, _parent: self};
         :SetStatus("Contacting harness...");
         try
         begin
             self.endpoint:Instantiate(self.endpoint, [
-                {label: "inet", type: 'service, opCode: opSetRequired},
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
                 {
-                    label: "ilid", type: 'option, opCode: opSetRequired,
+                    label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
-                    data: {arglist: [self.linkID], typelist: ['struct, 'ulong]},
+                    data: {arglist: [self.linkID], typeList: ['struct, 'ulong]},
                 },
                 {
-                    label: "itsv", type: 'option, opCode: opSetRequired,
+                    label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
-                    data: {arglist: [1], typelist: ['struct, 'ulong]},
+                    data: {arglist: [1], typeList: ['struct, 'ulong]},
                 },
             ]);
+            callName := "Bind";
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
-            self.endpoint:Connect([
+            callName := "connect";
+            self.endpoint:connect([
                 {
-                    label: "itrs", type: 'option, opCode: opSetRequired,
+                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
                     data: {
                         arglist: [address[0], address[1], address[2], address[3], 18081],
-                        typelist: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
-            ], {async: nil, reqTimeout: 10000});
-            self.endpoint:Output("GET /status HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n", {async: nil, reqTimeout: 10000});
+            ], {async: nil, reqTimeout: 45000});
+            callName := "ReceiveStatus";
+            :ReceiveStatus();
+        end
+        onexception |evt.ex| do
+        begin
+            local exception := CurrentException();
+            local exceptionText := callName & " threw";
+            local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
+            if HasSlot(exception, 'name) then
+                exceptionText := exceptionText & "\nname=" & exception.name;
+            exceptionText := exceptionText & "\nerror=" & exceptionError;
+            if HasSlot(exception, 'data) then
+                exceptionText := exceptionText & "\ndata=" & exception.data;
+            if HasSlot(exception, 'message) then
+                exceptionText := exceptionText & "\nmessage=" & exception.message;
+            :SetStatus(exceptionText);
+        end;
+    end,
 
-            local done := nil;
-            while not done do
-            begin
-                local chunk := self.endpoint:Input({async: nil, reqTimeout: 10000});
-                if chunk = nil then
-                    done := true
-                else begin
-                    for index := 0 to Length(chunk) - 1 do
-                    begin
-                        response := response & CHR(ExtractByte(chunk, index));
-                        if Length(response) > 2048 then
-                            return :Failed("Status reply was too large");
-                    end;
-                end;
-            end;
-            :Stop();
+    ReceiveStatus: func()
+    begin
+        self.inputTarget := GetDefaultStore():NewVBO('status, 2048);
+        self.endpoint:SetInputSpec({
+            form: 'binary,
+            target: {data: self.inputTarget, offset: 0},
+            termination: {byteCount: 125},
+            discardAfter: 2048,
+            InputScript: func(endpoint, data, terminator, options)
+                endpoint._parent:StatusReceived(data, terminator),
+        });
+        self.endpoint:output(
+            "GET /status HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
+            nil,
+            {async: nil, reqTimeout: 10000});
+        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        return nil;
+    end,
+
+    StatusReceived: func(data, terminator)
+    begin
+        local response := "";
+        try
+        begin
+            for index := 0 to 124 do
+                response := response & CHR(ExtractByte(data, index));
 
             if not BeginsWith(response, "HTTP/1.0 200") then
                 return :Failed("Harness HTTP error");
@@ -112,16 +143,28 @@ mainView := {
             local body := SubStr(response, bodyOffset, Length(response) - bodyOffset);
             if Length(body) > 80 then body := SubStr(body, 0, 80);
             :SetStatus("Online: " & body);
+            :Stop();
         end
-        onexception |evt.ex.comm| do
-            :Failed("TCP failed: " &
-                call GetGlobalFn('InetGetExceptionError) with (CurrentException()));
+        onexception |evt.ex| do
+        begin
+            local exception := CurrentException();
+            local exceptionText := "StatusReceived threw";
+            local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
+            if HasSlot(exception, 'name) then
+                exceptionText := exceptionText & "\nname=" & exception.name;
+            exceptionText := exceptionText & "\nerror=" & exceptionError;
+            if HasSlot(exception, 'data) then
+                exceptionText := exceptionText & "\ndata=" & exception.data;
+            if HasSlot(exception, 'message) then
+                exceptionText := exceptionText & "\nmessage=" & exception.message;
+            :SetStatus(exceptionText);
+        end;
     end,
 
     Failed: func(message)
     begin
-        :Stop();
         :SetStatus(message & "\nTap to retry");
+        :Stop();
     end,
 
     stepChildren: [
