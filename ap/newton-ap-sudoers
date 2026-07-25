@@ -16,6 +16,7 @@
 
 jbfly ALL=(root) NOPASSWD: /home/jbfly/git/newton-harness/ap/apply.sh
 jbfly ALL=(root) NOPASSWD: /home/jbfly/git/newton-harness/ap/teardown.sh
+jbfly ALL=(root) NOPASSWD: /home/jbfly/git/newton-harness/ap/emulator-only.sh
 
 # Firmware recovery: the AX200 needs a module reload when its firmware wedges.
 jbfly ALL=(root) NOPASSWD: /usr/bin/modprobe -r iwlmvm iwlwifi
