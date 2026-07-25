@@ -1,0 +1,169 @@
+diff --git a/app/FLTK/TFLApp.cpp b/app/FLTK/TFLApp.cpp
+index 41a8a8ce..0c4a68bf 100644
+--- a/app/FLTK/TFLApp.cpp
++++ b/app/FLTK/TFLApp.cpp
+@@ -192,10 +192,16 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
+ #include <sys/types.h>
++#include <sys/un.h>
++#include <unistd.h>
+ 
+ // C++17
+ #include <filesystem>
++#include <map>
++#include <string>
+ #include <thread>
+ 
+ // FLTK user interface
+@@ -271,6 +277,135 @@ static const char* tfl_file_chooser(const char* message, const char* pat, const
+ 
+ TFLApp* gApp = nullptr;
+ 
++namespace {
++const char* kControlSocketPath = "/state/einstein-control.sock";
++const size_t kControlLineLimit = 8192;
++int gControlSocket = -1;
++std::map<int, std::string> gControlClients;
++
++void
++CloseControlClient(int fd)
++{
++	Fl::remove_fd(fd);
++	::close(fd);
++	gControlClients.erase(fd);
++}
++
++void
++ReplyControlClient(int fd, const std::string& reply)
++{
++	std::string line = reply + "\n";
++	(void) ::send(fd, line.data(), line.size(), MSG_NOSIGNAL);
++	CloseControlClient(fd);
++}
++
++void
++ControlClientReady(int fd, void*)
++{
++	char chunk[4096];
++	ssize_t count = ::recv(fd, chunk, sizeof(chunk), 0);
++	if (count <= 0)
++	{
++		ReplyControlClient(fd, "error command must end with newline");
++		return;
++	}
++
++	std::string& input = gControlClients[fd];
++	input.append(chunk, (size_t) count);
++	size_t newline = input.find('\n');
++	if (newline == std::string::npos)
++	{
++		if (input.size() > kControlLineLimit)
++			ReplyControlClient(fd, "error command exceeds 8192 bytes");
++		return;
++	}
++	if (newline > kControlLineLimit)
++	{
++		ReplyControlClient(fd, "error command exceeds 8192 bytes");
++		return;
++	}
++	if (newline + 1 != input.size())
++	{
++		ReplyControlClient(fd, "error one command per connection");
++		return;
++	}
++
++	std::string command = input.substr(0, newline);
++	if (command.compare(0, 8, "install ") == 0)
++	{
++		std::string path = command.substr(8);
++		struct stat status;
++		if (path.compare(0, 10, "/packages/") != 0 || path.find("..") != std::string::npos)
++			ReplyControlClient(fd, "error install path must be under /packages/ without ..");
++		else if (::stat(path.c_str(), &status) != 0 || !S_ISREG(status.st_mode))
++			ReplyControlClient(fd, "error package is not a readable regular file");
++		else
++		{
++			gApp->GetPlatformManager()->InstallPackage(path.c_str());
++			ReplyControlClient(fd, "queued");
++		}
++	} else if (command.compare(0, 3, "ns ") == 0 && command.size() > 3)
++	{
++		gApp->GetPlatformManager()->EvalNewtonScript(command.c_str() + 3);
++		ReplyControlClient(fd, "queued");
++	} else
++	{
++		ReplyControlClient(fd, "error expected install <path> or ns <source>");
++	}
++}
++
++void
++ControlSocketReady(int fd, void*)
++{
++	int client = ::accept(fd, nullptr, nullptr);
++	if (client < 0)
++		return;
++	gControlClients.emplace(client, std::string());
++	Fl::add_fd(client, FL_READ, ControlClientReady);
++}
++
++void
++InitControlSocket()
++{
++	::unlink(kControlSocketPath);
++	gControlSocket = ::socket(AF_UNIX, SOCK_STREAM, 0);
++	if (gControlSocket < 0)
++	{
++		perror("einstein control socket");
++		return;
++	}
++
++	struct sockaddr_un address = {};
++	address.sun_family = AF_UNIX;
++	strncpy(address.sun_path, kControlSocketPath, sizeof(address.sun_path) - 1);
++	if (::bind(gControlSocket, (struct sockaddr*) &address, sizeof(address)) != 0
++		|| ::chmod(kControlSocketPath, 0600) != 0
++		|| ::listen(gControlSocket, 8) != 0)
++	{
++		perror("einstein control socket");
++		::close(gControlSocket);
++		gControlSocket = -1;
++		::unlink(kControlSocketPath);
++		return;
++	}
++	Fl::add_fd(gControlSocket, FL_READ, ControlSocketReady);
++}
++
++void
++CloseControlSocket()
++{
++	while (!gControlClients.empty())
++		CloseControlClient(gControlClients.begin()->first);
++	if (gControlSocket >= 0)
++	{
++		Fl::remove_fd(gControlSocket);
++		::close(gControlSocket);
++		gControlSocket = -1;
++	}
++	::unlink(kControlSocketPath);
++}
++}
++
+ // MARK: - Public: -
+ // --- Constructor and destructor
+ 
+@@ -417,8 +552,11 @@ TFLApp::Run(int argc, char* argv[])
+ 	// launch the actual emulation in the background
+ 	auto emulatorThread = new std::thread(&TFLApp::EmulatorThreadEntry, this);
+ 
++	InitControlSocket();
++
+ 	// run the user interface until all windows are close
+ 	Fl::run();
++	CloseControlSocket();
+ 	Fl::unlock();
+ 
+ 	// if the emulator does not know yet, tell it to wrap things up and quit

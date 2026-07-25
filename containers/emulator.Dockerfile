@@ -41,6 +41,7 @@ RUN git clone https://github.com/pguyot/Einstein.git /src/Einstein \
     && git -C /src/Einstein apply /patches/einstein-tcp-native-diag.patch \
     && git -C /src/Einstein apply /patches/einstein-tcp-inbound-diag.patch \
     && git -C /src/Einstein apply /patches/einstein-nie-rom-trace.patch \
+    && git -C /src/Einstein apply /patches/einstein-control-socket.patch \
     && cmake -S /src/Einstein -B /build/Einstein -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DEINSTEIN_FLTK_FRONTEND=ON \

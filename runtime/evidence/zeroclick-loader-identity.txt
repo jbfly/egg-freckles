@@ -1,0 +1,8 @@
+examples/harness-loader/Main.newt:1:kAppSymbol := '|-HarnessLoaderZC1:jbfly|;
+examples/harness-loader/Main.newt:2:kVersion := "1.1-zc1";
+examples/harness-loader/Main.newt:3:kAppTitle := "- ZC1 Loader " & kVersion;
+examples/harness-loader/harness-loader.nprj:8:    name: "-HarnessLoaderZC1:jbfly",
+Building package -HarnessLoaderZC1:jbfly
+	text: "- ZC1 Loader 1.1-zc1",
+		title: "- ZC1 Loader 1.1-zc1",
+		appSymbol: '|-HarnessLoaderZC1:jbfly|,

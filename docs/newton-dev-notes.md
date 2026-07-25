@@ -595,3 +595,19 @@ The fix is to ignore every non-error `Grabbed` state until `linkStatus = 'connec
 - r14e ignored the post-callback `evt.ex.comm` from `Input()` so it could no longer overwrite callback status. r14f/r14g calibrated the native delayed install from 300 ms to 5,000 ms, leaving a stable success-screen evidence window.
 
 `examples/harness-client` and `examples/network-probe` were not changed. All emulator-log captures are stopped, the original raw package server remains the sole listener on `10.42.0.1:18081`, and `10.42.0.1/24` remains on loopback.
+
+## 2026-07-26 — zero-click Einstein install and launch
+
+### Bottom line
+
+Einstein now accepts package-install and NewtonScript requests through a mode-`0600` Unix socket on its FLTK thread, and `emulator-control` forwards `POST /install` and `POST /newtonscript` to it with two-second timeouts. The new image is `localhost/newton-harness-dev:zeroclick` (ID `200a11722745cdbf192501e1b66a86074bc51a42345e7c4bd62c5b23e0b263fc`) and is running healthy.
+
+### End-to-end result
+
+- Built the Loader under fresh identity `-HarnessLoaderZC1:jbfly`, visible version `1.1-zc1`; package SHA-256 is `e0d9704144af3107ddb747bd2ff9f5041de3c3d0ac92f85e0bca5770c106984f` (`runtime/evidence/zeroclick-loader-identity.txt`, `zeroclick-loader-package.sha256`).
+- `scripts/install-and-launch.sh /packages/harness-loader/harness-loader.pkg -HarnessLoaderZC1:jbfly` issued exactly one `curl` to each endpoint; both replies were `queued` (`zeroclick-control-replies.txt`). The Newton-only 320×480 proof capture is `zeroclick-loader-open.png`. No file picker, OCR, GUI install click, or launch tap was used.
+- Starting the actual fetch still requires the Loader's button, so one simulated Newton-screen tap was used only after zero-click install and launch. This is the explicit exception allowed for this round.
+- The packet capture began in a verified zero-byte file with `podman logs --since 0s -f` (`zeroclick-baseline.txt`). It records a fresh SYN to `10.42.0.1:18081`, including destination bytes `0a 2a 00 01 46 a1`; the package-server delta contains exactly `GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n` (`zeroclick-gate-summary.txt`, `zeroclick-server-delta.txt`). Round 14's transport gates therefore still pass.
+- `containers/patches/einstein-control-socket.patch` applies to pinned Einstein commit `f5544a039fc3964e18b217ccffa030c6bf1e4044`, and the image build completed. The socket was verified at `/state/einstein-control.sock`, owned by `newton:newton` with mode `0600`; invalid install paths and multiline commands return HTTP 400. Existing Python tests remain green (7/7).
+
+All temporary `podman logs -f` captures are stopped. The original package server remains the sole listener on `10.42.0.1:18081`; `examples/harness-client` and `examples/network-probe` were not touched.

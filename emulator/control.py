@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import socket
 import subprocess
 import threading
 from http import HTTPStatus
@@ -37,6 +38,33 @@ class EinsteinControl:
         self.screen_top = screen_top
         self.runner = runner
         self.lock = threading.Lock()
+
+    def command(self, command: str) -> str:
+        if not command or "\n" in command or "\r" in command:
+            raise ValueError("command must be one non-empty line")
+        encoded = command.encode("utf-8")
+        if len(encoded) > 8192:
+            raise ValueError("command must not exceed 8192 bytes")
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(2)
+                client.connect("/state/einstein-control.sock")
+                client.sendall(encoded + b"\n")
+                reply = b""
+                while b"\n" not in reply and len(reply) <= 8192:
+                    chunk = client.recv(4096)
+                    if not chunk:
+                        break
+                    reply += chunk
+        except FileNotFoundError as exc:
+            raise ControlError(
+                "Einstein control socket is missing; rebuild with the zero-click image"
+            ) from exc
+        except (ConnectionError, socket.timeout, OSError) as exc:
+            raise ControlError(f"Einstein control socket failed: {exc}") from exc
+        if b"\n" not in reply:
+            raise ControlError("Einstein control socket returned no complete reply")
+        return reply.split(b"\n", 1)[0].decode("utf-8", "replace")
 
     def _run(self, args: list[str]) -> bytes:
         env = dict(os.environ, DISPLAY=self.display)
@@ -262,6 +290,14 @@ class ControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_text(self, status: int, text: str) -> None:
+        body = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _send_png(self, body: bytes) -> None:
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "image/png")
@@ -306,6 +342,20 @@ class ControlHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         try:
+            if self.path in {"/install", "/newtonscript"}:
+                prefix = "install " if self.path == "/install" else "ns "
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except ValueError as exc:
+                    raise ValueError("invalid Content-Length") from exc
+                if length <= 0 or length > 8184:
+                    raise ValueError("body must contain 1 to 8184 bytes")
+                body = self.rfile.read(length).decode("utf-8")
+                reply = self.control.command(prefix + body)
+                status = HTTPStatus.OK if reply == "queued" else HTTPStatus.BAD_REQUEST
+                self._send_text(status, reply + "\n")
+                return
+
             payload = self._read_json()
             if self.path == "/tap":
                 self.control.tap(payload.get("x"), payload.get("y"), newton_only=True)

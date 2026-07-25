@@ -1,0 +1,13 @@
+Einstein zero-click build/runtime evidence — 2026-07-26
+
+Patch target: f5544a039fc3964e18b217ccffa030c6bf1e4044
+Patch apply check: PASS
+Python tests: 7 passed
+Image: localhost/newton-harness-dev:zeroclick
+Image ID: 200a11722745cdbf192501e1b66a86074bc51a42345e7c4bd62c5b23e0b263fc
+Container health: healthy
+Control socket: mode 0600, owner newton:newton, path /state/einstein-control.sock
+Invalid install path: HTTP 400, error install path must be under /packages/ without ..
+Multiline NewtonScript: HTTP 400
+Capture processes after test: none
+Package server: one listener on 10.42.0.1:18081

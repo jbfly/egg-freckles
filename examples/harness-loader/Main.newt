@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderR14G:jbfly|;
-kVersion := "1.1-r14g";
-kAppTitle := "- R14G Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC1:jbfly|;
+kVersion := "1.1-zc1";
+kAppTitle := "- ZC1 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
