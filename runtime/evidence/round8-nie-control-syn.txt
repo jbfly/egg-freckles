@@ -1,0 +1,59 @@
+Round 8 NIE control SYN
+
+PT100 screen OCR:
+Connect
+
+@session: Blank Session
+
+Ready to Connect.
+
+Ouagadougou
+
+@using Untitled Ethemet Se
+
+@Card PCHCIA Ethernet
+
+Cma)®
+
+OB ) (D ) ®
+
+»
+
+LRSS 9e
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+
+tcpdiag tail:
+NIE7 pc=00046298 CBufferList::GetSize r0=0c6a4f80 r1=0001b038 r2=ffffffff r3=0c6a4c38 sp=0cc821d4 lr=001b98c8
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=42
+TCPDIAG native SendPacket addr=0cd19f28 size=42
+TCPDIAG native frame ff ff ff ff ff ff 58 b0 35 77 d7 22 08 06 00 01 08 00 06 04 00 01 58 b0 35 77 d7 22 c0 a8 01 2a 00 00 00 00 00 00 c0 a8 01 01
+TCPDIAG inbound frame 58 b0 35 77 d7 22 ff ff ff ff ff ff 08 06 00 01 08 00 06 04 00 02 00 fa c0 a8 01 01 c0 a8 01 01 58 b0 35 77 d7 22 c0 a8 01 2a
+TCPDIAG native SendBuffer r1=0cd19f28 r2=58
+TCPDIAG native SendPacket addr=0cd19f28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 82 70 46 a2 0e ce 16 a0 00 00 00 00 60 02 10 00 cd a8 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=248387232 ack=0 src=33392 dst=18082
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 46 a2 82 70 00 00 00 00 0e ce 16 a1 60 12 10 00 cd 97 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0cd19f28 r2=54
+TCPDIAG native SendPacket addr=0cd19f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 82 70 46 a2 0e ce 16 a1 00 00 00 01 50 10 10 00 e5 54 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248387233 ack=1 src=33392 dst=18082
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69abc4 r1=0c69abc4 r2=00010064 r3=000076a9 sp=0cceda20 lr=600888b8
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 46 a2 82 70 00 00 00 01 0e ce 16 a1 50 11 10 00 e5 53 00 00
+TCPDIAG native SendBuffer r1=0cd19f28 r2=54
+TCPDIAG native SendPacket addr=0cd19f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 04 00 00 40 06 ae cf c0 a8 01 2a 0a 2a 00 01 82 70 46 a2 0e ce 16 a1 00 00 00 02 50 10 10 00 e5 53 00 00
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248387233 ack=2 src=33392 dst=18082
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69abc4 r1=0cd1ed60 r2=00000000 r3=0cd1824c sp=0cced97c lr=60088bb0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69abc4 r1=0c69abc4 r2=00010064 r3=000076a9 sp=0cceda20 lr=600888b8
+TCPDIAG native SendBuffer r1=0cd19f28 r2=54
+TCPDIAG native SendPacket addr=0cd19f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 05 00 00 40 06 ae ce c0 a8 01 2a 0a 2a 00 01 82 70 46 a2 0e ce 16 a1 00 00 00 02 50 11 10 00 e5 52 00 00
+TCPDIAG state=kStatePeerDiscWaitForFIN size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x011 seq=248387233 ack=2 src=33392 dst=18082
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ea 00 00 40 06 aa e9 0a 2a 00 01 c0 a8 01 2a 46 a2 82 70 00 00 00 02 0e ce 16 a2 50 04 10 00 e5 5e 00 00

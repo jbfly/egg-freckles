@@ -1,0 +1,12 @@
+server:
+serving 10.42.0.1:18081 bytes=6456
+CONN ('10.42.0.1', 33802)
+RAW b'GET /status HTTP/1.0\r\nHost: 10.42.0.1:18081\r\nUser-Agent: curl/8.21.0\r\nAccept: */*\r\n\r\n'
+
+listener:
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+LISTEN 0      5          10.42.0.1:18081      0.0.0.0:*    users:(("python3",pid=271873,fd=3))
+
+route:
+local 10.42.0.1 dev lo table local src 10.42.0.1 uid 1000 
+    cache <local> 

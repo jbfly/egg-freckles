@@ -1,0 +1,1 @@
+wlan0 back under NetworkManager (fallback uplink restored)

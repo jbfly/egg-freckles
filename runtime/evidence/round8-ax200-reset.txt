@@ -1,0 +1,42 @@
+Round 8 AP failure evidence
+
+wlan0: interface state UNINITIALIZED->COUNTRY_UPDATE
+AP up: SSID 'newton' (open, 802.11g ch6) on wlan0, host at 10.42.0.1, harness tcp/6801, packages tcp/18081
+verified: ssid newton type AP channel 6 (2437 MHz), width: 20 MHz (no HT), center1: 2437 MHz 
+
+wlan0: interface state UNINITIALIZED->COUNTRY_UPDATE
+AP up: SSID 'newton' (open, 802.11g ch6) on wlan0, host at 10.42.0.1, harness tcp/6801, packages tcp/18081
+verified: ssid newton type AP channel 6 (2437 MHz), width: 20 MHz (no HT), center1: 2437 MHz 
+
+Jul 25 19:31:50 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - SW reset
+Jul 25 19:31:55 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - reprobe!
+Jul 25 19:31:55 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:31:55 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:32:01 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - reprobe!
+Jul 25 19:32:01 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:32:01 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:32:06 jbfly-alpha kernel: iwlwifi 0000:29:00.0: scheduling reset (mode=5)
+Jul 25 19:32:06 jbfly-alpha kernel: iwlwifi 0000:29:00.0: reset done
+Jul 25 19:32:06 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:32:07 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:32:56 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:33:01 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - SW reset
+Jul 25 19:33:06 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - reprobe!
+Jul 25 19:33:06 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:33:06 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:33:13 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - SW reset
+Jul 25 19:33:18 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - reprobe!
+Jul 25 19:33:18 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:33:18 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:33:23 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - reprobe!
+Jul 25 19:33:23 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:33:24 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:33:29 jbfly-alpha kernel: iwlwifi 0000:29:00.0: scheduling reset (mode=5)
+Jul 25 19:33:29 jbfly-alpha kernel: iwlwifi 0000:29:00.0: reset done
+Jul 25 19:33:29 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:33:30 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:33:35 jbfly-alpha kernel: iwlwifi 0000:29:00.0: scheduling reset (mode=5 instead of product reset as ME may be present)
+Jul 25 19:33:35 jbfly-alpha kernel: iwlwifi 0000:29:00.0: reset done
+Jul 25 19:33:35 jbfly-alpha kernel: iwlwifi 0000:29:00.0: PHY ctxt cmd error. ret=-5
+Jul 25 19:33:37 jbfly-alpha kernel: iwlwifi 0000:29:00.0: loaded firmware version 77.f39cc7f9.0 cc-a0-77.ucode op_mode iwlmvm
+Jul 25 19:33:42 jbfly-alpha kernel: iwlwifi 0000:29:00.0: Device error - SW reset

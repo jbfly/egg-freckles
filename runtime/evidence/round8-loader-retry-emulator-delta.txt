@@ -1,0 +1,9 @@
+[emulator-control] 10.89.0.2 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.2 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.2 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
