@@ -1,0 +1,2 @@
+CONN ('10.42.0.1', 51568)
+RAW b'GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n'

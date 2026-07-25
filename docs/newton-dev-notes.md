@@ -514,3 +514,36 @@ The final tested package is `-HarnessLoaderR11E:jbfly`, visible version `1.1-r11
 All capture processes were stopped. `10.42.0.1/24` remains on loopback. The original raw server exited after the r11a timeout attempts; after confirming no process and no listener remained, exactly one replacement was started and left listening as PID 1102453 on `10.42.0.1:18081`.
 
 The next boundary is why the new endpoint client's connect completion does not fire after a valid handshake. Do not revisit `Instantiate` argument order or Einstein transport: r11e proves both frame construction and the TCP path now reach a single established host socket. Compare the live completion event contract—not just its frame slots—with PT100's `MConnectCompProc`, or trace the ROM callback dispatch immediately after the handshake ACK.
+
+## 2026-07-25 — Round 12: synchronous connect reached HTTP output
+
+### Bottom line
+
+The hard gate does **not** fully pass. r12a confirmed that synchronous `connect` must continue directly into `Connected`; r12b then sent the first real Loader HTTP request. Gate (a) and gate (b) pass, but gate (c) remains blocked by Einstein's `RemoveLinkClient` `-48803` overlay after the 6,567-byte response is received.
+
+The final preserved diagnostic package is `-HarnessLoaderR12N:jbfly`, visible version `1.1-r12n`, SHA-256 `be42798fe89ed9c6ef69d9bf91a47eb81d2b0fe1aa737e66450bd584427a27c1`. Its receive callback is deliberately a no-op: the same overlay still appears, proving the remaining alert is independent of Loader callback code.
+
+### Runtime evidence
+
+- Gate (a) passes. `runtime/evidence/round12b-final-baseline.txt` records `capture_initial_bytes=0` and `podman logs --since 0s -f`. `runtime/evidence/round12b-final-runtime-relevant.txt` contains the fresh SYN with destination IP bytes `0a 2a 00 01`, destination port bytes `46 a1`, and decoded `dst=18081`.
+- Gate (b) passes. `runtime/evidence/round12b-final-server-delta.txt` contains `RAW b'GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n'`, exactly matching `runtime/raw_pkg_server.py`.
+- The capture also shows a 72-byte TCP payload containing that request and ACK progression through all 6,567 response bytes.
+- Gate (c) fails. `runtime/evidence/round12b-r12n-after-run.png` visibly identifies r12n but is overlaid by Newton Internet Enabler event `RemoveLinkClient`, connected `InetManagerFSH`, `evt.ex.fr.intrp`, error `-48803`. Consolidated result: `runtime/evidence/round12b-gate-summary.txt`.
+
+### Iterations and source result
+
+- r12a removed the unreachable synchronous-connect completion callback and called `Connected(nil, nil)` after `connect` returned.
+- r12b removed the runtime-undefined `MakeBinaryFromHex` helper and passed the ASCII request string to lowercase three-argument `output`; this produced the accepted GET.
+- r12c corrected `Input` to zero arguments; the resulting `-54000` identified the missing active input script.
+- r12d through r12f established the binary input-spec contract: `SetInputSpec`, a binary target frame `{data: VBO, offset: 0}`, and a termination count.
+- r12g established the exact response size as 6,567 bytes (111-byte HTTP header plus 6,456-byte package) and the trace ACKed all bytes.
+- r12h through r12m tested callback receiver, root-frame, package-copy, and status paths. The same `RemoveLinkClient` overlay remained.
+- r12n reduced `InputScript` to `func(endpoint, data, result, error) nil`; the overlay still remained, isolating it from callback logic.
+
+`examples/harness-client`, `examples/network-probe`, Einstein transport, and `ap/apply.sh` were not changed. Runtime parent-relative bounds remain `vjParentFullH + vjParentFullV`.
+
+### Preserved state and next boundary
+
+All capture processes are stopped. `10.42.0.1/24` remains on loopback. The temporary delayed-close test server was stopped, and exactly one original `runtime/raw_pkg_server.py` process is listening on `10.42.0.1:18081`.
+
+The next boundary is the source of `InetReleaseLink` / `RemoveLinkClient` during active input completion. It occurs even with a no-op `InputScript` and while the test socket remains open, so do not continue tuning callback argument order or response parsing until that FSM event is traced.

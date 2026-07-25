@@ -5,6 +5,6 @@
             files: [],
         }
     ],
-    name: "-HarnessLoaderR11E:jbfly",
+    name: "-HarnessLoaderR12N:jbfly",
     platform: "Newton 2.1"
 }

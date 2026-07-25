@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderR11E:jbfly|;
-kVersion := "1.1-r11e";
-kAppTitle := "- R11E Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderR12N:jbfly|;
+kVersion := "1.1-r12n";
+kAppTitle := "- R12N Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -13,6 +13,7 @@ mainView := {
     linkID: nil,
     resultView: nil,
     attempt: 0,
+    inputTarget: nil,
 
     SetStatus: func(message)
         SetValue(self.resultView, 'text, message),
@@ -95,12 +96,12 @@ mainView := {
                         typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
-            ], {
-                async: nil,
-                reqTimeout: 45000,
-                completionScript: func(endpoint, result, error)
-                    self:Connected(result, error),
-            });
+            ], {async: nil, reqTimeout: 45000});
+            // ponytail: async:nil means connect returns synchronously -- completionScript
+            // is never invoked, which is why r11c/r11d sat at "Connecting..." forever.
+            // Go straight on. Switch to async + completionScript only if we need overlap.
+            callName := "DownloadPackage";
+            :Connected(nil, nil);
         end
         onexception |evt.ex| do
         begin
@@ -121,14 +122,8 @@ mainView := {
     Connected: func(result, error)
     begin
         if error then return :Failed("Connect failed: " & error);
-        local packageBinary := :DownloadPackage();
-        :Stop();
-        if packageBinary then
-        begin
-            :SetStatus("Installing client package...");
-            :InstallBinaryLater(packageBinary);
-            :SetStatus("Deferred install queued");
-        end;
+        // Receive completion is asynchronous; InputReceived owns install/status.
+        :DownloadPackage();
     end,
 
     AppendHeaderByte: func(text, byte)
@@ -180,74 +175,22 @@ mainView := {
 
     DownloadPackage: func()
     begin
-        local headers := "";
-        local contentLength := nil;
-        local packageBinary := nil;
-        local packageOffset := 0;
-        local done := nil;
-
+        :SetStatus("Installing input spec...");
+        self.inputTarget := GetDefaultStore():NewVBO('package, 65536);
+        self.endpoint:SetInputSpec({
+            form: 'binary,
+            target: {data: self.inputTarget, offset: 0},
+            termination: {byteCount: 6567},
+            discardAfter: 65536,
+            InputScript: func(endpoint, data, result, error) nil,
+        });
         :SetStatus("Requesting /harness-client.pkg...");
         self.endpoint:output(
-            MakeBinaryFromHex(
-                "474554202F6861726E6573732D636C69656E742E706B6720485454502F312E300D0A486F73743A2031302E34322E302E310D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A",
-                'binary),
+            "GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
             nil,
             {async: nil, reqTimeout: 10000});
-        while not done do
-        begin
-            local chunk := self.endpoint:Input({async: nil, reqTimeout: 10000});
-            if chunk = nil then
-                done := true
-            else begin
-                local chunkLength := Length(chunk);
-                if packageBinary = nil then
-                begin
-                    local bodyOffset := nil;
-                    for index := 0 to chunkLength - 1 do
-                        if bodyOffset = nil then
-                        begin
-                            local headerState := :AppendHeaderByte(headers, ExtractByte(chunk, index));
-                            if headerState = 'tooLong then
-                                return :Failed("Response headers exceeded 4096 bytes");
-                            if headerState = 'done then
-                            begin
-                                headers := headers & CHR(ExtractByte(chunk, index));
-                                bodyOffset := index + 1;
-                            end else
-                                headers := headerState;
-                        end;
-                    if bodyOffset <> nil then
-                    begin
-                        if not BeginsWith(headers, "HTTP/1.0 200") then
-                            return :Failed("HTTP status was not 200");
-                        contentLength := :ParseContentLength(headers);
-                        if (contentLength = nil) or (contentLength <= 0) or (contentLength > 65536) then
-                            return :Failed("Content-Length must be 1 to 65536");
-                        try
-                            packageBinary := GetDefaultStore():NewVBO('package, contentLength)
-                        onexception |evt.ex| do
-                            return :Failed("Package allocation failed");
-                        packageOffset := :CopyChunk(packageBinary, 0, contentLength, chunk, bodyOffset, chunkLength - bodyOffset);
-                        if packageOffset = nil then return nil;
-                    end;
-                end else begin
-                    packageOffset := :CopyChunk(packageBinary, packageOffset, contentLength, chunk, 0, chunkLength);
-                    if packageOffset = nil then return nil;
-                end;
-
-                if packageBinary then
-                begin
-                    :SetStatus("Received " & packageOffset & " / " & contentLength & " bytes...");
-                    if packageOffset = contentLength then
-                        done := true;
-                end;
-            end;
-        end;
-
-        if packageBinary = nil then return :Failed("Response headers were incomplete");
-        if packageOffset <> contentLength then
-            return :Failed("Expected " & contentLength & " bytes, got " & packageOffset);
-        return packageBinary;
+        self.endpoint:Input();
+        return nil;
     end,
 
     Failed: func(message)

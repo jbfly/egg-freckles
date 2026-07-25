@@ -1,0 +1,20 @@
+Round 12B hard-gate result: FAIL (a) PASS, (b) PASS, (c) FAIL
+
+(a) PASS — fresh capture baseline records capture_initial_bytes=0 and command
+    podman logs --since 0s -f newton-harness_emulator_1.
+    Evidence: round12b-final-baseline.txt, round12b-final-runtime-relevant.txt.
+    SYN destination bytes are 0a 2a 00 01 and destination port bytes are 46 a1.
+
+(b) PASS — package server received the exact accepted request:
+    CONN ('10.42.0.1', 51568)
+    RAW b'GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n'
+    Evidence: round12b-final-server-delta.txt.
+
+(c) FAIL — no unobscured Loader success screenshot. The final r12n no-op
+    InputScript still results in Einstein's Newton Internet Enabler alert:
+    RemoveLinkClient in connected InetManagerFSH, evt.ex.fr.intrp, error -48803.
+    Evidence: round12b-r12n-after-run.png. This proves the overlay is independent
+    of Loader callback work, but it still blocks the required success screenshot.
+
+Final built/testable source identity: -HarnessLoaderR12N:jbfly / 1.1-r12n
+Final package SHA-256: be42798fe89ed9c6ef69d9bf91a47eb81d2b0fe1aa737e66450bd584427a27c1

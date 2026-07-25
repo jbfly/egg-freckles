@@ -1,0 +1,7 @@
+2026-07-25T23:05:14,412956182+01:00
+capture_command=podman logs --since 0s -f newton-harness_emulator_1
+capture_initial_bytes=0
+server_log_baseline_bytes=395
+test_server=exact protocol/payload with 30s delayed close
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+LISTEN 0      5          10.42.0.1:18081      0.0.0.0:*    users:(("python3",pid=1484123,fd=3))

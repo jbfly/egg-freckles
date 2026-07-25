@@ -1,0 +1,10 @@
+12:TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 83 ea 46 a1 07 4b f1 a8 00 00 00 00 60 02 10 00 f8 a9 00 00 02 04 05 b4
+13:TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122417576 ack=0 src=33770 dst=18081
+17:TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 83 ea 46 a1 07 4b f1 a9 00 00 00 01 50 10 10 00 10 56 00 00
+18:TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122417577 ack=1 src=33770 dst=18081
+27:TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 70 00 04 00 00 40 06 ae 87 c0 a8 01 2a 0a 2a 00 01 83 ea 46 a1 07 4b f1 a9 00 00 00 01 50 10 10 00 89 9c 00 00 47 45 54 20 2f 68 61 72 6e 65 73 73 2d 63 6c 69 65 6e 74 2e 70 6b 67 20 48 54 54 50 2f 31 2e 30 0d 0a 48 6f 73 74 3a 20 31 30 2e 34 32 2e 30 2e 31 0d 0a 43 6f 6e 6e 65 63 74 69 6f 6e 3a 20 63 6c 6f 73 65 0d 0a 0d 0a
+28:TCPDIAG state=kStateConnected size=126 iptotal=112 iphdr=20 tcphdr=20 payload=72 flags=0x010 seq=122417577 ack=1 src=33770 dst=18081
+35:TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 05 00 00 40 06 ae ce c0 a8 01 2a 0a 2a 00 01 83 ea 46 a1 07 4b f1 f1 00 00 05 a9 50 10 10 00 0a 66 00 00
+36:TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122417649 ack=1449 src=33770 dst=18081
+40:TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 06 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 83 ea 46 a1 07 4b f1 f1 00 00 0b 51 50 10 10 00 04 be 00 00
+41:TCPDIAG state=kStateConnectedWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122417649 ack=2897 src=33770 dst=18081
