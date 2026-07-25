@@ -398,3 +398,19 @@ No network behavior patch was made and the Loader acceptance cycle was not run, 
 ### Acceptance status and next boundary
 
 Stock PT100 payload did not reach the listener, so the Loader acceptance gate remains closed. `runtime/raw_pkg_server.py` was left running on `10.42.0.1:18081`, but no Loader install/download cycle was attempted. The next useful experiment is a NewtonOS-side trace at the NIE TCP output queue and the Lantern event-dispatch decision immediately above `kLanternSendBuffer` / `kLanternSendCBufferList`; the Einstein repository does not provide that scheduler source, so this needs recovered NIE symbols/source or targeted binary instrumentation of the installed NIE packages.
+
+## 2026-07-25 — Round 7B: Loader output investigation
+
+### Starting evidence and repository state
+
+- `runtime/evidence/round7-decisive-xy-trace.txt` proves stock PT100 reaches `TNewScriptEndpointClient::DoOutput` at ROM `0x00134fdc`, then `OutputRaw`, `TEndpoint::nSnd(raw)`, `PConnectionEnd::PutBytesStart`, and a one-byte TCP frame (`state=kStateConnected payload=1`, `host-send requested=1 sent=1 errno=0`).
+- The requested Round 7 section is absent from `docs/newton-dev-notes.md` at `HEAD 2ddc8cc`. `git show --stat 2ddc8cc` lists only `containers/emulator.Dockerfile` and `containers/patches/einstein-nie-rom-trace.patch`; this Round 7B section therefore records the recovered starting point.
+- Loader source constructs `{_proto: protoBasicEndpoint}` at `examples/harness-loader/Main.newt:62` and synchronously calls three-argument `Output(data, nil, outSpec)` at lines 159-164. The same endpoint construction is used by the harness client and network probe; neither is evidence of a successful payload send.
+
+### Source-level cause identified
+
+- PT100's package frame inherits the same ROM prototype as the Loader (`eptClass._proto: @383`, which `21DEFS.TXT:206` names `protoBasicEndpoint`), so the prototype itself is not wrong.
+- PT100's `MConnectAction` bytecode/literals call `Instantiate(configOptions, self)`, `Bind(nil, nil)`, and lowercase `connect(addressOptions, completionSpec)`. Its `MOutputBinary` calls lowercase three-argument `output(data, nil, fEndpointOutputBinarySpec)`. Evidence: `runtime/evidence/round7b-pt100-actions-full.txt` and the concise extracts in `runtime/evidence/round7b-pt100-connect-call.txt`.
+- The Loader instead reverses the `Instantiate` arguments (`Instantiate(self.endpoint, options)`) and uses uppercase `Connect` and `Output` at `examples/harness-loader/Main.newt:65-88,159-164`. The ROM symbol table distinguishes old `CIConnect`/`CIOutput` (`TScriptEndpointClient`) from `CINewConnect`/`CINewOutput` (`TNewScriptEndpointClient`), matching the observed old-versus-new client behavior.
+- The minimum candidate fix is therefore to match PT100: pass configuration options first and the endpoint frame second, then call lowercase `connect` and `output`. No endpoint-class replacement or Einstein network patch is needed.
+
