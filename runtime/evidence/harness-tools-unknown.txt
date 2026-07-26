@@ -1,0 +1,5 @@
+unknown op
+2026-07-26T14:17:02,130406617+01:00
+{"request_id":"6","status":"unknown_op","error":"unknown op: nope"}
+http=400 total=5.826652
+2026-07-26T14:17:07,961761115+01:00

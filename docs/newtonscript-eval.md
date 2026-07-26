@@ -172,3 +172,69 @@ to report and installed applications unable to compile received source, the only
 remaining route to three-way result/error/timeout classification is an explicit
 Einstein-side completion channel. Patching Einstein is intentionally left for the
 human decision.
+
+## Fifth investigation: fixed named operations
+
+The runtime-compiler negative does not rule out fixed, compiled operations. A
+fresh resident package (`HarnessToolsR1` through the corrected, never-reused
+`HarnessToolsR3` identities) reused round 4's one-pending-request HTTP poll and
+outcome POST. The host candidate accepted:
+
+```json
+{"op":"ping","args":{}}
+{"op":"front_app","args":{}}
+{"op":"get_note","args":{"id":5}}
+```
+
+It returned JSON with `request_id` and one of `result`, `error`, `unknown_op`,
+or `timeout`. The package used three direct `if` branches, not runtime
+compilation, a registry, or a plugin layer. A fake-only host test classified
+result, Newton error, unknown operation, and timeout; the temporary suite had
+25 passing tests.
+
+The foundation transport and dispatch worked, but the required MAIN proof did
+not complete. Four cases passed; `get_note` returned a real but different ID-5
+note. The expected N13 model-answer evidence says ID 5 contains `Export test
+received. The Newton sees this note.`
+([`n13-main-gate.txt`](../runtime/evidence/n13-main-gate.txt) and
+[`n13-main-stock-answer.png`](../runtime/evidence/n13-main-stock-answer.png)).
+The live call instead returned the older malformed text `Export test received.
+I see: "the nthis note.ewton sees"`. A bounded scan of IDs 1 through 30 found
+no entry containing the expected model-answer text. Exact responses are in
+[`harness-tools-get-note.txt`](../runtime/evidence/harness-tools-get-note.txt)
+and
+[`harness-tools-note-mismatch.txt`](../runtime/evidence/harness-tools-note-mismatch.txt).
+No note was created or rewritten to manufacture a pass.
+
+| Required case | Live MAIN result | Round trip | Evidence |
+|---|---|---:|---|
+| `ping` | HTTP 200, `result: "pong"` | 7.481 s | [`harness-tools-ping.txt`](../runtime/evidence/harness-tools-ping.txt) |
+| `front_app` | HTTP 200, `result: "Notepad (paperroll)"`; stock Notes was visibly frontmost | 5.827 s | [`harness-tools-front-app.txt`](../runtime/evidence/harness-tools-front-app.txt), [`harness-tools-front-app.png`](../runtime/evidence/harness-tools-front-app.png) |
+| `get_note`, ID 5 | **FAIL:** HTTP 200 returned a different real note, not the required model answer | 5.592 s | [`harness-tools-get-note.txt`](../runtime/evidence/harness-tools-get-note.txt) |
+| unknown operation | HTTP 400, `status: "unknown_op"`; distinct from `status: "error"` | 5.827 s | [`harness-tools-unknown.txt`](../runtime/evidence/harness-tools-unknown.txt) |
+| package closed | HTTP 504, clean `timeout` | 2.001 s | [`harness-tools-timeout.txt`](../runtime/evidence/harness-tools-timeout.txt) |
+
+The package's nominal delayed-call interval was 0.5 seconds, unchanged from
+round 4. Successful calls still took 5.6-7.5 seconds because each poll and
+outcome POST reacquired an NIE link; the listener sequence is in
+[`harness-tools-server.log`](../runtime/evidence/harness-tools-server.log).
+Reducing the fixed delay could save at most 0.5 seconds per acquisition while
+increasing link-acquisition churn; it would not remove the measured multi-second
+NIE cost. No adaptive scheduler or push channel was attempted.
+
+Per the stop rule, the package, host routes, and temporary classifier test were
+reverted. All three fresh package identities were removed, visibly confirmed in
+[`harness-tools-removed.png`](../runtime/evidence/harness-tools-removed.png), and
+the baseline is again 24 tests. If MAIN's intended note fixture is restored and
+its actual entry ID confirmed, op number four is added as one compiled branch:
+
+```newtonscript
+else if StrEqual(op, "op_four") then
+begin
+    self.outcomeStatus := "result";
+    self.outcomeValue := :OpFour(argument);
+end
+```
+
+Add the `OpFour` method beside the existing operation bodies and one fake host
+classification assertion. No registry or schema layer is needed.

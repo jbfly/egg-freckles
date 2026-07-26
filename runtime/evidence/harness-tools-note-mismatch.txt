@@ -1,0 +1,35 @@
+live MAIN note-id scan after R3 get_note mismatch
+get_note id=5
+2026-07-26T14:16:56,532966295+01:00
+{"request_id":"5","status":"result","result":"Export test received. I see: \"the nthis note.ewton sees\"  "}
+http=200 total=5.591812
+2026-07-26T14:17:02,129523948+01:00
+id=1 {"request_id":"7","status":"result","result":""}
+id=2 {"request_id":"8","status":"result","result":""}
+id=3 {"request_id":"9","status":"result","result":"harness export test the nthis note.ewton sees "}
+id=4 {"request_id":"10","status":"result","result":""}
+id=6 {"request_id":"11","status":"result","result":""}
+id=7 {"request_id":"12","status":"result","result":""}
+id=8 {"request_id":"13","status":"result","result":""}
+id=9 {"request_id":"14","status":"result","result":""}
+id=10 {"request_id":"15","status":"result","result":""}
+id=11 {"request_id":"16","status":"result","result":""}
+id=12 {"request_id":"17","status":"result","result":""}
+id=13 {"request_id":"19","status":"result","result":""}
+id=14 {"request_id":"20","status":"result","result":""}
+id=15 {"request_id":"21","status":"result","result":""}
+id=16 {"request_id":"22","status":"result","result":""}
+id=17 {"request_id":"23","status":"result","result":""}
+id=18 {"request_id":"24","status":"result","result":""}
+id=19 {"request_id":"25","status":"result","result":""}
+id=20 {"request_id":"26","status":"result","result":""}
+id=21 {"request_id":"27","status":"result","result":""}
+id=22 {"request_id":"28","status":"result","result":""}
+id=23 {"request_id":"29","status":"result","result":""}
+id=24 {"request_id":"30","status":"result","result":""}
+id=25 {"request_id":"31","status":"result","result":""}
+id=26 {"request_id":"32","status":"result","result":""}
+id=27 {"request_id":"33","status":"result","result":""}
+id=28 {"request_id":"34","status":"result","result":""}
+id=29 {"request_id":"35","status":"result","result":""}
+id=30 {"request_id":"36","status":"result","result":""}
