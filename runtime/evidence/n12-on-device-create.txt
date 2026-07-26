@@ -1,0 +1,20 @@
+Scratch-only on-device Notes create gate (control 127.0.0.1:18090)
+
+Package identity: NoteExportN12:jbfly (fresh, version 1)
+Write transport: package Create button tapped through POST /window/tap
+Create primitive executed inside buttonClickScript:
+  local p := GetRoot().paperroll;
+  local n := p:MakeTextNote(text, nil);
+  p:NewNote(n, nil, nil);
+
+Three consecutive passing readbacks from the package UI:
+  id=18 mod=64465167 data=array text="N12C3"
+    screenshot: runtime/evidence/n12-gate-1.png
+  id=19 mod=64465167 data=array text="N12C4"
+    screenshot: runtime/evidence/n12-gate-2.png
+  id=20 mod=64465167 data=array text="N12C5"
+    screenshot: runtime/evidence/n12-gate-3.png
+
+The package re-read the newest creation minute and selected the highest unique entry ID within a tie. Focused 8x OCR of the status line read the values above verbatim. No create call used /newtonscript; that endpoint was used only to open the installed package. No call touched the main emulator at 127.0.0.1:18080.
+
+Verdict: the documented Notes create API is reliable for this gate. The earlier negative measured dropped/unsignaled queued evaluator deliveries, not failed Notes API calls. The sanctioned write path is an on-device package UI action; creation remains disconnected from the model/chat path.

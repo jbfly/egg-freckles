@@ -8,9 +8,10 @@ NewtonOS 2.1 stores stock Notes entries in the union soup named by
 `{viewStationery: 'para, text: <rich string>, ...}`. Decoding that rich string
 and posting one bounded JSON document over the proven NIE/HTTP path worked.
 
-The read-only exporter is `examples/note-export`. It reads only the newest entry
-through the documented `timeStamp` index, which is the explicitly created test
-note for this spike. It does not call any soup or entry change method.
+The exporter is `examples/note-export`. Its export path reads only the newest
+entry through the documented `timeStamp` index. Its separate Create button is
+the sanctioned write path proven below; creation is not connected to export,
+the network bridge, or the model/chat path.
 
 ## Actual schema finding
 
@@ -161,37 +162,46 @@ empty note.
 `MakeTextNote(answer, true)` is **not usable as the main create path** despite
 its scratch success; the same call failed on the target store.
 
-## Scratch create follow-up (N4-N9): no reliable primitive yet
+## Scratch create follow-up (N4-N12): API passes on-device gate
 
-The documented two-step was tested on the scratch emulator only:
+The documented two-step is:
 
 ```newtonscript
 local notes := GetRoot().paperroll;
-local note := notes:MakeTextNote(answer, nil);
+local note := notes:MakeTextNote(text, nil);
 notes:NewNote(note, nil, nil);
 ```
 
-It can produce the correct persisted schema. The hardened read-only exporter
-captured healthy examples including `id=5 mod=64465140 data=array` with text
-`N7 red 726`, and `id=10 mod=64465151 data=array` with text
-`N7 proof P1 726`. However, it did not meet the three-consecutive-create gate.
-Later byte-equivalent calls returned `queued` from the emulator control plane
-but created no newer soup entry, including after switching away through stock
-Extras and restarting scratch. Same-minute `timeStamp` ties also make the
-exporter's intentionally simple newest-entry query select an older tied entry.
+N4-N9 sent that code through the emulator-only `/newtonscript` queued
+evaluator. Calls that executed produced healthy array-backed notes, including
+IDs `5`, `6`, and `10`, but later byte-equivalent requests returned `queued`
+without creating entries. Direct `AddFlushedXmit` requests sent through the
+same evaluator behaved identically. That experiment is preserved in
+`runtime/evidence/n7-create-reliability-negative.txt`, but its earlier API
+verdict was wrong: the endpoint has no execution/result signal, so it measured
+the queued evaluator as well as the Notes API.
 
-The fallback direct-soup path also failed. One scratch-only evaluator call made
-three note frames with `MakeTextNote(text, nil)` and passed each to
-`GetUnionSoupAlways(ROM_paperRollSoupName):AddFlushedXmit(frame, nil)`. After a
-scratch restart, the three-entry diagnostic still found the prior `id=10` note
-as newest; none of the three direct-add texts appeared.
+N12 removed that evaluator from creation. Fresh package identity
+`NoteExportN12:jbfly` runs the two-step inside its Create button, immediately
+re-reads the newest creation minute, and resolves same-minute ties by highest
+entry ID. Three consecutive `/window/tap` UI actions produced and displayed:
 
-Evidence and exact calls are summarized in
-`runtime/evidence/n7-create-reliability-negative.txt`; build/call/readback
-artifacts use the short N4-N9 tags. **Verdict: both candidate paths can be
-accepted by the control evaluator without proving execution, and neither is
-reliable enough to wire into the model path.** No write was sent to the main
+- `id=18 mod=64465167 data=array text="N12C3"`
+- `id=19 mod=64465167 data=array text="N12C4"`
+- `id=20 mod=64465167 data=array text="N12C5"`
+
+The full-window screenshots are `runtime/evidence/n12-gate-1.png`,
+`runtime/evidence/n12-gate-2.png`, and
+`runtime/evidence/n12-gate-3.png`; the run summary is
+`runtime/evidence/n12-on-device-create.txt`, and the undefined-symbol-free
+build is `runtime/evidence/n12-build.log`. No write was sent to the main
 emulator.
+
+**Corrected verdict: the documented Notes create API is reliable for the
+three-consecutive-create gate. The flaky link was the emulator's queued
+NewtonScript evaluator, not `MakeTextNote` plus `NewNote`. The sanctioned write
+path is the package's on-device Create button.** Creation remains deliberately
+disconnected from the model/chat path.
 
 The source entry remained byte-for-byte unchanged. Before and after exports are
 `runtime/evidence/n2-source-before.json` and
@@ -201,9 +211,9 @@ and `EntryModTime` `64465065` (`runtime/evidence/n2-source-integrity.txt`).
 
 ## Honest limits
 
-- The shipped bridge remains read-only: both scratch create candidates were
-  reverted after failing the three-consecutive-create gate, and native answer
-  write-back is not proven.
+- Export and model/chat remain read-only. The separate manual Create button is
+  proven only for on-device fixed test text; native model-answer write-back is
+  intentionally not wired in this round.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
 - Validation still permits 8 KiB of note text, but the reused chat protocol

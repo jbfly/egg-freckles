@@ -1,5 +1,5 @@
-kAppSymbol := '|NoteExportN1:jbfly|;
-kAppTitle := "Note Ask n1";
+kAppSymbol := '|NoteExportN12:jbfly|;
+kAppTitle := "Note Ask n12";
 mainView := {
     _proto: protoFloatNGo,
     viewBounds: {left: 12, top: 100, right: 308, bottom: 300},
@@ -10,6 +10,7 @@ mainView := {
     endpoint: nil,
     linkID: nil,
     pending: nil,
+    createCount: 0,
 
     ViewSetupDoneScript: func()
     begin
@@ -106,6 +107,41 @@ mainView := {
             & ",\"truncated\":" & trunc & "}";
     end,
 
+    Create: func()
+    begin
+        self.createCount := self.createCount + 1;
+        local expected := "N12C" & self.createCount;
+        local paperroll := GetRoot().paperroll;
+        local note := paperroll:MakeTextNote(expected, nil);
+        paperroll:NewNote(note, nil, nil);
+
+        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+        cursor:ResetToEnd();
+        local entry := cursor:Prev();
+        if entry = nil then return :Status("Create failed: no note");
+        local stamp := GetSysEntryData(entry, 'timeStamp);
+        local candidate := cursor:Prev();
+        while candidate and GetSysEntryData(candidate, 'timeStamp) = stamp do
+        begin
+            if EntryUniqueID(candidate) > EntryUniqueID(entry) then entry := candidate;
+            candidate := cursor:Prev();
+        end;
+
+        local data := GetSysEntryData(entry, 'data);
+        local text := "";
+        if IsArray(data) then foreach item in data do
+            if item.viewStationery = 'para then
+            begin
+                if StrLen(text) > 0 then text := text & "\n";
+                if IsString(item.text) then text := text & item.text;
+                else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+            end;
+        local shape := "not-array";
+        if IsArray(data) then shape := "array";
+        return :Status("id=" & EntryUniqueID(entry) & " mod=" & EntryModTime(entry)
+            & "\rdata=" & shape & "\rtext=" & text);
+    end,
+
     Send: func()
     begin
         if self.pending then return nil;
@@ -199,9 +235,13 @@ mainView := {
         {_proto: protoStaticText,
          viewBounds: {left: 10, top: 12, right: 270, bottom: 84},
          text: "Exports only the newest stock Notes entry.\nTest note: Harness export test",
-         viewFont: ROM_fontSystem10},
+         viewFont: ROM_fontSystem9},
         {_proto: protoTextButton,
-         viewBounds: {left: 90, top: 104, right: 190, bottom: 140},
+         viewBounds: {left: 35, top: 104, right: 125, bottom: 140},
+         text: "Create",
+         buttonClickScript: func() self:Parent():Create()},
+        {_proto: protoTextButton,
+         viewBounds: {left: 170, top: 104, right: 260, bottom: 140},
          text: "Export",
          buttonClickScript: func() self:Parent():Send()},
     ],
