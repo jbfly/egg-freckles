@@ -38,9 +38,13 @@ is `runtime/evidence/notes-latest.json`.
 
 The note was created through the stock Notes UI on the networked main emulator.
 The first line was `Harness export test`; a second line was entered as
-`The Newton sees this note.`. Einstein's synthetic typing reordered part of the
-second line in the actual saved rich string. The exporter reported the stored
-text exactly rather than repairing or inventing it:
+`The Newton sees this note.`. The correctness check reopened stock Notes on the
+main emulator and compared the rendered note in
+`runtime/evidence/notes-test-setup.png` with
+`runtime/evidence/notes-latest.json`. **Verdict: this is a synthetic-typing
+artifact, not an exporter bug.** The screen itself shows the same scrambled
+words, and the entry is one 49-byte paragraph frame, so neither
+`DecodeRichString` nor paragraph ordering changed the text:
 
 ```text
 harness export test the nthis note.ewton sees [trailing space]
@@ -65,7 +69,10 @@ The Newton package posts one ASCII JSON object to `POST /note`:
 
 `pkg_publisher.py` accepts only those five keys, validates UTF-8, types, a
 512-byte title cap, an 8 KiB text cap, and a 9 KiB request cap, then atomically
-replaces `runtime/evidence/notes-latest.json`. There is no model call.
+replaces `runtime/evidence/notes-latest.json`. It synchronously resets the
+existing port-6801 chat session, sends the note text as one framed `MSG`, joins
+the returned `TEXT` frames, and returns one bounded ASCII `NOTE ...` response.
+The Newton package displays that response without changing the source note.
 
 The source note was exported twice. `runtime/evidence/notes-before.json` and
 `runtime/evidence/notes-after.json` are byte-identical and both hash to
@@ -84,8 +91,35 @@ unchanged by export.
 - The optional `title` was absent for the test note, so JSON reports `""`
   rather than deriving a title from body text.
 
-## Next
+## Real model proof
 
-Pass the validated `notes-latest.json` object as one user-provided context item
-to the existing host model turn, preserving the same 8 KiB cap and making no
-Newton-side change.
+Package identity `NoteExportN1:jbfly` posted the real note to the real server
+container (`NEWTON_FAKE_BACKEND=0`). The Newton displayed:
+
+```text
+Export test received. The Newton sees this note.
+```
+
+Evidence:
+
+- `runtime/evidence/n1-model-answer.png` — the answer visible on the main Newton
+- `runtime/evidence/n1-model-answer.txt` — OCR sidecar
+- `runtime/evidence/n1-wire-host.log` — `/new`, the exact note `MSG`, model
+  `STAT/TEXT/PROMPT`, and the successful `POST /note`
+- `runtime/evidence/n1-real-server.log` — matching real server connection
+
+`grep -R FAKE` over those proof files returned zero hits. The full clean test
+run is 24 passed, including model success/failure response coverage.
+
+## Honest limits
+
+- This remains read-only: it never writes an answer into Notes.
+- It reads only the newest plain stock note; ink, pictures, outlines, and
+  checklists remain unsupported.
+- Validation still permits 8 KiB of note text, but the reused chat protocol
+  deliberately accepts only one 240-byte frame. A longer valid note therefore
+  gets a visible `No answer: LENGTH` response; multipart prompts are a later
+  protocol rung, not part of this change.
+- The returned display line is ASCII-cleaned and capped at 200 characters for
+  the Newton status view. There is no polling, queue, or bridge-owned history;
+  every export resets the shared chat before its one model turn.

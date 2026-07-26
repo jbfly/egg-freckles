@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import struct
 import subprocess
 import tempfile
@@ -14,6 +15,8 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from server import NATIVE_HANDSHAKE, frame_line, parse_frame
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_HOST = os.environ.get("NEWTON_PUBLISHER_HOST", "10.42.0.1")
@@ -34,6 +37,9 @@ INK_PROMPT = (
     "No preamble, no markdown."
 )
 INK_TIMEOUT = 120
+MODEL_HOST = os.environ.get("NEWTON_MODEL_HOST", "127.0.0.1")
+MODEL_PORT = int(os.environ.get("NEWTON_MODEL_PORT", "6801"))
+MODEL_TIMEOUT = 120
 PAGE_BODY = (
     b"<!doctype html><html><body>"
     b"<h1>Newton Harness Client</h1>"
@@ -46,6 +52,51 @@ def ascii_line(text: str, limit: int = 100) -> str:
     """Collapse to one short us-ascii line the Newton can print verbatim."""
     clean = " ".join(text.encode("ascii", "replace").decode("ascii").split())
     return clean[:limit]
+
+
+def ask_model(prompt: str, host: str = MODEL_HOST, port: int = MODEL_PORT) -> str:
+    """Send one clean MSG turn through the existing real-backend server."""
+    def line(stream) -> bytes:
+        raw = stream.readline(241)
+        if not raw.endswith(b"\n"):
+            raise RuntimeError("model protocol ended")
+        return raw
+
+    with socket.create_connection((host, port), timeout=MODEL_TIMEOUT) as sock:
+        sock.settimeout(MODEL_TIMEOUT)
+        stream = sock.makefile("rwb", buffering=0)
+        stream.write(NATIVE_HANDSHAKE + b"\r\n" + frame_line(0, "HELLO", "NEWTON1 note"))
+        if line(stream) != b"ACK 00\r\n":
+            raise RuntimeError("model HELLO rejected")
+        seq, op, _ = parse_frame(line(stream))
+        if op != "STAT":
+            raise RuntimeError("model not ready")
+        stream.write(f"ACK {seq:02d}\r\n".encode("ascii"))
+
+        # ponytail: reset the shared chat once; this bridge is one note, one turn.
+        for client_seq, message in ((1, "/new"), (2, prompt)):
+            print(f"NOTE WIRE C> MSG {message!r}", flush=True)
+            stream.write(frame_line(client_seq, "MSG", message))
+            if line(stream) != f"ACK {client_seq:02d}\r\n".encode("ascii"):
+                raise RuntimeError("model MSG rejected")
+            reply = []
+            error = ""
+            while True:
+                seq, op, payload = parse_frame(line(stream))
+                print(f"NOTE WIRE S> {op} {payload}".rstrip(), flush=True)
+                stream.write(f"ACK {seq:02d}\r\n".encode("ascii"))
+                if op == "TEXT":
+                    reply.append(payload)
+                elif op == "STAT" and payload.startswith("ERROR"):
+                    error = payload
+                elif op == "PROMPT":
+                    break
+            if error:
+                raise RuntimeError(error)
+        answer = ascii_line(" ".join(reply), 200)
+        if not answer:
+            raise RuntimeError("no model text")
+        return answer
 
 
 def interpret(png_path: Path) -> str:
@@ -200,7 +251,12 @@ class PublisherHandler(BaseHTTPRequestHandler):
         temp = self.note_path.with_suffix(self.note_path.suffix + ".tmp")
         temp.write_text(json.dumps(note, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         temp.replace(self.note_path)
-        self._send_bytes(HTTPStatus.OK, b"NOTE OK\r\n", "text/plain; charset=us-ascii")
+        try:
+            answer, status = ask_model(note["text"]), HTTPStatus.OK
+        except (OSError, RuntimeError, ValueError) as exc:
+            answer, status = ascii_line(f"No answer: {exc}", 80), HTTPStatus.BAD_GATEWAY
+        self._send_bytes(status, f"NOTE {answer}\r\n".encode("ascii"),
+                         "text/plain; charset=us-ascii")
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
         path = urlsplit(self.path).path

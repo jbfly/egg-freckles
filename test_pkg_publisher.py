@@ -76,15 +76,36 @@ class PublisherTest(unittest.TestCase):
                 try:
                     note = {"id": 42, "title": "", "modified": 123,
                             "text": "The Newton sees this note.", "truncated": False}
-                    status, _, response, _ = self.fetch(
-                        port, "/note", "POST", json.dumps(note).encode("utf-8"))
-                    self.assertEqual((status, response), (200, b"NOTE OK\r\n"))
+                    with mock.patch.object(pkg_publisher, "ask_model", return_value="It is scrambled.") as ask:
+                        status, _, response, _ = self.fetch(
+                            port, "/note", "POST", json.dumps(note).encode("utf-8"))
+                    self.assertEqual((status, response), (200, b"NOTE It is scrambled.\r\n"))
+                    ask.assert_called_once_with(note["text"])
                     self.assertEqual(json.loads(note_path.read_text()), note)
                     status, _, _, _ = self.fetch(
                         port, "/note", "POST",
                         json.dumps({**note, "text": "x" * 8193}).encode("utf-8"))
                     self.assertEqual(status, 400)
                     self.assertEqual(json.loads(note_path.read_text()), note)
+                finally:
+                    server.shutdown()
+                    thread.join()
+
+    def test_note_model_failure_is_visible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with pkg_publisher.make_server("127.0.0.1", 0, note_path=Path(tmp) / "note.json") as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                note = {"id": 1, "title": "", "modified": 2,
+                        "text": "hello", "truncated": False}
+                try:
+                    with mock.patch.object(pkg_publisher, "ask_model",
+                                           side_effect=RuntimeError("model down")):
+                        status, _, response, _ = self.fetch(
+                            port, "/note", "POST", json.dumps(note).encode())
+                    self.assertEqual(status, 502)
+                    self.assertEqual(response, b"NOTE No answer: model down\r\n")
                 finally:
                     server.shutdown()
                     thread.join()

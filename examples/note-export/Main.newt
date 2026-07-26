@@ -1,5 +1,5 @@
-kAppSymbol := '|NoteExport:jbfly|;
-kAppTitle := "Note Out";
+kAppSymbol := '|NoteExportN1:jbfly|;
+kAppTitle := "Note Ask n1";
 mainView := {
     _proto: protoFloatNGo,
     viewBounds: {left: 12, top: 100, right: 308, bottom: 300},
@@ -149,7 +149,8 @@ mainView := {
             discardAfter: 256,
             reqTimeout: 30000,
             InputScript: func(endpoint, data, terminator, options)
-                if BeginsWith(data, "NOTE OK") then self._parent:Status("Exported unchanged"),
+                if BeginsWith(data, "NOTE ") then
+                    self._parent:Status(SubStr(data, 5, StrLen(data) - 5)),
             CompletionScript: func(endpoint, options, result)
                 AddDelayedCall(func(view) view:Stop(), [self._parent], 500),
         });
