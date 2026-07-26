@@ -1,0 +1,10 @@
+{"request_id":"1","status":"result","result":"pong","latency_ms":61.668}	200	0.062395
+{"status":"error","error":"persistent Newton connection closed"}	503	0.162633
+{"request_id":"3","status":"result","result":"pong","latency_ms":2858.162}	200	3.488654
+{"status":"error","error":"persistent Newton connection closed"}	503	0.046879
+{"request_id":"5","status":"result","result":"pong","latency_ms":2722.108}	200	3.468998
+{"status":"error","error":"persistent Newton connection closed"}	503	0.046151
+{"request_id":"7","status":"result","result":"pong","latency_ms":2853.137}	200	3.603609
+{"status":"error","error":"persistent Newton connection closed"}	503	0.047826
+{"request_id":"9","status":"result","result":"pong","latency_ms":3095.336}	200	3.844157
+{"status":"error","error":"persistent Newton connection closed"}	503	0.049989

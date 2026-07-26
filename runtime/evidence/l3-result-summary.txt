@@ -1,0 +1,18 @@
+Newton-initiated long-poll result (L3)
+
+Protocol: one NIE link, one TCP endpoint, Newton Output("POLL\r\n"), async SetInputSpec, host response, Newton result, immediate re-arm from InputScript.
+
+Ping calls: 10
+HTTP 200: 10
+TCP connections in l3-server.log: 1 (source port 33238)
+curl latency: min 0.124964 s, median 0.809219 s, max 0.810243 s
+server latency: min 124.218 ms, median 808.666 ms, max 809.610 ms
+Comparison: current poll+POST path 5.8-11.5 s.
+
+UI event loop: responsive. While the async poll was outstanding, POST /newtonscript queued GetRoot().paperroll:Open(); and the next device-derived front_app result was Notepad (paperroll). The persistent PCMCIA information slip obscured the Notes screenshot, so operation read-back is the acceptance evidence.
+
+front_app: HTTP 200, Notepad (paperroll), 0.034389 s curl / 33.757 ms server
+get_note id=5: HTTP 200, Export test received. I see: "the nthis note.ewton sees", 0.820205 s curl / 819.598 ms server
+
+Sync control (L1): Newton sent POLL then synchronous Input() raised Communications "Stopped", sent FIN, and reconnected. Ten calls: 0/10 complete; alternating HTTP 503 closed-connection and HTTP 504 two-second timeout.
+Async delayed re-arm (L2): solicited data arrived, including a 61.668 ms first ping, but delayed SetInputSpec caused connection churn; 5/10 complete. Re-arming from InputScript (L3) removed the churn.

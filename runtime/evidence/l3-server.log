@@ -1,0 +1,16 @@
+Newton listener 10.42.0.1:6801
+Control listener http://127.0.0.1:18083/tools
+Newton connected 10.42.0.1:33238
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -
+control 127.0.0.1 "POST /tools?timeout=10 HTTP/1.1" 200 -

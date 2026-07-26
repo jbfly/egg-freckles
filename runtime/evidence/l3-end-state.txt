@@ -1,0 +1,24 @@
+MAIN health:
+{"status":"ready","window_id":2097158,"display":":99","newton_screen":{"width":320,"height":480,"window_offset":{"x":0,"y":78}},"window":{"x":1,"y":20,"width":320,"height":558,"screen":0}}
+SCRATCH health:
+{"status":"ready","window_id":2097158,"display":":99","newton_screen":{"width":320,"height":480,"window_offset":{"x":0,"y":78}},"window":{"x":1,"y":20,"width":320,"height":558,"screen":0}}
+listeners:
+LISTEN 0      5          10.42.0.1:18081      0.0.0.0:*    users:(("python3",pid=3304134,fd=3))
+LISTEN 0      4096               *:6801             *:*    users:(("rootlessport",pid=4029763,fd=10))
+containers:
+newton-harness_server_1 Up 16 seconds
+newton-scratch_emulator_1 Up 3 hours (healthy)
+newton-harness_emulator_1 Up 16 seconds (healthy)
+raw poll tail:
+10.42.0.1 - - [26/Jul/2026 16:28:56] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:29:02] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:29:08] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:29:14] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:29:20] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:29:25] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:29:31] "GET /tools/poll HTTP/1.0" 200 -
+10.42.0.1 - - [26/Jul/2026 16:36:23] "POST /tools?timeout=20 HTTP/1.1" 504 -
+10.42.0.1 - - [26/Jul/2026 16:36:43] "POST /tools?timeout=20 HTTP/1.1" 504 -
+10.42.0.1 - - [26/Jul/2026 16:37:03] "POST /tools?timeout=20 HTTP/1.1" 504 -
+persistent server processes:
+log followers:

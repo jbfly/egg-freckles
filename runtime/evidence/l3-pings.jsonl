@@ -1,0 +1,10 @@
+{"request_id":"1","status":"result","result":"pong","latency_ms":124.218}	200	0.124964
+{"request_id":"2","status":"result","result":"pong","latency_ms":805.432}	200	0.805987
+{"request_id":"3","status":"result","result":"pong","latency_ms":809.154}	200	0.809681
+{"request_id":"4","status":"result","result":"pong","latency_ms":808.209}	200	0.808788
+{"request_id":"5","status":"result","result":"pong","latency_ms":809.166}	200	0.809718
+{"request_id":"6","status":"result","result":"pong","latency_ms":809.61}	200	0.810243
+{"request_id":"7","status":"result","result":"pong","latency_ms":808.366}	200	0.808963
+{"request_id":"8","status":"result","result":"pong","latency_ms":808.783}	200	0.809306
+{"request_id":"9","status":"result","result":"pong","latency_ms":808.548}	200	0.809131
+{"request_id":"10","status":"result","result":"pong","latency_ms":809.175}	200	0.809725

@@ -1,0 +1,10 @@
+{"status":"error","error":"persistent Newton connection closed"}	503	0.000716
+{"status":"timeout","error":"no persistent Newton connection"}	504	2.000539
+{"status":"error","error":"persistent Newton connection closed"}	503	0.503532
+{"status":"timeout","error":"no persistent Newton connection"}	504	2.000695
+{"status":"error","error":"persistent Newton connection closed"}	503	0.913081
+{"status":"timeout","error":"no persistent Newton connection"}	504	2.000634
+{"status":"error","error":"persistent Newton connection closed"}	503	0.735383
+{"status":"timeout","error":"no persistent Newton connection"}	504	2.000645
+{"status":"error","error":"persistent Newton connection closed"}	503	0.917103
+{"status":"timeout","error":"no persistent Newton connection"}	504	2.000639

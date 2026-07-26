@@ -1,0 +1,72 @@
+Newton listener 10.42.0.1:6801
+Control listener http://127.0.0.1:18083/tools
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+Newton connected 10.42.0.1:38134
+Newton connected 10.42.0.1:38148
+Newton connected 10.42.0.1:38158
+Newton connected 10.42.0.1:53346
+Newton connected 10.42.0.1:53362
+control 127.0.0.1 "GET /health HTTP/1.1" 200 -
+Newton connected 10.42.0.1:53368
+Newton connected 10.42.0.1:53800
+Newton connected 10.42.0.1:53812
+Newton connected 10.42.0.1:53822
+Newton connected 10.42.0.1:53828
+Newton connected 10.42.0.1:45218
+Newton connected 10.42.0.1:45224
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 503 -
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 504 -
+Newton connected 10.42.0.1:45232
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 503 -
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 504 -
+Newton connected 10.42.0.1:45246
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 503 -
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 504 -
+Newton connected 10.42.0.1:57466
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 503 -
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 504 -
+Newton connected 10.42.0.1:57480
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 503 -
+control 127.0.0.1 "POST /tools?timeout=2 HTTP/1.1" 504 -
+Newton connected 10.42.0.1:57484
+Newton connected 10.42.0.1:32772
+Newton connected 10.42.0.1:32778
+Newton connected 10.42.0.1:32782
+Newton connected 10.42.0.1:32784
+Newton connected 10.42.0.1:59720
+Newton connected 10.42.0.1:59736
+Newton connected 10.42.0.1:59738
+Newton connected 10.42.0.1:59332
+Newton connected 10.42.0.1:59338
+Newton connected 10.42.0.1:59340
+Newton connected 10.42.0.1:59346
+Newton connected 10.42.0.1:34422
+Newton connected 10.42.0.1:34434
+Newton connected 10.42.0.1:34446
+Newton connected 10.42.0.1:34462
+Newton connected 10.42.0.1:51832
+Newton connected 10.42.0.1:51838
+Newton connected 10.42.0.1:51844
+Newton connected 10.42.0.1:60130
+Newton connected 10.42.0.1:60132
+Newton connected 10.42.0.1:60146
+Newton connected 10.42.0.1:60154
+Newton connected 10.42.0.1:42598
+Newton connected 10.42.0.1:42614
+Newton connected 10.42.0.1:42624
+Newton connected 10.42.0.1:54522
+Newton connected 10.42.0.1:54526
+Newton connected 10.42.0.1:54530
+Newton connected 10.42.0.1:54544
+Newton connected 10.42.0.1:50424
+Newton connected 10.42.0.1:50432
+Newton connected 10.42.0.1:50448
+Newton connected 10.42.0.1:36138
