@@ -1,0 +1,29 @@
+Stage 1 ink capture evidence — 2026-07-26
+
+Package identity: InkCaptureA:jbfly
+Package SHA-256: 45332408c06341408b4d26ec27b30ecd1f7eb9913d6ff57b5ec2e4e3c682d671
+Capture command: podman logs --since 0s -f newton-harness_emulator_1
+Capture file verified zero bytes before follower start: yes
+Capture follower stopped: yes
+
+Verified /drag signature (emulator/control.py):
+  start_x, start_y, end_x, end_y; duration=0.5; steps=20
+Invocation:
+  POST /drag {"start_x":60,"start_y":140,"end_x":250,"end_y":300,"duration":0.8,"steps":24}
+Response:
+  {"ok":true}
+
+Before OCR:
+Draw in the box
+
+Strokes: 0 Points:0
+P & S O T v
+
+Extras InOut Names Dates Undo  Find  Assist
+After OCR:
+Draw in the box
+
+Strokes: 1 Points: 94
+P & 3 O KV
+
+Extras InOut Names Dates Undo  Find  Assist

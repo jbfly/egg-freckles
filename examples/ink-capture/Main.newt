@@ -1,0 +1,74 @@
+kAppSymbol := '|InkCaptureA:jbfly|;
+kAppTitle := "Ink A";
+kVersion := "0.1";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 8, top: 24, right: 312, bottom: 440},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    strokeCount: 0,
+    pointCount: 0,
+    statusView: nil,
+
+    ViewSetupDoneScript: func()
+    begin
+        inherited:?ViewSetupDoneScript();
+        AddDelayedCall(func(view) view:Wire(), [self], 300);
+    end,
+
+    // ponytail: one diagnostic label; find it by geometry because child order moves.
+    Wire: func()
+    begin
+        local kids := :ChildViewFrames();
+        if kids = nil then return nil;
+        local rootTop := self:GlobalBox().top;
+        foreach child in kids do
+            if child:GlobalBox().top - rootTop = 366 then self.statusView := child;
+        return nil;
+    end,
+
+    CountStroke: func(points)
+    begin
+        self.strokeCount := self.strokeCount + 1;
+        self.pointCount := self.pointCount + (Length(points) div 2);
+        if self.statusView = nil then :Wire();
+        if self.statusView then SetValue(self.statusView, 'text,
+            "Strokes: " & self.strokeCount & "   Points: " & self.pointCount);
+        return nil;
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 8, top: 8, right: 288, bottom: 30},
+            text: "Draw in the box",
+            viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            viewClass: clView,
+            viewBounds: {left: 8, top: 34, right: 288, bottom: 354},
+            viewFlags: vVisible + vClickable + vStrokesAllowed,
+
+            ViewStrokeScript: func(unit)
+            begin
+                local points := GetPointsArray(unit);
+                self:Parent():CountStroke(points);
+                // ponytail: this spike counts only; no retained-ink model or redraw code.
+                return nil;
+            end,
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 8, top: 366, right: 288, bottom: 390},
+            text: "Strokes: 0   Points: 0",
+            viewFont: ROM_fontSystem12Bold,
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

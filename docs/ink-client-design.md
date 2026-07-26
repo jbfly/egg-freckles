@@ -218,3 +218,19 @@ Einstein's mouse is the stylus, so ink capture is fully emulator-testable.
 | `server.py` ASCII-clean, strict JSON schema, `NEWTON_FAKE_BACKEND` | Response contract and testability |
 | `emulator/control.py` + client | All stage tests (after `/drag` lands) |
 | `examples/harness-client` | Shell app being replaced by Stage 4 output |
+
+---
+
+## Stage 1 result — 2026-07-26
+
+Stage 1 succeeded with the documented NewtonOS 2.1 equivalent path, without
+networking. `protoInkView` is absent from the 2.1 platform file, but a plain
+`clView` with `vStrokesAllowed` receives `ViewStrokeScript(unit)`, resolving
+R2. The extraction API is `GetPointsArray(unit)`, not `GetPoints`; it returns a
+flat array of alternating Y/X coordinates. One control-API drag produced the
+on-screen result **`Strokes: 1 Points: 94`**, resolving R1. The manual
+`ExtractByte` fallback was not needed.
+
+Evidence: `runtime/evidence/s1-ink-after.png`,
+`runtime/evidence/s1-ink-after.txt`, `runtime/evidence/s1-ink-result.txt`, and
+`runtime/evidence/s1-ink-emulator.log`.
