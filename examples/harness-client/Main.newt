@@ -12,7 +12,8 @@ mainView := {
     endpoint: nil,
     linkID: nil,
     resultView: nil,
-    inputTarget: nil,
+    responseText: "",
+    responseDone: nil,
 
     SetStatus: func(message)
         SetValue(self.resultView, 'text, message),
@@ -105,16 +106,46 @@ mainView := {
         end;
     end,
 
+    ParseContentLength: func(headers)
+    begin
+        local start := StrPos(headers, "Content-Length:", 0);
+        if start = nil then return nil;
+        local value := 0;
+        local sawDigit := nil;
+        for index := start + 15 to Length(headers) - 1 do
+        begin
+            local digit := StrPos("0123456789", SubStr(headers, index, 1), 0);
+            if digit <> nil then
+            begin
+                value := (value * 10) + digit;
+                sawDigit := true;
+            end else if sawDigit then
+                return value;
+        end;
+        if sawDigit then return value;
+        return nil;
+    end,
+
     ReceiveStatus: func()
     begin
-        self.inputTarget := GetDefaultStore():NewVBO('status, 2048);
+        self.responseText := "";
+        self.responseDone := nil;
         self.endpoint:SetInputSpec({
-            form: 'binary,
-            target: {data: self.inputTarget, offset: 0},
-            termination: {byteCount: 125},
-            discardAfter: 2048,
+            _parent: self,
+            form: 'string,
+            // ponytail: /status is capped at 4096 bytes; stream it only if that ceiling grows.
+            termination: {byteCount: 4096},
+            partialFrequency: 100,
+            reqTimeout: 10000,
             InputScript: func(endpoint, data, terminator, options)
-                endpoint._parent:StatusReceived(data, terminator),
+            begin
+                self._parent.responseText := data;
+                if terminator then self._parent:StatusReceived(data);
+            end,
+            PartialScript: func(endpoint, data)
+                self._parent.responseText := data,
+            CompletionScript: func(endpoint, options, result)
+                self._parent:StatusReceived(self._parent.responseText),
         });
         self.endpoint:output(
             "GET /status HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
@@ -124,41 +155,58 @@ mainView := {
         return nil;
     end,
 
-    StatusReceived: func(data, terminator)
+    StatusReceived: func(response)
     begin
-        local response := "";
+        if (self.endpoint = nil) or self.responseDone then return nil;
+        self.responseDone := true;
         try
         begin
-            for index := 0 to 124 do
-                response := response & CHR(ExtractByte(data, index));
-
-            if not BeginsWith(response, "HTTP/1.0 200") then
-                return :Failed("Harness HTTP error");
+            if (response = nil) or (Length(response) < 4) then
+                return :ReceiveFailed("Bad harness reply");
+            // Keep one string form for the whole response: NewtonOS loses buffered bytes
+            // when a non-binary input spec switches to binary or frame.
             local bodyOffset := nil;
             for index := 0 to Length(response) - 4 do
                 if bodyOffset = nil
                 and StrEqual(SubStr(response, index, 4), "\r\n\r\n") then
                     bodyOffset := index + 4;
-            if bodyOffset = nil then return :Failed("Bad harness reply");
-            local body := SubStr(response, bodyOffset, Length(response) - bodyOffset);
+            if bodyOffset = nil then return :ReceiveFailed("Bad harness reply");
+            if not BeginsWith(response, "HTTP/1.0 200") then
+                return :ReceiveFailed("Harness HTTP error");
+            local contentLength := :ParseContentLength(SubStr(response, 0, bodyOffset));
+            if (contentLength = nil) or (contentLength <= 0)
+            or ((bodyOffset + contentLength) > 4096) then
+            begin
+                return :ReceiveFailed("Bad harness Content-Length");
+            end;
+            if Length(response) < (bodyOffset + contentLength) then
+                return :ReceiveFailed("Harness body incomplete");
+            local body := SubStr(response, bodyOffset, contentLength);
             if Length(body) > 80 then body := SubStr(body, 0, 80);
             :SetStatus("Online: " & body);
-            :Stop();
+            // ponytail: let the peer-close FSM settle before InetReleaseLink.
+            AddDelayedCall(func(view) view:Stop(), [self], 1000);
         end
         onexception |evt.ex| do
         begin
             local exception := CurrentException();
-            local exceptionText := "StatusReceived threw";
             local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
+            local exceptionText := "Receive error " & exceptionError;
             if HasSlot(exception, 'name) then
-                exceptionText := exceptionText & "\nname=" & exception.name;
-            exceptionText := exceptionText & "\nerror=" & exceptionError;
+                exceptionText := exceptionText & " " & exception.name;
             if HasSlot(exception, 'data) then
                 exceptionText := exceptionText & "\ndata=" & exception.data;
             if HasSlot(exception, 'message) then
                 exceptionText := exceptionText & "\nmessage=" & exception.message;
             :SetStatus(exceptionText);
         end;
+    end,
+
+    ReceiveFailed: func(message)
+    begin
+        :SetStatus(message & "\nTap to retry");
+        // ponytail: receive failures can arrive while the peer-close FSM is still active.
+        AddDelayedCall(func(view) view:Stop(), [self], 1000);
     end,
 
     Failed: func(message)

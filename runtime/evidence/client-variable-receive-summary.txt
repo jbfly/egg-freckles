@@ -1,0 +1,28 @@
+Newton Harness Client variable-length receive evidence
+Date: 2026-07-26
+
+Design
+- One 'string input form is used for the complete HTTP response.
+- No non-binary -> binary/frame switch occurs; refs/qa/inptspec.htm says that transition loses buffered bytes.
+- byteCount 4096 is a safety ceiling, not the expected response length.
+- Content-Length is parsed as ASCII digits after the connection-close completion.
+
+Final-path round
+- Command: scripts/newton-round.sh examples/harness-client r18d
+- Symbol: HarnessClientR18D:jbfly
+- Visible version: 1.1-r18d (OCR passed)
+- Package SHA-256: 13bcbdd8167b063d4a7365919bb0c4e18eededf31a036bfa2c8a652f30100224
+- Canonical 23-byte body / 125-byte HTTP response displayed: Harness server v1.1 OK
+- Evidence: r18d-ready.*, r18d-default.*, r18d-emulator-capture.log, r18d-baseline.txt
+
+Variable-length proof (same receive path, HarnessClientR17G:jbfly)
+- Temporary 3-byte body b"OK\n": 104-byte HTTP response displayed Online: OK.
+  Evidence: r17g-short-3.png, r17g-short-3.txt, r17g-short-3-server.log
+- Temporary 87-byte body: 189-byte HTTP response displayed the longer Harness variable response prefix.
+  Evidence: r17g-long-87.png, r17g-long-87.txt, r17g-long-87-server.log
+- pkg_publisher.py was restored to the canonical 23-byte STATUS_BODY and the raw server was restarted afterward.
+
+Tooling note
+- The stable client starts untagged, so newton-round.sh required a temporary seed identity before its first bump.
+- OCR rejected clipped long titles and misread some suffixes (for example r17a as 117a); OCR-friendly r18d passed.
+- All capture PIDs were stopped after testing.
