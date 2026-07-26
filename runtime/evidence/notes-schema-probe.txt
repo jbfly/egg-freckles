@@ -1,0 +1,8 @@
+Bounded schema probe of the one newest stock Notes entry
+entry_id=3
+class=paperroll
+modified=64465065
+data_count=1
+item0.class=frame
+item0.viewStationery=para
+item0.text_length=46

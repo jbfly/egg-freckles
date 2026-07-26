@@ -26,6 +26,7 @@ DEFAULT_PACKAGE_PATH = Path(
 )
 STATUS_BODY = b"Harness server v1.1 OK\n"
 DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "ink-latest.png"
+DEFAULT_NOTE_PATH = BASE_DIR / "runtime" / "evidence" / "notes-latest.json"
 INK_PROMPT = (
     "The attached PNG is a sketch or handwriting captured from the 320x480 screen "
     "of a Newton MessagePad. Answer with one short plain sentence under 90 "
@@ -119,9 +120,14 @@ class PublisherHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
     package_path = DEFAULT_PACKAGE_PATH
     ink_path = DEFAULT_INK_PATH
+    note_path = DEFAULT_NOTE_PATH
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib hook name
-        if urlsplit(self.path).path != "/ink":
+        path = urlsplit(self.path).path
+        if path == "/note":
+            self._save_note()
+            return
+        if path != "/ink":
             self._not_found("not found\n")
             return
         try:
@@ -166,6 +172,35 @@ class PublisherHandler(BaseHTTPRequestHandler):
         # apart from the HTTP header lines its endpoint also delivers.
         self._send_bytes(status, f"INK {reading}\r\n".encode("ascii"),
                          "text/plain; charset=us-ascii")
+
+    def _save_note(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 0 < length <= 9216:
+                raise ValueError
+            raw = self.rfile.read(length)
+            note = json.loads(raw.decode("utf-8"))
+            if not isinstance(note, dict) or set(note) != {"id", "title", "modified", "text", "truncated"}:
+                raise ValueError
+            if note["id"] is not None and (isinstance(note["id"], bool) or not isinstance(note["id"], int)):
+                raise ValueError
+            if note["modified"] is not None and (isinstance(note["modified"], bool) or not isinstance(note["modified"], int)):
+                raise ValueError
+            if not isinstance(note["title"], str) or not isinstance(note["text"], str):
+                raise ValueError
+            if not isinstance(note["truncated"], bool):
+                raise ValueError
+            if len(note["title"].encode("utf-8")) > 512 or len(note["text"].encode("utf-8")) > 8192:
+                raise ValueError
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+            self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid note\n", "text/plain; charset=us-ascii")
+            return
+        self.note_path.parent.mkdir(parents=True, exist_ok=True)
+        # ponytail: one validated document, atomically replaced; no note database.
+        temp = self.note_path.with_suffix(self.note_path.suffix + ".tmp")
+        temp.write_text(json.dumps(note, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temp.replace(self.note_path)
+        self._send_bytes(HTTPStatus.OK, b"NOTE OK\r\n", "text/plain; charset=us-ascii")
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
         path = urlsplit(self.path).path
@@ -218,9 +253,11 @@ def make_server(
     port: int = DEFAULT_PORT,
     package_path: Path = DEFAULT_PACKAGE_PATH,
     ink_path: Path = DEFAULT_INK_PATH,
+    note_path: Path = DEFAULT_NOTE_PATH,
 ) -> PublisherServer:
     PublisherHandler.package_path = Path(package_path)
     PublisherHandler.ink_path = Path(ink_path)
+    PublisherHandler.note_path = Path(note_path)
     return PublisherServer((host, port), PublisherHandler)
 
 

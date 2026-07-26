@@ -1,0 +1,11 @@
+{
+    parts: [
+        {
+            main: "Main.newt",
+            files: [],
+        }
+    ],
+    name: "NoteExport:jbfly",
+    version: 1,
+    platform: "Newton 2.1"
+}

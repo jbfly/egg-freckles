@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import http.client
+import json
 import subprocess
 import tempfile
 import threading
@@ -61,6 +62,29 @@ class PublisherTest(unittest.TestCase):
                     self.assertEqual(status, 404)
                     self.assertEqual(body, b"not found\n")
                     self.assertEqual(headers["Content-Length"], str(len(body)))
+                finally:
+                    server.shutdown()
+                    thread.join()
+
+    def test_note_validation_and_storage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            note_path = Path(tmp) / "note.json"
+            with pkg_publisher.make_server("127.0.0.1", 0, note_path=note_path) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                try:
+                    note = {"id": 42, "title": "", "modified": 123,
+                            "text": "The Newton sees this note.", "truncated": False}
+                    status, _, response, _ = self.fetch(
+                        port, "/note", "POST", json.dumps(note).encode("utf-8"))
+                    self.assertEqual((status, response), (200, b"NOTE OK\r\n"))
+                    self.assertEqual(json.loads(note_path.read_text()), note)
+                    status, _, _, _ = self.fetch(
+                        port, "/note", "POST",
+                        json.dumps({**note, "text": "x" * 8193}).encode("utf-8"))
+                    self.assertEqual(status, 400)
+                    self.assertEqual(json.loads(note_path.read_text()), note)
                 finally:
                     server.shutdown()
                     thread.join()

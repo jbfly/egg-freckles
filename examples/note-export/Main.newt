@@ -1,0 +1,203 @@
+kAppSymbol := '|NoteExport:jbfly|;
+kAppTitle := "Note Out";
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 12, top: 100, right: 308, bottom: 300},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    statusView: nil,
+    endpointClass: {_proto: protoBasicEndpoint},
+    endpoint: nil,
+    linkID: nil,
+    pending: nil,
+
+    ViewSetupDoneScript: func()
+    begin
+        inherited:?ViewSetupDoneScript();
+        AddDelayedCall(func(view) view:Wire(), [self], 200);
+    end,
+
+    // ponytail: geometry survives Newton's child-view reordering.
+    Wire: func()
+    begin
+        local kids := :ChildViewFrames();
+        if kids = nil then return nil;
+        local rootBox := self:GlobalBox();
+        foreach child in kids do
+        begin
+            local box := child:GlobalBox();
+            if (box.top - rootBox.top) = 12 then self.statusView := child;
+        end;
+        return nil;
+    end,
+
+    Status: func(message)
+    begin
+        if self.statusView = nil then :Wire();
+        if self.statusView then SetValue(self.statusView, 'text, message);
+        return nil;
+    end,
+
+    Escape: func(text)
+    begin
+        local out := "";
+        local i := 0;
+        while i < StrLen(text) do
+        begin
+            local ch := SubStr(text, i, 1);
+            if ch = "\\" then out := out & "\\\\";
+            else if ch = "\"" then out := out & "\\\"";
+            else if ch = "\r" then out := out & "\\r";
+            else if ch = "\n" then out := out & "\\n";
+            else if ch = "\t" then out := out & "\\t";
+            else out := out & ch;
+            i := i + 1;
+        end;
+        return out;
+    end,
+
+    ReadOne: func()
+    begin
+        // ponytail: the test note was just created in stock Notes; use the
+        // documented creation-time index to read only the newest entry.
+        local soup := GetUnionSoupAlways(ROM_paperRollSoupName);
+        local cursor := soup:Query({indexPath: 'timeStamp});
+        cursor:ResetToEnd();
+        local entry := cursor:Prev();
+        if entry = nil then return nil;
+        local title := GetSysEntryData(entry, 'title);
+        if title then title := DecodeRichString(title, ROM_fontSystem10).text;
+        else title := "";
+        local data := GetSysEntryData(entry, 'data);
+        local text := "";
+        if data then foreach item in data do
+            if item.viewStationery = 'para then
+            begin
+                if StrLen(text) > 0 then text := text & "\n";
+                text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+            end;
+        local truncated := nil;
+        if StrLen(text) > 8192 then
+        begin
+            text := SubStr(text, 0, 8192);
+            truncated := true;
+        end;
+        return {id: EntryUniqueID(entry), modified: EntryModTime(entry),
+                title: title, text: text, truncated: truncated};
+    end,
+
+    Encode: func(note)
+    begin
+        local trunc := "false";
+        if note.truncated then trunc := "true";
+        // Paragraph Return is a literal control character in the rich string.
+        StrReplace(note.text, "\r", " ", nil);
+        StrReplace(note.text, "\n", " ", nil);
+        // ponytail: JSON string escaping only; no general Newton-object encoder.
+        return "{\"id\":" & note.id
+            & ",\"title\":\"" & :Escape(note.title) & "\""
+            & ",\"modified\":" & note.modified
+            & ",\"text\":\"" & :Escape(note.text) & "\""
+            & ",\"truncated\":" & trunc & "}";
+    end,
+
+    Send: func()
+    begin
+        if self.pending then return nil;
+        local note := :ReadOne();
+        if note = nil then return :Status("No stock note found");
+        self.pending := :Encode(note);
+        :Status("Sending one note...");
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+        return nil;
+    end,
+
+    Grabbed: func(id, state, error)
+    begin
+        if error then return :Failed("No network link");
+        self.linkID := id;
+        if state.linkStatus <> 'connected then return nil;
+        try
+        begin
+            self.endpoint := {_proto: self.endpointClass, _parent: self};
+            self.endpoint:Instantiate(self.endpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [self.linkID], typeList: ['struct, 'ulong]}},
+                {label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [1], typeList: ['struct, 'ulong]}},
+            ]);
+            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:connect([{
+                label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                form: 'template,
+                data: {arglist: [10, 42, 0, 1, 18081],
+                       typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
+            }], {async: nil, reqTimeout: 45000});
+            :Post();
+        end
+        onexception |evt.ex| do :Failed("Could not reach host");
+        return nil;
+    end,
+
+    Post: func()
+    begin
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 256,
+            reqTimeout: 30000,
+            InputScript: func(endpoint, data, terminator, options)
+                if BeginsWith(data, "NOTE OK") then self._parent:Status("Exported unchanged"),
+            CompletionScript: func(endpoint, options, result)
+                AddDelayedCall(func(view) view:Stop(), [self._parent], 500),
+        });
+        local request := "POST /note HTTP/1.0\r\nHost: 10.42.0.1\r\n"
+            & "Content-Type: application/json; charset=us-ascii\r\nContent-Length: "
+            & StrLen(self.pending) & "\r\nConnection: close\r\n\r\n" & self.pending;
+        self.endpoint:Output(request, nil, {async: nil, reqTimeout: 10000});
+        self.pending := nil;
+        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        return nil;
+    end,
+
+    Failed: func(message)
+    begin
+        self.pending := nil;
+        :Status(message);
+        return :Stop();
+    end,
+
+    Stop: func()
+    begin
+        if self.endpoint then
+        begin
+            try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.endpoint := nil;
+        end;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+        return nil;
+    end,
+
+    Released: func(id, state, error) nil,
+
+    stepChildren: [
+        {_proto: protoStaticText,
+         viewBounds: {left: 10, top: 12, right: 270, bottom: 84},
+         text: "Exports only the newest stock Notes entry.\nTest note: Harness export test",
+         viewFont: ROM_fontSystem10},
+        {_proto: protoTextButton,
+         viewBounds: {left: 90, top: 104, right: 190, bottom: 140},
+         text: "Export",
+         buttonClickScript: func() self:Parent():Send()},
+    ],
+};
+
+{app: kAppSymbol, text: kAppTitle, theForm: mainView}
