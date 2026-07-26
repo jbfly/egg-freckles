@@ -1,5 +1,5 @@
 kAppSymbol := '|HarnessClient:jbfly|;
-kVersion := "1.6";
+kVersion := "1.9";
 kAppTitle := "Newton Chat " & kVersion;
 
 // The transcript is one bounded string, trimmed from the front at line
@@ -29,6 +29,8 @@ mainView := {
     responseText: "",
     txSeq: 1,
     ready: nil,
+    inFlight: nil,
+    draftSeq: nil,
 
     ViewSetupDoneScript: func()
     begin
@@ -161,6 +163,8 @@ mainView := {
             self.linkID := nil;
         end;
         self.ready := nil;
+        self.inFlight := nil;
+        self.draftSeq := nil;
     end,
 
     Released: func(id, state, error) nil,
@@ -251,7 +255,17 @@ mainView := {
 
     HandleLine: func(line)
     begin
-        if BeginsWith(line, "ACK ") then return nil;
+        if BeginsWith(line, "ACK ") then
+        begin
+            if (self.draftSeq <> nil) and BeginsWith(line, "ACK " & :SeqText(self.draftSeq)) then
+            begin
+                local field := :PromptField();
+                if field then
+                    try SetValue(field, 'text, "") onexception |evt.ex| do nil;
+                self.draftSeq := nil;
+            end;
+            return nil;
+        end;
         if (StrLen(line) < 9) or not BeginsWith(line, ":") then return nil;
         local star := StrPos(line, "*", 0);
         if star = nil then return nil;
@@ -267,6 +281,7 @@ mainView := {
         else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then
         begin
             self.ready := true;
+            self.inFlight := nil;
             :SetStatus(SubStr(line, 15, star - 15));
         end else if BeginsWith(line, ":" & seqText & " TEXT ") then
         begin
@@ -280,6 +295,7 @@ mainView := {
             :ShowTranscript();
             self.responseText := "";
             self.ready := true;
+            self.inFlight := nil;
             :SetStatus("Ready");
         end;
         return nil;
@@ -291,6 +307,8 @@ mainView := {
         local encoded := :EncodeBody(body);
         if StrLen(encoded) > 240 then return :SetStatus("Prompt too long");
         self.ready := nil;
+        self.inFlight := true;
+        self.draftSeq := self.txSeq;
         self.responseText := "";
         :SetStatus("Thinking");
         self.endpoint:output(encoded, nil, {async: nil, reqTimeout: 10000});
@@ -310,13 +328,12 @@ mainView := {
         for index := 0 to StrLen(prompt) - 1 do
             if StrPos(ascii, SubStr(prompt, index, 1), 0) = nil then
                 return :SetStatus("ASCII only");
+        if self.inFlight then return :SetStatus("Turn in flight");
         // ponytail: an idle link can drop; Send reconnects instead of dead-ending.
         if not self.ready then return :Connect();
-        :AppendLine("You: " & prompt);
+        if (StrLen(prompt) = 4) and BeginsWith(prompt, "/new") then self.transcript := ""
+        else :AppendLine("You: " & prompt);
         :ShowTranscript();
-        // ponytail: a live paragraph rejects an empty string; a failed clear
-        // must not lose the turn.
-        try SetValue(field, 'text, "") onexception |evt.ex| do nil;
         return :Send(prompt);
     end,
 

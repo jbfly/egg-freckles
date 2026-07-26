@@ -1,0 +1,19 @@
+Queue item 5 device proof — 2026-07-26
+
+Proof build
+- Fresh throwaway package identity: HarnessClientQ5B:jbfly, version 1.9-q5b.
+- Wire handshake in q5-wire.log: C> :00 HELLO NEWTON1 1.9-q5b*0D.
+- The shipping source was restored afterward to stable HarnessClient:jbfly, version 1.9.
+
+Draft preserved until ACK + double-send guard
+- q5-draft-double.png: during the deliberate 8-second MSG ACK delay, the prompt field still shows "keep this draft"; the transcript has exactly one visible "You: keep this draft" line; status says "Turn in flight" after the second tap.
+- q5-wire.log contains exactly one client frame matching "MSG keep this draft".
+- q5-after-ack.png: after ACK and the completed exchange, the transcript contains the user and agent lines, status is Ready, and the prompt field is empty.
+
+Reserved /new
+- q5-wire.log contains C> :02 MSG /new*02 — /new is an ordinary MSG payload.
+- q5-new-cleared.png: while that MSG ACK is delayed, the prior transcript has been replaced by the empty-conversation hint. The prompt still holds /new until ACK, consistent with draft preservation.
+
+Capture hygiene
+- q5-baseline.txt records capture_initial_bytes=0 and the exact command podman logs --since 0s -f newton-harness_emulator_1.
+- The podman log follower and temporary fake peer were stopped after the exchange.
