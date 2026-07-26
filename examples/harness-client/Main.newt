@@ -1,6 +1,6 @@
 kAppSymbol := '|HarnessClient:jbfly|;
 kAppName := "Harness Client";
-kVersion := "1.1";
+kVersion := "1.2";
 kAppTitle := kAppName & " v" & kVersion;
 
 mainView := {
@@ -14,9 +14,41 @@ mainView := {
     resultView: nil,
     responseText: "",
     responseDone: nil,
+    lastRx: nil,
 
     SetStatus: func(message)
         SetValue(self.resultView, 'text, message),
+
+    SeqText: func(seq)
+        if seq < 10 then "0" & seq else "" & seq,
+
+    HexByte: func(value)
+    begin
+        local digits := "0123456789ABCDEF";
+        value := BAND(value, 255);
+        return SubStr(digits, Floor(value / 16), 1)
+            & SubStr(digits, BAND(value, 15), 1);
+    end,
+
+    Sum8: func(body)
+    begin
+        local sum := 0;
+        for index := 0 to Length(body) - 1 do
+            sum := BAND(sum + Ord(body[index]), 255);
+        return sum;
+    end,
+
+    EncodeBody: func(body)
+    begin
+        local digits := "0123456789ABCDEF";
+        local sum := 0;
+        local hex := nil;
+        for index := 0 to Length(body) - 1 do
+            sum := BAND(sum + Ord(body[index]), 255);
+        hex := SubStr(digits, Floor(sum / 16), 1)
+            & SubStr(digits, BAND(sum, 15), 1);
+        return ":" & body & "*" & hex & "\r\n";
+    end,
 
     Stop: func()
     begin
@@ -82,7 +114,7 @@ mainView := {
                     label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
                     data: {
-                        arglist: [address[0], address[1], address[2], address[3], 18081],
+                        arglist: [address[0], address[1], address[2], address[3], 6801],
                         typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
@@ -93,11 +125,10 @@ mainView := {
         onexception |evt.ex| do
         begin
             local exception := CurrentException();
-            local exceptionText := callName & " threw";
             local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
+            local exceptionText := callName & " error " & exceptionError;
             if HasSlot(exception, 'name) then
-                exceptionText := exceptionText & "\nname=" & exception.name;
-            exceptionText := exceptionText & "\nerror=" & exceptionError;
+                exceptionText := exceptionText & " " & exception.name;
             if HasSlot(exception, 'data) then
                 exceptionText := exceptionText & "\ndata=" & exception.data;
             if HasSlot(exception, 'message) then
@@ -133,25 +164,32 @@ mainView := {
         self.endpoint:SetInputSpec({
             _parent: self,
             form: 'string,
-            // ponytail: /status is capped at 4096 bytes; stream it only if that ceiling grows.
-            termination: {byteCount: 4096},
-            partialFrequency: 100,
+            // ponytail: protocol lines are capped at 240 bytes.
+            termination: {endSequence: "\r\n"},
+            discardAfter: 240,
             reqTimeout: 10000,
             InputScript: func(endpoint, data, terminator, options)
-            begin
-                self._parent.responseText := data;
-                if terminator then self._parent:StatusReceived(data);
-            end,
-            PartialScript: func(endpoint, data)
-                self._parent.responseText := data,
+                self._parent:HandleLine(data),
             CompletionScript: func(endpoint, options, result)
-                self._parent:StatusReceived(self._parent.responseText),
+                self._parent:ReceiveFailed("Receive timeout"),
         });
-        self.endpoint:output(
-            "GET /status HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
-            nil,
+        self.endpoint:output("~NEWTONCLI 1\r\n", nil,
+            {async: nil, reqTimeout: 10000});
+        self.endpoint:output(":00 HELLO NEWTON1 1.2*D1\r\n", nil,
             {async: nil, reqTimeout: 10000});
         try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        return nil;
+    end,
+
+    HandleLine: func(line)
+    begin
+        if BeginsWith(line, "ACK 00") then return nil;
+        if BeginsWith(line, ":00 STAT READY*") then
+        begin
+            self.endpoint:output("ACK 00\r\n", nil,
+                {async: nil, reqTimeout: 10000});
+            :SetStatus("Ready");
+        end;
         return nil;
     end,
 

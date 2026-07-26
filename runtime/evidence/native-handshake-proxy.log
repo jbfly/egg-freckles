@@ -1,0 +1,8 @@
+LISTEN 10.42.0.1:6801 -> 127.0.0.1:6802
+ACCEPT ('10.42.0.1', 59142)
+C> b'~NEWTONCLI 1\r\n'
+C> b':00 HELLO NEWTON1 1.2-p3a*02\r\n'
+<S b'ACK 00\r\n'
+<S b':00 STAT READY*51\r\n'
+C> b'ACK 00\r\n'
+CLOSED

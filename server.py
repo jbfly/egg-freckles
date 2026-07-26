@@ -421,7 +421,7 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 
 async def initial_input(reader: asyncio.StreamReader) -> tuple[bool, bytes]:
     try:
-        first = await asyncio.wait_for(reader.read(1), 0.15)
+        first = await asyncio.wait_for(reader.read(1), 1.0)
     except asyncio.TimeoutError:
         return False, b""
     if first != b"~":
