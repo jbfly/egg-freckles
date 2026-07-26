@@ -1,0 +1,21 @@
+=== screen OCR ===
+Connect
+
+®Session: Blank Session
+
+Looking up machine address...
+
+(HanoUp ) (X)
+
+a2 S Q Qo:
+
+Extras InOut Names Dates Undo Find Assist
+=== native diagnostics ===
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=42
+TCPDIAG native SendPacket addr=0cd19f28 size=42
+TCPDIAG native SendBuffer r1=0cd19f28 r2=77
+TCPDIAG native SendPacket addr=0cd19f28 size=77

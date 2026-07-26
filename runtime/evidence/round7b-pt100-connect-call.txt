@@ -1,0 +1,87 @@
+1-     0 : 18     1 : 27     4 : c9     5 : 19     6 : 03     7 : 1a     8 : 39     9 : 00    10 : 03    11 : 7b    12 : 03    13 : 1b    14 : 3a    15 : 00    16 : 07    19 : 5f    22 : 1c    23 : 28    24 : 1d    25 : 91    26 : 03    27 : 1e    28 : 39    29 : 00    30 : 20    31 : 03    32 : 1f    35 : 39    36 : 00    37 : 07    40 : 18    41 : 27    44 : c9    45 : 22    46 : 22    47 : 03    48 : 1f    51 : 3a    52 : 00    53 : 1f    56 : 03    57 : 1a    58 : 39    59 : 00    60 : 07    63 : 5f    66 : 1c    67 : 28    68 : 1d    69 : 91    70 : 03    71 : 1e    72 : 39    73 : 00    74 : 20    75 : 03    76 : 1f    79 : 39    80 : 00    81 : 22    82 : 02    83 : 00    84 : 07    87 : 1f    90 : 1f    93 : 04    94 : 1f    97 : 2a    98 : 00    99 : 18   100 : 27*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+2-*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+3-*** PkgReader: PkgReadBinaryObject - unknown class 'code
+4-*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+5-*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+6:'MConnectAction
+7-[
+8-	literals: 
+9-	'|evt.ex.comm|, 
+10-	"Instantiating...", 
+11-	'MMessage, 
+12-	'Instantiate, 
+13-	'CurrentException, 
+14-	'error, 
+15-	'MNotifyError, 
+16-	'MSetEndPointState, 
+17-	'Bind, 
+18-	"Binding...", 
+19-	'|PT100:Scrawl|, 
+20-	<function, 2 arg(s) #17fe3b91>, 
+21-	'RegPowerOff, 
+22-	'fConnectAction, 
+23-	'Listen, 
+24-	"Waiting for connection...", 
+25-	90000, 
+26-	<function, 3 arg(s) #17fe3f41>, 
+27-	[
+28-		2: 
+29-		NIL, 
+30-		'async, 
+31-		'reqTimeout, 
+32-		'completionScript
+33-	], 
+34-	'connect, 
+35-	"Connecting...", 
+36-	'theSession, 
+37-	'type, 
+38-	'telnet, 
+39-	'theAddress, 
+40-	[
+41-		pathExpr: 
+42-		'advanced, 
+43-		'portNumber
+44-	], 
+45-	'ToNumber, 
+46-	'TBuildConnectOptions, 
+692-		pathExpr: 
+693-		'misc, 
+694-		'NIEWorkaround
+695-	], 
+696-	'theSession, 
+697-	'type, 
+698-	'telnet, 
+699-	'fEndpointState, 
+700-	'|evt.ex.comm|, 
+701-	'fEndpointOutputBinarySpec, 
+702:	'output, 
+703-	'CurrentException, 
+704-	'MExceptionHandler, 
+705-	"Not connected.", 
+706-	'MNotifyError, 
+707-	'buffer, 
+708-	'MakeBinary, 
+709-	'|PT100:Scrawl BufferSymbol|, 
+710-	<function, 0 arg(s) #17fe2651>, 
+711-	'AddProcrastinatedCall, 
+712-	<function, 1 arg(s) #17fe26b1>, 
+713-	'array
+714-]
+715-                       find-var (b =   0)
+716-                       find-var (b =   0)
+717- 00 12                   length          
+718-                  push-constant (b =   2)
+719-                        get-var (b =   3)
+720-                  push-constant (b =   0)
+721-                        get-var (b =   4)
+722-                           push (b =   1)
+723-                           call (b =   6)
+724-                            pop          
+725-                       find-var (b =   2)
+726-                           push (b =   3)
+727-                           call (b =   0)
+728- 00 0b             greater-than      18 : 6f    21 : 1b    22 : 28    23 : aa    24 : 74    25 : 1d    26 : 91    27 : 6f    30 : 76    31 : 1f    34 : 91    35 : 1f    38 : c4    39 : 5f    42 : 22    43 : c5    44 : 67    47 : 72    48 : 1b    49 : 28    50 : 27    53 : c1    54 : c7    57 : 5f    60 : 27    63 : 6f    66 : 77    69 : 27    72 : c4    73 : 6f    76 : 1f    79 : 27    82 : c9    83 : 70    84 : 22    85 : 77    88 : 03    89 : 1f    92 : 3b    93 : 00    94 : 07    97 : 5f   100 : 1f   103 : 28   104 : 03   105 : 1f   108 : 39   109 : 00   110 : 07   113 : 5f   116 : 1f   119 : 03   120 : 1f   123 : 39   124 : 00   125 : 03   126 : 18   127 : 20   128 : 1f   131 : 1f   134 : 2a   135 : 98   136 : 1b   137 : 28   138 : aa   139 : 1f   142 : 1f   145 : 22   146 : 20   147 : 1f   150 : 2c   151 : 5f   154 : 1f   157 : 1f   160 : 03   161 : 1f   164 : 89   165 : 27   168 : 1f   171 : 2c   172 : 02        
+729- 00 18          branch-if-false (b =  24)
+730-                           push (b =   3)
+731-                           call (b =   0)
+732-               find-and-set-var (b =   2)

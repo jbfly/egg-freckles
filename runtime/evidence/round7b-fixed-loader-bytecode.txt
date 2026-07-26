@@ -1,0 +1,617 @@
+     0 : 27     3 : 27     6 : 20     7 : 24     8 : 18     9 : 8c    10 : a5    11 : 03    12 : 19    13 : 27    16 : 03    17 : 1a    18 : 82    19 : 99    20 : 00    21 : 1b    22 : 27    25 : c9    26 : 1c    27 : c7    30 : 1d    31 : 27    34 : 1e    35 : 83    36 : 1f    39 : c7    42 : 1f    45 : 27    48 : 1f    51 : 03    52 : 1f    55 : 91    56 : 18    57 : 89    58 : 1f    61 : 1f    64 : 18    65 : 8a    66 : 1f    69 : 82    70 : 1f    73 : 85    74 : 1f    77 : c7    80 : 1f    83 : 27    86 : 1f    89 : 24    90 : 18    91 : 89    92 : 1f    95 : 1f    98 : 18    99 : 8a   100 : 1f   103 : 82   104 : 1f   107 : 85   108 : 18   109 : 8b   110 : 03   111 : 19   112 : 91   113 : 03   114 : 19   115 : 91   116 : 1f   119 : 3a   120 : 00   121 : 22   122 : 22   123 : 1f   126 : 1f'Resolved
+[
+	literals: 
+	'array, 
+	'endpoint, 
+	[
+		4: 
+		NIL, 
+		'_proto, 
+		'_parent
+	], 
+	'|evt.ex.comm|, 
+	"inet", 
+	'service, 
+	[
+		0: 
+		NIL, 
+		'label, 
+		'type, 
+		'opCode
+	], 
+	"ilid", 
+	'option, 
+	'template, 
+	'linkID, 
+	'struct, 
+	'ulong, 
+	[
+		0: 
+		NIL, 
+		'arglist, 
+		'typelist
+	], 
+	[
+		0: 
+		NIL, 
+		'label, 
+		'type, 
+		'opCode, 
+		'form, 
+		'data
+	], 
+	"itsv", 
+	[
+		0: 
+		NIL, 
+		'arglist, 
+		'typelist
+	], 
+	[
+		0: 
+		NIL, 
+		'label, 
+		'type, 
+		'opCode, 
+		'form, 
+		'data
+	], 
+	'instantiate, 
+	10000, 
+	[
+		0: 
+		NIL, 
+		'async, 
+		'reqTimeout
+	], 
+	'Bind, 
+	"itrs", 
+	18081, 
+	'byte, 
+	'short, 
+	[
+		0: 
+		NIL, 
+		'arglist, 
+		'typelist
+	], 
+	[
+		0: 
+		NIL, 
+		'label, 
+		'type, 
+		'opCode, 
+		'form, 
+		'data
+	], 
+	[
+		0: 
+		NIL, 
+		'async, 
+		'reqTimeout
+	], 
+	'connect, 
+	'DownloadPackage, 
+	'stop, 
+	"Installing client package...", 
+	'SetStatus, 
+	'InstallBinaryLater, 
+	"Deferred install queued", 
+	"TCP failed: ", 
+	'CurrentException, 
+	'InetGetExceptionError, 
+	'GetGlobalFn, 
+	'Failed
+]
+ 00 28            push-constant (b =  40)
+ 00 a8            push-constant (b =  168)
+                  push-constant (b =   0)
+                  push-constant (b =   4)
+                           push (b =   0)
+                     make-array (b =   4)
+                        set-var (b =   5)
+                      push-self          
+                           push (b =   1)
+ 05 ff            push-constant (b =  1535)
+                      push-self          
+                           push (b =   2)
+                     make-frame (b =   2)
+                       set-path (b =   1)
+                            pop          
+                           push (b =   3)
+ 04 40            push-constant (b =  1088)
+                   new-handlers (b =   1)
+                           push (b =   4)
+ 00 13                    clone          
+                           push (b =   5)
+ 08 00            push-constant (b =  2048)
+                           push (b =   6)
+                     make-frame (b =   3)
+ 00 07                     push (b =   7)
+ 00 13                    clone          
+ 00 08                     push (b =   8)
+ 08 00            push-constant (b =  2048)
+ 00 09                     push (b =   9)
+                      push-self          
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+                           push (b =   0)
+                     make-array (b =   1)
+ 00 0b                     push (b =  11)
+ 00 0c                     push (b =  12)
+                           push (b =   0)
+                     make-array (b =   2)
+ 00 0d                     push (b =  13)
+                     make-frame (b =   2)
+ 00 0e                     push (b =  14)
+                     make-frame (b =   5)
+ 00 0f                     push (b =  15)
+ 00 13                    clone          
+ 00 08                     push (b =   8)
+ 08 00            push-constant (b =  2048)
+ 00 09                     push (b =   9)
+                  push-constant (b =   4)
+                           push (b =   0)
+                     make-array (b =   1)
+ 00 0b                     push (b =  11)
+ 00 0c                     push (b =  12)
+                           push (b =   0)
+                     make-array (b =   2)
+ 00 10                     push (b =  16)
+                     make-frame (b =   2)
+ 00 11                     push (b =  17)
+                     make-frame (b =   5)
+                           push (b =   0)
+                     make-array (b =   3)
+                      push-self          
+                           push (b =   1)
+                       get-path (b =   1)
+                      push-self          
+                           push (b =   1)
+                       get-path (b =   1)
+ 00 12                     push (b =  18)
+                           send (b =   2)
+                            pop          
+                  push-constant (b =   2)
+                  push-constant (b =   2)
+ 00 13                     push (b =  19)
+ 00 14                     push (b =  20)   129 : 82   130 : 03   131 : 19   132 : 91   133 : 1f   136 : 3a   137 : 00   138 : 1f   141 : c7   144 : 1f   147 : 27   150 : 1f   153 : 7d   154 : 20   155 : c2   156 : 7d   157 : 24   158 : c2   159 : 7d   160 : 27   163 : c2   164 : 7d   165 : 27   168 : c2   169 : 1f   172 : 18   173 : 8d   174 : 1f   177 : 1f   180 : 1f   183 : 1f   186 : 1f   189 : 1f   192 : 18   193 : 8e   194 : 1f   197 : 82   198 : 1f   201 : 85   202 : 18   203 : 89   204 : 22   205 : 1f   208 : 1f   211 : 82   212 : 03   213 : 19   214 : 91   215 : 1f   218 : 3a   219 : 00   220 : 03   221 : 1f   224 : 40   225 : a6   226 : 03   227 : 1f   230 : 40   231 : 00   232 : 7e   233 : 6f   236 : 1f   239 : c7   242 : 03   243 : 1f   246 : 41   247 : 00   248 : 7e   249 : 03   250 : 1f   253 : 41   254 : 00   255 : 1f   258 : c7   261 : 03   262 : 1f   265 : 41   266 : 07   269 : 5f   272 : 1f   275 : c7   278 : 1f   281 : 28   282 : 1f   285 : 1f   288 : 29   289 : 31   290 : 27   293 : 8a   294 : c7   297 : 03   298 : 1f   301 : 41   302 : 07   305 : 02
+                     make-frame (b =   2)
+                      push-self          
+                           push (b =   1)
+                       get-path (b =   1)
+ 00 15                     push (b =  21)
+                           send (b =   2)
+                            pop          
+ 00 16                     push (b =  22)
+ 00 13                    clone          
+ 00 08                     push (b =   8)
+ 08 00            push-constant (b =  2048)
+ 00 09                     push (b =   9)
+                        get-var (b =   5)
+                  push-constant (b =   0)
+                           aref          
+                        get-var (b =   5)
+                  push-constant (b =   4)
+                           aref          
+                        get-var (b =   5)
+ 00 08            push-constant (b =   8)
+                           aref          
+                        get-var (b =   5)
+ 00 0c            push-constant (b =  12)
+                           aref          
+ 00 17                     push (b =  23)
+                           push (b =   0)
+                     make-array (b =   5)
+ 00 0b                     push (b =  11)
+ 00 18                     push (b =  24)
+ 00 18                     push (b =  24)
+ 00 18                     push (b =  24)
+ 00 18                     push (b =  24)
+ 00 19                     push (b =  25)
+                           push (b =   0)
+                     make-array (b =   6)
+ 00 1a                     push (b =  26)
+                     make-frame (b =   2)
+ 00 1b                     push (b =  27)
+                     make-frame (b =   5)
+                           push (b =   0)
+                     make-array (b =   1)
+                  push-constant (b =   2)
+ 00 13                     push (b =  19)
+ 00 1c                     push (b =  28)
+                     make-frame (b =   2)
+                      push-self          
+                           push (b =   1)
+                       get-path (b =   1)
+ 00 1d                     push (b =  29)
+                           send (b =   2)
+                            pop          
+                      push-self          
+ 00 1e                     push (b =  30)
+                send-if-defined (b =   0)
+                        set-var (b =   6)
+                      push-self          
+ 00 1f                     push (b =  31)
+                send-if-defined (b =   0)
+                            pop          
+                        get-var (b =   6)
+ 01 0a          branch-if-false (b =  266)
+ 00 20                     push (b =  32)
+ 00 13                    clone          
+                      push-self          
+ 00 21                     push (b =  33)
+                send-if-defined (b =   1)
+                            pop          
+                        get-var (b =   6)
+                      push-self          
+ 00 22                     push (b =  34)
+                send-if-defined (b =   1)
+                            pop          
+ 00 23                     push (b =  35)
+ 00 13                    clone          
+                      push-self          
+ 00 21                     push (b =  33)
+                send-if-defined (b =   1)
+ 00 07             pop-handlers          
+ 01 31                   branch (b =  305)
+ 00 24                     push (b =  36)
+ 00 13                    clone          
+ 00 25                     push (b =  37)
+                           call (b =   0)
+ 00 26                     push (b =  38)
+ 00 27                     push (b =  39)
+                           call (b =   1)
+                         invoke (b =   1)
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+                      push-self          
+ 00 28                     push (b =  40)
+                send-if-defined (b =   1)
+ 00 07             pop-handlers          
+                         return          
+'DownloadPackage
+[
+	literals: 
+	"", 
+	"Requesting /harness-client.pkg...", 
+	'SetStatus, 
+	"474554202     0 : 18     1 : c7     4 : a3     5 : 22     6 : a4     7 : 22     8 : a5     9 : 20    10 : a6    11 : 22    12 : a7    15 : 19    16 : c7    19 : 03    20 : 1a    21 : 41    22 : 00    23 : 1b    24 : c7    27 : 1c    28 : 1d    29 : 2a    30 : 22    31 : 22    32 : 1e    33 : 1f    36 : 82    37 : 03    38 : 1f    41 : 91    42 : 1f    45 : 3b    46 : 00    47 : 7f    50 : c5    51 : 6f    54 : 22    55 : 1e    56 : 1f    59 : 82    60 : 03    61 : 1f    64 : 91    65 : 1f    68 : 39    69 : a7    72 : 7f    75 : 22    76 : c4    77 : 6f    80 : 27    83 : a7    86 : 5f    89 : 7f    92 : c7    95 : a7    98 : 7d    99 : 22   100 : c4   101 : 6f   104 : 22   105 : a7   108 : 20   109 : a7   112 : 7f   115 : 24   116 : c1   117 : a7   120 : 24   121 : a7   124 : 7f   127 : 7f   130 : 5f   133 : 7f   136 : 22   137 : c4   138 : 6f   141 : 7b   142 : 7f   145 : 7fF6861726E6573732D636C69656E742E706B6720485454502F312E300D0A486F73743A2031302E34322E302E310D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A", 
+	'binary, 
+	'MakeBinaryFromHex, 
+	10000, 
+	[
+		0: 
+		NIL, 
+		'async, 
+		'reqTimeout
+	], 
+	'endpoint, 
+	'output, 
+	[
+		0: 
+		NIL, 
+		'async, 
+		'reqTimeout
+	], 
+	'Input, 
+	'ExtractByte, 
+	'AppendHeaderByte, 
+	'tooLong, 
+	"Response headers exceeded 4096 bytes", 
+	'Failed, 
+	'done, 
+	'Chr, 
+	"HTTP/1.0 200", 
+	'BeginsWith, 
+	"HTTP status was not 200", 
+	'ParseContentLength, 
+	65536, 
+	"Content-Length must be 1 to 65536", 
+	'|evt.ex|, 
+	'package, 
+	'GetDefaultStore, 
+	'NewVBO, 
+	"Package allocation failed", 
+	'CopyChunk, 
+	"Received ", 
+	" / ", 
+	" bytes...", 
+	"Response headers were incomplete", 
+	"Expected ", 
+	" bytes, got "
+]
+                           push (b =   0)
+ 00 13                    clone          
+                        set-var (b =   3)
+                  push-constant (b =   2)
+                        set-var (b =   4)
+                  push-constant (b =   2)
+                        set-var (b =   5)
+                  push-constant (b =   0)
+                        set-var (b =   6)
+                  push-constant (b =   2)
+ 00 07                  set-var (b =   7)
+                           push (b =   1)
+ 00 13                    clone          
+                      push-self          
+                           push (b =   2)
+                send-if-defined (b =   1)
+                            pop          
+                           push (b =   3)
+ 00 13                    clone          
+                           push (b =   4)
+                           push (b =   5)
+                           call (b =   2)
+                  push-constant (b =   2)
+                  push-constant (b =   2)
+                           push (b =   6)
+ 00 07                     push (b =   7)
+                     make-frame (b =   2)
+                      push-self          
+ 00 08                     push (b =   8)
+                       get-path (b =   1)
+ 00 09                     push (b =   9)
+                           send (b =   3)
+                            pop          
+ 00 07                  get-var (b =   7)
+                            not          
+ 01 f7          branch-if-false (b =  503)
+                  push-constant (b =   2)
+                           push (b =   6)
+ 00 0a                     push (b =  10)
+                     make-frame (b =   2)
+                      push-self          
+ 00 08                     push (b =   8)
+                       get-path (b =   1)
+ 00 0b                     push (b =  11)
+                           send (b =   1)
+ 00 08                  set-var (b =   8)
+ 00 08                  get-var (b =   8)
+                  push-constant (b =   2)
+                         equals          
+ 00 59          branch-if-false (b =  89)
+ 00 1a            push-constant (b =  26)
+ 00 07                  set-var (b =   7)
+ 01 f4                   branch (b =  500)
+ 00 08                  get-var (b =   8)
+ 00 12                   length          
+ 00 09                  set-var (b =   9)
+                        get-var (b =   5)
+                  push-constant (b =   2)
+                         equals          
+ 01 98          branch-if-false (b =  408)
+                  push-constant (b =   2)
+ 00 0a                  set-var (b =  10)
+                  push-constant (b =   0)
+ 00 0b                  set-var (b =  11)
+ 00 09                  get-var (b =   9)
+                  push-constant (b =   4)
+                       subtract          
+ 00 0c                  set-var (b =  12)
+                  push-constant (b =   4)
+ 00 0d                  set-var (b =  13)
+ 00 0d                  get-var (b =  13)
+ 00 0b                  get-var (b =  11)
+ 00 ec                   branch (b =  236)
+ 00 0a                  get-var (b =  10)
+                  push-constant (b =   2)
+                         equals          
+ 00 e6          branch-if-false (b =  230)
+                        get-var (b =   3)
+ 00 08                  get-var (b =   8)
+    148 : 1f   151 : 2a   152 : 03   153 : 1f   156 : 42   157 : a7   160 : 7f   163 : 1f   166 : c4   167 : 6f   170 : 1f   173 : c7   176 : 03   177 : 1f   180 : 41   181 : 02   182 : 7f   185 : 1f   188 : c4   189 : 6f   192 : 7b   193 : 7f   196 : 7f   199 : 1f   202 : 2a   203 : 1f   206 : 29   207 : 27   210 : 8a   211 : c7   214 : a3   215 : 7f   218 : 24   219 : c0   220 : a7   223 : 5f   226 : 7f   229 : a3   230 : 7f   233 : b7   236 : 7f   239 : bf   242 : 22   243 : 00   244 : 7f   247 : 22   248 : c6   249 : 6f   252 : 7b   253 : 1f   256 : c7   259 : 1f   262 : 2a   263 : c5   264 : 6f   267 : 1f   270 : c7   273 : 03   274 : 1f   277 : 41   278 : 02   279 : 7b   280 : 03   281 : 1f   284 : 41   285 : a4   286 : 7c   287 : 22   288 : c4   289 : 67   292 : 7c   293 : 20   294 : c7   297 : 5f   300 : 27   303 : 67   306 : 7c   307 : 1f   310 : c7   313 : 5f   316 : 27   319 : 6f   322 : 1f   325 : c7   328 : 03   329 : 1f   332 : 41   333 : 02   334 : 1f   337 : 27   340 : c9   341 : 1f   344 : 7c   345 : 1f   348 : 28   349 : 1f   352 : 3a00 0b                  get-var (b =  11)
+ 00 0c                     push (b =  12)
+                           call (b =   2)
+                      push-self          
+ 00 0d                     push (b =  13)
+                send-if-defined (b =   2)
+ 00 0e                  set-var (b =  14)
+ 00 0e                  get-var (b =  14)
+ 00 0e                     push (b =  14)
+                         equals          
+ 00 b6          branch-if-false (b =  182)
+ 00 0f                     push (b =  15)
+ 00 13                    clone          
+                      push-self          
+ 00 10                     push (b =  16)
+                send-if-defined (b =   1)
+                         return          
+ 00 0e                  get-var (b =  14)
+ 00 11                     push (b =  17)
+                         equals          
+ 00 e2          branch-if-false (b =  226)
+                        get-var (b =   3)
+ 00 08                  get-var (b =   8)
+ 00 0b                  get-var (b =  11)
+ 00 0c                     push (b =  12)
+                           call (b =   2)
+ 00 12                     push (b =  18)
+                           call (b =   1)
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+                        set-var (b =   3)
+ 00 0b                  get-var (b =  11)
+                  push-constant (b =   4)
+                            add          
+ 00 0a                  set-var (b =  10)
+ 00 e6                   branch (b =  230)
+ 00 0e                  get-var (b =  14)
+                        set-var (b =   3)
+ 00 0d                  get-var (b =  13)
+ 00 0b                 incr-var (b =  11)
+ 00 0c                  get-var (b =  12)
+ 00 85  branch-if-loop-not-done (b =  133)
+                  push-constant (b =   2)
+                            pop          
+ 00 0a                  get-var (b =  10)
+                  push-constant (b =   2)
+                     not-equals          
+ 01 95          branch-if-false (b =  405)
+                        get-var (b =   3)
+ 00 13                     push (b =  19)
+ 00 13                    clone          
+ 00 14                     push (b =  20)
+                           call (b =   2)
+                            not          
+ 01 17          branch-if-false (b =  279)
+ 00 15                     push (b =  21)
+ 00 13                    clone          
+                      push-self          
+ 00 10                     push (b =  16)
+                send-if-defined (b =   1)
+                         return          
+                        get-var (b =   3)
+                      push-self          
+ 00 16                     push (b =  22)
+                send-if-defined (b =   1)
+                        set-var (b =   4)
+                        get-var (b =   4)
+                  push-constant (b =   2)
+                         equals          
+ 01 2c           branch-if-true (b =  300)
+                        get-var (b =   4)
+                  push-constant (b =   0)
+ 00 0d             lessor-equal          
+ 01 2f                   branch (b =  303)
+ 00 1a            push-constant (b =  26)
+ 01 3c           branch-if-true (b =  316)
+                        get-var (b =   4)
+ 00 17                     push (b =  23)
+ 00 0b             greater-than          
+ 01 3f                   branch (b =  319)
+ 00 1a            push-constant (b =  26)
+ 01 4e          branch-if-false (b =  334)
+ 00 18                     push (b =  24)
+ 00 13                    clone          
+                      push-self          
+ 00 10                     push (b =  16)
+                send-if-defined (b =   1)
+                         return          
+ 00 19                     push (b =  25)
+ 05 a0            push-constant (b =  1440)
+                   new-handlers (b =   1)
+ 00 1a                     push (b =  26)
+                        get-var (b =   4)
+ 00 1b                     push (b =  27)
+                           call (b =   0)
+ 00 1c                     push (b =  28)
+             353 : a5   354 : 07   357 : 5f   360 : 1f   363 : c7   366 : 03   367 : 1f   370 : 41   371 : 02   372 : 07   375 : 7d   376 : 20   377 : 7c   378 : 7f   381 : 7f   384 : 7f   387 : 7f   390 : c1   391 : 03   392 : 1f   395 : 46   396 : a6   397 : 7e   398 : 22   399 : c4   400 : 6f   403 : 22   404 : 02   405 : 5f   408 : 7d   409 : 7e   410 : 7c   411 : 7f   414 : 20   415 : 7f   418 : 03   419 : 1f   422 : 46   423 : a6   424 : 7e   425 : 22   426 : c4   427 : 6f   430 : 22   431 : 02   432 : 7d   433 : 6f   436 : 1f   439 : c7   442 : 7e   443 : 27   446 : 8a   447 : c7   450 : 1f   453 : c7   456 : 27   459 : 8a   460 : c7   463 : 7c   464 : 27   467 : 8a   468 : c7   471 : 1f   474 : c7   477 : 27   480 : 8a   481 : c7   484 : 03   485 : 1a   486 : 41   487 : 00   488 : 7e   489 : 7c   490 : c4   491 : 6f   494 : 27   497 : a7   500 : 5f   503 : 22   504 : 00   505 : 7d   506 : 22   507 : c4   508 : 6f   511 : 1f   514 : c7   517 : 03   518 : 1f   521 : 41   522 : 02   523 : 7e   524 : 7c   525 : c6   526 : 6f   529 : 1f   532 : c7   535 : 7c                 send (b =   2)
+                        set-var (b =   5)
+ 00 07             pop-handlers          
+ 01 77                   branch (b =  375)
+ 00 1d                     push (b =  29)
+ 00 13                    clone          
+                      push-self          
+ 00 10                     push (b =  16)
+                send-if-defined (b =   1)
+                         return          
+ 00 07             pop-handlers          
+                        get-var (b =   5)
+                  push-constant (b =   0)
+                        get-var (b =   4)
+ 00 08                  get-var (b =   8)
+ 00 0a                  get-var (b =  10)
+ 00 09                  get-var (b =   9)
+ 00 0a                  get-var (b =  10)
+                       subtract          
+                      push-self          
+ 00 1e                     push (b =  30)
+                send-if-defined (b =   6)
+                        set-var (b =   6)
+                        get-var (b =   6)
+                  push-constant (b =   2)
+                         equals          
+ 01 95          branch-if-false (b =  405)
+                  push-constant (b =   2)
+                         return          
+ 01 b0                   branch (b =  432)
+                        get-var (b =   5)
+                        get-var (b =   6)
+                        get-var (b =   4)
+ 00 08                  get-var (b =   8)
+                  push-constant (b =   0)
+ 00 09                  get-var (b =   9)
+                      push-self          
+ 00 1e                     push (b =  30)
+                send-if-defined (b =   6)
+                        set-var (b =   6)
+                        get-var (b =   6)
+                  push-constant (b =   2)
+                         equals          
+ 01 b0          branch-if-false (b =  432)
+                  push-constant (b =   2)
+                         return          
+                        get-var (b =   5)
+ 01 f4          branch-if-false (b =  500)
+ 00 1f                     push (b =  31)
+ 00 13                    clone          
+                        get-var (b =   6)
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+ 00 20                     push (b =  32)
+ 00 13                    clone          
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+                        get-var (b =   4)
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+ 00 21                     push (b =  33)
+ 00 13                    clone          
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+                      push-self          
+                           push (b =   2)
+                send-if-defined (b =   1)
+                            pop          
+                        get-var (b =   6)
+                        get-var (b =   4)
+                         equals          
+ 01 f4          branch-if-false (b =  500)
+ 00 1a            push-constant (b =  26)
+ 00 07                  set-var (b =   7)
+ 00 2f                   branch (b =  47)
+                  push-constant (b =   2)
+                            pop          
+                        get-var (b =   5)
+                  push-constant (b =   2)
+                         equals          
+ 02 0b          branch-if-false (b =  523)
+ 00 22                     push (b =  34)
+ 00 13                    clone          
+                      push-self          
+ 00 10                     push (b =  16)
+                send-if-defined (b =   1)
+                         return          
+                        get-var (b =   6)
+                        get-var (b =   4)
+                     not-equals          
+ 02 3a          branch-if-false (b =  570)
+ 00 23                     push (b =  35)
+ 00 13                    clone          
+                           536 : 27   539 : 8a   540 : c7   543 : 1f   546 : c7   549 : 27   552 : 8a   553 : c7   556 : 7e   557 : 27   560 : 8a   561 : c7   564 : 03   565 : 1f   568 : 41   569 : 02   570 : 7d   571 : 02   572 : 02get-var (b =   4)
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+ 00 24                     push (b =  36)
+ 00 13                    clone          
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+                        get-var (b =   6)
+ ff f2            push-constant (b = -14)
+                     make-array (b =   2)
+ 00 16                 stringer          
+                      push-self          
+ 00 10                     push (b =  16)
+                send-if-defined (b =   1)
+                         return          
+                        get-var (b =   5)
+                         return          
+                         return          

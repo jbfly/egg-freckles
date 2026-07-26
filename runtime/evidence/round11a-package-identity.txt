@@ -1,5 +1,0 @@
-ASCII/UTF-16 identity strings:
-v.-HarnessLoaderR11A:jbfly
--HarnessLoaderR11A:jbfly
-- R11A Loader 1.1-r11a
-- R11A Loader 1.1-r11a

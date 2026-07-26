@@ -1,0 +1,44 @@
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=42
+TCPDIAG native SendPacket addr=0cd19f28 size=42
+TCPDIAG native frame ff ff ff ff ff ff 58 b0 35 77 d7 22 08 06 00 01 08 00 06 04 00 01 58 b0 35 77 d7 22 c0 a8 01 2a 00 00 00 00 00 00 c0 a8 01 01
+TCPDIAG inbound frame 58 b0 35 77 d7 22 ff ff ff ff ff ff 08 06 00 01 08 00 06 04 00 02 00 fa c0 a8 01 01 c0 a8 01 01 58 b0 35 77 d7 22 c0 a8 01 2a
+TCPDIAG native SendBuffer r1=0cd19f28 r2=58
+TCPDIAG native SendPacket addr=0cd19f28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 82 92 46 a2 0e ce 78 48 00 00 00 00 60 02 10 00 6b de 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=248412232 ack=0 src=33426 dst=18082
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 46 a2 82 92 00 00 00 00 0e ce 78 49 60 12 10 00 6b cd 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0cd19f28 r2=54
+TCPDIAG native SendPacket addr=0cd19f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 82 92 46 a2 0e ce 78 49 00 00 00 01 50 10 10 00 83 8a 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248412233 ack=1 src=33426 dst=18082
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69a398 r1=0c69a398 r2=00010064 r3=00006e79 sp=0cceda20 lr=600838b8
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c697ed8 r1=0ce9341c r2=0cd06308 r3=0ce93424 sp=0cd06308 lr=00139010
+NIE7 pc=0013558c TNewScriptEndpointClient::OutputRaw r0=0c697ed8 r1=0ce9341c r2=0ce93424 r3=00000000 sp=0cd062c0 lr=001351f0
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c698000 r1=0c61be6c r2=0cd06280 r3=00000001 sp=0cd06274 lr=00135754
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cd1d30c r1=0c69a4f8 r2=0cd1d4e4 r3=00006e79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69a4f8 r1=0c69a4f8 r2=ffffffff r3=ffffffff sp=0cced928 lr=60072130
+TCPDIAG native SendBuffer r1=0cd19f28 r2=55
+TCPDIAG native SendPacket addr=0cd19f28 size=55
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 29 00 04 00 00 40 06 ae ce c0 a8 01 2a 0a 2a 00 01 82 92 46 a2 0e ce 78 49 00 00 00 01 50 10 10 00 0b 89 00 00 78
+TCPDIAG state=kStateConnected size=55 iptotal=41 iphdr=20 tcphdr=20 payload=1 flags=0x010 seq=248412233 ack=1 src=33426 dst=18082
+TCPDIAG host-send requested=1 sent=1 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69a4f8 r1=00010064 r2=0cd1fd60 r3=0cd2017f sp=0cceda18 lr=60083290
+NIE7 pc=00135904 TNewScriptEndpointClient::SndComplete r0=0c697ed8 r1=0cd06558 r2=0001f26c r3=0cd06558 sp=0cd064c4 lr=001386e4
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 46 a2 82 92 00 00 00 01 0e ce 78 4a 50 10 10 00 83 89 00 00
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c697ed8 r1=0ce93434 r2=0cd060d0 r3=0ce9343c sp=0cd060d0 lr=00139010
+NIE7 pc=0013558c TNewScriptEndpointClient::OutputRaw r0=0c697ed8 r1=0ce93434 r2=0ce9343c r3=00000000 sp=0cd06088 lr=001351f0
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c698000 r1=0c61c1f8 r2=0cd06048 r3=00000001 sp=0cd0603c lr=00135754
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cd1d30c r1=0c69a4f8 r2=0cd1d4e4 r3=00006e79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69a4f8 r1=0c69a4f8 r2=ffffffff r3=ffffffff sp=0cced928 lr=60072130
+TCPDIAG native SendBuffer r1=0cd19f28 r2=55
+TCPDIAG native SendPacket addr=0cd19f28 size=55
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 29 00 05 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 82 92 46 a2 0e ce 78 4a 00 00 00 01 50 10 10 00 0a 88 00 00 79
+TCPDIAG state=kStateConnected size=55 iptotal=41 iphdr=20 tcphdr=20 payload=1 flags=0x010 seq=248412234 ack=1 src=33426 dst=18082
+TCPDIAG host-send requested=1 sent=1 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69a4f8 r1=00010064 r2=0cd1fd60 r3=0cd2017f sp=0cceda18 lr=60083290
+NIE7 pc=00135904 TNewScriptEndpointClient::SndComplete r0=0c697ed8 r1=0cd06558 r2=0001f26c r3=0cd06558 sp=0cd064c4 lr=001386e4
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ea 00 00 40 06 aa e9 0a 2a 00 01 c0 a8 01 2a 46 a2 82 92 00 00 00 01 0e ce 78 4b 50 10 10 00 83 88 00 00

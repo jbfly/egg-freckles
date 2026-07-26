@@ -2,5 +2,9 @@ state/
 __pycache__/
 examples/hello/*.pkg
 runtime/
+# ponytail: evidence is tracked only when a doc cites it -- `git add -f` the
+# specific files a round's notes reference; everything else stays local.
+!runtime/evidence/
+runtime/evidence/*
 secrets/
 .env

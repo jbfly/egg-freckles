@@ -1,0 +1,12 @@
+Pinned Einstein commit: f5544a039fc3964e18b217ccffa030c6bf1e4044
+Pinned NE2K.pkg size: 4768
+Pinned NE2K.pkg sha256: fa8df5d6c77d5d1e85cea72ce2fb80d9ec648c40a77d50ac6f1549f4d7290a85
+Current flash sha256 at inspection: 6f97f3648067010859d8a52374b442b4140cd03467b82c711dd5a96643013b47
+Newton flash stores package data in noncontiguous 1 KiB chunks:
+  logical    0..1023 (1024 bytes) exact hits=[1613196]; selected physical offset=1613196
+  logical 1024..2047 (1024 bytes) exact hits=[1614240, 1616700]; selected physical offset=1614240
+  logical 2048..3071 (1024 bytes) exact hits=[1610064, 1617840]; selected physical offset=1610064
+  logical 3072..4095 (1024 bytes) exact hits=[1611108, 1619076]; selected physical offset=1611108
+  logical 4096..4767 ( 672 bytes) exact hits=[1612152, 1620228]; selected physical offset=1612152
+Reconstructed installed package sha256: fa8df5d6c77d5d1e85cea72ce2fb80d9ec648c40a77d50ac6f1549f4d7290a85
+Byte compare: IDENTICAL

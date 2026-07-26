@@ -1,0 +1,152 @@
+Pinned Einstein f5544a039fc3964e18b217ccffa030c6bf1e4044 plus canonical patches
+
+  1018		 */
+  1019		Packet*
+  1020		NewPacket(ssize_t size)
+  1021		{
+  1022			Packet* p = new Packet(0L, size + 54);
+  1023			p->SetDstMAC(myMAC);
+  1024			p->SetSrcMAC(theirMAC);
+  1025			p->SetType(Packet::kNetTypeIP);
+  1026	
+  1027			p->SetIPVersion(4);
+  1028			p->SetIPHeaderLength(20);
+  1029			p->SetIPTOS(0);
+  1030			p->SetIPTotalLength(size + 54 - 14); // not counting the network header
+  1031			p->SetIPID(theirID);
+  1032			theirID++;
+  1033			p->SetIPFlags(0);
+  1034			p->SetIPFrag(0);
+  1035			p->SetIPTTL(64);
+  1036			p->SetIPProtocol(Packet::kIPProtocolTCP);
+  1037			p->SetIPSrcIP(theirIP);
+  1038			p->SetIPDstIP(myIP);
+  1039	
+  1040			p->SetTCPSrcPort(theirPort);
+  1041			p->SetTCPDstPort(myPort);
+  1042			p->SetTCPSeq(mEinsteinPacketsSeq);
+  1043			p->SetTCPAck(mNewtonPacketsSeq);
+  1044			p->SetTCPHeaderLength(20);
+  1045			p->SetTCPFlags(Packet::kTCPFlagACK);
+  1046			p->SetTCPWindow(0x1000);
+  1047	
+  1048			return p;
+  1049		}
+  1050	
+  1051		/**
+  1052		 * Update the IP and TCP checksums in the packet.
+  1053		 */
+  1054		void
+  1055		UpdateChecksums(Packet* p)
+  1056		{
+  1057			mNet->SetIPv4Checksum(p->Data(), p->Size());
+  1058			mNet->SetTCPChecksum(p->Data(), p->Size());
+  1059		}
+  1060	
+  1138				}
+  1139				// no error, we are connected. Fall through.
+  1140			}
+  1141	
+  1142			// succesful connection, return a SYN ACK to the Newton.
+  1143			Packet* reply = NewPacket(4); // 4 bytes are reserved for the extended TCP header
+  1144			reply->SetTCPFlags(Packet::kTCPFlagACK | Packet::kTCPFlagSYN);
+  1145			reply->SetTCPHeaderLength(24);
+  1146			reply->SetTCPSeq(mEinsteinPacketsSeq);
+  1147			reply->SetTCPAck(++mNewtonPacketsSeq);
+  1148			reply->Set8(54, 2); // Kind 2
+  1149			reply->Set8(55, 4); // Length 4
+  1150			reply->Set16(56, 1460); // Maximum segment size
+  1151			UpdateChecksums(reply);
+  1152			LOG_HEADER_DO(mNet->Log(reply, "| W E>N", __LINE__, 0, mSeqBase);)
+  1153			mNet->Enqueue(reply);
+  1154			state = kStateConnectionWaitACK;
+  1155			return 1;
+  1184			switch (state)
+  1185			{
+  1186				case kStateDisconnected:
+  1187					// FIXME: we assume that the original packet is a correct SYN packet
+  1188					return connect(packet);
+  1189				case kStateConnectionWaitACK:
+  1190					mEinsteinPacketsSeq = packet.GetTCPAck();
+  1191					state = kStateConnected;
+  1192					if ((packet.GetTCPPayloadSize() == 0)
+  1193						&& ((packet.GetTCPFlags() & Packet::kTCPFlagFIN) == 0))
+  1194					{
+  1195						return 1;
+  1196					}
+  1197					/* fall through: Newton can ACK the SYN and send payload in the same packet. */
+  1198				case kStateConnected:
+  1199				case kStateConnectedWaitACK:
+  1200					// Make sure that we don;t forward packes until the last one was acknowledged
+  1201					if ((state == kStateConnectedWaitACK) && (packet.GetTCPFlags() & Packet::kTCPFlagACK))
+  1202					{
+   246	TNetworkManager::GetTCPChecksum(KUInt8* d, ssize_t n, Boolean set)
+   247	{
+   248		KUInt32 s = 0;
+   249		KUInt16 TCPLength = n - 34;
+   250		ssize_t i;
+   251		// TCP Pseudo Header:
+   252		s = s + (d[26] << 8) + d[27] + (d[28] << 8) + d[29]; // src IP
+   253		s = s + (d[30] << 8) + d[31] + (d[32] << 8) + d[33]; // dst IP
+   254		s = s + d[23] + TCPLength;
+   255		if (set)
+   256		{
+   257			d[50] = d[51] = 0;
+   258		}
+   259		// TCP Data
+   260		for (i = 34; i < n; i += 2)
+   261		{
+   262			s += (d[i] << 8);
+   263			if (i + 1 < n)
+   264				s += d[i + 1];
+   265		}
+   266		// 1's complement
+   267		while (s >> 16)
+   268			s = (s & 0xFFFF) + (s >> 16);
+   269		s = ~s;
+   270		// set it
+   271		if (set)
+   272		{
+   273			if (s == 0)
+   274				s = 0xffff;
+   275			d[50] = s >> 8;
+   276			d[51] = s;
+   277		}
+   278		return s;
+   279	}
+   280	
+   281	KUInt16
+   282	TNetworkManager::GetIPv4Checksum(KUInt8* d, ssize_t n, Boolean set)
+   283	{
+   284		(void) n;
+   285		(void) set;
+   286	
+   287		KUInt32 s = 0;
+   288		KUInt16 v, i;
+   289		if (set)
+   290		{
+   291			d[24] = d[25] = 0;
+   292		}
+   293		for (i = 14; i < 34; i += 2)
+   294		{
+   295			v = (d[i] << 8) | d[i + 1];
+   296			s += v;
+   297		}
+   298		while (s >> 16)
+   299			s = (s & 0xFFFF) + (s >> 16);
+   300		s = ~s;
+   301		if (set)
+   302		{
+   303			if (s == 0)
+   304				s = 0xffff;
+   305			d[24] = s >> 8;
+   306			d[25] = s;
+   307		}
+   308		return s;
+   309	}
+   310	
+   311	// -------------------------------------------------------------------------- //
+   312	//  * AsyncWaitForReadyToRead(int, const fd_set*)
+   313	// -------------------------------------------------------------------------- //
+   314	void
+   315	TNetworkManager::AsyncWaitForReadyToRead(int nfds, const fd_set* inFDSet)

@@ -1,0 +1,44 @@
+=== screen OCR ===
+¢ Unfiled Notes
+) Thu 7723 O=
+
+Harness Loader v1.10Fetches Harne
+
+Requesting /harness-client.pkg...
+
+@ @ Heap Memory 423 kB @
+
+DAt
+RIS S QAP e*
+
+Extras InOut Names Dates Undo Find Assist ’
+=== raw server new lines ===
+ERROR ('10.42.0.1', 60060) timed out
+RAW b''
+ERROR ('10.42.0.1', 60070) timed out
+RAW b''
+=== native diagnostics ===
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=42
+TCPDIAG native SendPacket addr=0cddff28 size=42
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122417576 ack=0 src=33279 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122417577 ack=1 src=33279 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122517576 ack=0 src=33287 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122517577 ack=1 src=33287 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122417577 ack=2 src=33279 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122517577 ack=2 src=33287 dst=18081

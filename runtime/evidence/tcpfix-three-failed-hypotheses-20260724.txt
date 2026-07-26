@@ -1,0 +1,57 @@
+Einstein TCP payload debugging evidence — 2026-07-24
+
+Raw server tail:
+serving 10.42.0.1:18081 bytes=1328
+ERROR ('10.42.0.1', 36436) timed out
+RAW b''
+CONN ('10.42.0.1', 50600)
+RAW b'GET / HTTP/1.1\r\nHost: 10.42.0.1:18081\r\nUser-Agent: curl/8.21.0\r\nAccept: */*\r\n\r\n'
+CONN ('10.42.0.1', 39328)
+RAW b'GET / HTTP/1.1\r\nHost: 10.42.0.1:18081\r\nUser-Agent: curl/8.21.0\r\nAccept: */*\r\n\r\n'
+CONN ('10.42.0.1', 39344)
+RAW b'GET /index.html HTTP/1.1\r\nHost: 10.42.0.1:18081\r\nUser-Agent: curl/8.21.0\r\nAccept: */*\r\n\r\n'
+CONN ('10.42.0.1', 39348)
+RAW b'GET /harness-client.pkg HTTP/1.1\r\nHost: 10.42.0.1:18081\r\nUser-Agent: curl/8.21.0\r\nAccept: */*\r\n\r\n'
+CONN ('10.42.0.1', 39356)
+RAW b'GET /network-probe.pkg HTTP/1.1\r\nHost: 10.42.0.1:18081\r\nUser-Agent: curl/8.21.0\r\nAccept: */*\r\n\r\n'
+ERROR ('10.42.0.1', 44952) timed out
+RAW b''
+ERROR ('10.42.0.1', 35514) timed out
+RAW b''
+ERROR ('10.42.0.1', 42476) timed out
+RAW b''
+ERROR ('10.42.0.1', 55216) timed out
+RAW b''
+ERROR ('10.42.0.1', 42034) timed out
+RAW b''
+ERROR ('10.42.0.1', 41192) timed out
+RAW b''
+ERROR ('10.42.0.1', 53420) timed out
+RAW b''
+
+Current emulator TCPDIAG tail:
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=590
+TCPDIAG native SendPacket addr=0cd19f28 size=590
+TCPDIAG native SendBuffer r1=0cd19f28 r2=42
+TCPDIAG native SendPacket addr=0cd19f28 size=42
+TCPDIAG native SendBuffer r1=0cd19f28 r2=58
+TCPDIAG native SendPacket addr=0cd19f28 size=58
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=248287232 ack=0 src=33069 dst=18081
+TCPDIAG native SendBuffer r1=0cd19f28 r2=54
+TCPDIAG native SendPacket addr=0cd19f28 size=54
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248287233 ack=2 src=33069 dst=18081
+TCPDIAG native SendBuffer r1=0cd19f28 r2=54
+TCPDIAG native SendPacket addr=0cd19f28 size=54
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=248287233 ack=3 src=33069 dst=18081
+
+Runtime image:
+34e41cda24f2289ad64f3d62059f6ff6b145f98e33fc7775f1f9188cd8a7a310
+Canonical image tag:
+34e41cda24f2289ad64f3d62059f6ff6b145f98e33fc7775f1f9188cd8a7a310
+
+Raw server process:
+jbfly    1075883  0.0  0.0   8180  3656 ?        S<   04:52   0:00 /usr/bin/bash --noprofile --norc -c cd /home/jbfly/git/newton-harness && nohup python3 runtime/raw_pkg_server.py > /dev/null 2>&1 & echo $!
+jbfly    1075884  0.0  0.0  19880  8476 ?        S    04:52   0:00 python3 runtime/raw_pkg_server.py
+jbfly    1941679  0.0  0.0   8184  5600 ?        S    06:45   0:00 /usr/bin/bash --noprofile --norc -c cd /home/jbfly/git/newton-harness && rm containers/patches/einstein-tcp-nonzero-isn.patch && python3 - <<'PY' from pathlib import Path p=Path('containers/emulator.Dockerfile') s=p.read_text().replace('    && git -C /src/Einstein apply /patches/einstein-tcp-nonzero-isn.patch \\\n','') p.write_text(s) PY {   echo 'Einstein TCP payload debugging evidence — 2026-07-24';   echo;   echo 'Raw server tail:';   tail -30 runtime/logs/raw-pkg-server.log;   echo;   echo 'Current emulator TCPDIAG tail:';   podman logs newton-harness_emulator_1 2>&1 | grep TCPDIAG | tail -40;   echo;   echo 'Runtime image:';   podman inspect newton-harness_emulator_1 --format '{{.Image}}';   echo 'Canonical image tag:';   podman image inspect localhost/newton-harness-dev:local --format '{{.Id}}';   echo;   echo 'Raw server process:';   ps aux | grep '[r]aw_pkg_server.py'; } > runtime/evidence/tcpfix-three-failed-hypotheses-20260724.txt cat > /tmp/newton-notes-append.md <<'EOF'  ## 2026-07-24 — Einstein TCP payload drop investigation (stopped after three failed fixes)  ### Bottom line  The HTTP GET is not reaching `TUsermodeNetwork::SendPacket` at all. Einstein completes the host-side TCP connection and Newton completes the emulated SYN/SYN-ACK/ACK handshake, then the Loader visibly reaches `Requesting /harness-client.pkg...`; however, no Newton Ethernet data frame follows. The raw server times out after five seconds with `RAW b''`.  The diagnostic boundary is now precise:  1. NewtonScript's synchronous `protoBasicEndpoint:Connect` returns and `DownloadPackage` calls `endpoint:Output` (the Loader screen changes to `Requesting /harness-client.pkg...`). 2. Einstein's native bridge logs every `EinsteinNetSendBuffer` and `EinsteinNetSendPacket` call. 3. After the handshake ACK, there is no native send call for the GET. Therefore the payload is not being dropped by `TTCPPacketHandler::send`, its state guard, `GetTCPPayloadSize`, or host `::send`; Newton/NIE never hands a data frame to Einstein's NE2000 native primitive.  ### Reproduction and evidence  - Fresh flash backup before restart testing: `runtime/backups/internal-before-tcpdiag-rebuild-20260724-060617.flash`, SHA-256 `d566009ec599651275091ac04efb7343ea87a8affe6fbc793c77f92ba861ba3d`. - Raw package server remained running as `python3 runtime/raw_pkg_server.py` on `10.42.0.1:18081`; it reports `bytes=1328`. - Baseline diagnostic attempt:   - SYN: `size=58 iptotal=44 tcphdr=24 payload=0 flags=0x002`.   - Handshake ACK: `size=54 iptotal=40 tcphdr=20 payload=0 flags=0x010`.   - No payload packet appears before the server FIN; raw log records `ERROR ... timed out` and `RAW b''`. - Native-bridge diagnostic attempt:   - Control packets call `native SendBuffer` followed by `native SendPacket` (58-byte SYN and 54-byte ACK).   - No `SendBuffer`/`SendPacket` call follows the Loader's `endpoint:Output`. - Consolidated trace: `runtime/evidence/tcpfix-three-failed-hypotheses-20260724.txt`. - Screenshots:   - `runtime/evidence/tcpfix-native-loader-ready.png`   - `runtime/evidence/tcpfix-isn-after.png` (status remains `Requesting /harness-client.pkg...`).  ### Three failed fix hypotheses  1. **Remove the SYN-ACK acknowledgment increment.** Replaced `SetTCPAck(++mNewtonPacketsSeq)` with `SetTCPAck(mNewtonPacketsSeq)`. This was based on an initially mistaken reading that the constructor's `seq + 1` survived into `connect`; in fact, `connect` resets `mNewtonPacketsSeq` to the SYN sequence before incrementing it. Newton immediately sent RST (`flags=0x004`) and reported TCP error 10021. The patch was removed. 2. **Send a duplicate ACK when entering `kStateConnected`.** This tested whether a missing interrupt/window update kept the synchronous endpoint blocked after its handshake ACK. Newton still sent no data frame; the Loader reached `Requesting...`, and the raw server again timed out with an empty request. The patch was removed. 3. **Use a nonzero Einstein initial sequence number.** Set `mEinsteinPacketsSeq = 1` before generating the SYN-ACK, testing whether zero acted as a Newton TCP sentinel. Newton ACKed the new sequence (`ack=2`), but again emitted no data frame and the raw server received `b''`. The patch was removed from the canonical Dockerfile after the test.  ### Patch/build state  - `containers/patches/einstein-tcp-newton-payload.patch` retains the TCP state/payload/host-send diagnostics. - `containers/patches/einstein-tcp-native-diag.patch` logs NE2000 native `SendBuffer`, `SendCBufferList`, and `SendPacket` calls. - `containers/patches/einstein-tcp-send-after-ack.patch` remains present but was already proven insufficient before this session. - The canonical `containers/emulator.Dockerfile` includes those three diagnostic patches and no failed hypothesis patch. - The currently running container was built with the third test (`mEinsteinPacketsSeq = 1`); it was not restarted again because the procedure requires stopping after three failed fixes. Rebuild/restart from the canonical Dockerfile before continuing.  ### Next investigation boundary  Continue below `protoBasicEndpoint:Output` and above the NE2000 driver's `EinsteinNetSendBuffer` call: inspect the Newton NIE endpoint/transport state and the installed Loader's output object/options. Do not spend another cycle changing `TUsermodeNetwork` packet state or payload arithmetic unless a new trace first shows a data-bearing Ethernet frame reaching `EinsteinNetSendPacket`. EOF mkdir -p docs cat /tmp/newton-notes-append.md >> docs/newton-dev-notes.md printf '%s\n' '--- canonical patches ---' && grep -n 'einstein-tcp' containers/emulator.Dockerfile && printf '%s\n' '--- evidence ---' && ls -l runtime/evidence/tcpfix-three-failed-hypotheses-20260724.txt docs/newton-dev-notes.md && printf '%s\n' '--- server ---' && ps aux | grep '[r]aw_pkg_server.py'

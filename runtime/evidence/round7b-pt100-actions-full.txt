@@ -1,0 +1,809 @@
+     0 : 18     1 : 27     4 : c9     5 : 19     6 : 03     7 : 1a     8 : 39     9 : 00    10 : 03    11 : 7b    12 : 03    13 : 1b    14 : 3a    15 : 00    16 : 07    19 : 5f    22 : 1c    23 : 28    24 : 1d    25 : 91    26 : 03    27 : 1e    28 : 39    29 : 00    30 : 20    31 : 03    32 : 1f    35 : 39    36 : 00    37 : 07    40 : 18    41 : 27    44 : c9    45 : 22    46 : 22    47 : 03    48 : 1f    51 : 3a    52 : 00    53 : 1f    56 : 03    57 : 1a    58 : 39    59 : 00    60 : 07    63 : 5f    66 : 1c    67 : 28    68 : 1d    69 : 91    70 : 03    71 : 1e    72 : 39    73 : 00    74 : 20    75 : 03    76 : 1f    79 : 39    80 : 00    81 : 22    82 : 02    83 : 00    84 : 07    87 : 1f    90 : 1f    93 : 04    94 : 1f    97 : 2a    98 : 00    99 : 18   100 : 27*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+*** PkgReader: PkgReadBinaryObject - unknown class 'code
+*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+*** PkgReader: PkgReadBinaryObject - unknown class 'mask
+'MConnectAction
+[
+	literals: 
+	'|evt.ex.comm|, 
+	"Instantiating...", 
+	'MMessage, 
+	'Instantiate, 
+	'CurrentException, 
+	'error, 
+	'MNotifyError, 
+	'MSetEndPointState, 
+	'Bind, 
+	"Binding...", 
+	'|PT100:Scrawl|, 
+	<function, 2 arg(s) #17fe3b91>, 
+	'RegPowerOff, 
+	'fConnectAction, 
+	'Listen, 
+	"Waiting for connection...", 
+	90000, 
+	<function, 3 arg(s) #17fe3f41>, 
+	[
+		2: 
+		NIL, 
+		'async, 
+		'reqTimeout, 
+		'completionScript
+	], 
+	'connect, 
+	"Connecting...", 
+	'theSession, 
+	'type, 
+	'telnet, 
+	'theAddress, 
+	[
+		pathExpr: 
+		'advanced, 
+		'portNumber
+	], 
+	'ToNumber, 
+	'TBuildConnectOptions, 
+	'fConnectAddress, 
+	'array, 
+	'prefs, 
+	[
+		pathExpr: 
+		'timing, 
+		'TimeOut
+	], 
+	[
+		pathExpr: 
+		'timing, 
+		'TimeOut
+	], 
+	45000, 
+	<function, 3 arg(s) #17fe4191>, 
+	[
+		2: 
+		NIL, 
+		'async, 
+		'reqTimeout, 
+		'completionScript
+	], 
+	'MDisconnect
+]
+                           push (b =   0)
+ 00 58            push-constant (b =  88)
+                   new-handlers (b =   1)
+                           push (b =   1)
+                      push-self          
+                           push (b =   2)
+                           send (b =   1)
+                            pop          
+                      push-self          
+                        get-var (b =   3)
+                      push-self          
+                           push (b =   3)
+                           send (b =   2)
+                            pop          
+ 00 07             pop-handlers          
+ 00 28                   branch (b =  40)
+                           push (b =   4)
+                           call (b =   0)
+                           push (b =   5)
+                       get-path (b =   1)
+                      push-self          
+                           push (b =   6)
+                           send (b =   1)
+                            pop          
+                  push-constant (b =   0)
+                      push-self          
+ 00 07                     push (b =   7)
+                           send (b =   1)
+                            pop          
+ 00 07             pop-handlers          
+                           push (b =   0)
+ 01 08            push-constant (b =  264)
+                   new-handlers (b =   1)
+                  push-constant (b =   2)
+                  push-constant (b =   2)
+                      push-self          
+ 00 08                     push (b =   8)
+                           send (b =   2)
+                            pop          
+ 00 09                     push (b =   9)
+                      push-self          
+                           push (b =   2)
+                           send (b =   1)
+                            pop          
+ 00 07             pop-handlers          
+ 00 57                   branch (b =  87)
+                           push (b =   4)
+                           call (b =   0)
+                           push (b =   5)
+                       get-path (b =   1)
+                      push-self          
+                           push (b =   6)
+                           send (b =   1)
+                            pop          
+                  push-constant (b =   0)
+                      push-self          
+ 00 07                     push (b =   7)
+                           send (b =   1)
+                            pop          
+                  push-constant (b =   2)
+                         return          
+                            pop          
+ 00 07             pop-handlers          
+ 00 0a                     push (b =  10)
+ 00 0b                     push (b =  11)
+                  set-lex-scope          
+ 00 0c                     push (b =  12)
+                           call (b =   2)
+                            pop          
+                           push (b =   0)
+ 04 80       103 : c9   104 : 77   107 : 1f   110 : c4   111 : 6f   114 : 27   117 : 03   118 : 1f   121 : 39   122 : 00   123 : 1f   126 : 03   127 : 1a   128 : 39   129 : 00   130 : 22   131 : 27   134 : 1f   137 : 1f   140 : 1f   143 : 83   144 : 03   145 : 1f   148 : 3a   149 : 5f   152 : 77   155 : 1f   158 : c4   159 : 6f   162 : 27   165 : 03   166 : 1f   169 : 39   170 : 00   171 : 1f   174 : 03   175 : 1a   176 : 39   177 : 00   178 : 77   181 : 1f   184 : 91   185 : 1f   188 : c4   189 : 6f   192 : 77   195 : 77   198 : 1f   201 : 91   202 : 03   203 : 1f   206 : 39   207 : 03   208 : 1f   211 : 3a   212 : 5f   215 : 77   218 : 1f   221 : 89   222 : a4   223 : 7c   224 : 27   227 : 77   230 : 1f   233 : 91   234 : 03   235 : 1f   238 : 39   239 : 6f   242 : 77   245 : 1f   248 : 91   249 : 03   250 : 1f   253 : 39   254 : 27   257 : c7   260 : 5f   263 : 1f   266 : 1f   269 : 1f   272 : 83   273 : 03   274 : 1f   277 : 3a   278 : 5f   281 : 22   282 : 07   285 : 5f   288 : 1c   289 : 28   290 : 1d   291 : 91   292 : 03   293 : 1e   294 : 39   295 : 00        push-constant (b =  1152)
+                   new-handlers (b =   1)
+ 00 0d                 find-var (b =  13)
+ 00 0e                     push (b =  14)
+                         equals          
+ 00 98          branch-if-false (b =  152)
+ 00 08            push-constant (b =   8)
+                      push-self          
+ 00 07                     push (b =   7)
+                           send (b =   1)
+                            pop          
+ 00 0f                     push (b =  15)
+                      push-self          
+                           push (b =   2)
+                           send (b =   1)
+                            pop          
+                  push-constant (b =   2)
+ 00 1a            push-constant (b =  26)
+ 00 10                     push (b =  16)
+ 00 11                     push (b =  17)
+ 00 12                     push (b =  18)
+                     make-frame (b =   3)
+                      push-self          
+ 00 0e                     push (b =  14)
+                           send (b =   2)
+ 01 1a                   branch (b =  282)
+ 00 0d                 find-var (b =  13)
+ 00 13                     push (b =  19)
+                         equals          
+ 01 19          branch-if-false (b =  281)
+ 00 10            push-constant (b =  16)
+                      push-self          
+ 00 07                     push (b =   7)
+                           send (b =   1)
+                            pop          
+ 00 14                     push (b =  20)
+                      push-self          
+                           push (b =   2)
+                           send (b =   1)
+                            pop          
+ 00 15                 find-var (b =  21)
+ 00 16                     push (b =  22)
+                       get-path (b =   1)
+ 00 17                     push (b =  23)
+                         equals          
+ 00 d7          branch-if-false (b =  215)
+ 00 18                 find-var (b =  24)
+ 00 15                 find-var (b =  21)
+ 00 19                     push (b =  25)
+                       get-path (b =   1)
+                      push-self          
+ 00 1a                     push (b =  26)
+                           send (b =   1)
+                      push-self          
+ 00 1b                     push (b =  27)
+                           send (b =   2)
+ 00 de                   branch (b =  222)
+ 00 1c                 find-var (b =  28)
+ 00 1d                     push (b =  29)
+                     make-array (b =   1)
+                        set-var (b =   4)
+                        get-var (b =   4)
+ 00 1a            push-constant (b =  26)
+ 00 1e                 find-var (b =  30)
+ 00 1f                     push (b =  31)
+                       get-path (b =   1)
+                      push-self          
+ 00 1a                     push (b =  26)
+                           send (b =   1)
+ 01 07          branch-if-false (b =  263)
+ 00 1e                 find-var (b =  30)
+ 00 20                     push (b =  32)
+                       get-path (b =   1)
+                      push-self          
+ 00 1a                     push (b =  26)
+                           send (b =   1)
+ 0f a0            push-constant (b =  4000)
+ 00 07                 multiply          
+ 01 0a                   branch (b =  266)
+ 00 21                     push (b =  33)
+ 00 22                     push (b =  34)
+ 00 23                     push (b =  35)
+                     make-frame (b =   3)
+                      push-self          
+ 00 13                     push (b =  19)
+                           send (b =   2)
+ 01 1a                   branch (b =  282)
+                  push-constant (b =   2)
+ 00 07             pop-handlers          
+ 01 30                   branch (b =  304)
+                           push (b =   4)
+                           call (b =   0)
+                           push (b =   5)
+                       get-path (b =   1)
+                      push-self          
+                           push (b =   6)
+                           send (b =   1)
+                      296 : 03   297 : 1f   300 : 38   301 : 07   304 : 02     0 : 7c     1 : 6f     4 : 7c     5 : 03     6 : 18     7 : 39     8 : 00     9 : 03    10 : 19    11 : 38    12 : 00    13 : 22    14 : 02    15 : 00    16 : 72    17 : 1b    18 : c4    19 : 6f    22 : 1c    23 : 27    26 : c9    27 : 22    28 : 22    29 : 03    30 : 1d    31 : 3a    32 : 00    33 : 07    36 : 5f    39 : 1e    40 : 28    41 : 1f    44 : 91    45 : 03    46 : 18    47 : 39    48 : 00    49 : 03    50 : 19    51 : 38    52 : 00    53 : 22    54 : 02    55 : 00    56 : 07    59 : 03    60 : 1f    63 : 77    66 : 1f    69 : 91    70 : 1f    73 : c4    74 : 6f    77 : 27    80 : 5f    83 : 27    86 : 98    87 : 77    90 : 1f    93 : 91    94 : c5    95 : 6f    98 : 77   101 : 1f   104 : 91   105 : 1f   108 : c4   109 : 67   112 : 77   115 : 1f   118 : 91   119 : 1f   122 : c4   123 : 5f   126 : 27         pop          
+                      push-self          
+ 00 24                     push (b =  36)
+                           send (b =   0)
+ 00 07             pop-handlers          
+                         return          
+'MConnectCompProc
+[
+	literals: 
+	'MNotifyError, 
+	'MDisconnect, 
+	'fConnectAction, 
+	'Listen, 
+	'|evt.ex.comm|, 
+	'Accept, 
+	'CurrentException, 
+	'error, 
+	'crChar, 
+	'theSession, 
+	'type, 
+	'telnet, 
+	'prefs, 
+	[
+		pathExpr: 
+		'modem, 
+		'crappyModem
+	], 
+	'dialup, 
+	'serial, 
+	'MBuildConfigOptionsmodem, 
+	"siop", 
+	<function, 2 arg(s) #17fe30a1>, 
+	'ArrayPos, 
+	'array, 
+	'option, 
+	'resetTimer, 
+	'MSetEndPointState, 
+	"Connected.", 
+	'MMessage, 
+	'GetRoot, 
+	[
+		pathExpr: 
+		'|PT100:Scrawl|, 
+		'loginScript
+	], 
+	[
+		pathExpr: 
+		'|PT100:Scrawl|, 
+		'loginScript
+	], 
+	'start, 
+	'SetUpInputSpecs, 
+	'MResetConnection, 
+	'MShowModemInfo, 
+	'lex, 
+	'hasVar, 
+	'telnetState, 
+	'InitMessages, 
+	'dialbox, 
+	'Close, 
+	'AddDelayedSend
+]
+                        get-var (b =   4)
+ 00 10          branch-if-false (b =  16)
+                        get-var (b =   4)
+                      push-self          
+                           push (b =   0)
+                           send (b =   1)
+                            pop          
+                      push-self          
+                           push (b =   1)
+                           send (b =   0)
+                            pop          
+                  push-constant (b =   2)
+                         return          
+                            pop          
+                       find-var (b =   2)
+                           push (b =   3)
+                         equals          
+ 00 3b          branch-if-false (b =  59)
+                           push (b =   4)
+ 00 9c            push-constant (b =  156)
+                   new-handlers (b =   1)
+                  push-constant (b =   2)
+                  push-constant (b =   2)
+                      push-self          
+                           push (b =   5)
+                           send (b =   2)
+                            pop          
+ 00 07             pop-handlers          
+ 00 3b                   branch (b =  59)
+                           push (b =   6)
+                           call (b =   0)
+ 00 07                     push (b =   7)
+                       get-path (b =   1)
+                      push-self          
+                           push (b =   0)
+                           send (b =   1)
+                            pop          
+                      push-self          
+                           push (b =   1)
+                           send (b =   0)
+                            pop          
+                  push-constant (b =   2)
+                         return          
+                            pop          
+ 00 07             pop-handlers          
+                      push-self          
+ 00 08                     push (b =   8)
+ 00 09                 find-var (b =   9)
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+ 00 0b                     push (b =  11)
+                         equals          
+ 00 53          branch-if-false (b =  83)
+ 00 a6            push-constant (b =  166)
+ 00 56                   branch (b =  86)
+ 00 d6            push-constant (b =  214)
+                       set-path (b =   0)
+ 00 0c                 find-var (b =  12)
+ 00 0d                     push (b =  13)
+                       get-path (b =   1)
+                            not          
+ 00 84          branch-if-false (b =  132)
+ 00 09                 find-var (b =   9)
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+ 00 0e                     push (b =  14)
+                         equals          
+ 00 7e           branch-if-true (b =  126)
+ 00 09                 find-var (b =   9)
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+ 00 0f                     push (b =  15)
+                         equals          
+ 00 81                   branch (b =  129)
+ 00 1a      129 : 5f   132 : 22   133 : 6f   136 : 03   137 : 1f   140 : 38   141 : a3   142 : 7b   143 : 1f   146 : 20   147 : 1f   150 : 1f   153 : 2c   154 : a5   155 : 7d   156 : 6f   159 : 7b   160 : 7d   161 : c2   162 : 1f   165 : 89   166 : 22   167 : 03   168 : 1f   171 : 3a   172 : 00   173 : 27   176 : 03   177 : 1f   180 : 39   181 : 00   182 : 27   185 : 03   186 : 1f   189 : 39   190 : 00   191 : 1f   194 : 03   195 : 1f   198 : 39   199 : 00   200 : 1f   203 : 28   204 : 1f   207 : 91   208 : 6f   211 : 1f   214 : 28   215 : 1f   218 : 91   219 : 1f   222 : 38   223 : 00   224 : 77   227 : 1f   230 : 91   231 : 03   232 : 1f   235 : 39   236 : 00   237 : 22   238 : 03   239 : 1f   242 : 39   243 : 00   244 : 77   247 : 1f   250 : 91   251 : 1f   254 : c6   255 : 6f   258 : 03   259 : 1f   262 : 38   263 : 00   264 : 5f   267 : 1f   270 : 1f   273 : 29   274 : 6f   277 : 77   280 : 1f   283 : c7   286 : 5f   289 : 22   290 : 6f   293 : 77   296 : 1f   299 : 91   300 : 1f   303 : 38   304 : 00   305 : 77   308 : 1f   311 : 22   312 : 27   315 : 1f         push-constant (b =  26)
+ 00 85                   branch (b =  133)
+                  push-constant (b =   2)
+ 00 ad          branch-if-false (b =  173)
+                      push-self          
+ 00 10                     push (b =  16)
+                           send (b =   0)
+                        set-var (b =   3)
+                        get-var (b =   3)
+ 00 11                     push (b =  17)
+                  push-constant (b =   0)
+ 00 12                     push (b =  18)
+ 00 13                     push (b =  19)
+                           call (b =   4)
+                        set-var (b =   5)
+                        get-var (b =   5)
+ 00 ad          branch-if-false (b =  173)
+                        get-var (b =   3)
+                        get-var (b =   5)
+                           aref          
+ 00 14                     push (b =  20)
+                     make-array (b =   1)
+                  push-constant (b =   2)
+                      push-self          
+ 00 15                     push (b =  21)
+                           send (b =   2)
+                            pop          
+ 00 1a            push-constant (b =  26)
+                      push-self          
+ 00 16                     push (b =  22)
+                           send (b =   1)
+                            pop          
+ 00 14            push-constant (b =  20)
+                      push-self          
+ 00 17                     push (b =  23)
+                           send (b =   1)
+                            pop          
+ 00 18                     push (b =  24)
+                      push-self          
+ 00 19                     push (b =  25)
+                           send (b =   1)
+                            pop          
+ 00 1a                     push (b =  26)
+                           call (b =   0)
+ 00 1b                     push (b =  27)
+                       get-path (b =   1)
+ 00 e0          branch-if-false (b =  224)
+ 00 1a                     push (b =  26)
+                           call (b =   0)
+ 00 1c                     push (b =  28)
+                       get-path (b =   1)
+ 00 1d                     push (b =  29)
+                           send (b =   0)
+                            pop          
+ 00 09                 find-var (b =   9)
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+                      push-self          
+ 00 1e                     push (b =  30)
+                           send (b =   1)
+                            pop          
+                  push-constant (b =   2)
+                      push-self          
+ 00 1f                     push (b =  31)
+                           send (b =   1)
+                            pop          
+ 00 09                 find-var (b =   9)
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+ 00 0b                     push (b =  11)
+                     not-equals          
+ 01 0b          branch-if-false (b =  267)
+                      push-self          
+ 00 20                     push (b =  32)
+                           send (b =   0)
+                            pop          
+ 01 31                   branch (b =  305)
+ 00 21                     push (b =  33)
+ 00 22                     push (b =  34)
+                           call (b =   1)
+ 01 21          branch-if-false (b =  289)
+ 00 21                 find-var (b =  33)
+ 00 23                     push (b =  35)
+ 00 17                 has-path          
+ 01 22                   branch (b =  290)
+                  push-constant (b =   2)
+ 01 31          branch-if-false (b =  305)
+ 00 21                 find-var (b =  33)
+ 00 23                     push (b =  35)
+                       get-path (b =   1)
+ 00 24                     push (b =  36)
+                           send (b =   0)
+                            pop          
+ 00 25                 find-var (b =  37)
+ 00 26                     push (b =  38)
+                  push-constant (b =   2)
+ 0f a0            push-constant (b =  4000)
+ 00 27                 318 : 2c   319 : 02     0 : 18     1 : 27     4 : c9     5 : 22     6 : 03     7 : 19     8 : 39     9 : 00    10 : 07    13 : 5f    16 : 07    19 : 7b    20 : 27    23 : c4    24 : 6f    27 : 18    28 : 27    31 : c9    32 : 22    33 : 27    36 : 27    39 : 1a    40 : 1b    41 : 83    42 : 03    43 : 1c    44 : 3a    45 : 07    48 : 5f    51 : 22    52 : 1d    53 : 28    54 : 1e    55 : 91    56 : 03    57 : 1f    60 : 3a    61 : 07    64 : 5f    67 : 22    68 : 22    69 : 03    70 : 1f    73 : 3a    74 : 02     0 : 18     1 : 27     4 : c9     5 : 22     6 : 03     7 : 19     8 : 39     9 : 00    10 : 07    13 : 5f    16 : 07    19 : 18    20 : 27    23 : c9    24 : 03    25 : 1a    26 : 38    27 : 00    28 : 07    31 : 5f    34 : 07    37 : 73    38 : 6f    41 : 1c    42 : 1d    43 : 29    44 : 6f    47 : 73    48 : 03    49 : 1e    50 : 1c    51 : 2b       push (b =  39)
+                           call (b =   4)
+                         return          
+'MDisconnectAction
+[
+	literals: 
+	'|evt.ex.comm|, 
+	'Cancel, 
+	<function, 3 arg(s) #17fe10b1>, 
+	[
+		2: 
+		NIL, 
+		'async, 
+		'reqTimeout, 
+		'completionScript
+	], 
+	'Disconnect, 
+	'CurrentException, 
+	'error, 
+	'MDisconnectCompProc
+]
+                           push (b =   0)
+ 00 40            push-constant (b =  64)
+                   new-handlers (b =   1)
+                  push-constant (b =   2)
+                      push-self          
+                           push (b =   1)
+                           send (b =   1)
+                            pop          
+ 00 07             pop-handlers          
+ 00 13                   branch (b =  19)
+ 00 07             pop-handlers          
+                        get-var (b =   3)
+ 00 14            push-constant (b =  20)
+                         equals          
+ 00 43          branch-if-false (b =  67)
+                           push (b =   0)
+ 00 cc            push-constant (b =  204)
+                   new-handlers (b =   1)
+                  push-constant (b =   2)
+ 00 1a            push-constant (b =  26)
+ 38 40            push-constant (b =  14400)
+                           push (b =   2)
+                           push (b =   3)
+                     make-frame (b =   3)
+                      push-self          
+                           push (b =   4)
+                           send (b =   2)
+ 00 07             pop-handlers          
+ 00 40                   branch (b =  64)
+                  push-constant (b =   2)
+                           push (b =   5)
+                           call (b =   0)
+                           push (b =   6)
+                       get-path (b =   1)
+                      push-self          
+ 00 07                     push (b =   7)
+                           send (b =   2)
+ 00 07             pop-handlers          
+ 00 4a                   branch (b =  74)
+                  push-constant (b =   2)
+                  push-constant (b =   2)
+                      push-self          
+ 00 07                     push (b =   7)
+                           send (b =   2)
+                         return          
+'MDisconnectCompProc
+[
+	literals: 
+	'|evt.ex.comm|, 
+	'UnBind, 
+	'Dispose, 
+	'theLinkID, 
+	'InetReleaseLinkVerbose, 
+	'GlobalFnExists, 
+	'MDisconnectInet, 
+	'InetReleaseLink, 
+	'GetRoot, 
+	[
+		pathExpr: 
+		'|PT100:Scrawl|, 
+		'loginScript
+	], 
+	[
+		pathExpr: 
+		'|PT100:Scrawl|, 
+		'loginScript
+	], 
+	'Finish, 
+	[
+		pathExpr: 
+		'|PT100:Scrawl|, 
+		'loginScript
+	], 
+	"Ready to connect...", 
+	'MMessage, 
+	'MSetEndPointState, 
+	'fPowerOffState, 
+	'|PT100:Scrawl|, 
+	'PowerOffResume, 
+	'UnRegPowerOff, 
+	'ResetKeyView
+]
+                           push (b =   0)
+ 00 40            push-constant (b =  64)
+                   new-handlers (b =   1)
+                  push-constant (b =   2)
+                      push-self          
+                           push (b =   1)
+                           send (b =   1)
+                            pop          
+ 00 07             pop-handlers          
+ 00 13                   branch (b =  19)
+ 00 07             pop-handlers          
+                           push (b =   0)
+ 00 88            push-constant (b =  136)
+                   new-handlers (b =   1)
+                      push-self          
+                           push (b =   2)
+                           send (b =   0)
+                            pop          
+ 00 07             pop-handlers          
+ 00 25                   branch (b =  37)
+ 00 07             pop-handlers          
+                       find-var (b =   3)
+ 00 44          branch-if-false (b =  68)
+                           push (b =   4)
+                           push (b =   5)
+                           call (b =   1)
+ 00 38          branch-if-false (b =  56)
+                       find-var (b =   3)
+                      push-self          
+                           push (b =   6)
+                           push (b =   4)
+                           call (b =       52 : 00    53 : 5f    56 : 73    57 : 03    58 : 1e    59 : 1f    62 : 2b    63 : 00    64 : 03    65 : 1b    66 : 22    67 : 98    68 : 1f    71 : 28    72 : 1f    75 : 91    76 : 6f    79 : 1f    82 : 28    83 : 1f    86 : 91    87 : 1f    90 : 38    91 : 00    92 : 1f    95 : 28    96 : 1f    99 : 22   100 : 98   101 : 1f   104 : 03   105 : 1f   108 : 39   109 : 00   110 : 20   111 : 03   112 : 1f   115 : 39   116 : 00   117 : 77   120 : 6f   123 : 22   124 : af   127 : 1f   130 : 1f   133 : 29   134 : 00   135 : 1f   138 : 1f   141 : 29   142 : 00   143 : 03   144 : 1f   147 : 38   148 : 02     0 : 70     1 : 7b     2 : 19     3 : c4     4 : 6f     7 : 20     8 : 5f    11 : 24    12 : c2    13 : a4    14 : 7c    15 : 03    16 : 1a    17 : 39    18 : 02     0 : 70     1 : 70     2 : c7     5 : 22     6 : 7b     7 : 20     8 : 7c     9 : 19    10 : 2e    11 : 00    12 : 72    13 : 1b    14 : 28    15 : c73)
+                            pop          
+ 00 40                   branch (b =  64)
+                       find-var (b =   3)
+                      push-self          
+                           push (b =   6)
+ 00 07                     push (b =   7)
+                           call (b =   3)
+                            pop          
+                      push-self          
+                           push (b =   3)
+                  push-constant (b =   2)
+                       set-path (b =   0)
+ 00 08                     push (b =   8)
+                           call (b =   0)
+ 00 09                     push (b =   9)
+                       get-path (b =   1)
+ 00 65          branch-if-false (b =  101)
+ 00 08                     push (b =   8)
+                           call (b =   0)
+ 00 0a                     push (b =  10)
+                       get-path (b =   1)
+ 00 0b                     push (b =  11)
+                           send (b =   0)
+                            pop          
+ 00 08                     push (b =   8)
+                           call (b =   0)
+ 00 0c                     push (b =  12)
+                  push-constant (b =   2)
+                       set-path (b =   0)
+ 00 0d                     push (b =  13)
+                      push-self          
+ 00 0e                     push (b =  14)
+                           send (b =   1)
+                            pop          
+                  push-constant (b =   0)
+                      push-self          
+ 00 0f                     push (b =  15)
+                           send (b =   1)
+                            pop          
+ 00 10                 find-var (b =  16)
+ 00 87          branch-if-false (b =  135)
+                  push-constant (b =   2)
+ 00 10         find-and-set-var (b =  16)
+ 00 11                     push (b =  17)
+ 00 12                     push (b =  18)
+                           call (b =   1)
+                            pop          
+ 00 11                     push (b =  17)
+ 00 13                     push (b =  19)
+                           call (b =   1)
+                            pop          
+                      push-self          
+ 00 14                     push (b =  20)
+                           send (b =   0)
+                         return          
+'MSetInputSpec
+[
+	literals: 
+	'inputSpecs, 
+	'normal, 
+	'SetInputSpec
+]
+                       find-var (b =   0)
+                        get-var (b =   3)
+                           push (b =   1)
+                         equals          
+ 00 0b          branch-if-false (b =  11)
+                  push-constant (b =   0)
+ 00 0c                   branch (b =  12)
+                  push-constant (b =   4)
+                           aref          
+                        set-var (b =   4)
+                        get-var (b =   4)
+                      push-self          
+                           push (b =   2)
+                           send (b =   1)
+                         return          
+'MOutputBinary
+[
+	literals: 
+	'bufferWaiting, 
+	'BinaryMunger, 
+	'lastSend, 
+	'Ticks, 
+	'prefs, 
+	[
+		pathExpr: 
+		'misc, 
+		'NIEWorkaround
+	], 
+	'theSession, 
+	'type, 
+	'telnet, 
+	'fEndpointState, 
+	'|evt.ex.comm|, 
+	'fEndpointOutputBinarySpec, 
+	'output, 
+	'CurrentException, 
+	'MExceptionHandler, 
+	"Not connected.", 
+	'MNotifyError, 
+	'buffer, 
+	'MakeBinary, 
+	'|PT100:Scrawl BufferSymbol|, 
+	<function, 0 arg(s) #17fe2651>, 
+	'AddProcrastinatedCall, 
+	<function, 1 arg(s) #17fe26b1>, 
+	'array
+]
+                       find-var (b =   0)
+                       find-var (b =   0)
+ 00 12                   length          
+                  push-constant (b =   2)
+                        get-var (b =   3)
+                  push-constant (b =   0)
+                        get-var (b =   4)
+                           push (b =   1)
+                           call (b =   6)
+                            pop          
+                       find-var (b =   2)
+                           push (b =   3)
+                           call (b =   0)
+ 00 0b             greater-than      18 : 6f    21 : 1b    22 : 28    23 : aa    24 : 74    25 : 1d    26 : 91    27 : 6f    30 : 76    31 : 1f    34 : 91    35 : 1f    38 : c4    39 : 5f    42 : 22    43 : c5    44 : 67    47 : 72    48 : 1b    49 : 28    50 : 27    53 : c1    54 : c7    57 : 5f    60 : 27    63 : 6f    66 : 77    69 : 27    72 : c4    73 : 6f    76 : 1f    79 : 27    82 : c9    83 : 70    84 : 22    85 : 77    88 : 03    89 : 1f    92 : 3b    93 : 00    94 : 07    97 : 5f   100 : 1f   103 : 28   104 : 03   105 : 1f   108 : 39   109 : 00   110 : 07   113 : 5f   116 : 1f   119 : 03   120 : 1f   123 : 39   124 : 00   125 : 03   126 : 18   127 : 20   128 : 1f   131 : 1f   134 : 2a   135 : 98   136 : 1b   137 : 28   138 : aa   139 : 1f   142 : 1f   145 : 22   146 : 20   147 : 1f   150 : 2c   151 : 5f   154 : 1f   157 : 1f   160 : 03   161 : 1f   164 : 89   165 : 27   168 : 1f   171 : 2c   172 : 02        
+ 00 18          branch-if-false (b =  24)
+                           push (b =   3)
+                           call (b =   0)
+               find-and-set-var (b =   2)
+                       find-var (b =   4)
+                           push (b =   5)
+                       get-path (b =   1)
+ 00 2a          branch-if-false (b =  42)
+                       find-var (b =   6)
+ 00 07                     push (b =   7)
+                       get-path (b =   1)
+ 00 08                     push (b =   8)
+                         equals          
+ 00 2b                   branch (b =  43)
+                  push-constant (b =   2)
+                            not          
+ 00 3c           branch-if-true (b =  60)
+                       find-var (b =   2)
+                           push (b =   3)
+                           call (b =   0)
+ 00 f0            push-constant (b =  240)
+                       subtract          
+ 00 0a                less-than          
+ 00 3f                   branch (b =  63)
+ 00 1a            push-constant (b =  26)
+ 00 9a          branch-if-false (b =  154)
+ 00 09                 find-var (b =   9)
+ 00 14            push-constant (b =  20)
+                         equals          
+ 00 74          branch-if-false (b =  116)
+ 00 0a                     push (b =  10)
+ 01 90            push-constant (b =  400)
+                   new-handlers (b =   1)
+                       find-var (b =   0)
+                  push-constant (b =   2)
+ 00 0b                 find-var (b =  11)
+                      push-self          
+ 00 0c                     push (b =  12)
+                           send (b =   3)
+                            pop          
+ 00 07             pop-handlers          
+ 00 71                   branch (b =  113)
+ 00 0d                     push (b =  13)
+                           call (b =   0)
+                      push-self          
+ 00 0e                     push (b =  14)
+                           send (b =   1)
+                            pop          
+ 00 07             pop-handlers          
+ 00 7d                   branch (b =  125)
+ 00 0f                     push (b =  15)
+                      push-self          
+ 00 10                     push (b =  16)
+                           send (b =   1)
+                            pop          
+                      push-self          
+                           push (b =   0)
+                  push-constant (b =   0)
+ 00 11                     push (b =  17)
+ 00 12                     push (b =  18)
+                           call (b =   2)
+                       set-path (b =   0)
+                           push (b =   3)
+                           call (b =   0)
+               find-and-set-var (b =   2)
+ 00 13                     push (b =  19)
+ 00 14                     push (b =  20)
+                  push-constant (b =   2)
+                  push-constant (b =   0)
+ 00 15                     push (b =  21)
+                           call (b =   4)
+ 00 ac                   branch (b =  172)
+ 00 13                     push (b =  19)
+ 00 16                     push (b =  22)
+                      push-self          
+ 00 17                     push (b =  23)
+                     make-array (b =   1)
+ 07 d0            push-constant (b =  2000)
+ 00 15                     push (b =  21)
+                           call (b =   4)
+                         return          

@@ -1,4 +1,0 @@
-capture_file=/home/jbfly/git/newton-harness/runtime/evidence/round14c-emulator-capture.log
-capture_initial_bytes=0
-command=podman logs --since 0s -f newton-harness_emulator_1
-server_log_bytes_before=263

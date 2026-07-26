@@ -1,0 +1,27 @@
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=590
+TCPDIAG native SendPacket addr=0ccf8f28 size=590
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=590
+TCPDIAG native SendPacket addr=0ccf8f28 size=590
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=42
+TCPDIAG native SendPacket addr=0ccf8f28 size=42
+TCPDIAG native frame ff ff ff ff ff ff 58 b0 35 77 d7 22 08 06 00 01 08 00 06 04 00 01 58 b0 35 77 d7 22 c0 a8 01 2a 00 00 00 00 00 00 c0 a8 01 01
+TCPDIAG inbound frame 58 b0 35 77 d7 22 ff ff ff ff ff ff 08 06 00 01 08 00 06 04 00 02 00 fa c0 a8 01 01 c0 a8 01 01 58 b0 35 77 d7 22 c0 a8 01 2a
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=58
+TCPDIAG native SendPacket addr=0ccf8f28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 83 37 46 a2 05 63 96 a0 00 00 00 00 60 02 10 00 56 4c 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=90412704 ack=0 src=33591 dst=18082
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 46 a2 83 37 00 00 00 00 05 63 96 a1 60 12 10 00 56 3b 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=54
+TCPDIAG native SendPacket addr=0ccf8f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 83 37 46 a2 05 63 96 a1 00 00 00 01 50 10 10 00 6d f8 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=90412705 ack=1 src=33591 dst=18082
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 46 a2 83 37 00 00 00 01 05 63 96 a1 50 11 10 00 6d f7 00 00
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=54
+TCPDIAG native SendPacket addr=0ccf8f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 04 00 00 40 06 ae cf c0 a8 01 2a 0a 2a 00 01 83 37 46 a2 05 63 96 a1 00 00 00 02 50 10 10 00 6d f7 00 00
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=90412705 ack=2 src=33591 dst=18082
+TCPDIAG native SendBuffer r1=0ccf8f28 r2=54
+TCPDIAG native SendPacket addr=0ccf8f28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 05 00 00 40 06 ae ce c0 a8 01 2a 0a 2a 00 01 83 37 46 a2 05 63 96 a1 00 00 00 02 50 11 10 00 6d f6 00 00
+TCPDIAG state=kStatePeerDiscWaitForFIN size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x011 seq=90412705 ack=2 src=33591 dst=18082
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ea 00 00 40 06 aa e9 0a 2a 00 01 c0 a8 01 2a 46 a2 83 37 00 00 00 02 05 63 96 a2 50 04 10 00 6e 02 00 00

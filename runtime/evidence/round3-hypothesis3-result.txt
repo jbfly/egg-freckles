@@ -1,0 +1,42 @@
+=== build ===
+f8646115a956f430878a750795dced212ae981875a783cd15d3a5201620d5232  runtime/staging/harness-loader.pkg
+dceacc8130d175c151b2261f0e06873d7e9e63752f035820428e820c125bbee3  runtime/staging/harness-client.pkg
+client_bytes=6456
+=== flash backup ===
+2c878492b92cbfc046e73d02c549897e0ac79006bf73faf121f37f9e5e4d8161  runtime/backups/internal-before-round3-outputspec-20260724-072727.flash
+=== screen OCR ===
+LY ¢ Unfiled Notes W
+Harness Loader v1.10Fetches Harne
+Requesting /harness-client.pkg...
+PE2C S Q2 ?e7
+Extras InOut Names Dates Undo Find Assist
+=== raw server new lines ===
+ERROR ('10.42.0.1', 50354) timed out
+RAW b''
+ERROR ('10.42.0.1', 50356) timed out
+RAW b''
+=== native diagnostics ===
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=42
+TCPDIAG native SendPacket addr=0cddff28 size=42
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122392576 ack=0 src=33603 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392577 ack=1 src=33603 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122517576 ack=0 src=33488 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122517577 ack=1 src=33488 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122392577 ack=2 src=33603 dst=18081
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122517577 ack=2 src=33488 dst=18081
