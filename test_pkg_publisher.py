@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import http.client
+import subprocess
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import pkg_publisher
 
@@ -63,17 +65,24 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
-    def test_ink_counts(self) -> None:
+    def test_ink_reading_and_backend_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with pkg_publisher.make_server("127.0.0.1", 0, ink_path=Path(tmp) / "ink.png") as server:
                 port = server.server_address[1]
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
+                body = b"NSI1 320 480 2\r\nS 3 10 20 1 2 -1 -2\r\nS 1 30 40\r\n"
                 try:
-                    body = b"NSI1 320 480 2\r\nS 3 10 20 1 2 -1 -2\r\nS 1 30 40\r\n"
-                    status, headers, response, version = self.fetch(port, "/ink", "POST", body)
-                    self.assertEqual((status, version, response), (200, 10, pkg_publisher.INK_BODY))
+                    with mock.patch.object(pkg_publisher, "interpret", return_value="A spiral."):
+                        status, headers, response, version = self.fetch(port, "/ink", "POST", body)
+                    self.assertEqual((status, version, response), (200, 10, b"INK A spiral.\r\n"))
                     self.assertEqual(headers["Content-Type"], "text/plain; charset=us-ascii")
+
+                    with mock.patch.object(pkg_publisher, "interpret",
+                                           side_effect=RuntimeError("codex exited 1")):
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", body)
+                    self.assertEqual(status, 502)
+                    self.assertEqual(response, b"INK No reading: codex exited 1\r\n")
                 finally:
                     server.shutdown()
                     thread.join()
@@ -86,12 +95,41 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    self.fetch(port, "/ink", "POST", b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\n")
+                    with mock.patch.object(pkg_publisher, "interpret", return_value="x"):
+                        self.fetch(port, "/ink", "POST", b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\n")
                     png = ink_path.read_bytes()
                     self.assertEqual(png[:24], b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01@\x00\x00\x01\xe0")
                 finally:
                     server.shutdown()
                     thread.join()
+
+    def test_interpret_call_boundary(self) -> None:
+        """The real-backend edge: argv shape, JSON pick, cleanup, failure. No tokens spent."""
+        events = (
+            b'{"type":"thread.started","thread_id":"t1"}\n'
+            b'{"type":"item.completed","item":{"type":"reasoning","text":"ignore me"}}\n'
+            b'{"type":"item.completed","item":{"type":"agent_message",'
+            b'"text":"A wavy line\\nwith a  \\u2014 dash."}}\n'
+            b'{"type":"turn.completed"}\n'
+        )
+        done = subprocess.CompletedProcess([], 0, stdout=events, stderr=b"")
+        with mock.patch.object(subprocess, "run", return_value=done) as run:
+            self.assertEqual(pkg_publisher.interpret(Path("/tmp/ink.png")),
+                             "A wavy line with a ? dash.")
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[:2], ["codex", "exec"])
+        self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.INK_PROMPT])
+        self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
+
+        failed = subprocess.CompletedProcess([], 1, stdout=b"", stderr=b"boom")
+        with mock.patch.object(subprocess, "run", return_value=failed):
+            with self.assertRaises(RuntimeError):
+                pkg_publisher.interpret(Path("/tmp/ink.png"))
+
+        with mock.patch.object(subprocess, "run", return_value=subprocess.CompletedProcess(
+                [], 0, stdout=b'{"type":"turn.completed"}\n', stderr=b"")):
+            with self.assertRaises(RuntimeError):
+                pkg_publisher.interpret(Path("/tmp/ink.png"))
 
     @staticmethod
     def fetch(

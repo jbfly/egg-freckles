@@ -1,6 +1,6 @@
-kAppSymbol := '|InkCaptureD:jbfly|;
-kAppTitle := "Ink D";
-kVersion := "0.4";
+kAppSymbol := '|InkPad:jbfly|;
+kAppTitle := "Ink Pad";
+kVersion := "1.0";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -8,9 +8,14 @@ mainView := {
     title: kAppTitle,
     appSymbol: kAppSymbol,
     strokeCount: 0,
-    pointCount: 0,
     strokes: [],
+    inkLeft: 0,
+    inkTop: 0,
+    pending: nil,
+    busy: nil,
+    gotReply: nil,
     statusView: nil,
+    inkView: nil,
     endpointClass: {_proto: protoBasicEndpoint},
     endpoint: nil,
     linkID: nil,
@@ -22,15 +27,21 @@ mainView := {
         AddDelayedCall(func(view) view:Wire(), [self], 300);
     end,
 
-    // ponytail: find the status by geometry because Newton reorders child views.
+    // ponytail: find children by geometry because Newton reorders child views
+    // and viewFrontKey points at whichever control was tapped last.
     Wire: func()
     begin
         local kids := :ChildViewFrames();
         if kids = nil then return nil;
         local rootBox := self:GlobalBox();
         foreach child in kids do
-            if (child:GlobalBox().top - rootBox.top = 366)
-            and (child:GlobalBox().left - rootBox.left = 8) then self.statusView := child;
+        begin
+            local box := child:GlobalBox();
+            local top := box.top - rootBox.top;
+            local left := box.left - rootBox.left;
+            if (top = 304) and (left = 8) then self.statusView := child;
+            if (top = 30) and (left = 8) then self.inkView := child;
+        end;
         return nil;
     end,
 
@@ -38,15 +49,35 @@ mainView := {
     begin
         if self.statusView = nil then :Wire();
         if self.statusView then SetValue(self.statusView, 'text, message);
+        return nil;
     end,
 
-    CountStroke: func(points)
+    StrokeText: func()
+        if self.strokeCount = 1 then "1 stroke" else self.strokeCount & " strokes",
+
+    CountStroke: func(points, originLeft, originTop)
     begin
+        // ponytail: the ink view reports its own screen origin, so the encoder
+        // never carries a hardcoded offset that silently rots when I move a view.
+        self.inkLeft := originLeft;
+        self.inkTop := originTop;
         AddArraySlot(self.strokes, points);
         self.strokeCount := self.strokeCount + 1;
-        self.pointCount := self.pointCount + (Length(points) div 2);
-        :SetStatus("Strokes: " & self.strokeCount & "   Points: " & self.pointCount);
+        :SetStatus(:StrokeText());
         return nil;
+    end,
+
+    Clear: func()
+    begin
+        if self.busy then return :SetStatus("Wait for the reply");
+        self.strokes := [];
+        self.strokeCount := 0;
+        if self.inkView then
+        begin
+            self.inkView:Dirty();
+            RefreshViews();
+        end;
+        return :SetStatus("Ready");
     end,
 
     Encode: func()
@@ -58,15 +89,15 @@ mainView := {
             local line := "S " & count;
             if count > 0 then
             begin
-                // ponytail: place view-local ink at its actual 320x480 screen offset.
-                local x := points[1] + 16;
-                local y := points[0] + 58;
+                // ponytail: GetPointsArray is a flat Y/X list in view coordinates.
+                local x := points[1] + self.inkLeft;
+                local y := points[0] + self.inkTop;
                 line := line & " " & x & " " & y;
                 local index := 2;
                 while index < Length(points) do
                 begin
-                    local nextX := points[index + 1];
-                    local nextY := points[index];
+                    local nextX := points[index + 1] + self.inkLeft;
+                    local nextY := points[index] + self.inkTop;
                     line := line & " " & (nextX - x) & " " & (nextY - y);
                     x := nextX;
                     y := nextY;
@@ -94,23 +125,39 @@ mainView := {
             call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
             self.linkID := nil;
         end;
+        return nil;
     end,
 
     Released: func(id, state, error) nil,
 
     Send: func()
     begin
-        if self.strokeCount = 0 then return :SetStatus("Draw first");
+        // ponytail: one slot is the whole double-Send guard; no request queue.
+        if self.busy then return nil;
+        if self.strokeCount = 0 then return :SetStatus("Draw something first");
         local body := :Encode();
-        if body = nil then return :SetStatus("Too large (16K max)");
+        if body = nil then return :SetStatus("Too much ink to send");
+        self.pending := body;
+        self.busy := true;
+        self.gotReply := nil;
         :SetStatus("Sending...");
+        AddDelayedCall(func(view) view:Expired(), [self], 150000);
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+        return nil;
+    end,
+
+    Expired: func()
+    begin
+        if not self.busy then return nil;
+        self.busy := nil;
+        :SetStatus("The host did not answer. Your ink is still here.");
+        return :Stop();
     end,
 
     Grabbed: func(id, state, error)
     begin
         if self.endpoint then return nil;
-        if error then return :Failed("Link " & error);
+        if error then return :Failed("No network link");
         self.linkID := id;
         if state.linkStatus <> 'connected then return nil;
         local address := [10, 42, 0, 1];
@@ -141,10 +188,11 @@ mainView := {
                     },
                 },
             ], {async: nil, reqTimeout: 45000});
-            :Post(:Encode());
+            :Post(self.pending);
         end
         onexception |evt.ex| do
-            :Failed("Connect " & call GetGlobalFn('InetGetExceptionError) with (CurrentException()));
+            :Failed("Could not reach the host");
+        return nil;
     end,
 
     Post: func(body)
@@ -154,61 +202,102 @@ mainView := {
             form: 'string,
             termination: {endSequence: "\r\n"},
             discardAfter: 256,
+            // ponytail: the model call measures ~9 s, so one long synchronous
+            // read is enough; no job id, no polling.
+            reqTimeout: 150000,
             InputScript: func(endpoint, data, terminator, options)
                 self._parent:HandleLine(data),
             CompletionScript: func(endpoint, options, result)
-                self._parent:Stop(),
+                self._parent:Dropped(),
         });
         local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
             & "Content-Type: application/x-newton-strokes\r\nContent-Length: "
             & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
         self.endpoint:output(request, nil, {async: nil, reqTimeout: 10000});
-        try self.endpoint:Input() onexception |evt.ex.comm| do :Failed("Read failed");
+        self.pending := nil;
+        :SetStatus("Thinking...");
+        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        return nil;
     end,
 
     HandleLine: func(line)
     begin
-        if BeginsWith(line, "A simple curved line.") then
+        if BeginsWith(line, "INK ") then
         begin
-            // ponytail: endpoint callbacks retain the CRLF terminator.
-            :SetStatus(SubStr(line, 0, StrLen(line) - 2));
-            :Stop();
+            self.gotReply := true;
+            // ponytail: endpoint callbacks retain the CRLF terminator, and the
+            // "INK " prefix separates the body from the HTTP header lines.
+            :SetStatus(SubStr(line, 4, StrLen(line) - 6));
         end;
+        return nil;
+    end,
+
+    Dropped: func()
+    begin
+        self.busy := nil;
+        if not self.gotReply then :SetStatus("The host sent no reading");
+        // ponytail: disposing the endpoint inside this callback is what raised
+        // -48200 after the Stage 3 reply; let the close settle first.
+        AddDelayedCall(func(view) view:Stop(), [self], 1000);
+        return nil;
     end,
 
     Failed: func(message)
     begin
-        :SetStatus("FAILED: " & message);
-        :Stop();
+        self.busy := nil;
+        :SetStatus(message);
+        AddDelayedCall(func(view) view:Stop(), [self], 1000);
+        return nil;
     end,
 
     stepChildren: [
         {
             _proto: protoStaticText,
-            viewBounds: {left: 8, top: 8, right: 288, bottom: 30},
-            text: "Draw in the box",
-            viewFont: ROM_fontSystem12Bold,
+            viewBounds: {left: 8, top: 4, right: 288, bottom: 22},
+            text: "Draw here, then tap Send",
+            viewFont: ROM_fontSystem10,
+        },
+        // ponytail: two plain rules mark out the writing area. vfFrame is
+        // undefined in this platform file, and stock rules beat a custom border.
+        // protoDivider inherits the app's `title` slot unless it is cleared,
+        // which is why each one names its own empty title.
+        {
+            _proto: protoDivider,
+            viewBounds: {left: 0, top: 24, right: 304, bottom: 26},
+            title: "",
         },
         {
             viewClass: clView,
-            viewBounds: {left: 8, top: 34, right: 288, bottom: 354},
+            viewBounds: {left: 8, top: 30, right: 288, bottom: 292},
             viewFlags: vVisible + vClickable + vStrokesAllowed,
 
             ViewStrokeScript: func(unit)
             begin
-                self:Parent():CountStroke(GetPointsArray(unit));
+                local box := self:GlobalBox();
+                self:Parent():CountStroke(GetPointsArray(unit), box.left, box.top);
                 return nil;
             end,
         },
         {
+            _proto: protoDivider,
+            viewBounds: {left: 0, top: 296, right: 304, bottom: 298},
+            title: "",
+        },
+        {
             _proto: protoStaticText,
-            viewBounds: {left: 8, top: 366, right: 205, bottom: 390},
-            text: "Strokes: 0   Points: 0",
-            viewFont: ROM_fontSystem12Bold,
+            viewBounds: {left: 8, top: 304, right: 288, bottom: 352},
+            text: "Ready",
+            viewFont: ROM_fontSystem10,
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 215, top: 362, right: 288, bottom: 394},
+            viewBounds: {left: 8, top: 358, right: 80, bottom: 390},
+            text: "Clear",
+            buttonClickScript: func() self:Parent():Clear(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 215, top: 358, right: 288, bottom: 390},
             text: "Send",
             buttonClickScript: func() self:Parent():Send(),
         },

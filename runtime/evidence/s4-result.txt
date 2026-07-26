@@ -1,0 +1,35 @@
+Stage 4 real-model proof, 2026-07-26
+
+Emulator: main control endpoint 127.0.0.1:18080
+Package: InkPad:jbfly, package version 1, app version 1.0
+Drawn on device: 4 drags forming a square, on-screen status read "4 strokes"
+Host request: POST /ink HTTP/1.0, status 200, at 10:26:41
+Rendered PNG: 320x480, 8-bit grayscale, non-interlaced
+SHA-256: 3a63c18d635dd74ff1ac7b0940c331131c327b52eddf6d225f6f6375b50efab6
+
+Backend: codex-cli 0.145.0, ChatGPT auth, config model gpt-5.6-sol,
+  model_reasoning_effort=high, no -m override.
+Invocation: codex exec --sandbox read-only --skip-git-repo-check
+  --cd <tmpdir> --json -i <render.png> -- "<INK_PROMPT>"
+Newton response displayed: A square.
+
+Measured model latency, same CLI and prompt, host-side wall clock:
+  9.0 s  one-stroke Stage 3 render (s3d-render.png)
+  15.0 s four-stroke square, identical payload to the device round
+Both are inside the client's 150 s input timeout, so the send stays
+synchronous: no job id, no polling.
+
+Defects fixed this stage:
+  -48200 after the reply: Stage 3 called Stop() from inside InputScript,
+    disposing the endpoint while Input() was still on the stack. Teardown
+    now happens only from CompletionScript, deferred by AddDelayedCall.
+    Not reproduced in this round.
+  -48402 on open: protoDivider with title:nil throws when it draws its
+    label. title:"" renders a plain rule and opens cleanly.
+
+Known imperfection: NewtonOS does not retain the ink on a bare clView with
+vStrokesAllowed once ViewStrokeScript consumes the stroke, so the writing
+area looks blank while the stroke count and the reply are correct.
+
+Cleanup: InkPad:jbfly removed; HarnessClient:jbfly 1.9 reopened at Ready;
+runtime/raw_pkg_server.py sole listener on 10.42.0.1:18081; no log followers.

@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import struct
+import subprocess
+import tempfile
 import zlib
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -22,14 +25,54 @@ DEFAULT_PACKAGE_PATH = Path(
     )
 )
 STATUS_BODY = b"Harness server v1.1 OK\n"
-INK_BODY = b"A simple curved line.\r\n"
-DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "s3-ink-render.png"
+DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "ink-latest.png"
+INK_PROMPT = (
+    "The attached PNG is a sketch or handwriting captured from the 320x480 screen "
+    "of a Newton MessagePad. Answer with one short plain sentence under 90 "
+    "characters saying what is drawn; if it is writing, transcribe it. "
+    "No preamble, no markdown."
+)
+INK_TIMEOUT = 120
 PAGE_BODY = (
     b"<!doctype html><html><body>"
     b"<h1>Newton Harness Client</h1>"
     b"<p><a href=\"/harness-client.pkg\">Download package</a></p>"
     b"</body></html>"
 )
+
+
+def ascii_line(text: str, limit: int = 100) -> str:
+    """Collapse to one short us-ascii line the Newton can print verbatim."""
+    clean = " ".join(text.encode("ascii", "replace").decode("ascii").split())
+    return clean[:limit]
+
+
+def interpret(png_path: Path) -> str:
+    """Return a real vision reading of the rendered ink, or raise RuntimeError."""
+    # ponytail: one blocking subprocess, same boring shape as server.py CodexBackend.
+    # Measured ~9 s, well inside the client's timeout, so no job queue or polling.
+    with tempfile.TemporaryDirectory(prefix="newton-ink-") as tmp:
+        proc = subprocess.run(
+            ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
+             "--cd", tmp, "--json", "-i", str(png_path), "--", INK_PROMPT],
+            cwd=tmp, stdin=subprocess.DEVNULL, capture_output=True,
+            timeout=INK_TIMEOUT, check=False,
+        )
+    if proc.returncode != 0:
+        raise RuntimeError(f"codex exited {proc.returncode}")
+    text = ""
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        item = event.get("item") if isinstance(event, dict) else None
+        if isinstance(item, dict) and item.get("type") == "agent_message":
+            text = item.get("text") or text
+    reading = ascii_line(text)
+    if not reading:
+        raise RuntimeError("no model text")
+    return reading
 
 
 def save_ink_png(path: Path, strokes: list[list[tuple[int, int]]]) -> None:
@@ -115,7 +158,14 @@ class PublisherHandler(BaseHTTPRequestHandler):
             return
         self.ink_path.parent.mkdir(parents=True, exist_ok=True)
         save_ink_png(self.ink_path, strokes)
-        self._send_bytes(HTTPStatus.OK, INK_BODY, "text/plain; charset=us-ascii")
+        try:
+            reading, status = interpret(self.ink_path), HTTPStatus.OK
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
+        # ponytail: "INK " prefix is all the client needs to tell the body
+        # apart from the HTTP header lines its endpoint also delivers.
+        self._send_bytes(status, f"INK {reading}\r\n".encode("ascii"),
+                         "text/plain; charset=us-ascii")
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
         path = urlsplit(self.path).path

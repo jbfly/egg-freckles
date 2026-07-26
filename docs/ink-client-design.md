@@ -290,3 +290,119 @@ Evidence: `runtime/evidence/s3d-before.png`,
 `runtime/evidence/s3d-after.png`, `runtime/evidence/s3d-render.png`,
 `runtime/evidence/s3d-server.log`, `runtime/evidence/s3d-main-restored.png`,
 and `runtime/evidence/s3d-result.txt`.
+
+---
+
+## Stage 4 result — 2026-07-26
+
+Stage 4 is proven end to end with a real vision model. `InkPad:jbfly`
+captured four real strokes drawn on the main emulator, reported **`4 strokes`**
+on its status line, posted its own `NSI1` body, and displayed the model's
+reading **`A square.`** No `-48200` alert appeared, and none appeared on a
+settled screenshot fifteen seconds later.
+
+### The model call
+
+The backend is the one already installed and authenticated in this repo:
+`codex-cli 0.145.0` under ChatGPT auth, config model `gpt-5.6-sol` with
+`model_reasoning_effort = high`, invoked with no `-m` override. `codex exec`
+accepts images with `-i/--image`, so no SDK, dependency, or OCR was needed.
+The exact shape, one blocking `subprocess.run` in the same boring style as
+`server.py`'s `CodexBackend`:
+
+```sh
+codex exec --sandbox read-only --skip-git-repo-check --cd <tmpdir> \
+  --json -i <render.png> -- "<INK_PROMPT>"
+```
+
+`-i` is variadic, so the `--` before the prompt is required; without it the
+prompt is swallowed as a second image path and `codex` blocks reading stdin.
+
+Measured latency, host-side wall clock, same CLI and prompt:
+
+| Payload | Latency |
+|---|---:|
+| One-stroke Stage 3 render | 9.0 s |
+| Four-stroke square (the device round's payload) | 15.0 s |
+
+Both sit well inside the client's 150 s input timeout, so R7 is answered by
+measurement rather than architecture: the send stays **synchronous**. No job
+id, no polling, no queue.
+
+The host replies `INK <reading>\r\n`. That four-byte prefix is the whole
+protocol change — it is all the Newton needs to tell the body apart from the
+HTTP header lines its endpoint also delivers. A backend failure returns 502
+with the same `INK ` prefix, so the device shows the error instead of hanging.
+There is no canned fallback: `NEWTON_FAKE_BACKEND` was deliberately not wired
+into the ink path.
+
+### The two defects
+
+**`-48200` after the reply (the Stage 3 defect).** Stage 3 called `Stop()`
+from inside `InputScript`, disposing the endpoint while `Input()` was still on
+the stack; the throw unwound past the `|evt.ex.comm|` handler. Teardown now
+happens only from `CompletionScript`, deferred one second by `AddDelayedCall`
+— the same idiom `harness-client` already uses for its peer-close path.
+
+**`-48402` on open (found this stage).** `protoDivider` draws its label
+unconditionally, and it inherits the app's `title` slot unless the child
+frame shadows it. Shadowing with `title: nil` throws; `title: ""` renders a
+plain rule and opens cleanly. This cost most of the round, because a package
+that throws during view setup is indistinguishable from one that failed to
+install — until the Newton itself says so. The Extras drawer's info menu
+surfaced the real message, *"the package … was not installed because a package
+by the same name is already installed"*, which proved the install had
+succeeded all along and the fault was in the view.
+
+Two smaller landmines worth recording: `install-and-launch.sh` fires `Open()`
+immediately after `install`, and on a package this size the open loses the
+race and raises `-48402` on its own; and a modal alert left on screen makes
+every subsequent diagnosis ambiguous, so drain alerts before concluding
+anything.
+
+### UX
+
+Stock protos only, no custom drawing, no settings, no chrome. A hint line
+(`Draw here, then tap Send`), a rule, a 280×262 writing area that is the
+dominant surface, a rule, a quiet status line, and `Clear` / `Send`.
+
+The status line is the whole state machine: `Ready` → `N strokes` →
+`Sending...` → `Thinking...` → the reading, or a readable error. A single
+`busy` slot is the entire double-Send guard. The ink is never erased on tap —
+`Clear` is the only thing that discards it, and it refuses while a request is
+in flight. A 150 s watchdog reports `The host did not answer. Your ink is
+still here.` rather than leaving the app stuck in `Thinking...`.
+
+The encoder no longer carries the hardcoded `+16 / +58` screen offset Stage 3
+used. `ViewStrokeScript` runs on the ink view, so it reports its own
+`GlobalBox()` origin upward and the offset cannot rot when a view moves.
+
+### Known imperfection
+
+**The ink is not visible.** NewtonOS hands a bare `clView` with
+`vStrokesAllowed` a transient stroke and erases it once `ViewStrokeScript`
+consumes it; nothing retains it. The stroke count, the upload, and the reading
+are all correct, but the writing area looks blank after the pen lifts, which
+is the wrong feel for a sketch app. Making it visible means a real redraw
+subsystem — keeping shape objects per stroke and drawing them in a
+`ViewDrawScript` — which is exactly the "large redraw subsystem" this design
+said to avoid at this stage. `Clear` already calls `Dirty()` + `RefreshViews()`,
+so it will erase visible ink for free once ink is retained. A cosmetic
+side effect of that refresh: the two dividers render at different weights
+after a `Clear`.
+
+### Single next action after ink
+
+**Retain and render the ink**, by holding a shape per stroke and drawing them
+in a `ViewDrawScript` on the capture view. It is the one thing standing
+between this and a sketch app someone would actually use, and it needs one
+unverified symbol confirmed first — whether `MakePolygon` accepts the flat
+Y/X array `GetPointsArray` returns, or whether per-segment `MakeLine` is
+required.
+
+Evidence: `runtime/evidence/s4-open.png`, `runtime/evidence/s4-drawn.png`,
+`runtime/evidence/s4-sending.png`, `runtime/evidence/s4-reply.png`,
+`runtime/evidence/s4-reply-settled.png`, `runtime/evidence/s4-cleared.png`,
+`runtime/evidence/s4-render.png`, `runtime/evidence/s4-emulator.log`,
+`runtime/evidence/s4-main-restored.png`, and
+`runtime/evidence/s4-result.txt`.
