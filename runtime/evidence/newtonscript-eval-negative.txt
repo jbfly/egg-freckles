@@ -1,60 +1,62 @@
-NewtonScript evaluation result-channel investigation — 2026-07-26
+NewtonScript evaluation result-channel investigation — corrected MAIN rerun, 2026-07-26
 
-Existing transport
-------------------
-emulator/control.py sends `ns <source>` to /state/einstein-control.sock.
-containers/patches/einstein-control-socket.patch calls EvalNewtonScript(source)
-and immediately replies `queued`; it has no completion callback.
+Why this supersedes the earlier negative
+----------------------------------------
+The earlier investigation used only SCRATCH (127.0.0.1:18090), where no script
+was ever proven to execute. Its absence of evaluator output could not establish
+whether a working evaluator had a result channel.
 
-Einstein source does contain a potential output channel:
-- Drivers/NSRuntime/Handlers.f kEvaluateNSFn prints the returned value.
-- On exception it writes `Exception` and prints CurrentException().
-- Emulator/TNativePrimitives.cpp native primitive 0x1A forwards that text to
-  Einstein's log/process output.
+This rerun used only MAIN (127.0.0.1:18080).
 
-Live SCRATCH results (http://127.0.0.1:18090)
-------------------------------------------------
-Before changes, both calls returned the same response:
+Required execution baseline
+---------------------------
+MAIN visibly executed:
 
-  POST /newtonscript body `2+2`                    -> queued
-  POST /newtonscript body `PonytailUndefinedProbe` -> queued
+  GetRoot():Notify(3, "MAIN baseline", "evaluator runs");
 
-A compliant `podman logs --since 0s -f` capture was started from a verified
-zero-byte file and stopped after both calls. It contains the two HTTP 200
-request lines but no evaluator result, exception, or Einstein Log line. See
-runtime/evidence/newtonscript-eval-emulator.log.
+The endpoint replied `queued`, and the screen changed to a notification headed
+"MAIN baseline". Evidence:
 
-A temporary candidate (reverted, not committed) did the minimum proposed
-implementation:
-- line-buffer Einstein process output into /state/einstein.log;
-- wrap each source in a unique marker and dynamic Compile() try/onexception;
-- synchronously wait up to the request timeout for RESULT or ERROR marker.
+  runtime/evidence/newtonscript-main-working-evaluator.png
+  runtime/evidence/newtonscript-main-working-evaluator.txt
 
-Observed candidate responses:
+An undefined symbol also visibly executed and produced Newton error -48807:
 
-  `2+2`                    -> {"status":"timeout","timeout":true,"queued":true}
-  `PonytailUndefinedProbe` -> {"status":"timeout","timeout":true,"queued":true}
-  `while true do nil`      -> {"status":"timeout","timeout":true,"queued":true}
+  runtime/evidence/newtonscript-main-undefined-error.png
+  runtime/evidence/newtonscript-main-undefined-error.txt
 
-The Einstein log contained only startup/network diagnostics and no marker,
-ordinary result, or exception. A direct socket command outside the HTTP
-wrapper (`ns Write("DIRECTPROBE\\n")`) also replied `queued` but added no log
-line or visible effect.
+Output-channel result
+---------------------
+A `podman logs --since 0s -f` capture was started from a verified zero-byte
+file. MAIN then received a visibly executing notification, `2+2`, and
+`PonytailUndefinedProbe`. MAIN was restarted to terminate Einstein and force
+buffered process output to flush before the follower was stopped.
 
-Recovery attempts
------------------
-All were confined to disposable SCRATCH:
-1. emulator restart and delayed retry;
-2. down -v / fresh flash and retry;
-3. dismiss the first-run card notice;
-4. copy MAIN's flash read-only into SCRATCH and retry;
-5. restore runtime/backups/internal-before-round7b-loader-20260725-180001.flash;
-6. close the PCMCIA UI and retry;
-7. temporarily disable networking/card configuration only inside SCRATCH;
-8. clean restart, wait 60 seconds after /health became ready, then make the
-   first evaluation request.
+The capture contains the three HTTP request lines and restart diagnostics, but
+no returned value, `Exception`, Newton error, marker, or evaluator print:
 
-Every evaluation was acknowledged `queued` and produced no completion output.
-/health remained ready. No reliable success/error result channel was therefore
-proved, and the temporary log-scraping implementation was reverted rather than
-shipping a timeout-only heuristic.
+  runtime/evidence/newtonscript-main-buffer-flush.log
+
+Three caller-visible cases
+--------------------------
+Exact timings and responses are in:
+
+  runtime/evidence/newtonscript-main-three-cases.txt
+
+  `2+2`                    -> HTTP 200, queued (not 4)
+  `PonytailUndefinedProbe` -> HTTP 200, queued (screen showed -48807)
+  `while true do nil`      -> HTTP 200, queued (no bounded outcome)
+
+MAIN was restarted after the blocked-evaluation probe. The three outcomes are
+not distinguishable through the current endpoint.
+
+Implementation decision
+-----------------------
+No code was committed. The proposed synchronous tagged log scraper depends on
+an evaluator result or exception line reaching process output. On a demonstrably
+working MAIN evaluator, neither line appeared, including after forced buffer
+flush. Implementing the scraper would therefore return timeout for all three
+cases and repeat the previous candidate's failure.
+
+The remaining viable direction is an explicit Newton-side completion signal to
+the host carrying either the result or CurrentException().

@@ -1,0 +1,12 @@
+MAIN NewtonScript three-case caller observations — 2026-07-26
+
+--- success: 2+2 ---
+queued
+HTTP 200 total=0.000806s
+--- error: PonytailUndefinedProbe ---
+queued
+HTTP 200 total=0.000578s
+--- blocked: while true do nil ---
+queued
+HTTP 200 total=0.000525s
+MAIN restarted after bounded blocked-eval probe.

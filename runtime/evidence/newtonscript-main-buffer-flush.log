@@ -1,0 +1,19 @@
+[emulator-control] 10.89.0.77 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.77 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.77 "POST /newtonscript HTTP/1.1" 200 -
+caught signal: 15
+In exit
+_XSERVTransmkdir: Owner of /tmp/.X11-unix should be set to root
+Xlib:  extension "DPMS" missing on display ":99".
+PORT=5900
+
+The VNC desktop is:      localhost:0
+[emulator-control] listening on 0.0.0.0:8080, display :99
+[emulator-control] 10.89.0.78 "GET /health HTTP/1.1" 503 -
+Cannot open symbol files '/rom/717006.symbols'
+WebSocket server settings:
+  - Listen on :6080
+  - Web server. Web root: /usr/share/novnc
+  - No SSL/TLS support (no cert file)
+  - proxying from :6080 to localhost:5900
+[emulator-control] 10.89.0.78 "GET /health HTTP/1.1" 200 -

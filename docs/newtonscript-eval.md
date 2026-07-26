@@ -4,19 +4,23 @@ Investigation date: 2026-07-26.
 
 ## Bottom line
 
-No reliable evaluation result channel was found in the current Einstein FLTK
-transport. `/newtonscript` still returns plain text `queued\n`; success, a
-Newton exception, and a dropped evaluation remain indistinguishable.
+MAIN's NewtonScript evaluator is working, but Einstein's printed evaluation
+result does not reach its container output. `/newtonscript` therefore still
+returns plain text `queued\n`; success, a Newton exception, and a blocked
+execution remain indistinguishable to the caller.
 
-A synchronous log-backed implementation was attempted and reverted because
-SCRATCH acknowledged every command but emitted no evaluator output, even after
-all prescribed restart/reset recoveries. Shipping that code would have turned
-all three cases into `timeout`, not provided a real outcome signal.
+The earlier SCRATCH-only negative was not trustworthy because SCRATCH never
+proved that it could execute any script. This rerun corrects that mistake: MAIN
+visibly executed `GetRoot():Notify(3, "MAIN baseline", "evaluator runs")` before
+any result-channel conclusion was drawn. See the screenshot and OCR in
+[`newtonscript-main-working-evaluator.png`](../runtime/evidence/newtonscript-main-working-evaluator.png)
+and
+[`newtonscript-main-working-evaluator.txt`](../runtime/evidence/newtonscript-main-working-evaluator.txt).
 
-Full commands and observations are captured in
-[`runtime/evidence/newtonscript-eval-negative.txt`](../runtime/evidence/newtonscript-eval-negative.txt).
-The compliant live log capture is
-[`runtime/evidence/newtonscript-eval-emulator.log`](../runtime/evidence/newtonscript-eval-emulator.log).
+No log-scraping code was committed. Without an emitted result line, the proposed
+synchronous wrapper would return `timeout` for successful and failed scripts as
+well as genuinely dropped scripts, which would not provide the required
+three-way distinction.
 
 ## Existing paths
 
@@ -25,28 +29,40 @@ The control socket added by
 `TPlatformManager::EvalNewtonScript()` and immediately replies `queued`. The
 call itself only enqueues a Newton event.
 
-Einstein's Newton-side runtime appears to offer a possible output path:
+Einstein's Newton-side runtime still appears to offer a possible output path:
 `Drivers/NSRuntime/Handlers.f` prints the returned value, or writes `Exception`
 and prints `CurrentException()`. Native primitive `0x1A` in
 `Emulator/TNativePrimitives.cpp` forwards that text to Einstein's log/process
-output. However, no such output appeared in the live tests, including for a
-direct `Write()` probe sent to the Unix socket.
+output.
 
-## Three required cases
+On MAIN, a compliant `podman logs --since 0s -f` capture saw only HTTP request
+lines. The capture was repeated while issuing a visibly executing notification,
+`2+2`, and an undefined symbol; MAIN was then restarted to force buffered
+process output to flush. The resulting capture still contained no value,
+`Exception`, or Newton error:
+[`newtonscript-main-buffer-flush.log`](../runtime/evidence/newtonscript-main-buffer-flush.log).
+
+## Three required cases on MAIN
+
+The exact caller observations are captured in
+[`newtonscript-main-three-cases.txt`](../runtime/evidence/newtonscript-main-three-cases.txt).
 
 | Case | Probe | Observed caller response | Result |
 |---|---|---|---|
-| Success | `2+2` | `queued` | No result; acceptance criterion not met |
-| Error | `PonytailUndefinedProbe` | `queued` | No `-48807`, exception, or message; acceptance criterion not met |
-| Drop/timeout | blocked/dropped evaluation | `queued` | No bounded timeout in the committed endpoint; acceptance criterion not met |
+| Success | `2+2` | HTTP 200, `queued` | No returned `4`; not distinguishable |
+| Error | `PonytailUndefinedProbe` | HTTP 200, `queued` | Newton visibly showed `-48807`, but the caller received no error |
+| Drop/timeout | `while true do nil` | HTTP 200, `queued` | No bounded outcome; not distinguishable |
 
-The reverted candidate correctly returned a bounded timeout for all three, but
-never produced a result or error and therefore was not a valid fix.
+The error execution is independently visible in
+[`newtonscript-main-undefined-error.png`](../runtime/evidence/newtonscript-main-undefined-error.png)
+and its OCR
+[`newtonscript-main-undefined-error.txt`](../runtime/evidence/newtonscript-main-undefined-error.txt).
+MAIN was restarted after the bounded blocked-evaluation probe.
 
-## Remaining limitation and next foundation
+## Remaining limitation
 
-The next change must add an explicit acknowledgement from the Newton-side
-runtime event handler back to the host, carrying either the printed result or
-exception data. Scraping Einstein output is only viable after a live successful
-evaluation proves that output is emitted consistently; this investigation
-could not establish that prerequisite.
+A reliable endpoint needs an explicit completion signal from Einstein's
+Newton-side evaluation handler to the host, carrying either the result or the
+exception. Scraping process output is not viable in the current image because a
+working evaluator emits neither form there, even when process termination
+forces buffered output to flush.
