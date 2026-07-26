@@ -1,0 +1,25 @@
+NewtonScript callback retained-frame attempt — 2026-07-26
+
+Request:
+  POST /newtonscript?timeout=30
+  body: 2+2
+
+Caller response:
+  {"queued":true,"status":"timeout","request_id":"3894c6a8b9b6654c"}
+  HTTP 504
+  total=30.001109s
+
+Newton-side boundary checks:
+- The generated wrapper was accepted as one line and assigned its callback frame to
+  GetRoot().|NewtonScriptEvalReporter|. The on-device "wrapper state / rooted"
+  notification is captured in newtonscript-callback-rooted.png.
+- Directly invoking GetRoot().|NewtonScriptEvalReporter|:Send("result", "manual")
+  visibly raised Newton error -48809. See newtonscript-callback-send-error.png.
+- runtime/logs/raw-pkg-server.log remained only:
+  serving http://10.42.0.1:18081
+  No callback HTTP request reached the existing listener.
+
+Conclusion:
+The wrapper parsed and persisted, but the plain callback frame could not execute the
+proven app-style InetGrabLink/send path. The host wait correctly timed out; it cannot
+classify successful and failed evaluation while this Newton-side send fails.

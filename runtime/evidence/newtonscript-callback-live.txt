@@ -1,0 +1,9 @@
+NewtonScript callback proof — 2026-07-26
+
+CASE success script=2+2 timeout=20s
+{"queued":true,"status":"timeout","request_id":"e885eb68a326694b"}
+http=504 total=20.001137s
+
+CASE error script=PonytailUndefinedProbe timeout=20s
+{"queued":true,"status":"timeout","request_id":"80670482871e5368"}
+http=504 total=20.001063s

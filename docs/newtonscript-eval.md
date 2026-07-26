@@ -66,3 +66,59 @@ Newton-side evaluation handler to the host, carrying either the result or the
 exception. Scraping process output is not viable in the current image because a
 working evaluator emits neither form there, even when process termination
 forces buffered output to flush.
+
+## Third investigation: script-reported HTTP callback
+
+The proposed callback was implemented and tested on MAIN, then reverted because it
+still returned timeout for both `2+2` and an undefined symbol. No classifier was
+shipped.
+
+The host-side prototype was intentionally small: `POST /newtonscript?timeout=N`
+wrapped the caller's script in `try`/`onexception`, retained a callback frame on
+`GetRoot()`, queued that wrapper through the existing control socket, and waited on a
+condition variable keyed by a random request ID. Its candidate JSON shape was
+`{"queued":true,"status":"result","result":"4","request_id":"..."}` for success,
+`{"queued":true,"status":"error","error":-48807,"request_id":"..."}` for a Newton
+exception, and `{"queued":true,"status":"timeout","request_id":"..."}` with HTTP
+504 for no callback. The frame reused the ink client's
+NIE + `protoBasicEndpoint` pattern to POST `request-id / result-or-error / value` to
+the existing listener on `10.42.0.1:18081`. The listener forwarded valid callbacks
+to the waiting control request. The original no-query endpoint continued to return
+`queued`.
+
+### Where it broke
+
+The wrapper parsed and ran far enough to assign
+`GetRoot().|NewtonScriptEvalReporter|`; MAIN visibly reported `rooted` in
+[`newtonscript-callback-rooted.png`](../runtime/evidence/newtonscript-callback-rooted.png).
+Retaining the frame therefore did not fix the send.
+
+Directly invoking that frame's `Send("result", "manual")` raised Newton error
+`-48809` on-device before any HTTP request reached `raw_pkg_server.py`; see
+[`newtonscript-callback-send-error.png`](../runtime/evidence/newtonscript-callback-send-error.png).
+The exact retained-frame attempt and empty listener observation are recorded in
+[`newtonscript-callback-retained-attempt.txt`](../runtime/evidence/newtonscript-callback-retained-attempt.txt).
+The first full success/error run is in
+[`newtonscript-callback-live.txt`](../runtime/evidence/newtonscript-callback-live.txt):
+both requests returned clean HTTP 504 timeouts after 20.001 seconds.
+
+| Case | Probe | Caller result | Round trip |
+|---|---|---|---:|
+| Success candidate | `2+2` | HTTP 504, `status: timeout` | 20.001 s |
+| Error candidate | `PonytailUndefinedProbe` | HTTP 504, `status: timeout` | 20.001 s |
+| Genuine no-callback | retained reporter whose `Send` raised `-48809` | HTTP 504, `status: timeout` | 30.001 s |
+
+These are not three distinguishable outcomes, so the prototype was reverted. The
+host unit prototype did classify fake result/error/timeout inputs and brought the
+suite from 24 to 25 tests, but that test was also reverted with the unproven code.
+
+### Remaining limitation
+
+The failure is now narrower than either log-scraping negative: host waiting expired
+at the requested bounds and the evaluated wrapper persisted on the Newton, but no
+live callback exercised request correlation because a plain evaluated frame could
+not reuse the installed application's asynchronous
+NIE send path. The next step is a larger design decision: either provide a small
+installed Newton package that owns the callback transport, or add an Einstein-side
+completion channel. Do not restore the synchronous endpoint until one of those paths
+returns real `result` and `error` callbacks on MAIN.
