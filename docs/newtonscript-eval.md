@@ -4,10 +4,13 @@ Investigation date: 2026-07-26.
 
 ## Bottom line
 
-MAIN's NewtonScript evaluator is working, but Einstein's printed evaluation
-result does not reach its container output. `/newtonscript` therefore still
-returns plain text `queued\n`; success, a Newton exception, and a blocked
-execution remain indistinguishable to the caller.
+MAIN's injected NewtonScript evaluator works, but no tested path can return its
+outcome to the host. Einstein emits no result to process output, a transient
+script cannot own NIE networking, and the fourth resident-package spike found
+that NewtonOS 2.1 does not expose the documented `Compile(string)` global to an
+installed application. A package therefore cannot turn a received expression
+string into executable code; the requested three-way endpoint is not viable
+without an Einstein-side completion channel.
 
 The earlier SCRATCH-only negative was not trustworthy because SCRATCH never
 proved that it could execute any script. This rerun corrects that mistake: MAIN
@@ -117,8 +120,55 @@ suite from 24 to 25 tests, but that test was also reverted with the unproven cod
 The failure is now narrower than either log-scraping negative: host waiting expired
 at the requested bounds and the evaluated wrapper persisted on the Newton, but no
 live callback exercised request correlation because a plain evaluated frame could
-not reuse the installed application's asynchronous
-NIE send path. The next step is a larger design decision: either provide a small
-installed Newton package that owns the callback transport, or add an Einstein-side
-completion channel. Do not restore the synchronous endpoint until one of those paths
-returns real `result` and `error` callbacks on MAIN.
+not reuse the installed application's asynchronous NIE send path. The resident
+package experiment below tested the remaining package-owned transport option.
+
+## Fourth investigation: resident package owns transport
+
+A fresh package, `ResidentEvalR1:jbfly`, reused the proven ink application's NIE +
+`protoBasicEndpoint` HTTP path. It polled the existing sole listener on
+`10.42.0.1:18081`, received one request ID plus expression, called
+`Compile(expression)`, and POSTed either the value or the exception number. The host
+prototype held one pending request and classified fake `result`, `error`, and
+`timeout` outcomes; the temporary test raised the suite from 24 to 25 passing tests.
+
+The transport worked, but runtime compilation did not. For the exact caller input
+`2+2`, the resident package returned Newton error `-48808` instead of `4` after
+**8.341 seconds**. An undefined-symbol request returned the same `-48808` after
+**8.918 seconds**, so success and expression error were not distinguishable. The
+Newton Programmer's Reference identifies `-48808` as **“Undefined global function”**;
+the unavailable global was the package's direct `Compile(self.expression)` call.
+The package-running proof and HTTP sequence are in
+[`resident-eval-running.png`](../runtime/evidence/resident-eval-running.png),
+[`resident-eval-running.txt`](../runtime/evidence/resident-eval-running.txt), and
+[`resident-eval-server.log`](../runtime/evidence/resident-eval-server.log). Exact
+caller results and the error-code reference are in
+[`resident-eval-result.txt`](../runtime/evidence/resident-eval-result.txt) and
+[`resident-eval-compile-gate.txt`](../runtime/evidence/resident-eval-compile-gate.txt).
+
+| Case | Probe | Caller result | Round trip |
+|---|---|---|---:|
+| Intended result | `2+2` | HTTP 422, error `-48808`; no `4` | 8.341 s |
+| Intended expression error | `PonytailUndefinedProbe` | HTTP 422, same error `-48808` | 8.918 s |
+| No package running | `2+2` after closing the package | HTTP 504, `status: timeout` | 2.001 s |
+
+The clean timeout is captured in
+[`resident-eval-timeout.txt`](../runtime/evidence/resident-eval-timeout.txt). The
+poll interval was 0.5 seconds, but repeated NIE link acquisition made delivered
+requests take 6–9 seconds; that latency would be a material cost even if compilation
+worked.
+
+Per the spike stop rule, the unproven package, host routes, and temporary classifier
+test were reverted. The fresh package was removed from MAIN, independently shown in
+[`resident-eval-removed.png`](../runtime/evidence/resident-eval-removed.png) and its
+[`OCR`](../runtime/evidence/resident-eval-removed.txt). The three earlier negatives
+remain above because each excludes a distinct completion path.
+
+## Remaining limitation
+
+NewtonOS 2.1's reference documents `Compile(string)`, but this ROM/application
+context resolves it as an undefined global function. With injected evaluation unable
+to report and installed applications unable to compile received source, the only
+remaining route to three-way result/error/timeout classification is an explicit
+Einstein-side completion channel. Patching Einstein is intentionally left for the
+human decision.

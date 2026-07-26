@@ -1,0 +1,12 @@
+resident package compile gate
+request: PonytailUndefinedProbe
+{"request_id":"3","status":"error","error":"-48808"}
+http=422 total=8.917727
+reference:
+–48807
+
+Undefined variable
+
+–48808
+
+Undefined global function
