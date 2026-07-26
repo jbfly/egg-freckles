@@ -1,6 +1,6 @@
-kAppSymbol := '|InkCaptureA:jbfly|;
-kAppTitle := "Ink A";
-kVersion := "0.1";
+kAppSymbol := '|InkCaptureB:jbfly|;
+kAppTitle := "Ink B";
+kVersion := "0.2";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -9,33 +9,176 @@ mainView := {
     appSymbol: kAppSymbol,
     strokeCount: 0,
     pointCount: 0,
+    strokes: [],
     statusView: nil,
+    endpointClass: {_proto: protoBasicEndpoint},
+    endpoint: nil,
+    linkID: nil,
 
     ViewSetupDoneScript: func()
     begin
         inherited:?ViewSetupDoneScript();
+        self.strokes := [];
         AddDelayedCall(func(view) view:Wire(), [self], 300);
     end,
 
-    // ponytail: one diagnostic label; find it by geometry because child order moves.
+    // ponytail: find the status by geometry because Newton reorders child views.
     Wire: func()
     begin
         local kids := :ChildViewFrames();
         if kids = nil then return nil;
-        local rootTop := self:GlobalBox().top;
+        local rootBox := self:GlobalBox();
         foreach child in kids do
-            if child:GlobalBox().top - rootTop = 366 then self.statusView := child;
+            if (child:GlobalBox().top - rootBox.top = 366)
+            and (child:GlobalBox().left - rootBox.left = 8) then self.statusView := child;
         return nil;
+    end,
+
+    SetStatus: func(message)
+    begin
+        if self.statusView = nil then :Wire();
+        if self.statusView then SetValue(self.statusView, 'text, message);
     end,
 
     CountStroke: func(points)
     begin
+        AddArraySlot(self.strokes, points);
         self.strokeCount := self.strokeCount + 1;
         self.pointCount := self.pointCount + (Length(points) div 2);
-        if self.statusView = nil then :Wire();
-        if self.statusView then SetValue(self.statusView, 'text,
-            "Strokes: " & self.strokeCount & "   Points: " & self.pointCount);
+        :SetStatus("Strokes: " & self.strokeCount & "   Points: " & self.pointCount);
         return nil;
+    end,
+
+    Encode: func()
+    begin
+        local body := "NSI1 288 320 " & self.strokeCount & "\r\n";
+        foreach points in self.strokes do
+        begin
+            local count := Length(points) div 2;
+            local line := "S " & count;
+            if count > 0 then
+            begin
+                local x := points[1];
+                local y := points[0];
+                line := line & " " & x & " " & y;
+                local index := 2;
+                while index < Length(points) do
+                begin
+                    local nextX := points[index + 1];
+                    local nextY := points[index];
+                    line := line & " " & (nextX - x) & " " & (nextY - y);
+                    x := nextX;
+                    y := nextY;
+                    index := index + 2;
+                end;
+            end;
+            body := body & line & "\r\n";
+            // ponytail: one HTTP request only; multipart belongs to a later stage.
+            if StrLen(body) > 16384 then return nil;
+        end;
+        return body;
+    end,
+
+    Stop: func()
+    begin
+        if self.endpoint then
+        begin
+            try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.endpoint := nil;
+        end;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+    end,
+
+    Released: func(id, state, error) nil,
+
+    Send: func()
+    begin
+        if self.strokeCount = 0 then return :SetStatus("Draw first");
+        local body := :Encode();
+        if body = nil then return :SetStatus("Too large (16K max)");
+        :SetStatus("Sending...");
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+    end,
+
+    Grabbed: func(id, state, error)
+    begin
+        if self.endpoint then return nil;
+        if error then return :Failed("Link " & error);
+        self.linkID := id;
+        if state.linkStatus <> 'connected then return nil;
+        local address := [10, 42, 0, 1];
+        try
+        begin
+            self.endpoint := {_proto: self.endpointClass, _parent: self};
+            self.endpoint:Instantiate(self.endpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {
+                    label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {arglist: [self.linkID], typeList: ['struct, 'ulong]},
+                },
+                {
+                    label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {arglist: [1], typeList: ['struct, 'ulong]},
+                },
+            ]);
+            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:connect([
+                {
+                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {
+                        arglist: [address[0], address[1], address[2], address[3], 18081],
+                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                    },
+                },
+            ], {async: nil, reqTimeout: 45000});
+            :Post(:Encode());
+        end
+        onexception |evt.ex| do
+            :Failed("Connect " & call GetGlobalFn('InetGetExceptionError) with (CurrentException()));
+    end,
+
+    Post: func(body)
+    begin
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 256,
+            InputScript: func(endpoint, data, terminator, options)
+                self._parent:HandleLine(data),
+            CompletionScript: func(endpoint, options, result)
+                self._parent:Stop(),
+        });
+        local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
+            & "Content-Type: application/x-newton-strokes\r\nContent-Length: "
+            & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
+        self.endpoint:output(request, nil, {async: nil, reqTimeout: 10000});
+        try self.endpoint:Input() onexception |evt.ex.comm| do :Failed("Read failed");
+    end,
+
+    HandleLine: func(line)
+    begin
+        if BeginsWith(line, "Strokes:") then
+        begin
+            // ponytail: endpoint callbacks retain the CRLF terminator.
+            :SetStatus(SubStr(line, 0, StrLen(line) - 2));
+            :Stop();
+        end;
+    end,
+
+    Failed: func(message)
+    begin
+        :SetStatus("FAILED: " & message);
+        :Stop();
     end,
 
     stepChildren: [
@@ -52,17 +195,21 @@ mainView := {
 
             ViewStrokeScript: func(unit)
             begin
-                local points := GetPointsArray(unit);
-                self:Parent():CountStroke(points);
-                // ponytail: this spike counts only; no retained-ink model or redraw code.
+                self:Parent():CountStroke(GetPointsArray(unit));
                 return nil;
             end,
         },
         {
             _proto: protoStaticText,
-            viewBounds: {left: 8, top: 366, right: 288, bottom: 390},
+            viewBounds: {left: 8, top: 366, right: 205, bottom: 390},
             text: "Strokes: 0   Points: 0",
             viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 215, top: 362, right: 288, bottom: 394},
+            text: "Send",
+            buttonClickScript: func() self:Parent():Send(),
         },
     ],
 };

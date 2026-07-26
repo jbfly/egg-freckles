@@ -63,11 +63,27 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
+    def test_ink_counts(self) -> None:
+        with pkg_publisher.make_server("127.0.0.1", 0) as server:
+            port = server.server_address[1]
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                body = b"NSI1 288 320 2\r\nS 3 10 20 1 2 -1 -2\r\nS 1 30 40\r\n"
+                status, headers, response, version = self.fetch(port, "/ink", "POST", body)
+                self.assertEqual((status, version, response), (200, 10, b"Strokes: 2 Points: 4\r\n"))
+                self.assertEqual(headers["Content-Type"], "text/plain; charset=us-ascii")
+            finally:
+                server.shutdown()
+                thread.join()
+
     @staticmethod
-    def fetch(port: int, path: str) -> tuple[int, http.client.HTTPMessage, bytes, int]:
+    def fetch(
+        port: int, path: str, method: str = "GET", body: bytes | None = None
+    ) -> tuple[int, http.client.HTTPMessage, bytes, int]:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         try:
-            conn.request("GET", path)
+            conn.request(method, path, body=body)
             response = conn.getresponse()
             body = response.read()
             return response.status, response.headers, body, response.version

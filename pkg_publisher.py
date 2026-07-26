@@ -32,6 +32,36 @@ class PublisherHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
     package_path = DEFAULT_PACKAGE_PATH
 
+    def do_POST(self) -> None:  # noqa: N802 - stdlib hook name
+        if urlsplit(self.path).path != "/ink":
+            self._not_found("not found\n")
+            return
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 0 < length <= 16384:
+                raise ValueError
+            lines = self.rfile.read(length).decode("ascii").splitlines()
+            header = lines[0].split()
+            if len(header) != 4 or header[0] != "NSI1":
+                raise ValueError
+            canvas_width, canvas_height, stroke_count = map(int, header[1:])
+            if canvas_width <= 0 or canvas_height <= 0 or stroke_count < 0 or len(lines) != stroke_count + 1:
+                raise ValueError
+            point_count = 0
+            for line in lines[1:]:
+                fields = line.split()
+                points = int(fields[1]) if len(fields) >= 2 and fields[0] == "S" else -1
+                if points < 0 or len(fields) != 2 + points * 2:
+                    raise ValueError
+                for value in fields[2:]:
+                    int(value)
+                point_count += points
+        except (IndexError, UnicodeDecodeError, ValueError):
+            self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink\n", "text/plain; charset=us-ascii")
+            return
+        body = f"Strokes: {stroke_count} Points: {point_count}\r\n".encode("ascii")
+        self._send_bytes(HTTPStatus.OK, body, "text/plain; charset=us-ascii")
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
         path = urlsplit(self.path).path
         if path in ("/", "/index.html"):

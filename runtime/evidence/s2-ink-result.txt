@@ -1,0 +1,23 @@
+Stage 2 ink transport evidence — 2026-07-26
+
+Package identity: InkCaptureB:jbfly
+Scratch control API: http://127.0.0.1:18090
+Fallback control API: http://127.0.0.1:18080
+Host endpoint: http://10.42.0.1:18081/ink
+
+Scratch finding:
+- Capture worked: Strokes: 1 Points: 94.
+- Its separate podman network could not reach 10.42.0.1:18081.
+- The client displayed FAILED: Connect 0 and the host logged no request.
+
+Fallback proof on the main emulator:
+- Before Send OCR: Strokes: 1 Points: 94.
+- Host log: 10.42.0.1 - - [26/Jul/2026 09:38:35] "POST /ink HTTP/1.0" 200 -
+- After Send OCR: Strokes: 1 Points: 94.
+- No model, rendering, interpretation, compression, chunking, or AI backend was used.
+
+Cleanup:
+- InkCaptureB:jbfly removed from the main emulator.
+- HarnessClient:jbfly 1.9 reopened and verified Ready.
+- runtime/raw_pkg_server.py restored as the sole listener on 10.42.0.1:18081.
+- Scratch and main control APIs both healthy.

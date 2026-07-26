@@ -234,3 +234,30 @@ on-screen result **`Strokes: 1 Points: 94`**, resolving R1. The manual
 Evidence: `runtime/evidence/s1-ink-after.png`,
 `runtime/evidence/s1-ink-after.txt`, `runtime/evidence/s1-ink-result.txt`, and
 `runtime/evidence/s1-ink-emulator.log`.
+
+---
+
+## Stage 2 result — 2026-07-26
+
+Stage 2 succeeded as a pure transport check. `InkCaptureB:jbfly` retains the
+Stage 1 point arrays, encodes the documented ASCII `NSI1` delta format, caps a
+single body at 16 KiB, and posts it to `/ink`. The host handler counted the
+stroke lines and coordinate pairs and echoed the totals. One drag showed
+**`Strokes: 1 Points: 94`** before Send and the host echo showed the same
+**`Strokes: 1 Points: 94`** after Send; the host logged an HTTP/1.0 `POST /ink`
+with status 200. No rendering, interpretation, model, or AI backend was used.
+
+The scratch emulator captured `1 / 94`, but its separate podman network could
+not reach `10.42.0.1:18081` (`FAILED: Connect 0`, with no host request), so the
+round trip used the instructed `18080` fallback. Cleanup removed the temporary
+ink package and restored `HarnessClient:jbfly` 1.9 to `Ready`.
+
+Evidence: `runtime/evidence/s2-final-before.png`,
+`runtime/evidence/s2-final-before.txt`,
+`runtime/evidence/s2-final-after.png`,
+`runtime/evidence/s2-final-after.txt`,
+`runtime/evidence/s2-ink-after-send.png`,
+`runtime/evidence/s2-ink-after-send.txt`,
+`runtime/evidence/s2-main-restored.png`,
+`runtime/evidence/s2-main-restored.txt`, and
+`runtime/evidence/s2-ink-result.txt`.
