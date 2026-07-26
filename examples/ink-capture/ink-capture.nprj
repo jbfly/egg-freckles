@@ -5,7 +5,7 @@
             files: [],
         }
     ],
-    name: "InkCaptureB:jbfly",
-    version: 2,
+    name: "InkCaptureC:jbfly",
+    version: 3,
     platform: "Newton 2.1"
 }

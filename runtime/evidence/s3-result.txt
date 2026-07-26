@@ -1,0 +1,21 @@
+Stage 3 ink render/fake interpretation evidence — 2026-07-26
+
+Implemented:
+- Package identity: InkCaptureC:jbfly, title Ink C.
+- Newton uploads 320x480 screen coordinates; the 288x320 ink view is offset by (16,58).
+- /ink decodes NSI1 deltas, writes an 8-bit grayscale 320x480 PNG, and returns the literal ASCII response "A simple curved line."
+- Direct host request matching the scratch drag endpoints rendered ink_bbox=(60,140,252,302), including the 2-pixel line width.
+- The Newton response-line handler displayed "A simple curved line." when exercised through /newtonscript.
+
+Scratch blocker:
+- Capture succeeded twice with Strokes: 1 Points: 94.
+- Send failed twice with "FAILED: Connect 0", before and after restarting only newton-scratch_emulator_1.
+- runtime/raw_pkg_server.py logged no Newton POST.
+- A Python TCP connection from inside newton-scratch_emulator_1 to 10.42.0.1:18081 succeeded, but the emulated Newton emitted no TCPDIAG frames.
+- Per instruction, the main emulator was not used as a fallback.
+
+Verification:
+- 21 host tests passed (the previous 20 plus test_ink_render).
+- tntk built InkCaptureC:jbfly without undefined-symbol diagnostics.
+- Main emulator remained healthy and untouched: OCR showed Newton Chat 1.9 and Ready.
+- runtime/raw_pkg_server.py remained the sole listener on 10.42.0.1:18081.

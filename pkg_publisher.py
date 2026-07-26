@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from PIL import Image, ImageDraw
+
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_HOST = os.environ.get("NEWTON_PUBLISHER_HOST", "10.42.0.1")
 DEFAULT_PORT = int(os.environ.get("NEWTON_PUBLISHER_PORT", "18081"))
@@ -20,6 +22,8 @@ DEFAULT_PACKAGE_PATH = Path(
     )
 )
 STATUS_BODY = b"Harness server v1.1 OK\n"
+INK_BODY = b"A simple curved line.\r\n"
+DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "s3-ink-render.png"
 PAGE_BODY = (
     b"<!doctype html><html><body>"
     b"<h1>Newton Harness Client</h1>"
@@ -31,6 +35,7 @@ PAGE_BODY = (
 class PublisherHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
     package_path = DEFAULT_PACKAGE_PATH
+    ink_path = DEFAULT_INK_PATH
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib hook name
         if urlsplit(self.path).path != "/ink":
@@ -45,22 +50,40 @@ class PublisherHandler(BaseHTTPRequestHandler):
             if len(header) != 4 or header[0] != "NSI1":
                 raise ValueError
             canvas_width, canvas_height, stroke_count = map(int, header[1:])
-            if canvas_width <= 0 or canvas_height <= 0 or stroke_count < 0 or len(lines) != stroke_count + 1:
+            if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0 or len(lines) != stroke_count + 1:
                 raise ValueError
-            point_count = 0
+            strokes = []
             for line in lines[1:]:
                 fields = line.split()
-                points = int(fields[1]) if len(fields) >= 2 and fields[0] == "S" else -1
-                if points < 0 or len(fields) != 2 + points * 2:
+                count = int(fields[1]) if len(fields) >= 2 and fields[0] == "S" else -1
+                if count < 0 or len(fields) != 2 + count * 2:
                     raise ValueError
-                for value in fields[2:]:
-                    int(value)
-                point_count += points
+                values = list(map(int, fields[2:]))
+                points = []
+                if count:
+                    x, y = values[:2]
+                    points.append((x, y))
+                    for index in range(2, len(values), 2):
+                        x += values[index]
+                        y += values[index + 1]
+                        points.append((x, y))
+                if any(not (0 <= x < canvas_width and 0 <= y < canvas_height) for x, y in points):
+                    raise ValueError
+                strokes.append(points)
         except (IndexError, UnicodeDecodeError, ValueError):
             self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink\n", "text/plain; charset=us-ascii")
             return
-        body = f"Strokes: {stroke_count} Points: {point_count}\r\n".encode("ascii")
-        self._send_bytes(HTTPStatus.OK, body, "text/plain; charset=us-ascii")
+        image = Image.new("L", (320, 480), "white")
+        draw = ImageDraw.Draw(image)
+        for points in strokes:
+            # ponytail: straight black segments are enough until Stage 4 asks for polish.
+            if len(points) == 1:
+                draw.point(points[0], fill="black")
+            elif points:
+                draw.line(points, fill="black", width=2)
+        self.ink_path.parent.mkdir(parents=True, exist_ok=True)
+        image.save(self.ink_path)
+        self._send_bytes(HTTPStatus.OK, INK_BODY, "text/plain; charset=us-ascii")
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
         path = urlsplit(self.path).path
@@ -108,8 +131,14 @@ class PublisherServer(HTTPServer):
     allow_reuse_address = True
 
 
-def make_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, package_path: Path = DEFAULT_PACKAGE_PATH) -> PublisherServer:
+def make_server(
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+    package_path: Path = DEFAULT_PACKAGE_PATH,
+    ink_path: Path = DEFAULT_INK_PATH,
+) -> PublisherServer:
     PublisherHandler.package_path = Path(package_path)
+    PublisherHandler.ink_path = Path(ink_path)
     return PublisherServer((host, port), PublisherHandler)
 
 

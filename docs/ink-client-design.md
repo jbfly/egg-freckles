@@ -261,3 +261,28 @@ Evidence: `runtime/evidence/s2-final-before.png`,
 `runtime/evidence/s2-main-restored.png`,
 `runtime/evidence/s2-main-restored.txt`, and
 `runtime/evidence/s2-ink-result.txt`.
+
+---
+
+## Stage 3 result — 2026-07-26
+
+The Stage 3 code is complete but the scratch-only full round trip remains
+blocked. `/ink` reconstructs the `NSI1` deltas, draws straight black segments
+to an 8-bit grayscale 320×480 PNG, and returns the literal response **“A
+simple curved line.”** `InkCaptureC:jbfly` uploads screen-positioned points
+(the ink view's local coordinates plus its `(16,58)` offset) and displays that
+response line. A direct host request matching the scratch drag endpoints
+rendered a line at `(60,140)` through `(250,300)`, and direct exercise of the
+Newton response handler displayed the canned text.
+
+The scratch emulator captured **`Strokes: 1 Points: 94`**, but Send returned
+**`FAILED: Connect 0`** both before and after a scratch-only restart; the host
+received no POST. A Python TCP connection from inside the same container to
+`10.42.0.1:18081` succeeded, while the emulated Newton emitted no `TCPDIAG`
+frames. Per the Stage 3 instruction, the main emulator was not used as a
+fallback. It remained untouched with **Newton Chat 1.9** showing **Ready**.
+
+Evidence: `runtime/evidence/s3-ink-render.png`,
+`runtime/evidence/s3-canned-display.png`,
+`runtime/evidence/s3-after-send.png`, and
+`runtime/evidence/s3-result.txt`.

@@ -1,6 +1,6 @@
-kAppSymbol := '|InkCaptureB:jbfly|;
-kAppTitle := "Ink B";
-kVersion := "0.2";
+kAppSymbol := '|InkCaptureC:jbfly|;
+kAppTitle := "Ink C";
+kVersion := "0.3";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -51,15 +51,16 @@ mainView := {
 
     Encode: func()
     begin
-        local body := "NSI1 288 320 " & self.strokeCount & "\r\n";
+        local body := "NSI1 320 480 " & self.strokeCount & "\r\n";
         foreach points in self.strokes do
         begin
             local count := Length(points) div 2;
             local line := "S " & count;
             if count > 0 then
             begin
-                local x := points[1];
-                local y := points[0];
+                // ponytail: place view-local ink at its actual 320x480 screen offset.
+                local x := points[1] + 16;
+                local y := points[0] + 58;
                 line := line & " " & x & " " & y;
                 local index := 2;
                 while index < Length(points) do
@@ -167,7 +168,7 @@ mainView := {
 
     HandleLine: func(line)
     begin
-        if BeginsWith(line, "Strokes:") then
+        if BeginsWith(line, "A simple curved line.") then
         begin
             // ponytail: endpoint callbacks retain the CRLF terminator.
             :SetStatus(SubStr(line, 0, StrLen(line) - 2));
