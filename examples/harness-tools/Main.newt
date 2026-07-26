@@ -1,0 +1,262 @@
+kAppSymbol := '|HarnessToolsR6:jbfly|;
+kAppTitle := "Harness Tools";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 220, top: 34, right: 316, bottom: 72},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    endpointClass: {_proto: protoBasicEndpoint},
+    endpoint: nil,
+    linkID: nil,
+    busy: nil,
+    mode: nil,
+    outcomeID: nil,
+    outcomeStatus: nil,
+    outcomeValue: nil,
+
+    ViewSetupDoneScript: func()
+    begin
+        inherited:?ViewSetupDoneScript();
+        AddDelayedCall(func(view) view:Poll(), [self], 500);
+    end,
+
+    Poll: func()
+    begin
+        if self.busy then return nil;
+        self.busy := true;
+        self.mode := 'poll;
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+        return nil;
+    end,
+
+    SendOutcome: func()
+    begin
+        if self.busy or self.outcomeID = nil then return nil;
+        self.busy := true;
+        self.mode := 'outcome;
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+        return nil;
+    end,
+
+    Grabbed: func(id, state, error)
+    begin
+        if error then return :Retry();
+        self.linkID := id;
+        if state.linkStatus <> 'connected then return nil;
+        try
+        begin
+            self.endpoint := {_proto: self.endpointClass, _parent: self};
+            self.endpoint:Instantiate(self.endpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [self.linkID], typeList: ['struct, 'ulong]}},
+                {label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [1], typeList: ['struct, 'ulong]}},
+            ]);
+            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:connect([{
+                label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                form: 'template,
+                data: {arglist: [10, 42, 0, 1, 18081],
+                       typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
+            }], {async: nil, reqTimeout: 45000});
+            if self.mode = 'poll then :GetRequest(); else :PostOutcome();
+        end
+        onexception |evt.ex| do :Retry();
+        return nil;
+    end,
+
+    GetRequest: func()
+    begin
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 512,
+            reqTimeout: 30000,
+            InputScript: func(endpoint, data, terminator, options)
+                if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data),
+            CompletionScript: func(endpoint, options, result)
+                AddDelayedCall(func(view) view:PollFinished(), [self._parent], 1),
+        });
+        self.endpoint:Output("GET /tools/poll HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
+                             nil, {async: nil, reqTimeout: 10000});
+        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        return nil;
+    end,
+
+    Dispatch: func(line)
+    begin
+        local tokens := StrTokenize(line, " \r\n");
+        local marker := call tokens with ();
+        local requestID := call tokens with ();
+        local op := call tokens with ();
+        local argument := call tokens with ();
+        if marker = nil or requestID = nil or op = nil then return nil;
+        self.outcomeID := requestID;
+        try
+        begin
+            if StrEqual(op, "ping") then
+            begin
+                self.outcomeStatus := "result";
+                self.outcomeValue := "pong";
+            end
+            else if StrEqual(op, "front_app") then
+            begin
+                self.outcomeStatus := "result";
+                self.outcomeValue := :FrontApp();
+            end
+            else if StrEqual(op, "get_note") then
+            begin
+                self.outcomeStatus := "result";
+                self.outcomeValue := :GetNote(StringToNumber(argument));
+            end
+            else
+            begin
+                self.outcomeStatus := "unknown_op";
+                self.outcomeValue := "unknown op: " & op;
+            end;
+        end
+        onexception |evt.ex| do
+        begin
+            local exception := CurrentException();
+            self.outcomeStatus := "error";
+            if HasSlot(exception, 'error) then self.outcomeValue := "" & exception.error;
+            else if HasSlot(exception, 'name) then self.outcomeValue := "" & exception.name;
+            else self.outcomeValue := "Newton error";
+        end;
+        return nil;
+    end,
+
+    FrontApp: func()
+    begin
+        local app := GetView('viewFrontMostApp);
+        if app = nil then return "";
+        local symbol := app.appSymbol;
+        return GetAppName(symbol) & " (" & symbol & ")";
+    end,
+
+    GetNote: func(id)
+    begin
+        local best := nil;
+        foreach store in GetStores() do
+            if store:HasSoup(ROM_paperRollSoupName) then
+            begin
+                local cursor := store:GetSoup(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+                cursor:Reset();
+                local entry := cursor:Entry();
+                while entry do
+                begin
+                    if entry <> 'deleted and EntryUniqueID(entry) = id then
+                        if best = nil or EntryModTime(entry) > EntryModTime(best) then best := entry;
+                    entry := cursor:Next();
+                end;
+            end;
+        if best = nil then return "";
+        local data := GetSysEntryData(best, 'data);
+        local text := "";
+        if IsArray(data) then foreach item in data do
+            if item.viewStationery = 'para then
+            begin
+                if StrLen(text) > 0 then text := text & "\n";
+                if IsString(item.text) then text := text & item.text;
+                else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+            end;
+        return text;
+    end,
+
+    Escape: func(text)
+    begin
+        local out := "";
+        local i := 0;
+        while i < StrLen(text) do
+        begin
+            local ch := SubStr(text, i, 1);
+            if ch = "\\" then out := out & "\\\\";
+            else if ch = "\"" then out := out & "\\\"";
+            else if ch = "\r" then out := out & "\\r";
+            else if ch = "\n" then out := out & "\\n";
+            else if ch = "\t" then out := out & "\\t";
+            else out := out & ch;
+            i := i + 1;
+        end;
+        return out;
+    end,
+
+    PostOutcome: func()
+    begin
+        local body := self.outcomeID & "\r\n" & self.outcomeStatus
+            & "\r\n" & self.outcomeValue;
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 256,
+            reqTimeout: 30000,
+            CompletionScript: func(endpoint, options, result)
+                AddDelayedCall(func(view) view:OutcomeFinished(), [self._parent], 1),
+        });
+        local request := "POST /tools/outcome HTTP/1.0\r\nHost: 10.42.0.1\r\n"
+            & "Content-Type: text/plain; charset=us-ascii\r\nContent-Length: "
+            & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
+        self.endpoint:Output(request, nil, {async: nil, reqTimeout: 10000});
+        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        return nil;
+    end,
+
+    PollFinished: func()
+    begin
+        :Stop();
+        self.busy := nil;
+        if self.outcomeID then AddDelayedCall(func(view) view:SendOutcome(), [self], 500);
+        else AddDelayedCall(func(view) view:Poll(), [self], 500);
+        return nil;
+    end,
+
+    OutcomeFinished: func()
+    begin
+        :Stop();
+        self.outcomeID := nil;
+        self.outcomeStatus := nil;
+        self.outcomeValue := nil;
+        self.busy := nil;
+        AddDelayedCall(func(view) view:Poll(), [self], 500);
+        return nil;
+    end,
+
+    Retry: func()
+    begin
+        :Stop();
+        self.busy := nil;
+        AddDelayedCall(func(view) view:Poll(), [self], 500);
+        return nil;
+    end,
+
+    Stop: func()
+    begin
+        if self.endpoint then
+        begin
+            try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.endpoint := nil;
+        end;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+        return nil;
+    end,
+
+    Released: func(id, state, error) nil,
+
+    stepChildren: [
+        {_proto: protoStaticText,
+         viewBounds: {left: 7, top: 9, right: 90, bottom: 28},
+         text: "tools", viewFont: ROM_fontSystem9},
+    ],
+};
+
+{app: kAppSymbol, text: kAppTitle, theForm: mainView}

@@ -6,13 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socket
 import struct
 import subprocess
 import tempfile
+import threading
 import zlib
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -40,6 +42,47 @@ INK_TIMEOUT = 120
 MODEL_HOST = os.environ.get("NEWTON_MODEL_HOST", "127.0.0.1")
 MODEL_PORT = int(os.environ.get("NEWTON_MODEL_PORT", "6801"))
 MODEL_TIMEOUT = 120
+TOOL_OP = re.compile(r"[A-Za-z0-9_]+\Z")
+
+
+class ToolBroker:
+    """One resident-package request, correlated with its eventual outcome."""
+
+    def __init__(self) -> None:
+        self.condition = threading.Condition()
+        self.next_id = 1
+        self.pending: dict[str, object] | None = None
+        self.outcome: dict[str, object] | None = None
+
+    def submit(self, op: str, args: dict[str, object], timeout: float) -> dict[str, object]:
+        with self.condition:
+            if self.pending is not None:
+                raise RuntimeError("tool request already pending")
+            request_id = str(self.next_id)
+            self.next_id += 1
+            self.pending = {"request_id": request_id, "op": op, "args": args}
+            self.outcome = None
+            if not self.condition.wait_for(lambda: self.outcome is not None, timeout):
+                result = {"request_id": request_id, "status": "timeout"}
+            else:
+                result = self.outcome
+            self.pending = None
+            self.outcome = None
+            return result
+
+    def poll(self) -> dict[str, object] | None:
+        with self.condition:
+            return self.pending
+
+    def complete(self, outcome: dict[str, object]) -> bool:
+        with self.condition:
+            if self.pending is None or outcome.get("request_id") != self.pending["request_id"]:
+                return False
+            self.outcome = outcome
+            self.condition.notify_all()
+            return True
+
+
 PAGE_BODY = (
     b"<!doctype html><html><body>"
     b"<h1>Newton Harness Client</h1>"
@@ -175,6 +218,12 @@ class PublisherHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib hook name
         path = urlsplit(self.path).path
+        if path == "/tools":
+            self._run_tool()
+            return
+        if path == "/tools/outcome":
+            self._tool_outcome()
+            return
         if path == "/note":
             self._save_note()
             return
@@ -224,6 +273,57 @@ class PublisherHandler(BaseHTTPRequestHandler):
         self._send_bytes(status, f"INK {reading}\r\n".encode("ascii"),
                          "text/plain; charset=us-ascii")
 
+    def _run_tool(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 0 < length <= 4096:
+                raise ValueError
+            request = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not isinstance(request, dict) or set(request) != {"op", "args"}:
+                raise ValueError
+            op, args = request["op"], request["args"]
+            if not isinstance(op, str) or TOOL_OP.fullmatch(op) is None or not isinstance(args, dict):
+                raise ValueError
+            if "id" in args and (isinstance(args["id"], bool) or not isinstance(args["id"], int)):
+                raise ValueError
+            query = urlsplit(self.path).query
+            timeout = 20.0
+            if query:
+                fields = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+                timeout = float(fields.get("timeout", timeout))
+            if not 0 < timeout <= 120:
+                raise ValueError
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"status": "error", "error": "invalid request"})
+            return
+        try:
+            outcome = self.server.tools.submit(op, args, timeout)
+        except RuntimeError as exc:
+            self._send_json(HTTPStatus.CONFLICT, {"status": "error", "error": str(exc)})
+            return
+        status = {"result": HTTPStatus.OK, "error": HTTPStatus.UNPROCESSABLE_ENTITY,
+                  "unknown_op": HTTPStatus.BAD_REQUEST, "timeout": HTTPStatus.GATEWAY_TIMEOUT}[
+                      str(outcome["status"])]
+        self._send_json(status, outcome)
+
+    def _tool_outcome(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 0 < length <= 4096:
+                raise ValueError
+            request_id, status, value = self.rfile.read(length).decode("utf-8").split("\r\n", 2)
+            if not request_id or status not in ("result", "error", "unknown_op"):
+                raise ValueError
+            key = "result" if status == "result" else "error"
+            outcome = {"request_id": request_id, "status": status, key: value}
+        except (UnicodeDecodeError, ValueError):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"status": "error", "error": "invalid outcome"})
+            return
+        if not self.server.tools.complete(outcome):
+            self._send_json(HTTPStatus.CONFLICT, {"status": "error", "error": "stale outcome"})
+            return
+        self._send_json(HTTPStatus.OK, {"status": "ok"})
+
     def _save_note(self) -> None:
         try:
             length = int(self.headers.get("Content-Length", ""))
@@ -266,6 +366,15 @@ class PublisherHandler(BaseHTTPRequestHandler):
         if path == "/status":
             self._send_bytes(HTTPStatus.OK, STATUS_BODY, "text/plain; charset=us-ascii")
             return
+        if path == "/tools/poll":
+            request = self.server.tools.poll()
+            if request is None:
+                body = b"TOOLS\r\n"
+            else:
+                argument = request["args"].get("id", "")
+                body = (f"TOOLS {request['request_id']} {request['op']} {argument}\r\n").encode("ascii")
+            self._send_bytes(HTTPStatus.OK, body, "text/plain; charset=us-ascii")
+            return
         if path == "/harness-client.pkg":
             try:
                 body = self.package_path.read_bytes()
@@ -290,6 +399,10 @@ class PublisherHandler(BaseHTTPRequestHandler):
     def _not_found(self, message: str) -> None:
         self._send_bytes(HTTPStatus.NOT_FOUND, message.encode("utf-8"), "text/plain; charset=utf-8")
 
+    def _send_json(self, status: HTTPStatus, value: dict[str, object]) -> None:
+        self._send_bytes(status, json.dumps(value, separators=(",", ":")).encode("utf-8") + b"\n",
+                         "application/json; charset=utf-8")
+
     def _send_bytes(self, status: HTTPStatus, body: bytes, content_type: str) -> None:
         self.close_connection = True
         self.send_response(status)
@@ -300,8 +413,12 @@ class PublisherHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-class PublisherServer(HTTPServer):
+class PublisherServer(ThreadingHTTPServer):
     allow_reuse_address = True
+
+    def __init__(self, address: tuple[str, int], handler: type[PublisherHandler]) -> None:
+        self.tools = ToolBroker()
+        super().__init__(address, handler)
 
 
 def make_server(

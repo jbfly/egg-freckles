@@ -4,13 +4,13 @@ Investigation date: 2026-07-26.
 
 ## Bottom line
 
-MAIN's injected NewtonScript evaluator works, but no tested path can return its
-outcome to the host. Einstein emits no result to process output, a transient
-script cannot own NIE networking, and the fourth resident-package spike found
-that NewtonOS 2.1 does not expose the documented `Compile(string)` global to an
-installed application. A package therefore cannot turn a received expression
-string into executable code; the requested three-way endpoint is not viable
-without an Einstein-side completion channel.
+MAIN's injected NewtonScript evaluator works, but arbitrary received source still
+has no result channel: Einstein emits no result to process output, a transient
+script cannot own NIE networking, and NewtonOS 2.1 does not expose the documented
+`Compile(string)` global to an installed application. Fixed compiled operations do
+work. The fifth investigation proved and restored a resident package plus host
+`POST /tools` route with distinct result, Newton error, unknown-operation, and
+timeout outcomes.
 
 The earlier SCRATCH-only negative was not trustworthy because SCRATCH never
 proved that it could execute any script. This rerun corrects that mistake: MAIN
@@ -167,18 +167,23 @@ remain above because each excludes a distinct completion path.
 ## Remaining limitation
 
 NewtonOS 2.1's reference documents `Compile(string)`, but this ROM/application
-context resolves it as an undefined global function. With injected evaluation unable
-to report and installed applications unable to compile received source, the only
-remaining route to three-way result/error/timeout classification is an explicit
-Einstein-side completion channel. Patching Einstein is intentionally left for the
-human decision.
+context resolves it as an undefined global function. With injected evaluation
+unable to report and installed applications unable to
+compile received source, arbitrary NewtonScript still requires an explicit
+Einstein-side completion channel. Patching Einstein remains intentionally out of
+scope. The fixed-operation route below does not compile received source and is
+therefore unaffected by this negative.
 
 ## Fifth investigation: fixed named operations
 
-The runtime-compiler negative does not rule out fixed, compiled operations. A
-fresh resident package (`HarnessToolsR1` through the corrected, never-reused
-`HarnessToolsR3` identities) reused round 4's one-pending-request HTTP poll and
-outcome POST. The host candidate accepted:
+The fixed-operation foundation **passed and is restored as the deliverable**. Git
+objects and the prior worker session confirmed that the reverted implementation
+was never saved as a recoverable tree, so it was rebuilt from the recorded protocol
+and live evidence. The committed resident package is `HarnessToolsR6:jbfly` in
+`examples/harness-tools`; it remains installed and open on MAIN.
+
+The public protocol is `POST /tools` with a JSON object containing an operation
+name and argument object:
 
 ```json
 {"op":"ping","args":{}}
@@ -186,55 +191,42 @@ outcome POST. The host candidate accepted:
 {"op":"get_note","args":{"id":5}}
 ```
 
-It returned JSON with `request_id` and one of `result`, `error`, `unknown_op`,
-or `timeout`. The package used three direct `if` branches, not runtime
-compilation, a registry, or a plugin layer. A fake-only host test classified
-result, Newton error, unknown operation, and timeout; the temporary suite had
-25 passing tests.
+Responses carry `request_id` and `status`, where status is `result`, `error`,
+`unknown_op`, or `timeout`. The host restricts operation names to ASCII letters,
+digits, and underscore, and rejects a non-integer `args.id`. The package uses a
+floating resident window, polls every 0.5 seconds, and dispatches with `StrEqual`;
+a bare comparison previously fell through on-device. The host route is part of
+`pkg_publisher.make_server`, so `runtime/raw_pkg_server.py` remains the sole
+listener on `10.42.0.1:18081`.
 
-The foundation transport and dispatch worked, but the required MAIN proof did
-not complete. Four cases passed; `get_note` returned a real but different ID-5
-note. The expected N13 model-answer evidence says ID 5 contains `Export test
-received. The Newton sees this note.`
-([`n13-main-gate.txt`](../runtime/evidence/n13-main-gate.txt) and
-[`n13-main-stock-answer.png`](../runtime/evidence/n13-main-stock-answer.png)).
-The live call instead returned the older malformed text `Export test received.
-I see: "the nthis note.ewton sees"`. A bounded scan of IDs 1 through 30 found
-no entry containing the expected model-answer text. Exact responses are in
-[`harness-tools-get-note.txt`](../runtime/evidence/harness-tools-get-note.txt)
-and
-[`harness-tools-note-mismatch.txt`](../runtime/evidence/harness-tools-note-mismatch.txt).
-No note was created or rewritten to manufacture a pass.
+### Five live MAIN cases
+
+The device, not a prompt fixture, is the source of truth for `get_note`. The ID-5
+response is captured beside a fresh screenshot of the actual stock Notes entry;
+the returned recognized text matches the note shown on the Newton. Duplicate IDs
+across stores are resolved by selecting the entry with the newest `EntryModTime`.
+No note was created or rewritten for this proof.
 
 | Required case | Live MAIN result | Round trip | Evidence |
 |---|---|---:|---|
-| `ping` | HTTP 200, `result: "pong"` | 7.481 s | [`harness-tools-ping.txt`](../runtime/evidence/harness-tools-ping.txt) |
-| `front_app` | HTTP 200, `result: "Notepad (paperroll)"`; stock Notes was visibly frontmost | 5.827 s | [`harness-tools-front-app.txt`](../runtime/evidence/harness-tools-front-app.txt), [`harness-tools-front-app.png`](../runtime/evidence/harness-tools-front-app.png) |
-| `get_note`, ID 5 | **FAIL:** HTTP 200 returned a different real note, not the required model answer | 5.592 s | [`harness-tools-get-note.txt`](../runtime/evidence/harness-tools-get-note.txt) |
-| unknown operation | HTTP 400, `status: "unknown_op"`; distinct from `status: "error"` | 5.827 s | [`harness-tools-unknown.txt`](../runtime/evidence/harness-tools-unknown.txt) |
-| package closed | HTTP 504, clean `timeout` | 2.001 s | [`harness-tools-timeout.txt`](../runtime/evidence/harness-tools-timeout.txt) |
+| `ping` | HTTP 200, `result: "pong"` | 10.913 s | [`harness-tools-r6-ping.txt`](../runtime/evidence/harness-tools-r6-ping.txt) |
+| `front_app` | HTTP 200, `result: "Notepad (paperroll)"`; stock Notes visibly frontmost behind the floating package | 10.506 s | [`harness-tools-r6-front-app.txt`](../runtime/evidence/harness-tools-r6-front-app.txt), [`harness-tools-r6-front-app.png`](../runtime/evidence/harness-tools-r6-front-app.png) |
+| `get_note`, ID 5 | HTTP 200 returned the real text shown by stock Notes | 5.779 s | [`harness-tools-r6-get-note.txt`](../runtime/evidence/harness-tools-r6-get-note.txt), [`harness-tools-r6-stock-note.png`](../runtime/evidence/harness-tools-r6-stock-note.png) |
+| unknown operation | HTTP 400, `status: "unknown_op"`, distinct from Newton `error` | 11.543 s | [`harness-tools-r6-unknown.txt`](../runtime/evidence/harness-tools-r6-unknown.txt) |
+| package closed | HTTP 504, clean `timeout` | 2.001 s | [`harness-tools-r6-timeout.txt`](../runtime/evidence/harness-tools-r6-timeout.txt) |
 
-The package's nominal delayed-call interval was 0.5 seconds, unchanged from
-round 4. Successful calls still took 5.6-7.5 seconds because each poll and
-outcome POST reacquired an NIE link; the listener sequence is in
-[`harness-tools-server.log`](../runtime/evidence/harness-tools-server.log).
-Reducing the fixed delay could save at most 0.5 seconds per acquisition while
-increasing link-acquisition churn; it would not remove the measured multi-second
-NIE cost. No adaptive scheduler or push channel was attempted.
+The original successful calls measured 5.6-7.5 seconds; the restoration run
+measured 5.8-11.7 seconds. Both are dominated by repeated NIE link acquisition,
+not the 0.5-second poll interval. The fresh listener sequence is in
+[`harness-tools-r6-server.log`](../runtime/evidence/harness-tools-r6-server.log).
+No adaptive scheduler, push channel, registry, or plugin layer was added.
 
-Per the stop rule, the package, host routes, and temporary classifier test were
-reverted. All three fresh package identities were removed, visibly confirmed in
-[`harness-tools-removed.png`](../runtime/evidence/harness-tools-removed.png), and
-the baseline is again 24 tests. If MAIN's intended note fixture is restored and
-its actual entry ID confirmed, op number four is added as one compiled branch:
+The classification test is committed and the suite now has 25 tests. Operation
+four follows the same single-branch pattern exactly:
 
 ```newtonscript
-else if StrEqual(op, "op_four") then
-begin
-    self.outcomeStatus := "result";
-    self.outcomeValue := :OpFour(argument);
-end
+else if StrEqual(op, "op_four") then begin self.outcomeStatus := "result"; self.outcomeValue := :OpFour(argument); end
 ```
 
-Add the `OpFour` method beside the existing operation bodies and one fake host
-classification assertion. No registry or schema layer is needed.
+Add `OpFour` beside the existing operation bodies and one host classification
+assertion; no registry or schema layer is needed.

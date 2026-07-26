@@ -176,6 +176,50 @@ class PublisherTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 pkg_publisher.interpret(Path("/tmp/ink.png"))
 
+    def test_tools_classification_and_validation(self) -> None:
+        with pkg_publisher.make_server("127.0.0.1", 0) as server:
+            port = server.server_address[1]
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                for outcome, expected in (
+                    ({"status": "result", "result": "pong"}, (200, "result")),
+                    ({"status": "error", "error": "-48807"}, (422, "error")),
+                    ({"status": "unknown_op", "error": "unknown op: nope"}, (400, "unknown_op")),
+                ):
+                    observed: list[tuple[int, dict[str, object]]] = []
+                    caller = threading.Thread(target=lambda: observed.append((lambda response: (
+                        response[0], json.loads(response[2])))(self.fetch(
+                            port, "/tools?timeout=2", "POST",
+                            b'{"op":"ping","args":{}}'))))
+                    caller.start()
+                    for _ in range(100):
+                        status, _, body, _ = self.fetch(port, "/tools/poll")
+                        fields = body.decode().split()
+                        if len(fields) >= 3:
+                            break
+                        threading.Event().wait(0.01)
+                    self.assertEqual((status, fields[:1]), (200, ["TOOLS"]))
+                    request_id = fields[1]
+                    value = outcome.get("result", outcome.get("error", ""))
+                    posted = f"{request_id}\r\n{outcome['status']}\r\n{value}".encode()
+                    self.assertEqual(self.fetch(
+                        port, "/tools/outcome", "POST", posted)[0], 200)
+                    caller.join()
+                    self.assertEqual((observed[0][0], observed[0][1]["status"]), expected)
+                    self.assertEqual(observed[0][1]["request_id"], request_id)
+
+                status, _, body, _ = self.fetch(
+                    port, "/tools?timeout=0.02", "POST",
+                    b'{"op":"ping","args":{}}')
+                self.assertEqual((status, json.loads(body)["status"]), (504, "timeout"))
+                for body in (b'{"op":"bad-op","args":{}}',
+                             b'{"op":"get_note","args":{"id":true}}'):
+                    self.assertEqual(self.fetch(port, "/tools", "POST", body)[0], 400)
+            finally:
+                server.shutdown()
+                thread.join()
+
     @staticmethod
     def fetch(
         port: int, path: str, method: str = "GET", body: bytes | None = None

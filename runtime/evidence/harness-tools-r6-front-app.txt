@@ -1,0 +1,6 @@
+front_app with stock Notes visibly frontmost
+2026-07-26T14:42:56,856714577+01:00
+{"request_id":"9","status":"result","result":"Notepad (paperroll)"}
+
+http=200 total=10.506110
+2026-07-26T14:43:07,367812909+01:00
