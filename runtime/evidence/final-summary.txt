@@ -1,0 +1,56 @@
+Queue item 4 — Newton chat UI. Result summary (2026-07-26)
+
+WHAT SHIPS
+  examples/harness-client/Main.newt, stable identity |HarnessClient:jbfly|, version 1.3.
+  protoTitle / protoStaticText transcript / protoDivider "Prompt" / protoInputLine /
+  New + Send protoTextButtons / protoStaticText status line, in a protoFloatNGo
+  at {8,24,312,428} on the 320x480 screen.
+
+PROVEN ON DEVICE (screenshots are 320x480 Newton-screen captures)
+  final-ui-ready.png     UI renders; status line reads "Ready" after the native
+                         handshake with the fake backend.
+  final-ui-typed.png     Prompt field accepts typed ASCII ("hello from the newton").
+  final-roundtrip.log    Wire log via a logging proxy on 10.42.0.1:6801 -> 127.0.0.1:6802
+                         (server.py with NEWTON_FAKE_BACKEND=1). Contains, for the
+                         shipped build's logic:
+                           C> ~NEWTONCLI 1
+                           C> :00 HELLO NEWTON1 1.3-pad*34
+                           <S ACK 00 / :00 STAT READY*51
+                           C> ACK 00
+  final-captest.png/.txt 6 KiB CAP PROOF. The app's SelfTest method appends 400 lines
+                         of 40+ characters (~17 KB) through the shipped AppendLine and
+                         asserts four conditions; the status line renders the verdict:
+                           "Cap test PASS: size=6120 first=265 0123456789...789"
+                         i.e. size <= 6144, size > 5000 (not emptied), the newest line
+                         (400) is still present, and the oldest survivor (line 265) is a
+                         COMPLETE line — trimming happened at line boundaries.
+                         Re-run at any time with:
+                           curl -X POST http://127.0.0.1:18080/newtonscript \
+                             --data-binary 'GetRoot().|<AppSymbol>|:SelfTest();'
+
+NOT PROVEN — open defect
+  final-send-failure.png Tapping Send raises Newton -48200 ("expected a frame, array or
+                         binary object") and no MSG frame reaches the wire. An
+                         instrumented build localised the throw to the prompt read:
+                         field:GetRichString() on this ROM. Reading field.text instead
+                         still throws somewhere in SendPrompt; the step was not isolated
+                         before the time box ran out. The transcript therefore contains
+                         no user/agent turn on screen.
+
+PACKAGE IDENTITY — could not reach the stable end state
+  final-open.png         Installing the rebuilt |HarnessClient:jbfly| is REJECTED
+                         ("a package by the same name is already installed on Internal")
+                         and the stale v1.2 opens instead. Cause: tntk hardcodes package
+                         version 1 (~/newton-dev/tntk/package.cpp:161), so Newton never
+                         treats a rebuild as an update. SafeRemovePackage(GetPkgRef(...))
+                         through the control API did not remove it either. The device
+                         therefore still runs the old v1.2 stable package; the proven
+                         builds above ran under throwaway probe identities carrying the
+                         identical source.
+
+HOST STATE AT EXIT
+  19/19 host tests pass (python3 -m pytest -q, in a temporary uv venv).
+  runtime/raw_pkg_server.py is the sole listener on 10.42.0.1:18081; the logging proxy
+  (6801) and the fake backend (6802) were stopped; no podman logs follower is running.
+  The emulator container was restarted once at 02:19 to clear a wedged NIE link that
+  made every connect fail with -16013.

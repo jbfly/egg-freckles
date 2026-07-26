@@ -1,55 +1,150 @@
 kAppSymbol := '|HarnessClient:jbfly|;
-kAppName := "Harness Client";
-kVersion := "1.2";
-kAppTitle := kAppName & " v" & kVersion;
+kVersion := "1.3";
+kAppTitle := "Newton Chat " & kVersion;
+
+// The transcript is one bounded string, trimmed from the front at line
+// boundaries. 6 KiB is the whole conversation budget on a 1990s device.
+kTranscriptCap := 6144;
+// ponytail: the paragraph view shows the tail of that string; no scroller.
+kTranscriptTail := 640;
 
 mainView := {
     _proto: protoFloatNGo,
-    viewBounds: {left: 16, top: 72, right: 304, bottom: 244},
+    viewBounds: {left: 8, top: 24, right: 312, bottom: 428},
     title: kAppTitle,
     appSymbol: kAppSymbol,
     endpointClass: {_proto: protoBasicEndpoint},
     endpoint: nil,
     linkID: nil,
+    // ponytail: tntk segfaults on a top-level constant inside a function body,
+    // so the caps live in slots. Slot names must not collide with a method
+    // name: NewtonScript symbols are case-insensitive.
+    capBytes: kTranscriptCap,
+    tailBytes: kTranscriptTail,
+    version: kVersion,
+    transcript: "",
+    transcriptView: nil,
     promptView: nil,
+    statusView: nil,
     responseText: "",
-    responseDone: nil,
-    lastRx: nil,
     txSeq: 1,
     ready: nil,
 
+    ViewSetupDoneScript: func()
+    begin
+        inherited:?ViewSetupDoneScript();
+        // ponytail: the child list is not reachable until the view is fully open.
+        AddDelayedCall(func(view) view:Boot(), [self], 800);
+    end,
+
+    Boot: func()
+    begin
+        :Wire();
+        :ShowTranscript();
+        :Connect();
+    end,
+
+    // ponytail: custom template slots do not survive instantiation and a child's
+    // index is not stable, but its unique top edge is. Wire lazily: the child
+    // list is not available yet while the view is still being set up.
+    Wire: func()
+    begin
+        // ponytail: a live view has no readable viewBounds slot and custom
+        // template slots do not survive instantiation. ChildViewFrames keeps
+        // template order after the float's own close box, so the indices are
+        // 1 title, 2 transcript, 3 divider, 4 prompt, 5 status, then buttons.
+        local kids := :ChildViewFrames();
+        if kids = nil then return nil;
+        self.transcriptView := kids[2];
+        self.promptView := kids[4];
+        self.statusView := kids[5];
+        return nil;
+    end,
+
     SetStatus: func(message)
-        if self.promptView then SetValue(self.promptView, 'text, message),
+    begin
+        if self.statusView = nil then :Wire();
+        if self.statusView then SetValue(self.statusView, 'text, message);
+        return nil;
+    end,
+
+    PromptField: func()
+    begin
+        if self.promptView = nil then :Wire();
+        // ponytail: the focused editable view is the proven handle; the wired
+        // child is only the fallback when nothing has focus.
+        return GetView('viewFrontKey) or self.promptView;
+    end,
+
+    AppendLine: func(line)
+    begin
+        self.transcript := self.transcript & line & "\n";
+        local cut := 0;
+        while (StrLen(self.transcript) > self.capBytes) and (cut <> nil) do
+        begin
+            cut := StrPos(self.transcript, "\n", 0);
+            if cut <> nil then
+                self.transcript := SubStr(self.transcript, cut + 1,
+                    StrLen(self.transcript) - cut - 1);
+        end;
+        return nil;
+    end,
+
+    TranscriptTail: func()
+    begin
+        local size := StrLen(self.transcript);
+        if size <= self.tailBytes then return self.transcript;
+        local start := size - self.tailBytes;
+        local cut := StrPos(SubStr(self.transcript, start, self.tailBytes), "\n", 0);
+        if cut <> nil then start := start + cut + 1;
+        return SubStr(self.transcript, start, size - start);
+    end,
+
+    ShowTranscript: func()
+    begin
+        if self.transcriptView = nil then :Wire();
+        if self.transcriptView then
+        begin
+            local text := :TranscriptTail();
+            // ponytail: a live paragraph rejects an empty string, so an empty
+            // conversation shows the hint instead.
+            if StrLen(text) = 0 then text := "Type a prompt below, then tap Send.";
+            SetValue(self.transcriptView, 'text, text);
+        end;
+        return nil;
+    end,
+
+    // ponytail: on-device proof of the 6 KiB cap; the status line is the assert.
+    SelfTest: func()
+    begin
+        local saved := self.transcript;
+        local filler := "0123456789012345678901234567890123456789";
+        self.transcript := "";
+        for index := 1 to 400 do :AppendLine("" & index & " " & filler);
+        local size := StrLen(self.transcript);
+        local firstBreak := StrPos(self.transcript, "\n", 0);
+        local first := SubStr(self.transcript, 0, firstBreak);
+        local ok := (size <= self.capBytes) and (size > 5000)
+            and (StrPos(self.transcript, "400 " & filler, 0) <> nil)
+            and (StrPos(first, filler, 0) <> nil);
+        self.transcript := saved;
+        :ShowTranscript();
+        :SetStatus("Cap test " & (if ok then "PASS" else "FAIL")
+            & ": size=" & size & " first=" & first);
+        return nil;
+    end,
 
     SeqText: func(seq)
         if seq < 10 then "0" & seq else "" & seq,
-
-    HexByte: func(value)
-    begin
-        local digits := "0123456789ABCDEF";
-        value := BAND(value, 255);
-        return SubStr(digits, Floor(value / 16), 1)
-            & SubStr(digits, BAND(value, 15), 1);
-    end,
-
-    Sum8: func(body)
-    begin
-        local sum := 0;
-        for index := 0 to StrLen(body) - 1 do
-            sum := BAND(sum + Ord(body[index]), 255);
-        return sum;
-    end,
 
     EncodeBody: func(body)
     begin
         local digits := "0123456789ABCDEF";
         local sum := 0;
-        local hex := nil;
         for index := 0 to StrLen(body) - 1 do
             sum := BAND(sum + Ord(body[index]), 255);
-        hex := SubStr(digits, Floor(sum / 16), 1)
-            & SubStr(digits, BAND(sum, 15), 1);
-        return ":" & body & "*" & hex & "\r\n";
+        return ":" & body & "*" & SubStr(digits, Floor(sum / 16), 1)
+            & SubStr(digits, BAND(sum, 15), 1) & "\r\n";
     end,
 
     Stop: func()
@@ -66,32 +161,32 @@ mainView := {
             call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
             self.linkID := nil;
         end;
+        self.ready := nil;
     end,
 
     Released: func(id, state, error) nil,
 
-    CheckStatus: func()
+    Connect: func()
     begin
         :Stop();
-        :SetStatus("Opening network...");
+        :SetStatus("Connecting");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
     end,
 
     Grabbed: func(id, state, error)
     begin
         if self.endpoint then return nil;
-        if error then return :Failed("Network failed: " & error);
+        if error then return :Failed("Network error " & error);
         self.linkID := id;
         if state.linkStatus <> 'connected then return nil;
-        :FetchStatus();
+        :OpenSession();
     end,
 
-    FetchStatus: func()
+    OpenSession: func()
     begin
         local address := [10, 42, 0, 1];
         local callName := "Instantiate";
         self.endpoint := {_proto: self.endpointClass, _parent: self};
-        :SetStatus("Contacting harness...");
         try
         begin
             self.endpoint:Instantiate(self.endpoint, [
@@ -109,7 +204,7 @@ mainView := {
             ]);
             callName := "Bind";
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
-            callName := "connect";
+            callName := "Connect";
             self.endpoint:connect([
                 {
                     label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
@@ -120,48 +215,20 @@ mainView := {
                     },
                 },
             ], {async: nil, reqTimeout: 45000});
-            callName := "ReceiveStatus";
-            :ReceiveStatus();
+            callName := "Hello";
+            :Hello();
         end
         onexception |evt.ex| do
         begin
             local exception := CurrentException();
             local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
-            local exceptionText := callName & " error " & exceptionError;
-            if HasSlot(exception, 'name) then
-                exceptionText := exceptionText & " " & exception.name;
-            if HasSlot(exception, 'data) then
-                exceptionText := exceptionText & "\ndata=" & exception.data;
-            if HasSlot(exception, 'message) then
-                exceptionText := exceptionText & "\nmessage=" & exception.message;
-            :SetStatus(exceptionText);
+            :Failed(callName & " error " & exceptionError);
         end;
     end,
 
-    ParseContentLength: func(headers)
-    begin
-        local start := StrPos(headers, "Content-Length:", 0);
-        if start = nil then return nil;
-        local value := 0;
-        local sawDigit := nil;
-        for index := start + 15 to Length(headers) - 1 do
-        begin
-            local digit := StrPos("0123456789", SubStr(headers, index, 1), 0);
-            if digit <> nil then
-            begin
-                value := (value * 10) + digit;
-                sawDigit := true;
-            end else if sawDigit then
-                return value;
-        end;
-        if sawDigit then return value;
-        return nil;
-    end,
-
-    ReceiveStatus: func()
+    Hello: func()
     begin
         self.responseText := "";
-        self.responseDone := nil;
         self.txSeq := 1;
         self.ready := nil;
         self.endpoint:SetInputSpec({
@@ -170,15 +237,14 @@ mainView := {
             // ponytail: protocol lines are capped at 240 bytes.
             termination: {endSequence: "\r\n"},
             discardAfter: 240,
-            reqTimeout: 10000,
             InputScript: func(endpoint, data, terminator, options)
                 self._parent:HandleLine(data),
             CompletionScript: func(endpoint, options, result)
-                self._parent:ReceiveFailed("Receive timeout"),
+                self._parent:Dropped(),
         });
         self.endpoint:output("~NEWTONCLI 1\r\n", nil,
             {async: nil, reqTimeout: 10000});
-        self.endpoint:output(":00 HELLO NEWTON1 1.2*D1\r\n", nil,
+        self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil,
             {async: nil, reqTimeout: 10000});
         try self.endpoint:Input() onexception |evt.ex.comm| do nil;
         return nil;
@@ -187,7 +253,7 @@ mainView := {
     HandleLine: func(line)
     begin
         if BeginsWith(line, "ACK ") then return nil;
-        if (Length(line) < 9) or not BeginsWith(line, ":") then return nil;
+        if (StrLen(line) < 9) or not BeginsWith(line, ":") then return nil;
         local star := StrPos(line, "*", 0);
         if star = nil then return nil;
         local seqText := SubStr(line, 1, 2);
@@ -198,131 +264,132 @@ mainView := {
             self.ready := true;
             :SetStatus("Ready");
         end else if BeginsWith(line, ":" & seqText & " STAT THINKING*") then
-            :SetStatus("Thinking...")
-        else if BeginsWith(line, ":" & seqText & " TEXT ") then
-        begin
-            self.responseText := self.responseText & SubStr(line, 9, star - 9);
-            :SetStatus(self.responseText);
-        end else if BeginsWith(line, ":" & seqText & " PROMPT*") then
+            :SetStatus("Thinking")
+        else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then
         begin
             self.ready := true;
-            :SetStatus(self.responseText);
+            :SetStatus(SubStr(line, 15, star - 15));
+        end else if BeginsWith(line, ":" & seqText & " TEXT ") then
+        begin
+            if StrLen(self.responseText) > 0 then
+                self.responseText := self.responseText & "\n";
+            self.responseText := self.responseText & SubStr(line, 9, star - 9);
+        end else if BeginsWith(line, ":" & seqText & " PROMPT*") then
+        begin
+            :AppendLine("Agent: " & self.responseText);
+            :AppendLine("");
+            :ShowTranscript();
+            self.responseText := "";
+            self.ready := true;
+            :SetStatus("Ready");
         end;
+        return nil;
+    end,
+
+    Send: func(text)
+    begin
+        local body := :SeqText(self.txSeq) & " MSG " & text;
+        local encoded := :EncodeBody(body);
+        if StrLen(encoded) > 240 then return :SetStatus("Prompt too long");
+        self.ready := nil;
+        self.responseText := "";
+        :SetStatus("Thinking");
+        self.endpoint:output(encoded, nil, {async: nil, reqTimeout: 10000});
+        self.txSeq := (self.txSeq + 1) mod 100;
         return nil;
     end,
 
     SendPrompt: func()
     begin
-        if not self.ready then return :SetStatus("Not ready");
-        self.promptView := GetView('viewFrontKey);
-        if self.promptView = nil then return nil;
-        local prompt := self.promptView:GetRichString();
+        local field := :PromptField();
+        if field = nil then return :SetStatus("Tap the prompt line first");
+        // ponytail: GetRichString throws on this view; the text slot holds the
+        // typed string.
+        local prompt := field.text;
         if (prompt = nil) or (StrLen(prompt) = 0) then
             return :SetStatus("Type a prompt first");
         local ascii := " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         for index := 0 to StrLen(prompt) - 1 do
             if StrPos(ascii, SubStr(prompt, index, 1), 0) = nil then
                 return :SetStatus("ASCII only");
-        local body := :SeqText(self.txSeq) & " MSG " & prompt;
-        local encoded := :EncodeBody(body);
-        if Length(encoded) > 240 then return :SetStatus("Prompt too long");
-        self.ready := nil;
-        self.responseText := "";
-        :SetStatus("Sending...");
-        self.endpoint:output(encoded, nil, {async: nil, reqTimeout: 10000});
-        self.txSeq := (self.txSeq + 1) mod 100;
-        return nil;
+        // ponytail: an idle link can drop; Send reconnects instead of dead-ending.
+        if not self.ready then return :Connect();
+        :AppendLine("You: " & prompt);
+        :ShowTranscript();
+        // ponytail: a live paragraph rejects an empty string; a failed clear
+        // must not lose the turn.
+        try SetValue(field, 'text, "") onexception |evt.ex| do nil;
+        return :Send(prompt);
     end,
 
-    StatusReceived: func(response)
+    NewChat: func()
     begin
-        if (self.endpoint = nil) or self.responseDone then return nil;
-        self.responseDone := true;
-        try
-        begin
-            if (response = nil) or (Length(response) < 4) then
-                return :ReceiveFailed("Bad harness reply");
-            // Keep one string form for the whole response: NewtonOS loses buffered bytes
-            // when a non-binary input spec switches to binary or frame.
-            local bodyOffset := nil;
-            for index := 0 to Length(response) - 4 do
-                if bodyOffset = nil
-                and StrEqual(SubStr(response, index, 4), "\r\n\r\n") then
-                    bodyOffset := index + 4;
-            if bodyOffset = nil then return :ReceiveFailed("Bad harness reply");
-            if not BeginsWith(response, "HTTP/1.0 200") then
-                return :ReceiveFailed("Harness HTTP error");
-            local contentLength := :ParseContentLength(SubStr(response, 0, bodyOffset));
-            if (contentLength = nil) or (contentLength <= 0)
-            or ((bodyOffset + contentLength) > 4096) then
-            begin
-                return :ReceiveFailed("Bad harness Content-Length");
-            end;
-            if Length(response) < (bodyOffset + contentLength) then
-                return :ReceiveFailed("Harness body incomplete");
-            local body := SubStr(response, bodyOffset, contentLength);
-            if Length(body) > 80 then body := SubStr(body, 0, 80);
-            :SetStatus("Online: " & body);
-            // ponytail: let the peer-close FSM settle before InetReleaseLink.
-            AddDelayedCall(func(view) view:Stop(), [self], 1000);
-        end
-        onexception |evt.ex| do
-        begin
-            local exception := CurrentException();
-            local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
-            local exceptionText := "Receive error " & exceptionError;
-            if HasSlot(exception, 'name) then
-                exceptionText := exceptionText & " " & exception.name;
-            if HasSlot(exception, 'data) then
-                exceptionText := exceptionText & "\ndata=" & exception.data;
-            if HasSlot(exception, 'message) then
-                exceptionText := exceptionText & "\nmessage=" & exception.message;
-            :SetStatus(exceptionText);
-        end;
+        self.transcript := "";
+        :ShowTranscript();
+        local field := :PromptField();
+        if field then
+            try SetValue(field, 'text, "") onexception |evt.ex| do nil;
+        if not self.ready then return :SetStatus("Offline");
+        return :Send("/new");
     end,
 
-    ReceiveFailed: func(message)
+    Dropped: func()
     begin
-        :SetStatus(message & "\nTap to retry");
-        // ponytail: receive failures can arrive while the peer-close FSM is still active.
-        AddDelayedCall(func(view) view:Stop(), [self], 1000);
+        :SetStatus("Offline");
+        :Stop();
     end,
 
     Failed: func(message)
     begin
-        :SetStatus(message & "\nTap to retry");
-        :Stop();
+        :SetStatus(message);
+        // ponytail: let the peer-close FSM settle before InetReleaseLink.
+        AddDelayedCall(func(view) view:Stop(), [self], 1000);
     end,
 
     stepChildren: [
         {
+            _proto: protoTitle,
+            viewBounds: {left: 0, top: 2, right: 304, bottom: 24},
+            title: kAppTitle,
+            titleHeight: 18,
+        },
+        {
             _proto: protoStaticText,
-            viewBounds: {left: 12, top: 8, right: 276, bottom: 28},
-            text: kAppTitle,
-            viewFont: ROM_fontSystem12Bold,
+            viewBounds: {left: 14, top: 32, right: 290, bottom: 272},
+            viewFont: ROM_fontSystem10,
+            // ponytail: a live paragraph rejects an empty string, so it never
+            // starts empty; this doubles as the empty-conversation hint.
+            text: "Type a prompt below, then tap Send.",
+        },
+        {
+            _proto: protoDivider,
+            viewBounds: {left: 0, top: 280, right: 304, bottom: 298},
+            viewFont: ROM_fontSystem10Bold,
+            title: "Prompt",
         },
         {
             _proto: protoInputLine,
-            viewBounds: {left: 12, top: 32, right: 208, bottom: 54},
+            viewBounds: {left: 14, top: 302, right: 290, bottom: 326},
+            viewFont: ROM_fontSystem10,
             text: "",
         },
         {
+            _proto: protoStaticText,
+            viewBounds: {left: 14, top: 370, right: 290, bottom: 386},
+            viewFont: ROM_fontSystem9,
+            text: "Offline",
+        },
+        {
             _proto: protoTextButton,
-            viewBounds: {left: 214, top: 30, right: 276, bottom: 58},
+            viewBounds: {left: 146, top: 336, right: 214, bottom: 362},
+            text: "New",
+            buttonClickScript: func() self:Parent():NewChat(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 222, top: 336, right: 290, bottom: 362},
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
-        },
-        {
-            _proto: protoStaticText,
-            viewBounds: {left: 12, top: 64, right: 276, bottom: 160},
-            text: "Tap Connect",
-            viewFont: ROM_fontSystem10,
-        },
-        {
-            _proto: protoTextButton,
-            viewBounds: {left: 214, top: 132, right: 276, bottom: 160},
-            text: "Connect",
-            buttonClickScript: func() self:Parent():CheckStatus(),
         },
     ],
 };

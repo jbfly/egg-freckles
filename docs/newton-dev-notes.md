@@ -615,3 +615,38 @@ All temporary `podman logs -f` captures are stopped. The original package server
 ## One-command test-round setup
 
 Run `scripts/newton-round.sh <example-dir> <round-tag>` from anywhere in the repository, for example `scripts/newton-round.sh examples/harness-loader r15a`. It bumps both package identities, builds and verifies the package, starts a fresh emulator-log capture with a package-server baseline, installs and launches the app, and saves a Newton-screen screenshot after confirming the visible version with OCR. It deliberately does not tap the app's fetch button. The summary includes the capture PID and stop command; run `scripts/newton-round.sh --self-check` to check the identity rewrite without building or touching source.
+
+## 2026-07-26 — Chat UI: five NewtonScript/tntk traps
+
+Building the real chat UI (`examples/harness-client/Main.newt`) cost far more than the
+layout did. Every one of these produced a bare `-48200` alert or a compiler crash with no
+message, and each was isolated by installing a throwaway probe package and reading the
+screen. Evidence: `runtime/evidence/final-summary.txt`.
+
+1. **tntk segfaults on a top-level constant referenced inside a function body.**
+   `kCap := 6144; ... F: func() kCap` crashes the compiler; a view slot holding the same
+   constant (`cap: kCap` then `self.cap`) compiles. No diagnostic, just SIGSEGV.
+2. **NewtonScript symbols are case-insensitive, so a slot shadows a method.** A slot named
+   `transcriptTail` made `:TranscriptTail()` call a number: `-48200`. Slots are now
+   `capBytes` / `tailBytes`.
+3. **A child view cannot reach its parent during setup.** `self:Parent()` inside a child's
+   `ViewSetupDoneScript` throws `-48200`, and custom marker slots (`role: 'status`) do not
+   survive instantiation — verified directly on screen. `:ChildViewFrames()` works, but
+   only *after* the view is open, so wiring happens in a delayed `Boot`. A live view also
+   has no readable `viewBounds` slot; reading it throws. Index order is the float's own
+   close box first, then template order: 1 title, 2 transcript, 3 divider, 4 prompt,
+   5 status, then the buttons.
+4. **A live paragraph rejects an empty string.** `SetValue(view, 'text, "")` throws
+   `-48200`, and a paragraph whose template `text` starts empty cannot be set later. The
+   transcript therefore ships with hint text and falls back to it when the conversation is
+   empty; clearing the prompt is wrapped in `try ... onexception |evt.ex| do nil`.
+5. **`GetRichString()` throws on this ROM's input line** (an instrumented build caught the
+   throw exactly there). Reading `field.text` gets past that call but Send still fails —
+   see the open defect in the summary.
+
+Two operational notes: `tntk` hardcodes package version 1
+(`~/newton-dev/tntk/package.cpp:161`), so Newton rejects any same-name reinstall as
+"already installed" — that, not the identity string, is the real replace trap, and
+`SafeRemovePackage(GetPkgRef(...))` over the control API did not clear it. And an
+accumulation of open apps holding NIE links wedges the link layer until every connect
+returns `-16013`; restarting the emulator container clears it.
