@@ -1,0 +1,60 @@
+NewtonScript evaluation result-channel investigation — 2026-07-26
+
+Existing transport
+------------------
+emulator/control.py sends `ns <source>` to /state/einstein-control.sock.
+containers/patches/einstein-control-socket.patch calls EvalNewtonScript(source)
+and immediately replies `queued`; it has no completion callback.
+
+Einstein source does contain a potential output channel:
+- Drivers/NSRuntime/Handlers.f kEvaluateNSFn prints the returned value.
+- On exception it writes `Exception` and prints CurrentException().
+- Emulator/TNativePrimitives.cpp native primitive 0x1A forwards that text to
+  Einstein's log/process output.
+
+Live SCRATCH results (http://127.0.0.1:18090)
+------------------------------------------------
+Before changes, both calls returned the same response:
+
+  POST /newtonscript body `2+2`                    -> queued
+  POST /newtonscript body `PonytailUndefinedProbe` -> queued
+
+A compliant `podman logs --since 0s -f` capture was started from a verified
+zero-byte file and stopped after both calls. It contains the two HTTP 200
+request lines but no evaluator result, exception, or Einstein Log line. See
+runtime/evidence/newtonscript-eval-emulator.log.
+
+A temporary candidate (reverted, not committed) did the minimum proposed
+implementation:
+- line-buffer Einstein process output into /state/einstein.log;
+- wrap each source in a unique marker and dynamic Compile() try/onexception;
+- synchronously wait up to the request timeout for RESULT or ERROR marker.
+
+Observed candidate responses:
+
+  `2+2`                    -> {"status":"timeout","timeout":true,"queued":true}
+  `PonytailUndefinedProbe` -> {"status":"timeout","timeout":true,"queued":true}
+  `while true do nil`      -> {"status":"timeout","timeout":true,"queued":true}
+
+The Einstein log contained only startup/network diagnostics and no marker,
+ordinary result, or exception. A direct socket command outside the HTTP
+wrapper (`ns Write("DIRECTPROBE\\n")`) also replied `queued` but added no log
+line or visible effect.
+
+Recovery attempts
+-----------------
+All were confined to disposable SCRATCH:
+1. emulator restart and delayed retry;
+2. down -v / fresh flash and retry;
+3. dismiss the first-run card notice;
+4. copy MAIN's flash read-only into SCRATCH and retry;
+5. restore runtime/backups/internal-before-round7b-loader-20260725-180001.flash;
+6. close the PCMCIA UI and retry;
+7. temporarily disable networking/card configuration only inside SCRATCH;
+8. clean restart, wait 60 seconds after /health became ready, then make the
+   first evaluation request.
+
+Every evaluation was acknowledged `queued` and produced no completion output.
+/health remained ready. No reliable success/error result channel was therefore
+proved, and the temporary log-scraping implementation was reverted rather than
+shipping a timeout-only heuristic.
