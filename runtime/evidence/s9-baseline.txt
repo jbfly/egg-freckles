@@ -1,0 +1,2 @@
+capture_command=podman logs --since 0s -f newton-harness_emulator_1
+capture_initial_bytes=0
