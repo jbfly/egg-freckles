@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import socket
 import subprocess
 import tempfile
 import threading
@@ -217,6 +218,50 @@ class PublisherTest(unittest.TestCase):
                              b'{"op":"get_note","args":{"id":true}}'):
                     self.assertEqual(self.fetch(port, "/tools", "POST", body)[0], 400)
             finally:
+                server.shutdown()
+                thread.join()
+
+    def test_tools_persistent_heartbeat(self) -> None:
+        with pkg_publisher.make_server("127.0.0.1", 0) as server:
+            server.tools.heartbeat_seconds = 0.01
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            newton = socket.create_connection(server.server_address)
+            stream = newton.makefile("rb")
+            try:
+                newton.sendall(b"POLL\r\n")
+                self.assertEqual(stream.readline(), b"TOOLS 0 ping \r\n")
+                newton.sendall(b"0\r\nresult\r\npong\r\nPOLL\r\n")
+            finally:
+                newton.close()
+                server.shutdown()
+                thread.join()
+
+    def test_tools_persistent_socket_reused(self) -> None:
+        with pkg_publisher.make_server("127.0.0.1", 0) as server:
+            port = server.server_address[1]
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            newton = socket.create_connection(("127.0.0.1", port))
+            stream = newton.makefile("rb")
+            try:
+                newton.sendall(b"POLL\r\n")
+                for expected_id, value in (("1", "pong"), ("2", "line\\nvalue")):
+                    observed = []
+                    caller = threading.Thread(target=lambda: observed.append(self.fetch(
+                        port, "/tools?timeout=2", "POST",
+                        b'{"op":"ping","args":{}}')))
+                    caller.start()
+                    fields = stream.readline().decode().split()
+                    self.assertEqual(fields[:3], ["TOOLS", expected_id, "ping"])
+                    newton.sendall(
+                        f"{expected_id}\r\nresult\r\n{value}\r\nPOLL\r\n".encode())
+                    caller.join()
+                    self.assertEqual(observed[0][0], 200)
+                    expected = value.replace("\\n", "\n")
+                    self.assertEqual(json.loads(observed[0][2])["result"], expected)
+            finally:
+                newton.close()
                 server.shutdown()
                 thread.join()
 

@@ -330,3 +330,35 @@ block in `Input()`, and it cannot receive bare unsolicited host data, but an
 asynchronous Newton-originated poll can reuse one endpoint across calls with
 sub-second steady latency. The L3 package and `runtime/persistent_tools_server.py`
 remain a measured spike; the production R6 poll-plus-POST path is unchanged.
+
+## Eighth investigation: production persistent tools promotion
+
+The async Newton-initiated long poll is now the production path. Fresh
+`HarnessToolsR9:jbfly` replaces R6's per-call GET plus POST lifecycle with one
+endpoint on `10.42.0.1:18081`: it sends `POLL`, arms asynchronous input, replies
+from `InputScript`, and re-arms before that callback returns. `pkg_publisher.py`
+accepts the newline transport on the same listener that preserves the existing
+`POST /tools` JSON API. A three-second internal ping keeps the outstanding poll
+active; after three missed callbacks the Newton tears down and reconnects.
+
+R6 was first recovered independently after boot-time close/remove cleanup, with
+fresh device-originated `/tools/poll` requests at 16:55:01 and 16:55:07
+([`r6-recovery-20260726.txt`](../runtime/evidence/r6-recovery-20260726.txt)).
+The final R9 production benchmark then completed ten sequential `ping` calls on
+one unchanged TCP source port, 56256:
+
+| Calls | Result | Minimum | Median | Maximum | Evidence |
+|---:|---|---:|---:|---:|---|
+| 10 | 10 HTTP 200, `pong` | 0.109552 s | 0.813895 s | 0.814582 s | [`r9-pings.jsonl`](../runtime/evidence/r9-pings.jsonl), [`r9-ping-summary.txt`](../runtime/evidence/r9-ping-summary.txt), [`r9-connection-after-pings.txt`](../runtime/evidence/r9-connection-after-pings.txt) |
+
+Device read-back remained real: after opening Notes, `front_app` returned
+`Notepad (paperroll)` in 0.125936 s and `get_note(5)` returned the stored text
+`Export test received. I see: "the nthis note.ewton sees"` in 0.824420 s
+([`r9-front-app.txt`](../runtime/evidence/r9-front-app.txt),
+[`r9-get-note.txt`](../runtime/evidence/r9-get-note.txt)). Finally, killing the
+18081 listener forced a real drop; R9 reconnected without intervention in
+14.712 s on source port 47034
+([`r9-forced-reconnect-summary.txt`](../runtime/evidence/r9-forced-reconnect-summary.txt),
+[`r9-forced-reconnect-after.txt`](../runtime/evidence/r9-forced-reconnect-after.txt)).
+`runtime/raw_pkg_server.py` remained the sole 18081 listener and chat remained
+available on 6801.

@@ -45,6 +45,19 @@ MODEL_TIMEOUT = 120
 TOOL_OP = re.compile(r"[A-Za-z0-9_]+\Z")
 
 
+def unescape(value: str) -> str:
+    out, index = [], 0
+    escapes = {"n": "\n", "r": "\r", "t": "\t", "\\": "\\", '"': '"'}
+    while index < len(value):
+        if value[index] == "\\" and index + 1 < len(value) and value[index + 1] in escapes:
+            index += 1
+            out.append(escapes[value[index]])
+        else:
+            out.append(value[index])
+        index += 1
+    return "".join(out)
+
+
 class ToolBroker:
     """One resident-package request, correlated with its eventual outcome."""
 
@@ -53,6 +66,8 @@ class ToolBroker:
         self.next_id = 1
         self.pending: dict[str, object] | None = None
         self.outcome: dict[str, object] | None = None
+        self.connection: socket.socket | None = None
+        self.heartbeat_seconds = 3.0
 
     def submit(self, op: str, args: dict[str, object], timeout: float) -> dict[str, object]:
         with self.condition:
@@ -62,6 +77,7 @@ class ToolBroker:
             self.next_id += 1
             self.pending = {"request_id": request_id, "op": op, "args": args}
             self.outcome = None
+            self.condition.notify_all()
             if not self.condition.wait_for(lambda: self.outcome is not None, timeout):
                 result = {"request_id": request_id, "status": "timeout"}
             else:
@@ -69,6 +85,56 @@ class ToolBroker:
             self.pending = None
             self.outcome = None
             return result
+
+    @staticmethod
+    def _line(stream) -> str:
+        line = stream.readline(4097)
+        if not line or len(line) > 4096 or not line.endswith(b"\n"):
+            raise ConnectionError("persistent Newton connection closed mid-response")
+        return line.rstrip(b"\r\n").decode("utf-8")
+
+    def serve(self, connection: socket.socket, stream) -> None:
+        with self.condition:
+            if self.connection is not None:
+                self.connection.close()
+            self.connection = connection
+            self.condition.notify_all()
+        print(f"Newton tools connected {connection.getpeername()[0]}:{connection.getpeername()[1]}",
+              flush=True)
+        try:
+            while True:
+                with self.condition:
+                    self.condition.wait_for(
+                        lambda: self.connection is not connection or self.pending is not None,
+                        self.heartbeat_seconds)
+                    if self.connection is not connection:
+                        return
+                    request = self.pending
+                heartbeat = request is None
+                if heartbeat:
+                    request = {"request_id": "0", "op": "ping", "args": {}}
+                argument = request["args"].get("id", "")
+                connection.sendall(
+                    f"TOOLS {request['request_id']} {request['op']} {argument}\r\n".encode("ascii"))
+                request_id, status, value = (self._line(stream) for _ in range(3))
+                if request_id != request["request_id"] or status not in {
+                    "result", "error", "unknown_op"
+                }:
+                    return
+                if not heartbeat:
+                    key = "result" if status == "result" else "error"
+                    self.complete({"request_id": request_id, "status": status,
+                                   key: unescape(value)})
+                if self._line(stream) != "POLL":
+                    return
+        except (ConnectionError, OSError, UnicodeError):
+            pass
+        finally:
+            with self.condition:
+                if self.connection is connection:
+                    self.connection = None
+                    self.condition.notify_all()
+            print("Newton tools disconnected", flush=True)
 
     def poll(self) -> dict[str, object] | None:
         with self.condition:
@@ -79,6 +145,7 @@ class ToolBroker:
             if self.pending is None or outcome.get("request_id") != self.pending["request_id"]:
                 return False
             self.outcome = outcome
+            self.pending = None
             self.condition.notify_all()
             return True
 
@@ -212,6 +279,16 @@ def save_ink_png(path: Path, strokes: list[list[tuple[int, int]]]) -> None:
 
 class PublisherHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
+
+    def parse_request(self) -> bool:
+        if self.raw_requestline.rstrip(b"\r\n") == b"POLL":
+            self.requestline = self.command = "POLL"
+            self.request_version, self.close_connection = "HTTP/0.9", True
+            return True
+        return super().parse_request()
+
+    def do_POLL(self) -> None:  # noqa: N802 - Newton long-poll transport
+        self.server.tools.serve(self.connection, self.rfile)
     package_path = DEFAULT_PACKAGE_PATH
     ink_path = DEFAULT_INK_PATH
     note_path = DEFAULT_NOTE_PATH

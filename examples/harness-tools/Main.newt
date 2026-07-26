@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR6:jbfly|;
-kAppTitle := "Harness Tools";
+kAppSymbol := '|HarnessToolsR9:jbfly|;
+kAppTitle := "Harness Tools R9";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -9,8 +9,8 @@ mainView := {
     endpointClass: {_proto: protoBasicEndpoint},
     endpoint: nil,
     linkID: nil,
-    busy: nil,
-    mode: nil,
+    socketReady: nil,
+    missedHeartbeats: 0,
     outcomeID: nil,
     outcomeStatus: nil,
     outcomeValue: nil,
@@ -18,23 +18,12 @@ mainView := {
     ViewSetupDoneScript: func()
     begin
         inherited:?ViewSetupDoneScript();
-        AddDelayedCall(func(view) view:Poll(), [self], 500);
+        AddDelayedCall(func(view) view:Start(), [self], 500);
+        AddDelayedCall(func(view) view:Watch(), [self], 5000);
     end,
 
-    Poll: func()
+    Start: func()
     begin
-        if self.busy then return nil;
-        self.busy := true;
-        self.mode := 'poll;
-        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
-        return nil;
-    end,
-
-    SendOutcome: func()
-    begin
-        if self.busy or self.outcomeID = nil then return nil;
-        self.busy := true;
-        self.mode := 'outcome;
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
         return nil;
     end,
@@ -61,28 +50,61 @@ mainView := {
                 data: {arglist: [10, 42, 0, 1, 18081],
                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
             }], {async: nil, reqTimeout: 45000});
-            if self.mode = 'poll then :GetRequest(); else :PostOutcome();
+            self.socketReady := true;
+            self.missedHeartbeats := 0;
+            :Poll();
         end
         onexception |evt.ex| do :Retry();
         return nil;
     end,
 
-    GetRequest: func()
+    Poll: func()
     begin
-        self.endpoint:SetInputSpec({
-            _parent: self,
-            form: 'string,
-            termination: {endSequence: "\r\n"},
-            discardAfter: 512,
-            reqTimeout: 30000,
-            InputScript: func(endpoint, data, terminator, options)
-                if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data),
-            CompletionScript: func(endpoint, options, result)
-                AddDelayedCall(func(view) view:PollFinished(), [self._parent], 1),
-        });
-        self.endpoint:Output("GET /tools/poll HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
-                             nil, {async: nil, reqTimeout: 10000});
-        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        if not self.socketReady then return nil;
+        try
+        begin
+            self.endpoint:Output("POLL\r\n", nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:SetInputSpec({
+                _parent: self,
+                form: 'string,
+                termination: {endSequence: "\r\n"},
+                discardAfter: 512,
+                InputScript: func(endpoint, data, terminator, options)
+                begin
+                    self._parent.missedHeartbeats := 0;
+                    if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data);
+                end,
+            });
+        end
+        onexception |evt.ex.comm| do :Retry();
+        return nil;
+    end,
+
+    Watch: func()
+    begin
+        if self.socketReady then
+        begin
+            self.missedHeartbeats := self.missedHeartbeats + 1;
+            if self.missedHeartbeats > 2 then :Retry();
+        end;
+        AddDelayedCall(func(view) view:Watch(), [self], 5000);
+        return nil;
+    end,
+
+    Reply: func()
+    begin
+        if self.outcomeID = nil then return :Retry();
+        local response := self.outcomeID & "\r\n" & self.outcomeStatus
+            & "\r\n" & :Escape(self.outcomeValue) & "\r\n";
+        try
+        begin
+            self.endpoint:Output(response, nil, {async: nil, reqTimeout: 10000});
+            self.outcomeID := nil;
+            self.outcomeStatus := nil;
+            self.outcomeValue := nil;
+            :Poll();
+        end
+        onexception |evt.ex.comm| do :Retry();
         return nil;
     end,
 
@@ -126,6 +148,7 @@ mainView := {
             else if HasSlot(exception, 'name) then self.outcomeValue := "" & exception.name;
             else self.outcomeValue := "Newton error";
         end;
+        :Reply();
         return nil;
     end,
 
@@ -184,57 +207,16 @@ mainView := {
         return out;
     end,
 
-    PostOutcome: func()
-    begin
-        local body := self.outcomeID & "\r\n" & self.outcomeStatus
-            & "\r\n" & self.outcomeValue;
-        self.endpoint:SetInputSpec({
-            _parent: self,
-            form: 'string,
-            termination: {endSequence: "\r\n"},
-            discardAfter: 256,
-            reqTimeout: 30000,
-            CompletionScript: func(endpoint, options, result)
-                AddDelayedCall(func(view) view:OutcomeFinished(), [self._parent], 1),
-        });
-        local request := "POST /tools/outcome HTTP/1.0\r\nHost: 10.42.0.1\r\n"
-            & "Content-Type: text/plain; charset=us-ascii\r\nContent-Length: "
-            & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
-        self.endpoint:Output(request, nil, {async: nil, reqTimeout: 10000});
-        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
-        return nil;
-    end,
-
-    PollFinished: func()
-    begin
-        :Stop();
-        self.busy := nil;
-        if self.outcomeID then AddDelayedCall(func(view) view:SendOutcome(), [self], 500);
-        else AddDelayedCall(func(view) view:Poll(), [self], 500);
-        return nil;
-    end,
-
-    OutcomeFinished: func()
-    begin
-        :Stop();
-        self.outcomeID := nil;
-        self.outcomeStatus := nil;
-        self.outcomeValue := nil;
-        self.busy := nil;
-        AddDelayedCall(func(view) view:Poll(), [self], 500);
-        return nil;
-    end,
-
     Retry: func()
     begin
         :Stop();
-        self.busy := nil;
-        AddDelayedCall(func(view) view:Poll(), [self], 500);
+        AddDelayedCall(func(view) view:Start(), [self], 1000);
         return nil;
     end,
 
     Stop: func()
     begin
+        self.socketReady := nil;
         if self.endpoint then
         begin
             try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
