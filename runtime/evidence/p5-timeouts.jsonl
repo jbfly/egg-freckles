@@ -1,0 +1,10 @@
+call=1 http=504 elapsed_s=2.001971 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=2 http=504 elapsed_s=2.002626 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=3 http=504 elapsed_s=2.002556 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=4 http=504 elapsed_s=2.002561 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=5 http=504 elapsed_s=2.002461 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=6 http=504 elapsed_s=2.001911 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=7 http=504 elapsed_s=2.002197 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=8 http=504 elapsed_s=2.002215 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=9 http=504 elapsed_s=2.001911 {"status":"timeout","error":"Newton did not answer on the persistent connection"}
+call=10 http=504 elapsed_s=2.002338 {"status":"timeout","error":"Newton did not answer on the persistent connection"}

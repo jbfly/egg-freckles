@@ -230,3 +230,54 @@ else if StrEqual(op, "op_four") then begin self.outcomeStatus := "result"; self.
 
 Add `OpFour` beside the existing operation bodies and one host classification
 assertion; no registry or schema layer is needed.
+
+## Sixth investigation: persistent named-operation socket
+
+The persistent-socket hypothesis **failed at Newton endpoint input**, after the
+TCP connection itself succeeded. A fresh package, `HarnessToolsP5:jbfly` in
+`examples/harness-tools-persistent`, grabs the NIE link once, creates and connects
+one `protoBasicEndpoint`, arms a CRLF-terminated string `Input()`, and intends to
+write each named-operation outcome on the same socket. The disposable host in
+`runtime/persistent_tools_server.py` speaks the newline protocol and exposes a
+loopback-only `/tools` driver for measurement.
+
+The requested spare listener on `10.42.0.1:18082` was bound and tested first, but
+the installed host policy drops it: `ap/newton-ap.nft` permits Newton TCP only to
+6801 and 18081. The device reported `-48809` after the 45-second connect attempt
+([`p2-open.png`](../runtime/evidence/p2-open.png)); no SYN reached the listener.
+No-sudo rules prevented changing the active policy,
+and port 18081 remained exclusively owned by `runtime/raw_pkg_server.py`.
+
+To separate that host-policy failure from NIE behavior, the chat container was
+temporarily stopped and the identical P5 protocol was tested on already-allowed
+port 6801. The device established one TCP connection from `10.42.0.1:51918` to
+`10.42.0.1:6801`. Host request bytes were accepted by TCP and the connection
+remained `ESTAB`, but the Newton `InputScript` never ran and no response bytes
+arrived. The Newton UI also remained blocked in the synchronous `Input()` call.
+Ten sequential `ping` requests on that same connection all reached the caller's
+2-second timeout:
+
+| Calls | Result | Minimum | Median | Maximum | Evidence |
+|---:|---|---:|---:|---:|---|
+| 10 | HTTP 504, `Newton did not answer on the persistent connection` | 2.001911 s | 2.002277 s | 2.002626 s | [`p5-timeouts.jsonl`](../runtime/evidence/p5-timeouts.jsonl), [`p5-timeout-summary.txt`](../runtime/evidence/p5-timeout-summary.txt) |
+
+There is therefore no successful per-call latency distribution to compare with
+the current poll-plus-POST path's 5.8-11.5 seconds. The persistent path's measured
+result is ten bounded timeouts despite an established socket, not a latency win.
+Forcing the host listener closed did wake the Newton endpoint and P5 reconnected
+in **10.152 seconds**, captured in
+[`p5-reconnect.txt`](../runtime/evidence/p5-reconnect.txt). That is in the same
+cost class as the existing repeated NIE acquisition.
+
+The connection remained `ESTAB` for the full **360-second** idle
+observation interval; see [`p5-idle.txt`](../runtime/evidence/p5-idle.txt). NIE did
+not report an idle-timeout error during that interval. The exact negative is thus
+not idle link teardown: NIE/Einstein keeps the TCP session, but a resident package
+blocked in this endpoint `Input()` shape does not receive unsolicited host data.
+The live package build has no undefined-symbol warning
+([`p5-build.log`](../runtime/evidence/p5-build.log)); the TCP session and ten call
+outcomes are device-derived rather than hardcoded fixtures.
+
+The production `HarnessToolsR6:jbfly` package and HTTP protocol are unchanged.
+The persistent package remains a spike because it cannot complete even `ping`;
+`front_app` and `get_note` consequently cannot pass end to end on this path.
