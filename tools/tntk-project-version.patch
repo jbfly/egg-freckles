@@ -1,0 +1,61 @@
+diff --git a/package.cpp b/package.cpp
+index 43f00e9..3533008 100644
+--- a/package.cpp
++++ b/package.cpp
+@@ -69,6 +69,7 @@ TPackage::TPackage (TPreferences* preferences):
+     fOutputFileName (NULL),
+     fPlatformFileName (NULL),
+     fCopyright(NULL),
++    fVersion (1),
+     fPackageData (NULL),
+     fPackageDataLen (0),
+     fParts (NULL),
+@@ -94,6 +95,7 @@ void TPackage::MReset ()
+     fPlatformFileName = NULL;
+     fPackageData = NULL;
+     fPackageDataLen = 0;
++    fVersion = 1;
+     while (fNumParts-- > 0) {
+         delete fParts[fNumParts];
+     }
+@@ -158,7 +160,7 @@ void TPackage::MBuildPackage ()
+     NcSetSlot(package, NSSYM(class), NSSYM(PackageHeader));
+     NcSetSlot(package, NSSYM(type), NewtMakeInt32('xxxx'));
+     NcSetSlot(package, NSSYM(pkg_version), NewtMakeInt32(flags & 0x04000000 ? 1 : 0));
+-    NcSetSlot(package, NSSYM(version), NewtMakeInt32(1));
++    NcSetSlot(package, NSSYM(version), NewtMakeInt32(fVersion));
+     NcSetSlot(package, NSSYM(copyright), NewtMakeString(fCopyright, false));
+     NcSetSlot(package, NSSYM(name), NewtMakeString(fPackageName, false));
+     NcSetSlot(package, NSSYM(flags), NewtMakeInt32(flags));
+@@ -172,7 +174,7 @@ void TPackage::MBuildPackage ()
+ 
+ void TPackage::MReadProjectFile ()
+ {
+-    newtRefVar project, p, copyright, parts;
++    newtRefVar project, p, copyright, version, parts;
+     char* c;
+     char* platformFileName = NULL;
+     int i, n;
+@@ -208,6 +210,10 @@ void TPackage::MReadProjectFile ()
+     } else {
+         fCopyright = strdup ("");
+     }
++    version = NcGetSlot (project, NewtMakeSymbol ("version"));
++    if (NewtRefIsInteger (version)) {
++        fVersion = NewtRefToInteger (version);
++    }
+     fPackageName = strdup (NewtRefToString (NcGetSlot (project, NewtMakeSymbol ("name"))));
+     fOutputFileName = (char*) malloc (strlen (fPreferences->fProjectFileName) + sizeof (kPackageNameSuffix));
+     strcpy (fOutputFileName, fPreferences->fProjectFileName);
+diff --git a/package.h b/package.h
+index 82a214f..e15e2b5 100644
+--- a/package.h
++++ b/package.h
+@@ -16,6 +16,7 @@ public:
+     char*                       fOutputFileName;
+     char*                       fPlatformFileName;
+     char*                       fCopyright;
++    int                         fVersion;
+     
+     TPart**                     fParts;
+     int                         fNumParts;

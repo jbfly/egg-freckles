@@ -156,12 +156,12 @@ version cost two rounds.
 - `~/newton-dev/tntk/package.h`
 - rebuilt to `~/newton-dev/prefix/bin/tntk`
 
-**That patch is the only copy and it is not under version control.** That tree
-also carried a pre-existing unrelated `tntk.cpp` modification and an untracked
-`build-cxx17/`, both preserved. If that directory is reset or the toolchain
-rebuilt from upstream, package builds regress to version 1.
-
-Preserving it is the single next action below.
+It is vendored here as **`tools/tntk-project-version.patch`** — apply with
+`git -C ~/newton-dev/tntk apply /path/to/tools/tntk-project-version.patch` and
+rebuild. The live copy in `~/newton-dev/tntk` remains uncommitted in that
+repo's working tree, alongside a pre-existing unrelated `tntk.cpp` modification
+and an untracked `build-cxx17/`, both preserved. Without this patch every
+stable package rebuild silently regresses to package version 1.
 
 ## What does not work / out of scope
 
@@ -194,7 +194,8 @@ false positive. Check `/proc/<pid>/cmdline` instead.
 
 ## Next
 
-**Preserve the `tntk` project-version patch** — vendor it into this repo as a
-patch file under `tools/`, or upstream it. It is currently one `git checkout`
-away from being lost, and without it every stable package rebuild silently
-regresses to version 1.
+**Upstream the `tntk` project-version patch**, or commit it in
+`~/newton-dev/tntk`. It is vendored here as `tools/tntk-project-version.patch`
+so it can no longer be lost, but the toolchain still builds from an
+uncommitted working tree — anyone rebuilding `tntk` from a clean checkout must
+apply the patch first or stable package rebuilds regress to version 1.
