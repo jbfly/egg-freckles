@@ -1,0 +1,45 @@
+kAppSymbol := '|NoteDeleteN15:jbfly|;
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 12, top: 100, right: 308, bottom: 260},
+    title: "Delete n15",
+    appSymbol: kAppSymbol,
+    Delete4: func()
+    begin
+        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+        local entry := nil;
+        local hit := nil;
+        local found := nil;
+        cursor:ResetToEnd();
+        entry := cursor:Prev();
+        while entry do
+        begin
+            if EntryUniqueID(entry) = 4 then
+            begin
+                hit := entry;
+                entry := nil;
+            end
+            else entry := cursor:Prev();
+        end;
+        if hit then
+        begin
+            EntryRemoveFromSoup(hit);
+            cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+            cursor:ResetToEnd();
+            entry := cursor:Prev();
+            while entry do
+            begin
+                if EntryUniqueID(entry) = 4 then found := true;
+                entry := cursor:Prev();
+            end;
+            if found then return "entry4=present";
+            return "entry4=absent";
+        end
+        else return "entry4=absent";
+    end,
+    stepChildren: [
+        {_proto: protoStaticText, viewBounds: {left: 20, top: 30, right: 260, bottom: 60}, text: "Delete junk entry 4", viewFont: ROM_fontSystem10},
+        {_proto: protoTextButton, viewBounds: {left: 95, top: 80, right: 205, bottom: 116}, text: "Delete 4", buttonClickScript: func() SetValue(self, 'text, self:Parent():Delete4())},
+    ],
+};
+{app: kAppSymbol, text: "Delete n15", theForm: mainView}

@@ -1,0 +1,31 @@
+N13 MAIN Notes gate — PASS (2026-07-26)
+
+Target: MAIN control http://127.0.0.1:18080
+Package: NoteExportN13:jbfly
+Sanctioned write: one on-device Ask button tap
+
+1. Answer note readback: PASS
+   runtime/evidence/n13-main-answer-readback.png
+   runtime/evidence/n13-main-answer-readback-ocr.txt
+   Visible status: id=5, data=array, text=Export test received.
+   The complete persisted text is visible in stock Notes and matches the wire answer verbatim:
+   Export test received. The Newton sees this note.
+
+2. Stock Notes visibility: PASS
+   runtime/evidence/n13-main-stock-answer.png
+   runtime/evidence/n13-main-stock-answer-ocr.txt
+   Stock Notes visibly renders: Export test received. The Newton sees this note.
+
+3. Junk entry 4 deletion: PASS
+   runtime/evidence/n15-main-entry4-absent.png
+   runtime/evidence/n15-main-entry4-absent-ocr.txt
+   Fresh diagnostic package NoteDeleteN15:jbfly removed ID 4 if present, re-read the complete soup, and changed its button to entry4=absent.
+   Build/source: runtime/evidence/n15-delete-build.log and runtime/evidence/n15-delete-main.newt.
+
+4. Real model: PASS
+   runtime/evidence/n13-main-wire.log
+   Prompt: harness export test the nthis note.ewton sees [trailing space]
+   Answer: Export test received. The Newton sees this note.
+   grep -c FAKE runtime/evidence/n13-main-wire.log => 0
+
+The write was not malformed, so no corrective write was attempted.

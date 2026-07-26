@@ -9,9 +9,12 @@ NewtonOS 2.1 stores stock Notes entries in the union soup named by
 and posting one bounded JSON document over the proven NIE/HTTP path worked.
 
 The exporter is `examples/note-export`. Its export path reads only the newest
-entry through the documented `timeStamp` index. Its separate Create button is
-the sanctioned write path proven below; creation is not connected to export,
-the network bridge, or the model/chat path.
+entry through the documented `timeStamp` index. N13's single Ask button sends
+that note to the model, creates one native note from the returned answer, and
+immediately reads the new entry back.
+
+Destructive operations require an explicit human confirmation gate on real
+hardware. Disposable emulators are exempt from that confirmation requirement.
 
 ## Actual schema finding
 
@@ -112,7 +115,7 @@ Evidence:
 `grep -R FAKE` over those proof files returned zero hits. The full clean test
 run is 24 passed, including model success/failure response coverage.
 
-## Create-only experiment (N2/N3): entry 4 is malformed
+## Create-only experiment (N2/N3): historical failed write
 
 The documented one-call creation path was:
 
@@ -149,8 +152,8 @@ has no `text` slot or raw text type to decode. Evidence is
 `runtime/evidence/n3d-shape-final.png` and
 `runtime/evidence/n3d-shape-final.txt`. Its modification time is unchanged from
 the N2 readback. Closing or switching apps did not flush answer text into it.
-**Verdict: entry 4 is genuinely malformed, not healthy or merely uncommitted.**
-It was left untouched.
+**Verdict: entry 4 was failed-write garbage, not a healthy or merely
+uncommitted note.** It was deleted during the successful N13 MAIN gate below.
 
 No decoder change can recover entry 4 because the persisted entry contains no
 text object. The exporter should still handle both valid representations seen
@@ -209,7 +212,7 @@ The source entry remained byte-for-byte unchanged. Before and after exports are
 `5df783f1700c2bd366d65408ad73299d51f9fd778f8989b18321d1b78bb97135`, ID `3`,
 and `EntryModTime` `64465065` (`runtime/evidence/n2-source-integrity.txt`).
 
-## N13 create-only loop: implementation complete, scratch gate blocked
+## N13 create-only loop: MAIN gate passed
 
 Fresh package identity `NoteExportN13:jbfly` makes the smallest join of the
 proven paths: its single Ask button uses the existing export/model request, and
@@ -218,26 +221,29 @@ the existing `NOTE <answer>` callback passes the answer to
 then reads back the newest same-minute/highest-ID entry and displays its ID,
 `data` shape, and decoded text. No second network path was added.
 
-The undefined-symbol-free build is `runtime/evidence/n13-build.log`. Scratch
-installation returned `queued`, and the N13 icon appeared in Extras, but the
-emulator's open-only `/newtonscript` request was again dropped without an
-execution result. A scratch-only container restart did not clear it, and UI
-selection failed to launch either N13 or the already-proven N12 package. The
-unchanged stock Notes screen is `runtime/evidence/n13-scratch-open.png`; control
-logs are `runtime/evidence/n13-scratch-emulator.log` and
-`runtime/evidence/n13-scratch-emulator-after-restart.log`; the full result is
-`runtime/evidence/n13-scratch-negative.txt`.
+On MAIN, one on-device Ask tap created entry ID `5`. The package immediately
+read it back as `data=array` with text matching the model answer, and stock
+Notes visibly rendered:
 
-No Ask action ran, no `POST /note` occurred, and no note was created. Therefore
-all four end-to-end gates are **not run**, not passed or faked. The mandatory
-scratch-before-main rule stopped the run: N13 was not installed or opened on
-main, entry 3 was unchanged, and malformed entry 4 was untouched. N13's package
-identity is now consumed on scratch and must not be reused.
+```text
+Export test received. The Newton sees this note.
+```
+
+The exact prompt/answer pair is in `runtime/evidence/n13-main-wire.log`; it has
+zero `FAKE` hits. The package readback is
+`runtime/evidence/n13-main-answer-readback.png`, the native Notes proof is
+`runtime/evidence/n13-main-stock-answer.png`, and the complete result is
+`runtime/evidence/n13-main-gate.txt`.
+
+Failed-write garbage entry ID `4` was deleted. Fresh diagnostic identity
+`NoteDeleteN15:jbfly` then re-read the complete soup and visibly reported
+`entry4=absent` in `runtime/evidence/n15-main-entry4-absent.png`; its source and
+undefined-symbol-free build are `runtime/evidence/n15-delete-main.newt` and
+`runtime/evidence/n15-delete-build.log`.
 
 ## Honest limits
 
-- The model-answer write-back is wired but not yet proven on device because the
-  scratch emulator did not execute the open-only queued evaluator request.
+- The model-answer write-back is proven on MAIN for one plain-text model answer.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
 - Validation still permits 8 KiB of note text, but the reused chat protocol
