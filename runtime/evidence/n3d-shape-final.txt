@@ -1,0 +1,3 @@
+Visible read-only diagnostic transcription from n3d-shape-final.png:
+id=4 mod=64465075 entry.class=paperroll
+data=nil

@@ -111,9 +111,9 @@ Evidence:
 `grep -R FAKE` over those proof files returned zero hits. The full clean test
 run is 24 passed, including model success/failure response coverage.
 
-## Create-only experiment (N2): stopped after malformed main entry
+## Create-only experiment (N2/N3): entry 4 is malformed
 
-The documented native creation path is:
+The documented one-call creation path was:
 
 ```newtonscript
 GetRoot().paperroll:MakeTextNote(answer, true);
@@ -124,16 +124,46 @@ successful `NOTE <answer>` response. On the scratch emulator it rendered
 `Scratch answer round trip.` in stock Notes and the package's read path showed
 the same text (`runtime/evidence/n2-scratch-roundtrip.png`).
 
-The one permitted main-emulator create did **not** persist correctly. Stock
-Notes rendered the model answer
+The same call did not create a healthy entry on the main emulator. Stock Notes
+rendered the model answer
 `Export test received. I see: "the nthis note.ewton sees"`
 (`runtime/evidence/n2-native-note.png`; exact model frames in
-`runtime/evidence/n2-create-wire.log`), but the newest soup entry, ID `4`,
-re-exported with empty `title` and `text`
-(`runtime/evidence/n2-answer-readback.json`). Because that is an empty or
-unfinished entry in the user's main Notes soup, the stop rule applied: no retry,
-replacement, deletion, refiling, or cleanup was attempted. The N2 code was
-reverted rather than shipping a writer that had failed its round trip.
+`runtime/evidence/n2-create-wire.log`), while the persisted newest soup entry,
+ID `4`, read back with empty `title` and `text`
+(`runtime/evidence/n2-answer-readback.json`).
+
+N3 tested whether this was merely an open, uncommitted editor view. Before the
+probe, Notes had already been closed or switched away from and Newton Chat was
+showing `Ready` (`runtime/evidence/n3-main-before.png` and its OCR sidecar).
+A read-only soup probe then reported:
+
+```text
+id=4 mod=64465075 entry.class=paperroll
+data=nil
+```
+
+The exact persisted `data` shape is therefore `nil`, not an array: it has no
+array length, contains no elements, has no element classes or slot names, and
+has no `text` slot or raw text type to decode. Evidence is
+`runtime/evidence/n3d-shape-final.png` and
+`runtime/evidence/n3d-shape-final.txt`. Its modification time is unchanged from
+the N2 readback. Closing or switching apps did not flush answer text into it.
+**Verdict: entry 4 is genuinely malformed, not healthy or merely uncommitted.**
+It was left untouched.
+
+No decoder change can recover entry 4 because the persisted entry contains no
+text object. The exporter should still handle both valid representations seen
+elsewhere: use a plain string directly when `IsString(item.text)` is true, and
+use `DecodeRichString(...).text` only for a rich string. It must also treat a
+plain-note entry with `data=nil` as malformed instead of reporting a legitimate
+empty note.
+
+`MakeTextNote(answer, true)` is **not usable as the main create path** despite
+its scratch success; the same call failed on the target store. The single next
+write-back action is to test the documented two-step replacement on the scratch
+emulator only: create the frame with `MakeTextNote(answer, nil)`, then add it
+with `paperroll:NewNote(note, nil, nil)`, and require a persisted round trip
+before any further main-emulator write.
 
 The source entry remained byte-for-byte unchanged. Before and after exports are
 `runtime/evidence/n2-source-before.json` and
