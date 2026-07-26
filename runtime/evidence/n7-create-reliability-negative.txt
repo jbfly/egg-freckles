@@ -1,0 +1,24 @@
+Scratch-only Notes two-step reliability experiment (control 127.0.0.1:18090)
+
+Call tested:
+  local p := GetRoot().paperroll;
+  local n := p:MakeTextNote(TEXT, nil);
+  p:NewNote(n, nil, nil);
+
+Healthy persisted examples observed through the read-only exporter:
+  id=5 mod=64465140 data=array text="N7 red 726"
+    screenshot: runtime/evidence/n7-final-read-1.png
+  id=6 mod=64465144 data=array text="N7 red 726"
+  id=10 mod=64465151 data=array text="N7 proof P1 726"
+
+The three-in-a-row reliability gate did not pass:
+- Same-minute timeStamp ties made the newest-entry exporter select an older entry even when Notes visibly listed the new text.
+- More importantly, later identical two-step calls returned control-plane "queued" but did not create a newer persisted entry. After waiting, switching away through Extras, and restarting scratch, runtime/evidence/n7-proof-q1-after-restart.png still read id=10 / "N7 proof P1 726" rather than "N7 proof Q1 726".
+- No call touched the main emulator. No direct soup insertion was attempted because the documented path produced healthy entries but failed the required reliability bar; adding a lower-level writer without a trustworthy execution/result signal would not prove reliability.
+
+Verdict: MakeTextNote(text, nil) + NewNote(note, nil, nil) can persist the correct schema, but is not proven reliable in this control/evaluator setup and must not be wired into the model path.
+
+Direct soup fallback:
+- After a 70-second gap with scratch restarted, one evaluator call built three frames with MakeTextNote(text, nil) and called GetUnionSoupAlways(ROM_paperRollSoupName):AddFlushedXmit(frame, nil) for each. The control call returned queued.
+- Scratch was restarted before readback. The fixed three-entry N9 reader still reported prior id=10 / mod=64465151 / data=array / N7 proof P1 726 as newest (runtime/evidence/n9-direct-three-readback.png); none of N9 direct A/B/C appeared.
+- Therefore direct soup insertion also failed the persistence gate in this control/evaluator setup.

@@ -66,15 +66,20 @@ mainView := {
         local entry := cursor:Prev();
         if entry = nil then return nil;
         local title := GetSysEntryData(entry, 'title);
-        if title then title := DecodeRichString(title, ROM_fontSystem10).text;
+        if IsString(title) then nil;
+        else if title then title := DecodeRichString(title, ROM_fontSystem10).text;
         else title := "";
         local data := GetSysEntryData(entry, 'data);
+        if data = nil then
+            return {id: EntryUniqueID(entry), modified: EntryModTime(entry),
+                    title: title, text: "", truncated: nil, malformed: true};
         local text := "";
-        if data then foreach item in data do
+        if IsArray(data) then foreach item in data do
             if item.viewStationery = 'para then
             begin
                 if StrLen(text) > 0 then text := text & "\n";
-                text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+                if IsString(item.text) then text := text & item.text;
+                else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
             end;
         local truncated := nil;
         if StrLen(text) > 8192 then
@@ -83,7 +88,7 @@ mainView := {
             truncated := true;
         end;
         return {id: EntryUniqueID(entry), modified: EntryModTime(entry),
-                title: title, text: text, truncated: truncated};
+                title: title, text: text, truncated: truncated, malformed: nil};
     end,
 
     Encode: func(note)
@@ -106,6 +111,7 @@ mainView := {
         if self.pending then return nil;
         local note := :ReadOne();
         if note = nil then return :Status("No stock note found");
+        if note.malformed then return :Status("Malformed stock note: data=nil");
         self.pending := :Encode(note);
         :Status("Sending one note...");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);

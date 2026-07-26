@@ -159,11 +159,39 @@ plain-note entry with `data=nil` as malformed instead of reporting a legitimate
 empty note.
 
 `MakeTextNote(answer, true)` is **not usable as the main create path** despite
-its scratch success; the same call failed on the target store. The single next
-write-back action is to test the documented two-step replacement on the scratch
-emulator only: create the frame with `MakeTextNote(answer, nil)`, then add it
-with `paperroll:NewNote(note, nil, nil)`, and require a persisted round trip
-before any further main-emulator write.
+its scratch success; the same call failed on the target store.
+
+## Scratch create follow-up (N4-N9): no reliable primitive yet
+
+The documented two-step was tested on the scratch emulator only:
+
+```newtonscript
+local notes := GetRoot().paperroll;
+local note := notes:MakeTextNote(answer, nil);
+notes:NewNote(note, nil, nil);
+```
+
+It can produce the correct persisted schema. The hardened read-only exporter
+captured healthy examples including `id=5 mod=64465140 data=array` with text
+`N7 red 726`, and `id=10 mod=64465151 data=array` with text
+`N7 proof P1 726`. However, it did not meet the three-consecutive-create gate.
+Later byte-equivalent calls returned `queued` from the emulator control plane
+but created no newer soup entry, including after switching away through stock
+Extras and restarting scratch. Same-minute `timeStamp` ties also make the
+exporter's intentionally simple newest-entry query select an older tied entry.
+
+The fallback direct-soup path also failed. One scratch-only evaluator call made
+three note frames with `MakeTextNote(text, nil)` and passed each to
+`GetUnionSoupAlways(ROM_paperRollSoupName):AddFlushedXmit(frame, nil)`. After a
+scratch restart, the three-entry diagnostic still found the prior `id=10` note
+as newest; none of the three direct-add texts appeared.
+
+Evidence and exact calls are summarized in
+`runtime/evidence/n7-create-reliability-negative.txt`; build/call/readback
+artifacts use the short N4-N9 tags. **Verdict: both candidate paths can be
+accepted by the control evaluator without proving execution, and neither is
+reliable enough to wire into the model path.** No write was sent to the main
+emulator.
 
 The source entry remained byte-for-byte unchanged. Before and after exports are
 `runtime/evidence/n2-source-before.json` and
@@ -173,8 +201,9 @@ and `EntryModTime` `64465065` (`runtime/evidence/n2-source-integrity.txt`).
 
 ## Honest limits
 
-- The shipped bridge remains read-only: the attempted create path was reverted
-  after the malformed main entry, and native answer write-back is not proven.
+- The shipped bridge remains read-only: both scratch create candidates were
+  reverted after failing the three-consecutive-create gate, and native answer
+  write-back is not proven.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
 - Validation still permits 8 KiB of note text, but the reused chat protocol
