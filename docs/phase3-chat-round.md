@@ -16,6 +16,20 @@ device runs stable `|HarnessClient:jbfly|` package version 8, app version 1.9.
 The one fragile thing left is outside this repo: a local patch to `tntk`
 (see [Risk](#risk-the-tntk-patch-is-uncommitted-and-outside-this-repo)).
 
+## Real backend proof — 2026-07-26
+
+The stable `|HarnessClient:jbfly|` package completed a real Codex turn through
+the framed protocol. `runtime/evidence/r2-wire.log` records `MSG 2 plus 2`,
+`STAT THINKING`, `TEXT 4`, and `PROMPT`, with every frame ACKed. The model took
+about six seconds, so the existing client needed no timeout or keepalive
+change. `runtime/evidence/r2-screen.png` shows `You: 2 plus 2` and `Agent: 4`
+on the Newton; `r2-screen.txt` is the OCR sidecar.
+
+No production code changed. The existing single-frame answer fit, and existing
+multi-frame handling was not changed. `r2-baseline.txt` proves the emulator log
+capture started at zero bytes with `podman logs --since 0s -f`; the stopped
+capture is `r2-emulator.log`.
+
 ## What works
 
 | # | Item | Commit | Evidence |
@@ -182,11 +196,12 @@ stable package rebuild silently regresses to package version 1.
 Everything queued is done and pushed. Verified directly, not taken on a
 worker's word:
 
-- `8abbc8e` clean, matching `origin/master`
 - 19/19 tests passing
 - emulator healthy, running stable `|HarnessClient:jbfly|` pkg version 8 /
   app 1.9, wire-confirmed via `:00 HELLO NEWTON1 1.9*D8`
-- no `podman logs` followers; ports 6801/6802 clear
+- real-backend `server` container running on port 6801 with
+  `NEWTON_FAKE_BACKEND=0`; port 6802 clear
+- no `podman logs` followers
 - `runtime/raw_pkg_server.py` the sole listener on `10.42.0.1:18081`
 
 Note: `pgrep -af "podman logs"` matches its own command line and will report a
