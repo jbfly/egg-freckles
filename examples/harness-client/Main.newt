@@ -11,13 +11,15 @@ mainView := {
     endpointClass: {_proto: protoBasicEndpoint},
     endpoint: nil,
     linkID: nil,
-    resultView: nil,
+    promptView: nil,
     responseText: "",
     responseDone: nil,
     lastRx: nil,
+    txSeq: 1,
+    ready: nil,
 
     SetStatus: func(message)
-        SetValue(self.resultView, 'text, message),
+        if self.promptView then SetValue(self.promptView, 'text, message),
 
     SeqText: func(seq)
         if seq < 10 then "0" & seq else "" & seq,
@@ -33,7 +35,7 @@ mainView := {
     Sum8: func(body)
     begin
         local sum := 0;
-        for index := 0 to Length(body) - 1 do
+        for index := 0 to StrLen(body) - 1 do
             sum := BAND(sum + Ord(body[index]), 255);
         return sum;
     end,
@@ -43,7 +45,7 @@ mainView := {
         local digits := "0123456789ABCDEF";
         local sum := 0;
         local hex := nil;
-        for index := 0 to Length(body) - 1 do
+        for index := 0 to StrLen(body) - 1 do
             sum := BAND(sum + Ord(body[index]), 255);
         hex := SubStr(digits, Floor(sum / 16), 1)
             & SubStr(digits, BAND(sum, 15), 1);
@@ -68,9 +70,8 @@ mainView := {
 
     Released: func(id, state, error) nil,
 
-    CheckStatus: func(resultView)
+    CheckStatus: func()
     begin
-        self.resultView := resultView;
         :Stop();
         :SetStatus("Opening network...");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
@@ -161,6 +162,8 @@ mainView := {
     begin
         self.responseText := "";
         self.responseDone := nil;
+        self.txSeq := 1;
+        self.ready := nil;
         self.endpoint:SetInputSpec({
             _parent: self,
             form: 'string,
@@ -183,13 +186,51 @@ mainView := {
 
     HandleLine: func(line)
     begin
-        if BeginsWith(line, "ACK 00") then return nil;
-        if BeginsWith(line, ":00 STAT READY*") then
+        if BeginsWith(line, "ACK ") then return nil;
+        if (Length(line) < 9) or not BeginsWith(line, ":") then return nil;
+        local star := StrPos(line, "*", 0);
+        if star = nil then return nil;
+        local seqText := SubStr(line, 1, 2);
+        self.endpoint:output("ACK " & seqText & "\r\n", nil,
+            {async: nil, reqTimeout: 10000});
+        if BeginsWith(line, ":" & seqText & " STAT READY*") then
         begin
-            self.endpoint:output("ACK 00\r\n", nil,
-                {async: nil, reqTimeout: 10000});
+            self.ready := true;
             :SetStatus("Ready");
+        end else if BeginsWith(line, ":" & seqText & " STAT THINKING*") then
+            :SetStatus("Thinking...")
+        else if BeginsWith(line, ":" & seqText & " TEXT ") then
+        begin
+            self.responseText := self.responseText & SubStr(line, 9, star - 9);
+            :SetStatus(self.responseText);
+        end else if BeginsWith(line, ":" & seqText & " PROMPT*") then
+        begin
+            self.ready := true;
+            :SetStatus(self.responseText);
         end;
+        return nil;
+    end,
+
+    SendPrompt: func()
+    begin
+        if not self.ready then return :SetStatus("Not ready");
+        self.promptView := GetView('viewFrontKey);
+        if self.promptView = nil then return nil;
+        local prompt := self.promptView:GetRichString();
+        if (prompt = nil) or (StrLen(prompt) = 0) then
+            return :SetStatus("Type a prompt first");
+        local ascii := " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        for index := 0 to StrLen(prompt) - 1 do
+            if StrPos(ascii, SubStr(prompt, index, 1), 0) = nil then
+                return :SetStatus("ASCII only");
+        local body := :SeqText(self.txSeq) & " MSG " & prompt;
+        local encoded := :EncodeBody(body);
+        if Length(encoded) > 240 then return :SetStatus("Prompt too long");
+        self.ready := nil;
+        self.responseText := "";
+        :SetStatus("Sending...");
+        self.endpoint:output(encoded, nil, {async: nil, reqTimeout: 10000});
+        self.txSeq := (self.txSeq + 1) mod 100;
         return nil;
     end,
 
@@ -256,16 +297,32 @@ mainView := {
     stepChildren: [
         {
             _proto: protoStaticText,
-            viewBounds: {left: 12, top: 10, right: 276, bottom: 48},
+            viewBounds: {left: 12, top: 8, right: 276, bottom: 28},
             text: kAppTitle,
             viewFont: ROM_fontSystem12Bold,
         },
         {
+            _proto: protoInputLine,
+            viewBounds: {left: 12, top: 32, right: 208, bottom: 54},
+            text: "",
+        },
+        {
             _proto: protoTextButton,
-            viewBounds: {left: 20, top: 58, right: 268, bottom: 142},
-            text: "Check harness status",
-            viewFont: ROM_fontSystem12Bold,
-            buttonClickScript: func() self:Parent():CheckStatus(self),
+            viewBounds: {left: 214, top: 30, right: 276, bottom: 58},
+            text: "Send",
+            buttonClickScript: func() self:Parent():SendPrompt(),
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 12, top: 64, right: 276, bottom: 160},
+            text: "Tap Connect",
+            viewFont: ROM_fontSystem10,
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 214, top: 132, right: 276, bottom: 160},
+            text: "Connect",
+            buttonClickScript: func() self:Parent():CheckStatus(),
         },
     ],
 };
