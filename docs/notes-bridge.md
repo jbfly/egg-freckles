@@ -111,9 +111,40 @@ Evidence:
 `grep -R FAKE` over those proof files returned zero hits. The full clean test
 run is 24 passed, including model success/failure response coverage.
 
+## Create-only experiment (N2): stopped after malformed main entry
+
+The documented native creation path is:
+
+```newtonscript
+GetRoot().paperroll:MakeTextNote(answer, true);
+```
+
+A throwaway `NoteExportN2:jbfly` build called that method only after receiving a
+successful `NOTE <answer>` response. On the scratch emulator it rendered
+`Scratch answer round trip.` in stock Notes and the package's read path showed
+the same text (`runtime/evidence/n2-scratch-roundtrip.png`).
+
+The one permitted main-emulator create did **not** persist correctly. Stock
+Notes rendered the model answer
+`Export test received. I see: "the nthis note.ewton sees"`
+(`runtime/evidence/n2-native-note.png`; exact model frames in
+`runtime/evidence/n2-create-wire.log`), but the newest soup entry, ID `4`,
+re-exported with empty `title` and `text`
+(`runtime/evidence/n2-answer-readback.json`). Because that is an empty or
+unfinished entry in the user's main Notes soup, the stop rule applied: no retry,
+replacement, deletion, refiling, or cleanup was attempted. The N2 code was
+reverted rather than shipping a writer that had failed its round trip.
+
+The source entry remained byte-for-byte unchanged. Before and after exports are
+`runtime/evidence/n2-source-before.json` and
+`runtime/evidence/n2-source-after.json`; both have SHA-256
+`5df783f1700c2bd366d65408ad73299d51f9fd778f8989b18321d1b78bb97135`, ID `3`,
+and `EntryModTime` `64465065` (`runtime/evidence/n2-source-integrity.txt`).
+
 ## Honest limits
 
-- This remains read-only: it never writes an answer into Notes.
+- The shipped bridge remains read-only: the attempted create path was reverted
+  after the malformed main entry, and native answer write-back is not proven.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
 - Validation still permits 8 KiB of note text, but the reused chat protocol

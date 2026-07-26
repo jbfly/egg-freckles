@@ -1,0 +1,11 @@
+NOTE WIRE C> MSG '/new'
+NOTE WIRE S> STAT READY
+NOTE WIRE S> TEXT New session.
+NOTE WIRE S> PROMPT
+NOTE WIRE C> MSG 'harness export test the nthis note.ewton sees '
+NOTE WIRE S> STAT THINKING
+NOTE WIRE S> TEXT Export test received. I see:
+NOTE WIRE S> TEXT
+NOTE WIRE S> TEXT "the nthis note.ewton sees"
+NOTE WIRE S> PROMPT
+10.42.0.1 - - [26/Jul/2026 11:26:07] "POST /note HTTP/1.0" 200 -
