@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsP5:jbfly|;
-kAppTitle := "Harness Tools P5";
+kAppSymbol := '|HarnessToolsL3:jbfly|;
+kAppTitle := "Harness Tools L3";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -45,30 +45,32 @@ mainView := {
             self.endpoint:connect([{
                 label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
                 form: 'template,
-                data: {arglist: [10, 42, 0, 1, 18082],
+                data: {arglist: [10, 42, 0, 1, 6801],
                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
             }], {async: nil, reqTimeout: 45000});
             self.socketReady := true;
-            :Listen();
+            :Poll();
         end
         onexception |evt.ex| do :Retry();
         return nil;
     end,
 
-    Listen: func()
+    Poll: func()
     begin
         if not self.socketReady then return nil;
-        self.endpoint:SetInputSpec({
-            _parent: self,
-            form: 'string,
-            termination: {endSequence: "\r\n"},
-            discardAfter: 512,
-            InputScript: func(endpoint, data, terminator, options)
-                if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data),
-            CompletionScript: func(endpoint, options, result)
-                AddDelayedCall(func(view) view:Reply(), [self._parent], 1),
-        });
-        try self.endpoint:Input() onexception |evt.ex.comm| do :Retry();
+        try
+        begin
+            self.endpoint:Output("POLL\r\n", nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:SetInputSpec({
+                _parent: self,
+                form: 'string,
+                termination: {endSequence: "\r\n"},
+                discardAfter: 512,
+                InputScript: func(endpoint, data, terminator, options)
+                    if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data),
+            });
+        end
+        onexception |evt.ex.comm| do :Retry();
         return nil;
     end,
 
@@ -83,7 +85,7 @@ mainView := {
             self.outcomeID := nil;
             self.outcomeStatus := nil;
             self.outcomeValue := nil;
-            AddDelayedCall(func(view) view:Listen(), [self], 1);
+            :Poll();
         end
         onexception |evt.ex.comm| do :Retry();
         return nil;
@@ -129,6 +131,7 @@ mainView := {
             else if HasSlot(exception, 'name) then self.outcomeValue := "" & exception.name;
             else self.outcomeValue := "Newton error";
         end;
+        :Reply();
         return nil;
     end,
 

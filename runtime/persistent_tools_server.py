@@ -36,6 +36,8 @@ class PersistentTools:
         self.connected_at: float | None = None
         self.next_id = 1
         self.call_lock = threading.Lock()
+        self.pending: tuple[str, str] | None = None
+        self.response: tuple[str, str, str] | None = None
 
     def attach(self, connection: socket.socket) -> None:
         connection.settimeout(None)
@@ -44,13 +46,16 @@ class PersistentTools:
                 self.connection.close()
             self.connection = connection
             self.connected_at = time.monotonic()
+            self.response = None
             self.condition.notify_all()
+        threading.Thread(target=self._serve, args=(connection,), daemon=True).start()
 
     def detach(self, connection: socket.socket) -> None:
         with self.condition:
             if self.connection is connection:
                 self.connection = None
                 self.connected_at = None
+                self.pending = None
                 self.condition.notify_all()
         connection.close()
 
@@ -60,6 +65,29 @@ class PersistentTools:
         if not line or len(line) > 4096 or not line.endswith(b"\n"):
             raise ConnectionError("persistent Newton connection closed mid-response")
         return line.rstrip(b"\r\n").decode("utf-8")
+
+    def _serve(self, connection: socket.socket) -> None:
+        stream = connection.makefile("rb")
+        try:
+            while self._line(stream) == "POLL":
+                with self.condition:
+                    self.condition.wait_for(
+                        lambda: self.connection is not connection or self.pending is not None
+                    )
+                    if self.connection is not connection:
+                        return
+                    request_id, command = self.pending
+                connection.sendall(command.encode("ascii"))
+                returned_id, status, value = (self._line(stream) for _ in range(3))
+                with self.condition:
+                    self.pending = None
+                    self.response = (returned_id, status, value)
+                    self.condition.notify_all()
+        except (ConnectionError, OSError, UnicodeError):
+            pass
+        finally:
+            stream.close()
+            self.detach(connection)
 
     def submit(self, op: str, args: dict[str, object], timeout: float) -> dict[str, object]:
         argument = ""
@@ -74,24 +102,22 @@ class PersistentTools:
                 if not self.condition.wait_for(lambda: self.connection is not None,
                                                max(0, deadline - time.monotonic())):
                     raise TimeoutError("no persistent Newton connection")
-                connection = self.connection
                 request_id = str(self.next_id)
                 self.next_id += 1
-            assert connection is not None
-            started = time.monotonic()
-            try:
-                connection.settimeout(max(0.001, deadline - time.monotonic()))
-                connection.sendall(f"TOOLS {request_id} {op} {argument}\r\n".encode("ascii"))
-                stream = connection.makefile("rb")
-                returned_id, status, value = (self._line(stream) for _ in range(3))
-                stream.close()
-            except socket.timeout as exc:
-                connection.settimeout(None)
-                raise TimeoutError("Newton did not answer on the persistent connection") from exc
-            except (ConnectionError, OSError, UnicodeError) as exc:
-                self.detach(connection)
-                raise ConnectionError(str(exc)) from exc
-            connection.settimeout(None)
+                self.response = None
+                self.pending = (request_id, f"TOOLS {request_id} {op} {argument}\r\n")
+                started = time.monotonic()
+                self.condition.notify_all()
+                if not self.condition.wait_for(
+                    lambda: self.connection is None or self.response is not None,
+                    max(0, deadline - time.monotonic()),
+                ):
+                    if self.pending and self.pending[0] == request_id:
+                        self.pending = None
+                    raise TimeoutError("Newton did not answer the long poll")
+                if self.response is None:
+                    raise ConnectionError("persistent Newton connection closed")
+                returned_id, status, value = self.response
             if returned_id != request_id or status not in {"result", "error", "unknown_op"}:
                 raise ConnectionError("invalid persistent Newton response")
             key = "result" if status == "result" else "error"

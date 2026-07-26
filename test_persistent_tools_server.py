@@ -14,6 +14,7 @@ class PersistentToolsTest(unittest.TestCase):
         def device() -> None:
             stream = newton.makefile("rb")
             for expected_id in ("1", "2"):
+                newton.sendall(b"POLL\r\n")
                 request = stream.readline().decode().split()
                 self.assertEqual(request[:3], ["TOOLS", expected_id, "ping"])
                 newton.sendall(f"{expected_id}\r\nresult\r\npong\r\n".encode())
@@ -31,6 +32,7 @@ class PersistentToolsTest(unittest.TestCase):
         host, newton = socket.socketpair()
         tools = PersistentTools()
         tools.attach(host)
+        newton.sendall(b"POLL\r\n")
         with self.assertRaises(TimeoutError):
             tools.submit("ping", {}, 0.01)
         self.assertIs(tools.connection, host)

@@ -5,7 +5,7 @@
             files: [],
         }
     ],
-    name: "HarnessToolsP5:jbfly",
+    name: "HarnessToolsL3:jbfly",
     version: 1,
     platform: "Newton 2.1"
 }

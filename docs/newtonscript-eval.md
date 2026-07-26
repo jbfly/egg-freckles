@@ -281,3 +281,52 @@ outcomes are device-derived rather than hardcoded fixtures.
 The production `HarnessToolsR6:jbfly` package and HTTP protocol are unchanged.
 The persistent package remains a spike because it cannot complete even `ping`;
 `front_app` and `get_note` consequently cannot pass end to end on this path.
+
+## Seventh investigation: Newton-initiated long-poll
+
+The Newton-initiated long-poll hypothesis **passed**, but only with asynchronous
+endpoint input. A fresh `HarnessToolsL3:jbfly` package grabs one NIE link,
+connects one endpoint to the temporarily freed allowed port 6801, writes
+`POLL\r\n`, and arms `SetInputSpec` without calling synchronous `Input()`. The
+host holds that poll until a named operation arrives, returns `TOOLS ...` as the
+response, and receives the operation result on the same socket. The input script
+immediately sends the result and installs the next poll before returning.
+
+The synchronous control, `HarnessToolsL1:jbfly`, sent the six-byte poll on an
+established connection but its following `Input()` immediately raised a
+Communications `Stopped` alert, sent FIN, and reconnected. Its ten calls produced
+zero results: five HTTP 503 closed-connection responses and five two-second HTTP
+504 timeouts ([`l1-calls.jsonl`](../runtime/evidence/l1-calls.jsonl)). A first
+asynchronous attempt, L2, proved solicited delivery with one **61.668 ms** ping,
+but delayed re-arming outside `InputScript` caused connection churn and only
+five of ten calls completed. Re-arming from inside the input callback, as the
+Newton endpoint guide permits, removed that churn.
+
+L3 completed all ten sequential pings over one unchanged TCP connection (source
+port 33238). Host-observed end-to-end latency was:
+
+| Calls | Result | Minimum | Median | Maximum | Evidence |
+|---:|---|---:|---:|---:|---|
+| 10 | 10 HTTP 200, `pong` | 0.124964 s | 0.809219 s | 0.810243 s | [`l3-pings.jsonl`](../runtime/evidence/l3-pings.jsonl), [`l3-ping-summary.txt`](../runtime/evidence/l3-ping-summary.txt), [`l3-server.log`](../runtime/evidence/l3-server.log) |
+
+This is a direct improvement over the current poll-plus-POST path's measured
+5.8-11.5 seconds. The first already-armed exchange completed in 124 ms; steady
+sequential calls clustered at about 809 ms because the next HTTP submission
+waited for Newton to send and arm its next poll.
+
+The asynchronous input does **not** block the UI event loop. While L3 had an
+outstanding poll, the device accepted `GetRoot().paperroll:Open()`. The next
+`front_app` call returned the real frontmost application, `Notepad (paperroll)`,
+in 34 ms, and `get_note` for device entry ID 5 returned the real stored text,
+`Export test received. I see: "the nthis note.ewton sees"`, in 820 ms
+([`l3-front-app.txt`](../runtime/evidence/l3-front-app.txt),
+[`l3-get-note.txt`](../runtime/evidence/l3-get-note.txt),
+[`l3-result-summary.txt`](../runtime/evidence/l3-result-summary.txt)). A persistent
+PCMCIA information slip obscured the Notes screen capture, so these device
+read-backs, rather than OCR of that overlay, are the acceptance evidence.
+
+The persistent direction is therefore **open**. Newton cannot synchronously
+block in `Input()`, and it cannot receive bare unsolicited host data, but an
+asynchronous Newton-originated poll can reuse one endpoint across calls with
+sub-second steady latency. The L3 package and `runtime/persistent_tools_server.py`
+remain a measured spike; the production R6 poll-plus-POST path is unchanged.
