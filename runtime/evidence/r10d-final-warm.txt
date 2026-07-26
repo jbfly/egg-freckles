@@ -1,0 +1,8 @@
+  1    0.123s  result      pong
+  2    0.813s  result      pong
+  3    0.814s  result      pong
+  4    0.814s  result      pong
+  5    0.813s  result      pong
+
+5/5 succeeded   (emulator poll+POST baseline: 5.8-11.5 s)
+min 0.123s   median 0.813s   max 0.814s

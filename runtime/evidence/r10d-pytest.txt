@@ -1,0 +1,11 @@
+before
+ESTAB      0      0                                     10.42.0.1:36340                                10.42.0.1:18081 users:(("passt.avx2",pid=3431093,fd=21))
+ESTAB      0      0                                     10.42.0.1:18081                                10.42.0.1:36340 users:(("python3",pid=297376,fd=4))
+tests_start=2026-07-26T19:31:34,232428893+01:00
+.................Newton tools disconnected
+.............                                           [100%]
+30 passed in 10.94s
+tests_end=2026-07-26T19:31:45,377127259+01:00
+after
+ESTAB      0      0                                     10.42.0.1:36340                                10.42.0.1:18081 users:(("passt.avx2",pid=3431093,fd=21))
+ESTAB      0      0                                     10.42.0.1:18081                                10.42.0.1:36340 users:(("python3",pid=297376,fd=4))

@@ -1,0 +1,4 @@
+  1    0.045s  result      Notepad (paperroll)
+
+1/1 succeeded   (emulator poll+POST baseline: 5.8-11.5 s)
+min 0.045s   median 0.045s   max 0.045s

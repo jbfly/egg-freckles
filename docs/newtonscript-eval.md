@@ -362,3 +362,35 @@ Device read-back remained real: after opening Notes, `front_app` returned
 [`r9-forced-reconnect-after.txt`](../runtime/evidence/r9-forced-reconnect-after.txt)).
 `runtime/raw_pkg_server.py` remained the sole 18081 listener and chat remained
 available on 6801.
+
+## Ninth investigation: zombie package teardown and watchdog floor
+
+R10A's stable ESTAB socket was not a live R10A transport. Restarting the main
+emulator removed source port 39886, and no package reconnected during the next
+45 seconds. A clean, fresh R10B install did connect and initially returned 5/5
+pings in 0.040-0.814 s, proving that the 2-second delayed call could run and that
+`InputScript` still re-armed. It was not stable, however: the host heartbeat is
+sent every 3 seconds (`pkg_publisher.py:70`), and the faster watchdog eventually
+forced false reconnects, a communications slip, and a 9.015-second warm call.
+The watchdog period must therefore stay above the 3-second heartbeat cadence;
+R10D uses 4 seconds.
+
+The persistent zombie had a separate lifecycle cause. Closing and removing
+R10B left its source port 42920 alive beside fresh R10C port 47368 because the
+app never called `Stop()` when its view closed. R10D adds the missing
+`ViewQuitScript`: closing it removed port 41322 within 3 seconds, and reopening
+created only port 36340. The final package registration frame is present and the
+`tntk` build contains no undefined-symbol diagnostic
+([`r10d-build.log`](../runtime/evidence/r10d-build.log)).
+
+Two separate 92-second idle trials stayed on source port 36340. Their first
+post-idle calls were 0.123 s and 0.124 s; all ten post-idle calls succeeded, with
+maxima of 0.815 s and 0.814 s
+([trial 1](../runtime/evidence/r10d-idle-trial1.txt),
+[trial 2](../runtime/evidence/r10d-idle-trial2.txt)). Final device-executed
+read-back returned `Notepad (paperroll)` in 0.045 s and note entry 5's stored
+text in 0.766 s ([front app](../runtime/evidence/r10d-front-app.txt),
+[note](../runtime/evidence/r10d-get-note.txt)). The full test suite passed 30/30
+without changing the live device connection; its `Newton tools disconnected`
+line comes from the loopback ephemeral-port heartbeat test, not port 18081
+([`r10d-pytest.txt`](../runtime/evidence/r10d-pytest.txt)).

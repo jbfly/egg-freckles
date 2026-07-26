@@ -1,0 +1,33 @@
+trial=2
+2026-07-26T19:29:37,222143143+01:00
+pre_idle_bench:
+  1    0.016s  result      pong
+  2    0.814s  result      pong
+  3    0.813s  result      pong
+  4    0.814s  result      pong
+  5    0.814s  result      pong
+
+5/5 succeeded   (emulator poll+POST baseline: 5.8-11.5 s)
+min 0.016s   median 0.814s   max 0.814s
+port_before_idle:
+ESTAB      0      0                                     10.42.0.1:36340                                10.42.0.1:18081 users:(("passt.avx2",pid=3431093,fd=21))
+ESTAB      0      0                                     10.42.0.1:18081                                10.42.0.1:36340 users:(("python3",pid=297376,fd=4))
+idle_start:
+2026-07-26T19:29:40,576059972+01:00
+idle_end:
+2026-07-26T19:31:12,577253038+01:00
+port_before_post_idle_bench:
+ESTAB      0      0                                     10.42.0.1:36340                                10.42.0.1:18081 users:(("passt.avx2",pid=3431093,fd=21))
+ESTAB      0      0                                     10.42.0.1:18081                                10.42.0.1:36340 users:(("python3",pid=297376,fd=4))
+post_idle_bench:
+  1    0.124s  result      pong
+  2    0.814s  result      pong
+  3    0.814s  result      pong
+  4    0.813s  result      pong
+  5    0.813s  result      pong
+
+5/5 succeeded   (emulator poll+POST baseline: 5.8-11.5 s)
+min 0.124s   median 0.813s   max 0.814s
+port_after:
+ESTAB      0      0                                     10.42.0.1:36340                                10.42.0.1:18081 users:(("passt.avx2",pid=3431093,fd=21))
+ESTAB      0      0                                     10.42.0.1:18081                                10.42.0.1:36340 users:(("python3",pid=297376,fd=4))

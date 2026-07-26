@@ -1,0 +1,4 @@
+  1    0.766s  result      Export test received. I see: "the nthis note.ewton sees"
+
+1/1 succeeded   (emulator poll+POST baseline: 5.8-11.5 s)
+min 0.766s   median 0.766s   max 0.766s
