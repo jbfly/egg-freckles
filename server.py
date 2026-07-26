@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import tempfile
 import textwrap
@@ -27,6 +28,10 @@ STATE_DIR = Path(os.environ.get("NEWTON_STATE_DIR", BASE_DIR / "state"))
 PORT = int(os.environ.get("NEWTON_PORT", "6801"))
 CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "120"))
 FAKE = os.environ.get("NEWTON_FAKE_BACKEND") == "1"
+NATIVE_HANDSHAKE = b"~NEWTONCLI 1"
+MAX_FRAME = 240  # ponytail: one-frame prompts; add MSG parts only when needed
+FRAME_TIMEOUT = 1.0
+FRAME_RETRIES = 3
 
 GREETING = "newton-harness ready. /help for commands."
 HELP_TEXT = (
@@ -78,6 +83,63 @@ def wrap_text(text: str, width: int = WIDTH) -> list[str]:
 
 def wire_text(text: str) -> bytes:
     return "".join(line + "\r\n" for line in wrap_text(text)).encode("ascii")
+
+
+class FrameError(ValueError):
+    def __init__(self, reason: str, seq: int | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.seq = seq
+
+
+def frame_line(seq: int, op: str, payload: str = "") -> bytes:
+    body = f"{seq:02d} {op}" + (f" {payload}" if payload else "")
+    try:
+        encoded = f":{body}*{sum(body.encode('ascii')) & 0xff:02X}\r\n".encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise FrameError("ASCII") from exc
+    if not 0 <= seq <= 99 or not re.fullmatch(r"[A-Z]+", op):
+        raise FrameError("PARSE")
+    if len(encoded) > MAX_FRAME:
+        raise FrameError("LENGTH", seq)
+    return encoded
+
+
+def parse_frame(raw: bytes) -> tuple[int, str, str]:
+    seq = int(raw[1:3]) if len(raw) >= 3 and raw[1:3].isdigit() else None
+    if len(raw) > MAX_FRAME:
+        raise FrameError("LENGTH", seq)
+    if raw.endswith(b"\r\n"):
+        raw = raw[:-2]
+    elif raw.endswith(b"\n"):
+        raw = raw[:-1]
+    else:
+        raise FrameError("PARSE", seq)
+    try:
+        text = raw.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise FrameError("ASCII", seq) from exc
+    match = re.fullmatch(r":(\d{2}) ([A-Z]+)(?: ([ -~]*))?\*([0-9A-F]{2})", text)
+    if not match:
+        raise FrameError("PARSE", seq)
+    body = text[1:text.rfind("*")]
+    seq = int(match.group(1))
+    # SUM8 is byte-oriented so Newton and host compute the same checksum.
+    if int(match.group(4), 16) != sum(body.encode("ascii")) & 0xff:
+        raise FrameError("CHECKSUM", seq)
+    return seq, match.group(2), match.group(3) or ""
+
+
+async def read_wire_line(reader: asyncio.StreamReader) -> bytes:
+    data = bytearray()
+    while len(data) <= MAX_FRAME:
+        byte = await reader.read(1)
+        if not byte:
+            return bytes(data)
+        data += byte
+        if byte == b"\n":
+            return bytes(data)
+    return bytes(data)
 
 
 class LineEditor:
@@ -248,17 +310,150 @@ class FakeBackend:
 TURN_LOCK = asyncio.Lock()  # one agent turn at a time; session file is shared
 
 
+async def send_frame(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                     state: dict, op: str, payload: str = "") -> None:
+    seq = state["tx_seq"]
+    encoded = frame_line(seq, op, payload)
+    for _ in range(FRAME_RETRIES + 1):
+        writer.write(encoded)
+        await writer.drain()
+        while True:
+            try:
+                raw = await asyncio.wait_for(read_wire_line(reader), FRAME_TIMEOUT)
+            except asyncio.TimeoutError:
+                break
+            if not raw:
+                raise ConnectionError("native client disconnected")
+            text = raw.rstrip(b"\r\n")
+            if text == f"ACK {seq:02d}".encode("ascii"):
+                state["tx_seq"] = (seq + 1) % 100
+                return
+            nak = f"NAK {seq:02d}".encode("ascii")
+            if text == nak or text.startswith(nak + b" "):
+                break
+            try:
+                rx_seq, _, _ = parse_frame(raw)
+            except FrameError as exc:
+                if exc.seq is not None:
+                    writer.write(f"NAK {exc.seq:02d} {exc.reason}\r\n".encode("ascii"))
+                    await writer.drain()
+                continue
+            if rx_seq == state["last_rx"]:
+                writer.write(f"ACK {rx_seq:02d}\r\n".encode("ascii"))
+                await writer.drain()
+            else:
+                writer.write(f"NAK {rx_seq:02d} BUSY\r\n".encode("ascii"))
+                await writer.drain()
+    raise ConnectionError(f"no ACK for {op}")
+
+
+def text_parts(text: str, seq: int) -> list[str]:
+    clean = ascii_clean(text).replace("\r", "\n")
+    limit = MAX_FRAME - len(frame_line(seq, "TEXT")) - 1
+    # ponytail: TEXT is flat ASCII chunks; richer transcript structure is deferred.
+    parts = []
+    for line in clean.split("\n"):
+        parts.extend([line[i:i + limit] for i in range(0, len(line), limit)] or [""])
+    return parts
+
+
+async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                      session: Session, backend) -> None:
+    state = {"last_rx": None, "tx_seq": 0, "hello": False}
+    while True:
+        raw = await read_wire_line(reader)
+        if not raw:
+            return
+        try:
+            seq, op, payload = parse_frame(raw)
+        except FrameError as exc:
+            if exc.seq is not None:
+                writer.write(f"NAK {exc.seq:02d} {exc.reason}\r\n".encode("ascii"))
+                await writer.drain()
+            if exc.reason == "LENGTH":
+                return
+            continue
+        if seq == state["last_rx"]:
+            writer.write(f"ACK {seq:02d}\r\n".encode("ascii"))
+            await writer.drain()
+            continue
+        if op == "HELLO" and not state["hello"] and (payload == "NEWTON1" or payload.startswith("NEWTON1 ")):
+            state["hello"] = True
+        elif op != "MSG" or not state["hello"]:
+            writer.write(f"NAK {seq:02d} OP\r\n".encode("ascii"))
+            await writer.drain()
+            continue
+        state["last_rx"] = seq
+        writer.write(f"ACK {seq:02d}\r\n".encode("ascii"))
+        await writer.drain()
+        if op == "HELLO":
+            await send_frame(reader, writer, state, "STAT", "READY")
+            continue
+        text = payload.strip()
+        if text.lower() == "/new":
+            session.reset()
+            await send_frame(reader, writer, state, "STAT", "READY")
+            await send_frame(reader, writer, state, "TEXT", "New session.")
+            await send_frame(reader, writer, state, "PROMPT")
+            continue
+        await send_frame(reader, writer, state, "STAT", "THINKING")
+        async with TURN_LOCK:
+            session.record("user", text)
+            try:
+                reply = await backend.chat(text)
+            except Exception as exc:
+                reply = None
+                log(f"backend error: {exc!r}")
+                error = ascii_clean(str(exc)).strip()[:200] or "backend failure"
+            else:
+                session.record("assistant", reply)
+            try:
+                session.save()
+            except OSError as exc:
+                log(f"state save failed: {exc}")
+        if reply is None:
+            await send_frame(reader, writer, state, "STAT", "ERROR " + error)
+        else:
+            for part in text_parts(reply, state["tx_seq"]):
+                await send_frame(reader, writer, state, "TEXT", part)
+        await send_frame(reader, writer, state, "PROMPT")
+
+
+async def initial_input(reader: asyncio.StreamReader) -> tuple[bool, bytes]:
+    try:
+        first = await asyncio.wait_for(reader.read(1), 0.15)
+    except asyncio.TimeoutError:
+        return False, b""
+    if first != b"~":
+        return False, first
+    data = bytearray(first)
+    try:
+        while len(data) <= len(NATIVE_HANDSHAKE) + 2 and data[-1:] != b"\n":
+            byte = await asyncio.wait_for(reader.read(1), 0.5)
+            if not byte:
+                break
+            data += byte
+    except asyncio.TimeoutError:
+        pass
+    native = bytes(data) == NATIVE_HANDSHAKE + b"\r\n"
+    return native, b"" if native else bytes(data)
+
+
 async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     addr = writer.get_extra_info("peername")
     log(f"connect {addr}")
     session = Session(STATE_DIR / "session.json")
     backend = FakeBackend(session) if FAKE else CodexBackend(session)
     editor = LineEditor()
-    writer.write(wire_text(GREETING) + b"\r\n" + PROMPT.encode("ascii"))
     try:
+        native, pending = await initial_input(reader)
+        if native:
+            await native_mode(reader, writer, session, backend)
+            return
+        writer.write(wire_text(GREETING) + b"\r\n" + PROMPT.encode("ascii"))
         await writer.drain()
         while True:
-            data = await reader.read(256)
+            data, pending = (pending, b"") if pending else (await reader.read(256), b"")
             if not data:
                 break
             for b in data:
@@ -299,7 +494,7 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> 
                     writer.write(wire_text(out) + b"\r\n")
                 writer.write(PROMPT.encode("ascii"))
                 await writer.drain()
-    except (ConnectionResetError, BrokenPipeError):
+    except (ConnectionError, BrokenPipeError):
         pass
     finally:
         log(f"disconnect {addr}")
