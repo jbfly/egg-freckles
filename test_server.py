@@ -124,12 +124,21 @@ class ServerSocketTest(unittest.TestCase):
                             for op, text in received))
         self.assertEqual([item["role"] for item in self.history], ["user", "assistant"])
 
-    def test_bad_checksum_is_naked_and_not_applied(self) -> None:
+    def test_bad_checksum_is_naked_then_identical_sequence_completes(self) -> None:
         with self.native_socket() as sock:
-            bad = server.frame_line(1, "MSG", "do not apply")[:-4] + b"00\r\n"
+            good = server.frame_line(1, "MSG", "recover me")
+            bad = good[:-4] + (b"00" if good[-4:-2] != b"00" else b"01") + b"\r\n"
             sock.sendall(bad)
             self.assertEqual(socket_line(sock), b"NAK 01 CHECKSUM\r\n")
-        self.assertEqual(self.history, [])
+            self.assertEqual(self.history, [])
+            sock.sendall(good)
+            self.assertEqual(socket_line(sock), b"ACK 01\r\n")
+            received = self.finish_turn(sock)
+        self.assertIn(("STAT", "THINKING"), received)
+        self.assertTrue(any(op == "TEXT" and "FAKE REPLY TO: recover me" in text
+                            for op, text in received))
+        self.assertEqual([item["content"] for item in self.history if item["role"] == "user"],
+                         ["recover me"])
 
     def test_oversized_frame_is_naked_without_applying(self) -> None:
         with self.native_socket() as sock:
@@ -137,11 +146,16 @@ class ServerSocketTest(unittest.TestCase):
             self.assertEqual(socket_line(sock), b"NAK 01 LENGTH\r\n")
         self.assertEqual(self.history, [])
 
-    def test_duplicate_frame_is_applied_once(self) -> None:
+    def test_duplicate_frame_is_acked_again_and_applied_once(self) -> None:
         with self.native_socket() as sock:
             msg = server.frame_line(1, "MSG", "once")
-            sock.sendall(msg + msg)
+            sock.sendall(msg)
             self.assertEqual(socket_line(sock), b"ACK 01\r\n")
+            seq, op, payload, _ = self.frame(sock)
+            self.assertEqual((op, payload), ("STAT", "THINKING"))
+            sock.sendall(msg)
+            self.assertEqual(socket_line(sock), b"ACK 01\r\n")
+            sock.sendall(f"ACK {seq:02d}\r\n".encode("ascii"))
             self.finish_turn(sock)
         self.assertEqual([item["content"] for item in self.history if item["role"] == "user"],
                          ["once"])
@@ -158,6 +172,14 @@ class ServerSocketTest(unittest.TestCase):
             self.finish_turn(sock)
         self.assertEqual([item["content"] for item in self.history if item["role"] == "user"],
                          ["retry once"])
+
+    def test_dropped_ack_stops_after_three_identical_retries(self) -> None:
+        with self.native_socket() as sock:
+            sock.sendall(server.frame_line(1, "MSG", "retry limit"))
+            self.assertEqual(socket_line(sock), b"ACK 01\r\n")
+            attempts = [self.frame(sock)[3] for _ in range(server.FRAME_RETRIES + 1)]
+            self.assertEqual(attempts, [attempts[0]] * 4)
+            self.assertEqual(socket_line(sock, server.FRAME_TIMEOUT + 1), b"")
 
     def test_reserved_new_message_resets_session(self) -> None:
         with self.native_socket() as sock:
