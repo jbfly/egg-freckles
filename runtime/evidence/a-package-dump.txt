@@ -1,0 +1,149 @@
+{
+	class: 'PackageHeader, 
+	type: 2021161080, 
+	pkg_version: 0, 
+	version: 2, 
+	copyright: "", 
+	name: "HarnessClient:jbfly", 
+	flags: 268435456, 
+	parts: [
+		{
+			class: 'PackagePart, 
+			info: <Binary, class "binary", length 24>, 
+			flags: 129, 
+			type: 1718579821, 
+			data: {
+				app: '|HarnessClient:jbfly|, 
+				text: "Newton Chat 1.3", 
+				theForm: {
+					_proto: @180, 
+					viewBounds: {
+						left: 8, 
+						top: 24, 
+						right: 312, 
+						bottom: 428
+					}, 
+					title: "Newton Chat 1.3", 
+					appSymbol: '|HarnessClient:jbfly|, 
+					endpointClass: {
+						_proto: @383
+					}, 
+					endpoint: NIL, 
+					linkID: NIL, 
+					capBytes: 6144, 
+					tailBytes: 640, 
+					version: "1.3", 
+					transcript: "", 
+					transcriptView: NIL, 
+					promptView: NIL, 
+					statusView: NIL, 
+					responseText: "", 
+					txSeq: 1, 
+					ready: NIL, 
+					ViewSetupDoneScript: <function, 0 arg(s) #01878911>, 
+					Boot: <function, 0 arg(s) #01878d51>, 
+					Wire: <function, 0 arg(s) #01878e81>, 
+					SetStatus: <function, 1 arg(s) #0187a221>, 
+					PromptField: <function, 0 arg(s) #0187a3c1>, 
+					AppendLine: <function, 1 arg(s) #0187a561>, 
+					TranscriptTail: <function, 0 arg(s) #018793d1>, 
+					ShowTranscript: <function, 0 arg(s) #0187f2b1>, 
+					SelfTest: <function, 0 arg(s) #0187f581>, 
+					SeqText: <function, 1 arg(s) #018870d1>, 
+					EncodeBody: <function, 1 arg(s) #018872e1>, 
+					stop: <function, 0 arg(s) #01888431>, 
+					Released: <function, 3 arg(s) #01887cd1>, 
+					connect: <function, 0 arg(s) #01887dd1>, 
+					Grabbed: <function, 3 arg(s) #01887fe1>, 
+					OpenSession: <function, 0 arg(s) #01888221>, 
+					Hello: <function, 0 arg(s) #01889bf1>, 
+					HandleLine: <function, 1 arg(s) #01889731>, 
+					send: <function, 1 arg(s) #0188b261>, 
+					SendPrompt: <function, 0 arg(s) #0188b721>, 
+					NewChat: <function, 0 arg(s) #0188bd81>, 
+					Dropped: <function, 0 arg(s) #0188c171>, 
+					Failed: <function, 1 arg(s) #0188c321>, 
+					stepChildren: [
+						{
+							_proto: @229, 
+							viewBounds: {
+								left: 0, 
+								top: 2, 
+								right: 304, 
+								bottom: 24
+							}, 
+							title: "Newton Chat 1.3", 
+							titleHeight: 18
+						}, 
+						{
+							_proto: @218, 
+							viewBounds: {
+								left: 14, 
+								top: 32, 
+								right: 290, 
+								bottom: 272
+							}, 
+							viewFont: @87, 
+							text: "Type a prompt below, then tap Send."
+						}, 
+						{
+							_proto: @172, 
+							viewBounds: {
+								left: 0, 
+								top: 280, 
+								right: 304, 
+								bottom: 298
+							}, 
+							viewFont: @88, 
+							title: "Prompt"
+						}, 
+						{
+							_proto: @185, 
+							viewBounds: {
+								left: 14, 
+								top: 302, 
+								right: 290, 
+								bottom: 326
+							}, 
+							viewFont: @87, 
+							text: ""
+						}, 
+						{
+							_proto: @218, 
+							viewBounds: {
+								left: 14, 
+								top: 370, 
+								right: 290, 
+								bottom: 386
+							}, 
+							viewFont: @99, 
+							text: "Offline"
+						}, 
+						{
+							_proto: @226, 
+							viewBounds: {
+								left: 146, 
+								top: 336, 
+								right: 214, 
+								bottom: 362
+							}, 
+							text: "New", 
+							buttonClickScript: <function, 0 arg(s) #0188c841>
+						}, 
+						{
+							_proto: @226, 
+							viewBounds: {
+								left: 222, 
+								top: 336, 
+								right: 290, 
+								bottom: 362
+							}, 
+							text: "Send", 
+							buttonClickScript: <function, 0 arg(s) #0188cb91>
+						}
+					]
+				}
+			}
+		}
+	]
+}
