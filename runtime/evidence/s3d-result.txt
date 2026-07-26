@@ -1,0 +1,12 @@
+Stage 3 real-Newton proof, 2026-07-26
+
+Emulator: main control endpoint 127.0.0.1:18080
+Package: InkCaptureD:jbfly, package version 4, app version 0.4
+Captured before Send: Strokes: 1 Points: 98
+Host request: POST /ink HTTP/1.0, status 200
+Rendered PNG: 320x480, 8-bit grayscale, non-interlaced
+Ink bounding box: 185x156+67+146
+SHA-256: 00f14159ce4631ab571306a3ca05194ca6dc85084bbc624053bc7b24f2d03ada
+Newton response: A simple curved line.
+Known defect: Newton also displayed alert -48200 after showing the response.
+Cleanup: InkCaptureD removed; HarnessClient:jbfly 1.9 reopened at Ready.

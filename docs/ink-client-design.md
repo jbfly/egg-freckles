@@ -266,23 +266,27 @@ Evidence: `runtime/evidence/s2-final-before.png`,
 
 ## Stage 3 result — 2026-07-26
 
-The Stage 3 code is complete but the scratch-only full round trip remains
-blocked. `/ink` reconstructs the `NSI1` deltas, draws straight black segments
-to an 8-bit grayscale 320×480 PNG, and returns the literal response **“A
-simple curved line.”** `InkCaptureC:jbfly` uploads screen-positioned points
-(the ink view's local coordinates plus its `(16,58)` offset) and displays that
-response line. A direct host request matching the scratch drag endpoints
-rendered a line at `(60,140)` through `(250,300)`, and direct exercise of the
-Newton response handler displayed the canned text.
+Stage 3 is proven end to end. `InkCaptureD:jbfly` captured a real main-emulator
+stroke as **`Strokes: 1 Points: 98`** and sent its own `NSI1` body. The host
+logged `POST /ink` with status 200 and rendered a fresh 320×480, 8-bit
+grayscale PNG with ink bounding box `185x156+67+146`. The Newton displayed the
+canned response **“A simple curved line.”** It also raised alert `-48200` after
+displaying the response; Stage 4 must remove that post-response error.
 
-The scratch emulator captured **`Strokes: 1 Points: 94`**, but Send returned
-**`FAILED: Connect 0`** both before and after a scratch-only restart; the host
-received no POST. A Python TCP connection from inside the same container to
-`10.42.0.1:18081` succeeded, while the emulated Newton emitted no `TCPDIAG`
-frames. Per the Stage 3 instruction, the main emulator was not used as a
-fallback. It remained untouched with **Newton Chat 1.9** showing **Ready**.
+The scratch emulator is usable for non-network work only. Its fresh flash has
+no working NIE stack. A bounded provisioning attempt confirmed that the
+control API accepts install paths only below the read-only `/packages` mount,
+while the supplied NIE packages are mounted at `/nie2`; adding a nested mount
+under `/packages` also fails because that mount is read-only. No reproducible
+scratch NIE install was found within the time box, so network ink work must use
+the main emulator.
 
-Evidence: `runtime/evidence/s3-ink-render.png`,
-`runtime/evidence/s3-canned-display.png`,
-`runtime/evidence/s3-after-send.png`, and
-`runtime/evidence/s3-result.txt`.
+Cleanup removed `InkCaptureD:jbfly`, restarted the main emulator after its link
+state wedged, dismissed the PCMCIA card notice, and restored **Newton Chat 1.9**
+to **Ready**. `runtime/raw_pkg_server.py` remains the sole listener on
+`10.42.0.1:18081`.
+
+Evidence: `runtime/evidence/s3d-before.png`,
+`runtime/evidence/s3d-after.png`, `runtime/evidence/s3d-render.png`,
+`runtime/evidence/s3d-server.log`, `runtime/evidence/s3d-main-restored.png`,
+and `runtime/evidence/s3d-result.txt`.

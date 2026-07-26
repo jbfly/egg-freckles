@@ -1,6 +1,6 @@
-kAppSymbol := '|InkCaptureC:jbfly|;
-kAppTitle := "Ink C";
-kVersion := "0.3";
+kAppSymbol := '|InkCaptureD:jbfly|;
+kAppTitle := "Ink D";
+kVersion := "0.4";
 
 mainView := {
     _proto: protoFloatNGo,

@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import struct
+import zlib
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-
-from PIL import Image, ImageDraw
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_HOST = os.environ.get("NEWTON_PUBLISHER_HOST", "10.42.0.1")
@@ -30,6 +30,46 @@ PAGE_BODY = (
     b"<p><a href=\"/harness-client.pkg\">Download package</a></p>"
     b"</body></html>"
 )
+
+
+def save_ink_png(path: Path, strokes: list[list[tuple[int, int]]]) -> None:
+    pixels = bytearray(b"\xff" * (320 * 480))
+
+    def dot(x: int, y: int) -> None:
+        for px, py in ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)):
+            if px < 320 and py < 480:
+                pixels[py * 320 + px] = 0
+
+    for points in strokes:
+        if len(points) == 1:
+            dot(*points[0])
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            # ponytail: integer segments avoid a dependency for one grayscale PNG.
+            dx, dy = abs(x1 - x0), -abs(y1 - y0)
+            sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+            error = dx + dy
+            while True:
+                dot(x0, y0)
+                if (x0, y0) == (x1, y1):
+                    break
+                twice = 2 * error
+                if twice >= dy:
+                    error += dy
+                    x0 += sx
+                if twice <= dx:
+                    error += dx
+                    y0 += sy
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    rows = b"".join(b"\0" + pixels[y * 320 : (y + 1) * 320] for y in range(480))
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", 320, 480, 8, 0, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b"")
+    )
 
 
 class PublisherHandler(BaseHTTPRequestHandler):
@@ -73,16 +113,8 @@ class PublisherHandler(BaseHTTPRequestHandler):
         except (IndexError, UnicodeDecodeError, ValueError):
             self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink\n", "text/plain; charset=us-ascii")
             return
-        image = Image.new("L", (320, 480), "white")
-        draw = ImageDraw.Draw(image)
-        for points in strokes:
-            # ponytail: straight black segments are enough until Stage 4 asks for polish.
-            if len(points) == 1:
-                draw.point(points[0], fill="black")
-            elif points:
-                draw.line(points, fill="black", width=2)
         self.ink_path.parent.mkdir(parents=True, exist_ok=True)
-        image.save(self.ink_path)
+        save_ink_png(self.ink_path, strokes)
         self._send_bytes(HTTPStatus.OK, INK_BODY, "text/plain; charset=us-ascii")
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook name

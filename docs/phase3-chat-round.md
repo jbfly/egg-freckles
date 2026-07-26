@@ -187,9 +187,9 @@ stable package rebuild silently regresses to package version 1.
   scroll back past the 6 KiB window. Adequate, not elegant.
 - **Cosmetics deliberately left:** the gap between the buttons and the status
   line is looser than the rest of the vertical rhythm.
-- **`pytest` is not installed in the system python.** All 19 tests were run in a
-  temporary `uv` environment. Reproduce with
-  `uv run --with pytest pytest -q`. There is no checked-in test environment.
+- **`pytest` is not installed in the system python.** All 21 tests run in a
+  temporary `uv` environment with no project dependency extras. Reproduce from
+  a clean shell with the single command `uv run --with pytest pytest -q`.
 
 ## Where this stopped
 
