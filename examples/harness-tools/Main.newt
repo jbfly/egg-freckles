@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR9:jbfly|;
-kAppTitle := "Harness Tools R9";
+kAppSymbol := '|HarnessToolsR10A:jbfly|;
+kAppTitle := "Harness Tools R10A";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -19,7 +19,7 @@ mainView := {
     begin
         inherited:?ViewSetupDoneScript();
         AddDelayedCall(func(view) view:Start(), [self], 500);
-        AddDelayedCall(func(view) view:Watch(), [self], 5000);
+        AddDelayedCall(func(view) view:Watch(), [self], 2000);
     end,
 
     Start: func()
@@ -87,7 +87,7 @@ mainView := {
             self.missedHeartbeats := self.missedHeartbeats + 1;
             if self.missedHeartbeats > 2 then :Retry();
         end;
-        AddDelayedCall(func(view) view:Watch(), [self], 5000);
+        AddDelayedCall(func(view) view:Watch(), [self], 2000);
         return nil;
     end,
 
