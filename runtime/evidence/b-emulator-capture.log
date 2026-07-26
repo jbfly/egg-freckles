@@ -1,0 +1,393 @@
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /install HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=590
+TCPDIAG native SendPacket addr=0cddff28 size=590
+TCPDIAG native SendBuffer r1=0cddff28 r2=42
+TCPDIAG native SendPacket addr=0cddff28 size=42
+TCPDIAG native frame ff ff ff ff ff ff 58 b0 35 77 d7 22 08 06 00 01 08 00 06 04 00 01 58 b0 35 77 d7 22 c0 a8 01 2a 00 00 00 00 00 00 c0 a8 01 01
+TCPDIAG inbound frame 58 b0 35 77 d7 22 ff ff ff ff ff ff 08 06 00 01 08 00 06 04 00 02 00 fa c0 a8 01 01 c0 a8 01 01 58 b0 35 77 d7 22 c0 a8 01 2a
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 02 00 00 40 06 ae cd c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc b0 00 00 00 00 60 02 10 00 4b fd 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=122342576 ack=0 src=33184 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 00 07 4a cc b1 60 12 10 00 4b ec 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 03 00 00 40 06 ae d0 c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc b1 00 00 00 01 50 10 10 00 63 a9 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122342577 ack=1 src=33184 dst=6801
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69dba8 r1=0ce40c50 r2=0cc81bec r3=0ce40c58 sp=0cc81bec lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69dba8 r1=0ce40c50 r2=00000001 r3=00000001 sp=0cc81ba4 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69dd30 r1=0c69f430 r2=0cc81b64 r3=00000001 sp=0cc81b58 lr=00135560
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69df0c r1=0c69df0c r2=00010064 r3=00013a49 sp=0cceda20 lr=601ee8b8
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde330c r1=0c69f2c4 r2=0cde34e4 r3=00013a49 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69f2c4 r1=0c69f2c4 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=68
+TCPDIAG native SendPacket addr=0cddff28 size=68
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 36 00 04 00 00 40 06 ae c1 c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc b1 00 00 00 01 50 10 10 00 83 de 00 00 7e 4e 45 57 54 4f 4e 43 4c 49 20 31 0d 0a
+TCPDIAG state=kStateConnected size=68 iptotal=54 iphdr=20 tcphdr=20 payload=14 flags=0x010 seq=122342577 ack=1 src=33184 dst=6801
+TCPDIAG host-send requested=14 sent=14 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69f2c4 r1=00010064 r2=0cde5d60 r3=0cde617f sp=0cceda18 lr=601ee290
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69dba8 r1=0ce40c50 r2=0cc81bec r3=0ce40c58 sp=0cc81bec lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69dba8 r1=0ce40c50 r2=00000001 r3=00000001 sp=0cc81ba4 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69dd30 r1=0c69f9b8 r2=0cc81b64 r3=00000001 sp=0cc81b58 lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde330c r1=0c69f2c4 r2=0cde34e4 r3=00013a49 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69f2c4 r1=0c69f2c4 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=80
+TCPDIAG native SendPacket addr=0cddff28 size=80
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 42 00 05 00 00 40 06 ae b4 c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc bf 00 00 00 01 50 10 10 00 38 e1 00 00 3a 30 30 20 48 45 4c 4c 4f 20 4e 45 57 54 4f 4e 31 20 31 2e 34 2a 44 33 0d 0a
+TCPDIAG state=kStateConnected size=80 iptotal=66 iphdr=20 tcphdr=20 payload=26 flags=0x010 seq=122342591 ack=1 src=33184 dst=6801
+TCPDIAG host-send requested=26 sent=26 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69f2c4 r1=00010064 r2=0cde5d60 r3=0cde617f sp=0cceda18 lr=601ee290
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 01 07 4a cc bf 50 10 10 00 63 9b 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ea 00 00 40 06 aa e9 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 01 07 4a cc d9 50 10 10 00 63 81 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 43 03 eb 00 00 40 06 aa cd 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 01 07 4a cc d9 50 10 10 00 8b a0 00 00 41 43 4b 20 30 30 0d 0a 3a 30 30 20 53 54 41 54 20 52 45 41 44 59 2a 35 31 0d 0a
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69df0c r1=0cde4d60 r2=0000001b r3=0cdde24c sp=0cced97c lr=601eebb0
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69dba8 r1=0ce8b01c r2=0cd480f0 r3=0ce8b024 sp=0cd480f0 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69dba8 r1=0ce8b01c r2=00000001 r3=00000001 sp=0cd480a8 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69dd30 r1=0c69b1c8 r2=0cd48068 r3=00000001 sp=0cd4805c lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde330c r1=0c69f2c4 r2=0cde34e4 r3=00013a49 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69f2c4 r1=0c69f2c4 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=62
+TCPDIAG native SendPacket addr=0cddff28 size=62
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 30 00 06 00 00 40 06 ae c5 c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc d9 00 00 00 01 50 10 10 00 99 db 00 00 41 43 4b 20 30 30 0d 0a
+TCPDIAG state=kStateConnectedWaitACK size=62 iptotal=48 iphdr=20 tcphdr=20 payload=8 flags=0x010 seq=122342617 ack=1 src=33184 dst=6801
+TCPDIAG host-send requested=8 sent=8 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69f2c4 r1=00010024 r2=0cde5d60 r3=0cde617f sp=0cceda18 lr=601ee290
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69df0c r1=0c69df0c r2=00010064 r3=00013a49 sp=0cceda20 lr=601ee8b8
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 07 00 00 40 06 ae cc c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc e1 00 00 00 1c 50 10 10 00 63 5e 00 00
+TCPDIAG state=kStateConnected size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122342625 ack=28 src=33184 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ec 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 1c 07 4a cc e1 50 10 10 00 63 5e 00 00
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /text HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /install HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 08 00 00 40 06 ae c7 c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d 80 00 00 00 00 60 02 10 00 a9 67 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=141192576 ack=0 src=33350 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 00 08 6a 6d 81 60 12 10 00 a9 56 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 09 00 00 40 06 ae ca c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d 81 00 00 00 01 50 10 10 00 c1 13 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=141192577 ack=1 src=33350 dst=6801
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69c278 r1=0ce40c38 r2=0cc81c28 r3=0ce40c40 sp=0cc81c28 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69c278 r1=0ce40c38 r2=00000001 r3=00000001 sp=0cc81be0 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69bff0 r1=0c69f2f4 r2=0cc81ba0 r3=00000001 sp=0cc81b94 lr=00135560
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c424 r1=0c69c424 r2=00010064 r3=000155e9 sp=0cceda20 lr=601ee8b8
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69ce14 r2=0cde5ec8 r3=000155e9 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69ce14 r1=0c69ce14 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=68
+TCPDIAG native SendPacket addr=0cddff28 size=68
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 36 00 0a 00 00 40 06 ae bb c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d 81 00 00 00 01 50 10 10 00 e1 48 00 00 7e 4e 45 57 54 4f 4e 43 4c 49 20 31 0d 0a
+TCPDIAG state=kStateConnected size=68 iptotal=54 iphdr=20 tcphdr=20 payload=14 flags=0x010 seq=141192577 ack=1 src=33350 dst=6801
+TCPDIAG host-send requested=14 sent=14 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69ce14 r1=00010064 r2=0cde74e4 r3=0cde7903 sp=0cceda18 lr=601ee290
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69c278 r1=0ce40c38 r2=0cc81c28 r3=0ce40c40 sp=0cc81c28 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69c278 r1=0ce40c38 r2=00000001 r3=00000001 sp=0cc81be0 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69bff0 r1=0c69fda0 r2=0cc81ba0 r3=00000001 sp=0cc81b94 lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69ce14 r2=0cde5ec8 r3=000155e9 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69ce14 r1=0c69ce14 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=80
+TCPDIAG native SendPacket addr=0cddff28 size=80
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 42 00 0b 00 00 40 06 ae ae c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d 8f 00 00 00 01 50 10 10 00 95 4a 00 00 3a 30 30 20 48 45 4c 4c 4f 20 4e 45 57 54 4f 4e 31 20 31 2e 35 2a 44 34 0d 0a
+TCPDIAG state=kStateConnected size=80 iptotal=66 iphdr=20 tcphdr=20 payload=26 flags=0x010 seq=141192591 ack=1 src=33350 dst=6801
+TCPDIAG host-send requested=26 sent=26 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69ce14 r1=00010064 r2=0cde7554 r3=0cde7973 sp=0cceda18 lr=601ee290
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 01 08 6a 6d 8f 50 10 10 00 c1 05 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ea 00 00 40 06 aa e9 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 01 08 6a 6d a9 50 10 10 00 c0 eb 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 43 03 eb 00 00 40 06 aa cd 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 01 08 6a 6d a9 50 10 10 00 e9 0a 00 00 41 43 4b 20 30 30 0d 0a 3a 30 30 20 53 54 41 54 20 52 45 41 44 59 2a 35 31 0d 0a
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69c424 r1=0cde6454 r2=0000001b r3=0cdde4b4 sp=0cced97c lr=601eebb0
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69c278 r1=0ce8b01c r2=0cd480f0 r3=0ce8b024 sp=0cd480f0 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69c278 r1=0ce8b01c r2=00000001 r3=00000001 sp=0cd480a8 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69bff0 r1=0c699830 r2=0cd48068 r3=00000001 sp=0cd4805c lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69ce14 r2=0cde5ec8 r3=000155e9 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69ce14 r1=0c69ce14 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=62
+TCPDIAG native SendPacket addr=0cddff28 size=62
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 30 00 0c 00 00 40 06 ae bf c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d a9 00 00 00 01 50 10 10 00 f7 45 00 00 41 43 4b 20 30 30 0d 0a
+TCPDIAG state=kStateConnectedWaitACK size=62 iptotal=48 iphdr=20 tcphdr=20 payload=8 flags=0x010 seq=141192617 ack=1 src=33350 dst=6801
+TCPDIAG host-send requested=8 sent=8 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69ce14 r1=00010024 r2=0cde7578 r3=0cde7997 sp=0cceda18 lr=601ee290
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c424 r1=0c69c424 r2=00010064 r3=000155e9 sp=0cceda20 lr=601ee8b8
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 0d 00 00 40 06 ae c6 c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d b1 00 00 00 1c 50 10 10 00 c0 c8 00 00
+TCPDIAG state=kStateConnected size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=141192625 ack=28 src=33350 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ec 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 1c 08 6a 6d b1 50 10 10 00 c0 c8 00 00
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /text HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /text HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ed 00 00 40 06 aa e6 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 1c 08 6a 6d b1 50 11 10 00 c0 c7 00 00
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 0e 00 00 40 06 ae c5 c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d b1 00 00 00 1d 50 10 10 00 c0 c7 00 00
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=141192625 ack=29 src=33350 dst=6801
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69c424 r1=0cde6454 r2=00000000 r3=0cdde4b4 sp=0cced97c lr=601eebb0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c424 r1=0c69c424 r2=00010064 r3=000155e9 sp=0cceda20 lr=601ee8b8
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ed 00 00 40 06 aa e6 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 1c 07 4a cc e1 50 11 10 00 63 5d 00 00
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 0f 00 00 40 06 ae c4 c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc e1 00 00 00 1d 50 10 10 00 63 5d 00 00
+TCPDIAG state=kStatePeerDiscWaitForACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=122342625 ack=29 src=33184 dst=6801
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69df0c r1=0cde4d60 r2=00000000 r3=0cdde24c sp=0cced97c lr=601eebb0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69df0c r1=0c69df0c r2=00010064 r3=00013a49 sp=0cceda20 lr=601ee8b8
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 10 00 00 40 06 ae c3 c0 a8 01 2a 0a 2a 00 01 82 46 1a 91 08 6a 6d b1 00 00 00 1d 50 11 10 00 c0 c6 00 00
+TCPDIAG state=kStatePeerDiscWaitForFIN size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x011 seq=141192625 ack=29 src=33350 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ee 00 00 40 06 aa e5 0a 2a 00 01 c0 a8 01 2a 1a 91 82 46 00 00 00 1d 08 6a 6d b2 50 04 10 00 c0 d2 00 00
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 11 00 00 40 06 ae c2 c0 a8 01 2a 0a 2a 00 01 81 a0 1a 91 07 4a cc e1 00 00 00 1d 50 11 10 00 63 5c 00 00
+TCPDIAG state=kStatePeerDiscWaitForFIN size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x011 seq=122342625 ack=29 src=33184 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ee 00 00 40 06 aa e5 0a 2a 00 01 c0 a8 01 2a 1a 91 81 a0 00 00 00 1d 07 4a cc e2 50 04 10 00 63 68 00 00
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /install HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+TCPDIAG native SendBuffer r1=0cddff28 r2=58
+TCPDIAG native SendPacket addr=0cddff28 size=58
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 2c 00 12 00 00 40 06 ae bd c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 10 00 00 00 00 60 02 10 00 05 6d 00 00 02 04 05 b4
+TCPDIAG state=kStateDisconnected size=58 iptotal=44 iphdr=20 tcphdr=24 payload=0 flags=0x002 seq=233442576 ack=0 src=33073 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 2c 03 e8 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 00 0d ea 0d 11 60 12 10 00 05 5c 00 00 02 04 05 b4
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 13 00 00 40 06 ae c0 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 11 00 00 00 01 50 10 10 00 1d 19 00 00
+TCPDIAG state=kStateConnectionWaitACK size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=233442577 ack=1 src=33073 dst=6801
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c19c r1=0c69c19c r2=00010064 r3=00017f79 sp=0cceda20 lr=601ee8b8
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce8b038 r2=0cd47c28 r3=0ce8b040 sp=0cd47c28 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce8b038 r2=00000001 r3=00000001 sp=0cd47be0 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c69f2f4 r2=0cd47ba0 r3=00000001 sp=0cd47b94 lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=68
+TCPDIAG native SendPacket addr=0cddff28 size=68
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 36 00 14 00 00 40 06 ae b1 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 11 00 00 00 01 50 10 10 00 3d 4e 00 00 7e 4e 45 57 54 4f 4e 43 4c 49 20 31 0d 0a
+TCPDIAG state=kStateConnected size=68 iptotal=54 iphdr=20 tcphdr=20 payload=14 flags=0x010 seq=233442577 ack=1 src=33073 dst=6801
+TCPDIAG host-send requested=14 sent=14 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010064 r2=0cde7530 r3=0cde794f sp=0cceda18 lr=601ee290
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce8b038 r2=0cd47c28 r3=0ce8b040 sp=0cd47c28 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce8b038 r2=00000001 r3=00000001 sp=0cd47be0 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c6a0050 r2=0cd47ba0 r3=00000001 sp=0cd47b94 lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=80
+TCPDIAG native SendPacket addr=0cddff28 size=80
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 42 00 15 00 00 40 06 ae a4 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 1f 00 00 00 01 50 10 10 00 f0 4e 00 00 3a 30 30 20 48 45 4c 4c 4f 20 4e 45 57 54 4f 4e 31 20 31 2e 36 2a 44 35 0d 0a
+TCPDIAG state=kStateConnected size=80 iptotal=66 iphdr=20 tcphdr=20 payload=26 flags=0x010 seq=233442591 ack=1 src=33073 dst=6801
+TCPDIAG host-send requested=26 sent=26 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010064 r2=0cde75a0 r3=0cde79bf sp=0cceda18 lr=601ee290
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 e9 00 00 40 06 aa ea 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 01 0d ea 0d 1f 50 10 10 00 1d 0b 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ea 00 00 40 06 aa e9 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 01 0d ea 0d 39 50 10 10 00 1c f1 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 43 03 eb 00 00 40 06 aa cd 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 01 0d ea 0d 39 50 10 10 00 45 10 00 00 41 43 4b 20 30 30 0d 0a 3a 30 30 20 53 54 41 54 20 52 45 41 44 59 2a 35 31 0d 0a
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69c19c r1=0cde63bc r2=0000001b r3=0cdde4b4 sp=0cced97c lr=601eebb0
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce40c1c r2=0cc820f0 r3=0ce40c24 sp=0cc820f0 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce40c1c r2=00000001 r3=00000001 sp=0cc820a8 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c6994b8 r2=0cc82068 r3=00000001 sp=0cc8205c lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=62
+TCPDIAG native SendPacket addr=0cddff28 size=62
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 30 00 16 00 00 40 06 ae b5 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 39 00 00 00 01 50 10 10 00 53 4b 00 00 41 43 4b 20 30 30 0d 0a
+TCPDIAG state=kStateConnectedWaitACK size=62 iptotal=48 iphdr=20 tcphdr=20 payload=8 flags=0x010 seq=233442617 ack=1 src=33073 dst=6801
+TCPDIAG host-send requested=8 sent=8 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010024 r2=0cde75d8 r3=0cde79f7 sp=0cceda18 lr=601ee290
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c19c r1=0c69c19c r2=00010064 r3=00017f79 sp=0cceda20 lr=601ee8b8
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 17 00 00 40 06 ae bc c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 41 00 00 00 1c 50 10 10 00 1c ce 00 00
+TCPDIAG state=kStateConnected size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=233442625 ack=28 src=33073 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ec 00 00 40 06 aa e7 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 1c 0d ea 0d 41 50 10 10 00 1c ce 00 00
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /text HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /newtonscript HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /key HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "POST /text HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce8b028 r2=0cd47fcc r3=0ce8b030 sp=0cd47fcc lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce8b028 r2=00000001 r3=00000001 sp=0cd47f84 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c6995f4 r2=0cd47f44 r3=00000001 sp=0cd47f38 lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=79
+TCPDIAG native SendPacket addr=0cddff28 size=79
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 41 00 18 00 00 40 06 ae a2 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 41 00 00 00 1c 50 10 10 00 18 74 00 00 3a 30 31 20 4d 53 47 20 68 65 6c 6c 6f 20 6e 65 77 74 6f 6e 2a 35 37 0d 0a
+TCPDIAG state=kStateConnected size=79 iptotal=65 iphdr=20 tcphdr=20 payload=25 flags=0x010 seq=233442625 ack=28 src=33073 dst=6801
+TCPDIAG host-send requested=25 sent=25 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010064 r2=0cde7530 r3=0cde794f sp=0cceda18 lr=601ee290
+[emulator-control] 10.89.0.49 "POST /tap HTTP/1.1" 200 -
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ed 00 00 40 06 aa e6 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 1c 0d ea 0d 5a 50 10 10 00 1c b5 00 00
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 46 03 ee 00 00 40 06 aa c7 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 1c 0d ea 0d 5a 50 10 10 00 cb 5a 00 00 41 43 4b 20 30 31 0d 0a 3a 30 31 20 53 54 41 54 20 54 48 49 4e 4b 49 4e 47 2a 33 39 0d 0a
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69c19c r1=0cde63bc r2=0000001e r3=0cdde4b4 sp=0cced97c lr=601eebb0
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce40c1c r2=0cc820f0 r3=0ce40c24 sp=0cc820f0 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce40c1c r2=00000001 r3=00000001 sp=0cc820a8 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c6994b8 r2=0cc82068 r3=00000001 sp=0cc8205c lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=62
+TCPDIAG native SendPacket addr=0cddff28 size=62
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 30 00 19 00 00 40 06 ae b2 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 5a 00 00 00 1c 50 10 10 00 53 0e 00 00 41 43 4b 20 30 31 0d 0a
+TCPDIAG state=kStateConnectedWaitACK size=62 iptotal=48 iphdr=20 tcphdr=20 payload=8 flags=0x010 seq=233442650 ack=28 src=33073 dst=6801
+TCPDIAG host-send requested=8 sent=8 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010024 r2=0cde755c r3=0cde797b sp=0cceda18 lr=601ee290
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c19c r1=0c69c19c r2=00010064 r3=00017f79 sp=0cceda20 lr=601ee8b8
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 1a 00 00 40 06 ae b9 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 62 00 00 00 3a 50 10 10 00 1c 8f 00 00
+TCPDIAG state=kStateConnected size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=233442658 ack=58 src=33073 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 ef 00 00 40 06 aa e4 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 3a 0d ea 0d 62 50 10 10 00 1c 8f 00 00
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69c19c r1=0cde63bc r2=00000064 r3=0cdde4b4 sp=0cced97c lr=601eebb0
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce8b01c r2=0cd480f0 r3=0ce8b024 sp=0cd480f0 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce8b01c r2=00000001 r3=00000001 sp=0cd480a8 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c6994b8 r2=0cd48068 r3=00000001 sp=0cd4805c lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=62
+TCPDIAG native SendPacket addr=0cddff28 size=62
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 30 00 1b 00 00 40 06 ae b0 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 62 00 00 00 3a 50 10 10 00 52 e7 00 00 41 43 4b 20 30 32 0d 0a
+TCPDIAG state=kStateConnectedWaitACK size=62 iptotal=48 iphdr=20 tcphdr=20 payload=8 flags=0x010 seq=233442658 ack=58 src=33073 dst=6801
+TCPDIAG host-send requested=8 sent=8 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010024 r2=0cde755c r3=0cde797b sp=0cceda18 lr=601ee290
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c19c r1=0c69c19c r2=00010064 r3=00017f79 sp=0cceda20 lr=601ee8b8
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 f1 00 00 40 06 aa e2 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 9e 0d ea 0d 6a 50 10 10 00 1c 23 00 00
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 1c 00 00 40 06 ae b7 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 6a 00 00 00 9e 50 10 10 00 1c 23 00 00
+TCPDIAG state=kStateConnected size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=233442666 ack=158 src=33073 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 37 03 f2 00 00 40 06 aa d2 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 9e 0d ea 0d 6a 50 10 10 00 55 8c 00 00 3a 30 33 20 50 52 4f 4d 50 54 2a 36 35 0d 0a
+NIE7 pc=00045d74 CBufferList::Putn r0=0c69c19c r1=0cde63bc r2=0000000f r3=0cdde4b4 sp=0cced97c lr=601eebb0
+NIE7 pc=00134fdc TNewScriptEndpointClient::DoOutput r0=0c69f9b8 r1=0ce40c1c r2=0cc820f0 r3=0ce40c24 sp=0cc820f0 lr=00139010
+NIE7 pc=00135440 TNewScriptEndpointClient::OutputData r0=0c69f9b8 r1=0ce40c1c r2=00000001 r3=00000001 sp=0cc820a8 lr=00135220
+NIE7 pc=00382bbc TEndpoint::nSnd(raw) r0=0c69b298 r1=0c6994b8 r2=0cc82068 r3=00000001 sp=0cc8205c lr=00135560
+NIE7 pc=00383854 PConnectionEnd::PutBytesStart r0=0cde4714 r1=0c69de24 r2=0cde5ec8 r3=00017f79 sp=0cceda40 lr=00072980
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=0c69de24 r2=ffffffff r3=ffffffff sp=0cced928 lr=601dd130
+TCPDIAG native SendBuffer r1=0cddff28 r2=62
+TCPDIAG native SendPacket addr=0cddff28 size=62
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 30 00 1d 00 00 40 06 ae ae c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 6a 00 00 00 9e 50 10 10 00 52 7a 00 00 41 43 4b 20 30 33 0d 0a
+TCPDIAG state=kStateConnectedWaitACK size=62 iptotal=48 iphdr=20 tcphdr=20 payload=8 flags=0x010 seq=233442666 ack=158 src=33073 dst=6801
+TCPDIAG host-send requested=8 sent=8 errno=0
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69de24 r1=00010024 r2=0cde755c r3=0cde797b sp=0cceda18 lr=601ee290
+NIE7 pc=00046298 CBufferList::GetSize r0=0c69c19c r1=0c69c19c r2=00010064 r3=00017f79 sp=0cceda20 lr=601ee8b8
+TCPDIAG native SendBuffer r1=0cddff28 r2=54
+TCPDIAG native SendPacket addr=0cddff28 size=54
+TCPDIAG native frame 00 fa c0 a8 01 01 58 b0 35 77 d7 22 08 00 45 00 00 28 00 1e 00 00 40 06 ae b5 c0 a8 01 2a 0a 2a 00 01 81 31 1a 91 0d ea 0d 72 00 00 00 ad 50 10 10 00 1c 0c 00 00
+TCPDIAG state=kStateConnected size=54 iptotal=40 iphdr=20 tcphdr=20 payload=0 flags=0x010 seq=233442674 ack=173 src=33073 dst=6801
+TCPDIAG inbound frame 58 b0 35 77 d7 22 00 fa c0 a8 01 01 08 00 45 00 00 28 03 f3 00 00 40 06 aa e0 0a 2a 00 01 c0 a8 01 2a 1a 91 81 31 00 00 00 ad 0d ea 0d 72 50 10 10 00 1c 0c 00 00
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -
+[emulator-control] 10.89.0.49 "GET /screen.png HTTP/1.1" 200 -
+[emulator-control] 127.0.0.1 "GET /health HTTP/1.1" 200 -

@@ -1,0 +1,37 @@
+make: Entering directory '/home/jbfly/git/newton-harness/examples/harness-client'
+LD_LIBRARY_PATH="/home/jbfly/newton-dev/prefix/lib:${LD_LIBRARY_PATH}" \
+	"/home/jbfly/newton-dev/prefix/bin/tntk" -P "/home/jbfly/newton-dev/ntk-platform-files" -c harness-client.nprj
+Reading project file harness-client.nprj
+Reading platform file Newton 2.1
+Parts: 1
+Building package HarnessClient:jbfly
+Building part 0
+Reading platform file /home/jbfly/newton-dev/ntk-platform-files/Newton 2.1
+Compiling Main.newt
+Encoding Part 0 fcabb931...
+{
+	app: '|HarnessClient:jbfly|, 
+	text: "Newton Chat 1.6", 
+	theForm: {
+		_proto: @180, 
+		viewBounds: {
+			left: 8, 
+			top: 24, 
+			right: 312, 
+			bottom: 428
+		}, 
+		title: "Newton Chat 1.6", 
+		appSymbol: '|HarnessClient:jbfly|, 
+		endpointClass: {
+			_proto: @383
+		}, 
+		endpoint: NIL, 
+		linkID: NIL, 
+		capBytes: 6144, 
+		tailBytes: 640, 
+		version: "1.6", ...
+		
+	}
+}
+Package harness-client.pkg created.
+make: Leaving directory '/home/jbfly/git/newton-harness/examples/harness-client'

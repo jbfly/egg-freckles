@@ -1,0 +1,15 @@
+LISTEN 10.42.0.1:6801 -> 127.0.0.1:6802
+ACCEPT ('10.42.0.1', 56804)
+C> b'~NEWTONCLI 1\r\n'
+C> b':00 HELLO NEWTON1 1.6*D5\r\n'
+<S b'ACK 00\r\n'
+<S b':00 STAT READY*51\r\n'
+C> b'ACK 00\r\n'
+C> b':01 MSG hello newton*57\r\n'
+<S b'ACK 01\r\n'
+<S b':01 STAT THINKING*39\r\n'
+C> b'ACK 01\r\n'
+<S b':02 TEXT FAKE REPLY TO: hello newton -- the quick brown fox jumps over the lazy dog 0123456789.*84\r\n'
+C> b'ACK 02\r\n'
+<S b':03 PROMPT*65\r\n'
+C> b'ACK 03\r\n'

@@ -1,0 +1,2 @@
+[newton] ts=2026-07-26T02:43:59+00:00 serving on 0.0.0.0:6802 fake=True state=/tmp/newton-harness-state-b
+[newton] ts=2026-07-26T02:44:24+00:00 connect ('127.0.0.1', 59124)
