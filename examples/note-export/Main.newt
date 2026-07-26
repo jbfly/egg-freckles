@@ -1,5 +1,5 @@
-kAppSymbol := '|NoteExportN12:jbfly|;
-kAppTitle := "Note Ask n12";
+kAppSymbol := '|NoteExportN13:jbfly|;
+kAppTitle := "Note Ask n13";
 mainView := {
     _proto: protoFloatNGo,
     viewBounds: {left: 12, top: 100, right: 308, bottom: 300},
@@ -10,7 +10,6 @@ mainView := {
     endpoint: nil,
     linkID: nil,
     pending: nil,
-    createCount: 0,
 
     ViewSetupDoneScript: func()
     begin
@@ -107,12 +106,10 @@ mainView := {
             & ",\"truncated\":" & trunc & "}";
     end,
 
-    Create: func()
+    Create: func(answer)
     begin
-        self.createCount := self.createCount + 1;
-        local expected := "N12C" & self.createCount;
         local paperroll := GetRoot().paperroll;
-        local note := paperroll:MakeTextNote(expected, nil);
+        local note := paperroll:MakeTextNote(answer, nil);
         paperroll:NewNote(note, nil, nil);
 
         local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
@@ -192,7 +189,7 @@ mainView := {
             reqTimeout: 30000,
             InputScript: func(endpoint, data, terminator, options)
                 if BeginsWith(data, "NOTE ") then
-                    self._parent:Status(SubStr(data, 5, StrLen(data) - 5)),
+                    self._parent:Create(SubStr(data, 5, StrLen(data) - 7)),
             CompletionScript: func(endpoint, options, result)
                 AddDelayedCall(func(view) view:Stop(), [self._parent], 500),
         });
@@ -234,15 +231,11 @@ mainView := {
     stepChildren: [
         {_proto: protoStaticText,
          viewBounds: {left: 10, top: 12, right: 270, bottom: 84},
-         text: "Exports only the newest stock Notes entry.\nTest note: Harness export test",
+         text: "Ask about the newest stock Notes entry.\nThe answer becomes a new note.",
          viewFont: ROM_fontSystem9},
         {_proto: protoTextButton,
-         viewBounds: {left: 35, top: 104, right: 125, bottom: 140},
-         text: "Create",
-         buttonClickScript: func() self:Parent():Create()},
-        {_proto: protoTextButton,
-         viewBounds: {left: 170, top: 104, right: 260, bottom: 140},
-         text: "Export",
+         viewBounds: {left: 100, top: 104, right: 200, bottom: 140},
+         text: "Ask",
          buttonClickScript: func() self:Parent():Send()},
     ],
 };

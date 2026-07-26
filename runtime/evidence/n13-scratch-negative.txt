@@ -1,0 +1,33 @@
+N13 create-only loop — clean scratch negative (2026-07-26)
+
+Package identity: NoteExportN13:jbfly (fresh, version 1)
+Scratch control: http://127.0.0.1:18090
+Main control: http://127.0.0.1:18080 (untouched)
+
+Implemented the smallest join:
+- one Ask button calls the existing Send path;
+- the existing NOTE response callback strips CRLF and passes the answer to Create;
+- Create uses MakeTextNote(answer, nil) plus NewNote(note, nil, nil), then reads back id/data/text.
+
+Build:
+- runtime/evidence/n13-build.log
+- tntk exit 0
+- grep -i undefined returned zero hits
+
+Scratch result:
+- install returned queued and the N13 icon appeared in Extras;
+- repeated sanctioned open-only /newtonscript requests returned queued but did not open N13;
+- a scratch-only container restart did not clear the dropped queued evaluator delivery;
+- UI selection also failed to launch N13 or the already-proven N12 package;
+- runtime/evidence/n13-scratch-open.png remained stock Notes;
+- runtime/evidence/n13-scratch-emulator.log and n13-scratch-emulator-after-restart.log contain the control requests.
+
+No Ask button action ran. No note was created. No request reached POST /note. Main was not installed, opened, tapped, or written. Entry 4 was untouched.
+
+Gate status:
+1. NOT RUN — no answer note was created.
+2. NOT RUN — no answer note could be shown in stock Notes.
+3. NOT RUN — main source note was untouched; no before/after demonstration round occurred.
+4. NOT RUN — no model request occurred.
+
+Verdict: stop at the scratch-before-main gate. This is the same unsignaled queued evaluator delivery failure already separated from the Notes API by N12, but it prevented reaching the package UI in this run. Do not use N13 again; its identity has been installed on scratch.

@@ -209,11 +209,35 @@ The source entry remained byte-for-byte unchanged. Before and after exports are
 `5df783f1700c2bd366d65408ad73299d51f9fd778f8989b18321d1b78bb97135`, ID `3`,
 and `EntryModTime` `64465065` (`runtime/evidence/n2-source-integrity.txt`).
 
+## N13 create-only loop: implementation complete, scratch gate blocked
+
+Fresh package identity `NoteExportN13:jbfly` makes the smallest join of the
+proven paths: its single Ask button uses the existing export/model request, and
+the existing `NOTE <answer>` callback passes the answer to
+`MakeTextNote(answer, nil)` plus `NewNote(note, nil, nil)`. The create method
+then reads back the newest same-minute/highest-ID entry and displays its ID,
+`data` shape, and decoded text. No second network path was added.
+
+The undefined-symbol-free build is `runtime/evidence/n13-build.log`. Scratch
+installation returned `queued`, and the N13 icon appeared in Extras, but the
+emulator's open-only `/newtonscript` request was again dropped without an
+execution result. A scratch-only container restart did not clear it, and UI
+selection failed to launch either N13 or the already-proven N12 package. The
+unchanged stock Notes screen is `runtime/evidence/n13-scratch-open.png`; control
+logs are `runtime/evidence/n13-scratch-emulator.log` and
+`runtime/evidence/n13-scratch-emulator-after-restart.log`; the full result is
+`runtime/evidence/n13-scratch-negative.txt`.
+
+No Ask action ran, no `POST /note` occurred, and no note was created. Therefore
+all four end-to-end gates are **not run**, not passed or faked. The mandatory
+scratch-before-main rule stopped the run: N13 was not installed or opened on
+main, entry 3 was unchanged, and malformed entry 4 was untouched. N13's package
+identity is now consumed on scratch and must not be reused.
+
 ## Honest limits
 
-- Export and model/chat remain read-only. The separate manual Create button is
-  proven only for on-device fixed test text; native model-answer write-back is
-  intentionally not wired in this round.
+- The model-answer write-back is wired but not yet proven on device because the
+  scratch emulator did not execute the open-only queued evaluator request.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
 - Validation still permits 8 KiB of note text, but the reused chat protocol
