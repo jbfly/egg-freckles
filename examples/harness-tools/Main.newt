@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR10D:jbfly|;
-kAppTitle := "Harness Tools R10D";
+kAppSymbol := '|HarnessToolsR10I:jbfly|;
+kAppTitle := "Harness Tools R10I";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -14,6 +14,7 @@ mainView := {
     outcomeID: nil,
     outcomeStatus: nil,
     outcomeValue: nil,
+    stopping: nil,
 
     ViewSetupDoneScript: func()
     begin
@@ -24,12 +25,14 @@ mainView := {
 
     ViewQuitScript: func()
     begin
+        self.stopping := true;
         :Stop();
         inherited:?ViewQuitScript();
     end,
 
     Start: func()
     begin
+        self.stopping := nil;
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
         return nil;
     end,
@@ -49,39 +52,70 @@ mainView := {
                 {label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
                  form: 'template, data: {arglist: [1], typeList: ['struct, 'ulong]}},
             ]);
-            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            self.endpoint:Bind(nil, {
+                async: true, reqTimeout: 10000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:Retry() else self._parent:Bound(),
+            });
+        end
+        onexception |evt.ex| do :Retry();
+        return nil;
+    end,
+
+    Bound: func()
+    begin
+        if self.stopping then return nil;
+        try
             self.endpoint:connect([{
                 label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
                 form: 'template,
                 data: {arglist: [10, 42, 0, 1, 18081],
                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
-            }], {async: nil, reqTimeout: 45000});
-            self.socketReady := true;
-            self.missedHeartbeats := 0;
-            :Poll();
-        end
-        onexception |evt.ex| do :Retry();
+            }], {
+                async: true, reqTimeout: 45000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:Retry() else self._parent:Connected(),
+            })
+        onexception |evt.ex.comm| do :Retry();
+        return nil;
+    end,
+
+    Connected: func()
+    begin
+        if self.stopping then return nil;
+        self.socketReady := true;
+        self.missedHeartbeats := 0;
+        :Poll();
         return nil;
     end,
 
     Poll: func()
     begin
         if not self.socketReady then return nil;
-        try
-        begin
-            self.endpoint:Output("POLL\r\n", nil, {async: nil, reqTimeout: 10000});
-            self.endpoint:SetInputSpec({
-                _parent: self,
-                form: 'string,
-                termination: {endSequence: "\r\n"},
-                discardAfter: 512,
-                InputScript: func(endpoint, data, terminator, options)
-                begin
-                    self._parent.missedHeartbeats := 0;
-                    if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data);
-                end,
-            });
-        end
+        try self.endpoint:Output("POLL\r\n", nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Retry() else self._parent:ArmInput(),
+        })
+        onexception |evt.ex.comm| do :Retry();
+        return nil;
+    end,
+
+    ArmInput: func()
+    begin
+        if not self.socketReady then return nil;
+        try self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 512,
+            InputScript: func(endpoint, data, terminator, options)
+            begin
+                self._parent.missedHeartbeats := 0;
+                if BeginsWith(data, "TOOLS ") then self._parent:Dispatch(data);
+                if self._parent.socketReady then self._parent:ArmInput();
+            end,
+        })
         onexception |evt.ex.comm| do :Retry();
         return nil;
     end,
@@ -102,14 +136,26 @@ mainView := {
         if self.outcomeID = nil then return :Retry();
         local response := self.outcomeID & "\r\n" & self.outcomeStatus
             & "\r\n" & :Escape(self.outcomeValue) & "\r\n";
-        try
-        begin
-            self.endpoint:Output(response, nil, {async: nil, reqTimeout: 10000});
-            self.outcomeID := nil;
-            self.outcomeStatus := nil;
-            self.outcomeValue := nil;
-            :Poll();
-        end
+        try self.endpoint:Output(response, nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Retry() else self._parent:ReplySent(),
+        })
+        onexception |evt.ex.comm| do :Retry();
+        return nil;
+    end,
+
+    ReplySent: func()
+    begin
+        if self.stopping then return nil;
+        self.outcomeID := nil;
+        self.outcomeStatus := nil;
+        self.outcomeValue := nil;
+        try self.endpoint:Output("POLL\r\n", nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Retry(),
+        })
         onexception |evt.ex.comm| do :Retry();
         return nil;
     end,
@@ -215,6 +261,8 @@ mainView := {
 
     Retry: func()
     begin
+        if self.stopping then return nil;
+        self.stopping := true;
         :Stop();
         AddDelayedCall(func(view) view:Start(), [self], 1000);
         return nil;

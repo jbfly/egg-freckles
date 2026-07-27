@@ -424,3 +424,38 @@ keepalive cadence that touches the link more often than it dies, so the
 watchdog always wins the race. Even unfixed, the worst case is no worse than
 the 5.8-11.5 s per-call baseline this transport replaced, and warm calls
 remain ~0.8 s.
+
+## Eleventh investigation: non-blocking endpoint lifecycle
+
+Real hardware exposed the remaining synchronous endpoint calls in R10D: `Bind`,
+`Connect`, and both `Output` operations can hold Newton's application task for
+seconds or for the full 45-second connect timeout. Fresh `HarnessToolsR10I:jbfly`
+uses endpoint callback specs with `async: true` for those operations. Its input
+path remains `SetInputSpec`-only: `InputScript` installs the next input spec inline
+before returning and never calls synchronous `Input()`. `ViewQuitScript` still
+calls the existing `Stop()` teardown so closing the window disconnects, unbinds,
+disposes, and releases the NIE link.
+
+The output specs must include `form: 'string`; without it Einstein established TCP
+but emitted no payload. The first poll arms input from its output completion. After
+a tool result, `InputScript` has already re-armed input, so the reply completion
+sends the next `POLL` without installing a second input spec. Treating replacement
+of the prior input spec as a communication error caused connection churn and was
+also removed.
+
+R10I completed twelve sequential emulator pings on one unchanged TCP connection:
+
+| Calls | Result | Minimum | Median | Maximum |
+|---:|---|---:|---:|---:|
+| 12 | 12 HTTP 200, `pong` | 0.308 s | 0.814 s | 0.814 s |
+
+After opening stock Notes, `front_app` returned `Notepad (paperroll)` in 0.132 s.
+`get_note(5)` returned the text rendered by a device-side notification in 0.767 s:
+`Export test received. I see: "the nthis note.ewton sees"`.
+
+The non-blocking failure gates also passed. With the sole listener paused, a
+`POST /tools` remained in flight while the Newton rendered a new notification in
+2.037 s. After the listener was killed, the Newton rendered another notification
+while reconnects were refused and its health endpoint stayed ready. Restoring
+`runtime/raw_pkg_server.py` produced one connection in 8 seconds and the next ping
+completed in 0.076 s. The 30-test suite passed without disturbing that live link.

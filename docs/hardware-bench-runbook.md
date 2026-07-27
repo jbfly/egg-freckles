@@ -35,7 +35,7 @@ Staged packages, in install order:
 | `newtdev.pkg`, `enetsup.pkg` | Newton Devices + Ethernet support (NIE prerequisites) |
 | `inetenbl.pkg` | Internet Enabler — the NIE stack itself |
 | `inetstup.pkg` | Internet Setup — where you configure the WaveLAN + DHCP |
-| `harness-tools.pkg` | `HarnessToolsR10D:jbfly`, the persistent long-poll tool surface under test |
+| `harness-tools.pkg` | `HarnessToolsR10I:jbfly`, the non-blocking persistent long-poll tool surface under test |
 | `harness-loader.pkg` | over-the-air updater, optional |
 | `harness-client.pkg` | chat client, optional |
 
@@ -145,14 +145,14 @@ Serial/dock install via `newton-pkg`/NCX is the fallback if the network path
 is not up yet — that is the chicken-and-egg case, since NIE itself has to be
 installed before the network works.
 
-**Never reuse a package identity.** If `HarnessToolsR10D:jbfly` is already on
+**Never reuse a package identity.** If `HarnessToolsR10I:jbfly` is already on
 the device: close the app, `SafeRemovePackage(GetPkgRef(...))`, then install
 fresh. And remember `tntk` exits 0 even with undefined symbols — a clean build
 is not proof.
 
 ## Step 6 — Measure
 
-Open Harness Tools on the Newton. R10D opens ONE outbound connection to
+Open Harness Tools on the Newton. R10I opens ONE outbound connection to
 `10.42.0.1:18081` and holds it (Newton-initiated async long-poll). Confirm the
 link exists before benching:
 
