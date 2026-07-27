@@ -6,6 +6,6 @@
         }
     ],
     name: "HarnessClient:jbfly",
-    version: 8,
+    version: 9,
     platform: "Newton 2.1"
 }

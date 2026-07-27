@@ -1,5 +1,5 @@
 kAppSymbol := '|HarnessClient:jbfly|;
-kVersion := "1.9";
+kVersion := "2.0";
 kAppTitle := "Newton Chat " & kVersion;
 
 // The transcript is one bounded string, trimmed from the front at line
@@ -21,6 +21,10 @@ mainView := {
     // name: NewtonScript symbols are case-insensitive.
     capBytes: kTranscriptCap,
     tailBytes: kTranscriptTail,
+    // ponytail: a Newton paragraph breaks lines on CR (0x0D); NewtonScript's
+    // "\n" is 0x0A, which draws as an empty box and breaks nothing. tntk
+    // silently emits "" for a \u000D\u literal, so set it at setup time.
+    newline: nil,
     version: kVersion,
     transcript: "",
     transcriptView: nil,
@@ -35,6 +39,7 @@ mainView := {
     ViewSetupDoneScript: func()
     begin
         inherited:?ViewSetupDoneScript();
+        self.newline := Chr(13);
         // ponytail: the child list is not reachable until the view is fully open.
         AddDelayedCall(func(view) view:Boot(), [self], 800);
     end,
@@ -79,11 +84,11 @@ mainView := {
 
     AppendLine: func(line)
     begin
-        self.transcript := self.transcript & line & "\n";
+        self.transcript := self.transcript & line & self.newline;
         local cut := 0;
         while (StrLen(self.transcript) > self.capBytes) and (cut <> nil) do
         begin
-            cut := StrPos(self.transcript, "\n", 0);
+            cut := StrPos(self.transcript, self.newline, 0);
             if cut <> nil then
                 self.transcript := SubStr(self.transcript, cut + 1,
                     StrLen(self.transcript) - cut - 1);
@@ -96,7 +101,7 @@ mainView := {
         local size := StrLen(self.transcript);
         if size <= self.tailBytes then return self.transcript;
         local start := size - self.tailBytes;
-        local cut := StrPos(SubStr(self.transcript, start, self.tailBytes), "\n", 0);
+        local cut := StrPos(SubStr(self.transcript, start, self.tailBytes), self.newline, 0);
         if cut <> nil then start := start + cut + 1;
         return SubStr(self.transcript, start, size - start);
     end,
@@ -123,7 +128,7 @@ mainView := {
         self.transcript := "";
         for index := 1 to 400 do :AppendLine("" & index & " " & filler);
         local size := StrLen(self.transcript);
-        local firstBreak := StrPos(self.transcript, "\n", 0);
+        local firstBreak := StrPos(self.transcript, self.newline, 0);
         local first := SubStr(self.transcript, 0, firstBreak);
         local ok := (size <= self.capBytes) and (size > 5000)
             and (StrPos(self.transcript, "400 " & filler, 0) <> nil)
@@ -286,7 +291,7 @@ mainView := {
         end else if BeginsWith(line, ":" & seqText & " TEXT ") then
         begin
             if StrLen(self.responseText) > 0 then
-                self.responseText := self.responseText & "\n";
+                self.responseText := self.responseText & self.newline;
             self.responseText := self.responseText & SubStr(line, 9, star - 9);
         end else if BeginsWith(line, ":" & seqText & " PROMPT*") then
         begin
@@ -372,6 +377,9 @@ mainView := {
             _proto: protoStaticText,
             viewBounds: {left: 14, top: 32, right: 290, bottom: 272},
             viewFont: ROM_fontSystem10,
+            // ponytail: protoStaticText defaults to vjLeftH + oneLineOnly, which
+            // draws the whole transcript on one clipped line. Drop oneLineOnly.
+            viewJustify: vjLeftH,
             // ponytail: a live paragraph rejects an empty string, so it never
             // starts empty; this doubles as the empty-conversation hint.
             text: "Type a prompt below, then tap Send.",
