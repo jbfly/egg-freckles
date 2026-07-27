@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR10J:jbfly|;
-kAppTitle := "Harness Tools R10J";
+kAppSymbol := '|HarnessToolsR10K:jbfly|;
+kAppTitle := "Harness Tools R10K";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -223,10 +223,36 @@ mainView := {
 
     GetNote: func(ordinal)
     begin
-        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
-        local entry := cursor:Entry();
-        if ordinal > 1 then entry := cursor:Move(ordinal - 1);
-        if entry = nil or entry = 'deleted then return "";
+        local cursors := [];
+        local entries := [];
+        foreach store in GetStores() do
+            if store:HasSoup(ROM_paperRollSoupName) then
+            begin
+                local cursor := store:GetSoup(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+                AddArraySlot(cursors, cursor);
+                AddArraySlot(entries, cursor:Entry());
+            end;
+        if Length(entries) = 0 then return "";
+
+        local entry := nil;
+        for position := 1 to ordinal do
+        begin
+            local selected := nil;
+            entry := nil;
+            for index := 0 to Length(entries) - 1 do
+            begin
+                local candidate := entries[index];
+                if candidate <> nil and candidate <> 'deleted then
+                    if entry = nil or GetSysEntryData(candidate, 'timeStamp) < GetSysEntryData(entry, 'timeStamp) then
+                    begin
+                        entry := candidate;
+                        selected := index;
+                    end;
+            end;
+            if entry = nil then return "";
+            if position < ordinal then entries[selected] := cursors[selected]:Next();
+        end;
+
         local data := GetSysEntryData(entry, 'data);
         local text := "";
         if IsArray(data) then foreach item in data do
