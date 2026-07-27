@@ -35,7 +35,7 @@ Staged packages, in install order:
 | `newtdev.pkg`, `enetsup.pkg` | Newton Devices + Ethernet support (NIE prerequisites) |
 | `inetenbl.pkg` | Internet Enabler — the NIE stack itself |
 | `inetstup.pkg` | Internet Setup — where you configure the WaveLAN + DHCP |
-| `harness-tools.pkg` | `HarnessToolsR6:jbfly`, the tool surface under test |
+| `harness-tools.pkg` | `HarnessToolsR10D:jbfly`, the persistent long-poll tool surface under test |
 | `harness-loader.pkg` | over-the-air updater, optional |
 | `harness-client.pkg` | chat client, optional |
 
@@ -102,6 +102,31 @@ iw dev wlan0 station dump | grep -E 'Station|signal|tx bitrate'
 radio itself contributes real latency, and you need that number to interpret
 the benchmark honestly.
 
+## Step 4b — Quick network test (STOP HERE on the first session)
+
+Before installing anything, prove the radio path end to end. This is the
+decision point for whether the AX200 suffices or you need the vintage AP.
+
+On the Newton, in NetHopper/Newtscape or Nettest, fetch:
+
+```
+http://10.42.0.1:18081/harness-client.pkg
+```
+
+On the host, watch it arrive:
+
+```sh
+ss -tn | grep 10.42.0                       # the Newton's connection
+tail -f /run/newton-ap/dnsmasq.leases       # its lease
+```
+
+Pass = the download starts and the host sees the connection from a
+`10.42.0.10-.50` address. Also record `iw dev wlan0 station dump` signal and
+tx bitrate. If association is flaky, drops, or the AX200 logs firmware resets
+(`dmesg | grep -c "SW reset"`), that is the signal to switch to the AirPort
+base station or another 802.11b router on the same `10.42.0.1/24` plan --
+nothing else in this runbook changes, only which box beacons.
+
 ## Step 5 — Install the packages
 
 The Newton pulls them over HTTP from the already-running package server. From
@@ -120,14 +145,23 @@ Serial/dock install via `newton-pkg`/NCX is the fallback if the network path
 is not up yet — that is the chicken-and-egg case, since NIE itself has to be
 installed before the network works.
 
-**Never reuse a package identity.** If `HarnessToolsR6:jbfly` is already on
+**Never reuse a package identity.** If `HarnessToolsR10D:jbfly` is already on
 the device: close the app, `SafeRemovePackage(GetPkgRef(...))`, then install
 fresh. And remember `tntk` exits 0 even with undefined symbols — a clean build
 is not proof.
 
 ## Step 6 — Measure
 
-Open Harness Tools on the Newton. It polls `10.42.0.1:18081` on its own.
+Open Harness Tools on the Newton. R10D opens ONE outbound connection to
+`10.42.0.1:18081` and holds it (Newton-initiated async long-poll). Confirm the
+link exists before benching:
+
+```sh
+ss -tn | grep 18081     # expect exactly one ESTAB from the Newton's address
+```
+
+Emulator reference numbers to beat: warm calls ~0.8 s, `front_app` as low as
+0.034 s, and ~7-9 s only on the first call after the idle link dies.
 
 ```sh
 python3 runtime/bench_tools.py --op ping --count 10
