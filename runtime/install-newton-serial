@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 2 ]; then
+    echo "usage: $0 PACKAGE.pkg /dev/ttyUSBn" >&2
+    exit 2
+fi
+package=$1
+device=$2
+[ -f "$package" ] || { echo "package not found: $package" >&2; exit 2; }
+[ -e "$device" ] || { echo "serial device not found: $device" >&2; exit 2; }
+[ -r "$device" ] && [ -w "$device" ] || {
+    group=$(stat -c %G "$device" 2>/dev/null || echo uucp/dialout)
+    echo "cannot access $device; add your user to group $group, log out/in, then retry" >&2
+    exit 2
+}
+
+src=$(CDPATH= cd -- "$(dirname -- "$0")/unixnpi" && pwd)
+bin="${TMPDIR:-/tmp}/newton-harness-unixnpi-${UID:-$(id -u)}"
+if [ ! -x "$bin" ] || [ "$src/unixnpi.c" -nt "$bin" ] || [ "$src/newtmnp.c" -nt "$bin" ] || [ "$src/newtmnp.h" -nt "$bin" ]; then
+    ${CC:-cc} -O2 -Wall -Wextra -o "$bin" "$src/unixnpi.c" "$src/newtmnp.c"
+fi
+exec "$bin" -d "$device" "$package"

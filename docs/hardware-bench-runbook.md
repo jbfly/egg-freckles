@@ -141,9 +141,56 @@ NEWTON_PUBLISHER_PACKAGE=runtime/staging/hardware/harness-tools.pkg \
 then fetch `http://10.42.0.1:18081/harness-client.pkg` (the route name is
 fixed; the file it serves is whatever `NEWTON_PUBLISHER_PACKAGE` points at).
 
-Serial/dock install via `newton-pkg`/NCX is the fallback if the network path
-is not up yet — that is the chicken-and-egg case, since NIE itself has to be
-installed before the network works.
+### Serial bootstrap (works with no Newton-side loader)
+
+Use the ROM's built-in Dock application when HTTP installation is unavailable.
+No package needs to be installed on the Newton first.
+
+1. **Cable it without resetting the Newton.** Connect the MP2000 InterConnect
+   port to an InterConnect adapter/cable that actually exposes the Newton
+   serial pins, then through the DIN-to-DB serial adapter to the USB serial
+   adapter and host. If the InterConnect piece is ambiguous, describe or
+   photograph both ends before proceeding; a power/dock-only cable will not
+   work.
+2. **Use the FTDI FT232R, not the currently attached CP2102.** Plug in only the
+   FTDI adapter (`0403:6001`) and identify its device:
+
+   ```sh
+   for d in /dev/ttyUSB*; do
+     echo "$d $(udevadm info -q property -n "$d" | grep -E '^(ID_VENDOR_ID|ID_MODEL_ID)=')"
+   done
+   ```
+
+   Expect one device with `ID_VENDOR_ID=0403` and `ID_MODEL_ID=6001`, normally
+   `/dev/ttyUSB0`. Use the PL2303 (`067b:2303`) only if the FTDI fails.
+3. **Check access before using the bench.** `test -r /dev/ttyUSB0 -a -w
+   /dev/ttyUSB0 && echo ready` must print `ready`. On this host the serial
+   devices are group `uucp`, and the current user is not a member. The human
+   may fix that once with `sudo usermod -aG uucp "$USER"`, then must log out
+   and back in; do not run the installer with sudo.
+4. **Put the Newton in receive mode.** Open **Dock**, choose **Serial** at the
+   stock **38400** speed, and tap **Connect**. Leave that waiting screen open.
+   Do not select Fast Serial: its Newton-side package is not installed.
+5. **Send the smallest proof-of-life package from the host:**
+
+   ```sh
+   cd ~/git/newton-harness
+   runtime/install-newton-serial \
+     runtime/staging/hardware/harness-loader.pkg /dev/ttyUSB0
+   ```
+
+   Use `runtime/staging/hardware/harness-tools.pkg` instead if the loader build
+   is being replaced. Success is `Connected`, handshake progress, byte counts
+   reaching `10552 / 10552` for the staged loader, then `Finished!!`; the
+   Newton leaves the waiting screen and shows the normal package install flow.
+
+Top three serial failures:
+
+| Symptom | Fix |
+|---|---|
+| USB ID is `10c4:ea60`, no FTDI device appears, or the port changes | That is the currently attached CP2102, not the bench adapter. Unplug it, attach only FTDI `0403:6001`, rerun the identification loop, and use the reported `/dev/ttyUSB*`. |
+| `cannot access /dev/ttyUSB*` | Add the user to the device's group (`uucp` here) with `sudo usermod -aG uucp "$USER"`, then log out/in and retry without sudo. |
+| `No Newton answered within 30 seconds` | Confirm Dock shows **Serial** and was tapped to **Connect**; reseat the full cable chain and verify the InterConnect adapter exposes serial. Stay at 38400. If wiring is sound, swap the FTDI only then try the PL2303. |
 
 **Never reuse a package identity.** If `HarnessToolsR10I:jbfly` is already on
 the device: close the app, `SafeRemovePackage(GetPkgRef(...))`, then install
