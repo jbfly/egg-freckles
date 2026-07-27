@@ -395,6 +395,15 @@ mainView := {
             viewBounds: {left: 14, top: 302, right: 290, bottom: 326},
             viewFont: ROM_fontSystem10,
             text: "",
+            ViewKeyDownScript: func(key, flags)
+            begin
+                if (key = kReturnKey) or (key = kEnterKey) then
+                begin
+                    self:Parent():SendPrompt();
+                    return true;
+                end;
+                return nil;
+            end,
         },
         {
             _proto: protoStaticText,
