@@ -2,7 +2,7 @@
 
 ## Current source state
 
-- `examples/harness-loader/Main.newt` is the NewtonOS 2.1 updater. It opens an NIE link, connects to `10.42.0.1:18081`, downloads `/harness-client.pkg` with HTTP/1.0, validates a bounded `Content-Length`, stores the body in a VBO, and installs it with `SuckPackageFromBinary`.
+- `examples/harness-loader/Main.newt` is the NewtonOS 2.1 package installer. The user enters a staged `.pkg` filename; it opens an NIE link, connects to `10.42.0.1:18081`, downloads that name with HTTP/1.0, validates a `Content-Length` from 1 to 524,288 bytes, stores the exact body in a VBO, and installs it with `SuckPackageFromBinary`.
 - `examples/harness-client/Main.newt` is Harness Client v1.1. It identifies itself in the window and package title and fetches the small plain-text `/status` resource over the same HTTP/1.0 network path.
 - `pkg_publisher.py` is the source-level reference server for `/harness-client.pkg` and `/status`. The separate live raw server is operational runtime state, not part of this build path.
 - Each app has a `.nprj` file and a small Makefile that invokes tntk against the Newton 2.1 platform file.
@@ -52,20 +52,25 @@ The loader allocates a package VBO with:
 GetDefaultStore():NewVBO('package, contentLength)
 ```
 
-It copies response bytes into that VBO with `BinaryMunger`, calls `ClearVBOCache`, and only installs after the exact advertised body length arrives. Installation is deferred:
+It copies response bytes into that VBO with `BinaryMunger`, calls `ClearVBOCache`, and only installs after the exact advertised body length arrives. Installation is delayed until after the endpoint receive callback returns:
 
 ```newtonscript
-AddDeferredCall(
+AddDelayedCall(
     func(theBinary)
         GetDefaultStore():SuckPackageFromBinary(theBinary, nil),
-    [binary]);
+    [binary],
+    5000);
 ```
 
 Deferring matters: package installation can alter application state, so it should not run inside the endpoint receive stack. Keep the binary referenced until the deferred call runs. The current install exception is intentionally contained because there is no safe UI reference in that deferred function; a later version can report install completion through a persistent status slip.
 
 ## Loader and client behavior
 
-Loader v1.1 shows its version in large text, reports fetch/install phases on its large button, and performs one deferred retry after a link, TCP, HTTP, allocation, or length failure. A second failure leaves readable status and the button remains tappable for a fresh two-attempt cycle.
+Loader v1.2 shows its version, accepts a name-only `.pkg` filename, reports fetch/install progress on its large button, and performs one deferred retry after a link, TCP, HTTP, allocation, or length failure. Filenames are limited to ASCII letters, digits, `-`, `_`, and `.`, and must end in `.pkg`; no directory-listing protocol was added.
+
+Output is asynchronous and explicitly uses `form: 'string`; its completion script reports send failure. Binary input has no completion script. Each `InputScript` re-arms `SetInputSpec` before returning, advances the VBO target offset, and never calls synchronous `Input()`. The existing NIE grab/release handling and late-`Grabbed` guard remain unchanged.
+
+The emulator acceptance run downloaded the staged `inetenbl.pkg` at 318,276 bytes and opened its live `PCMCIA Ethernet` / `NE2000` configuration UI after installation. During a repeat large transfer, the Newton opened `AllIcons` while `ss -tnp` still showed the sole client connection to `10.42.0.1:18081` in `ESTAB`, demonstrating that the event loop remained responsive. The physical Newton was not used.
 
 Client v1.1 shows its name and version and provides one large `Check harness status` control. It requests:
 

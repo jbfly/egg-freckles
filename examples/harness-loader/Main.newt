@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderZC1:jbfly|;
-kVersion := "1.1-zc1";
-kAppTitle := "- ZC1 Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC22:jbfly|;
+kVersion := "1.2-zc22";
+kAppTitle := "- ZC22 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -12,8 +12,27 @@ mainView := {
     endpoint: nil,
     linkID: nil,
     resultView: nil,
-    attempt: 0,
+    filenameView: nil,
+    packageName: nil,
+    packageBinary: nil,
     inputTarget: nil,
+    contentLength: nil,
+    headerText: "",
+    bodyOffset: 0,
+    bodyChunk: 0,
+    allowedChars: "-._0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    attempt: 0,
+
+    Wire: func()
+    begin
+        if self.filenameView then return nil;
+        local kids := self:ChildViewFrames();
+        if kids = nil then return nil;
+        local rootTop := self:GlobalBox().top;
+        foreach child in kids do
+            if child:GlobalBox().top - rootTop = 90 then self.filenameView := child;
+        return nil;
+    end,
 
     SetStatus: func(message)
         SetValue(self.resultView, 'text, message),
@@ -40,6 +59,15 @@ mainView := {
     Install: func(resultView)
     begin
         self.resultView := resultView;
+        :Wire();
+        if self.filenameView = nil then return :SetStatus("Filename field unavailable");
+        self.packageName := DecodeRichString(self.filenameView.text, self.filenameView.viewFont).text;
+        if (self.packageName = nil) or (StrLen(self.packageName) < 5)
+        or (StrPos(self.packageName, ".pkg", 0) <> StrLen(self.packageName) - 4) then
+            return :SetStatus("Enter a .pkg filename");
+        for index := 0 to StrLen(self.packageName) - 1 do
+            if StrPos(self.allowedChars, SubStr(self.packageName, index, 1), 0) = nil then
+                return :SetStatus("Filename uses invalid characters");
         self.attempt := 1;
         :TryFetch();
     end,
@@ -47,6 +75,12 @@ mainView := {
     TryFetch: func()
     begin
         :Stop("TryFetch");
+        self.packageBinary := nil;
+        self.inputTarget := nil;
+        self.contentLength := nil;
+        self.headerText := "";
+        self.bodyOffset := 0;
+        self.bodyChunk := 0;
         :SetStatus("Fetch attempt " & self.attempt & " of 2...");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
     end,
@@ -124,7 +158,6 @@ mainView := {
     Connected: func(result, error)
     begin
         if error then return :Failed("Connect failed: " & error);
-        // Receive completion is asynchronous; InputReceived owns install/status.
         :DownloadPackage();
     end,
 
@@ -133,7 +166,7 @@ mainView := {
         text := text & CHR(byte);
         if Length(text) > 4096 then return 'tooLong;
         if Length(text) >= 4
-        and StrEqual(SubStr(text, -4, 4), "\r\n\r\n") then
+        and StrEqual(SubStr(text, Length(text) - 4, 4), "\r\n\r\n") then
             return 'done;
         return text;
     end,
@@ -149,16 +182,17 @@ mainView := {
         return nil;
     end,
 
-    CopyChunk: func(target, targetOffset, contentLength, source, sourceOffset, count)
+    CopyChunk: func(source, sourceOffset, count)
     begin
-        if count <= 0 then return targetOffset;
-        if (targetOffset < 0) or ((targetOffset + count) > contentLength) then
+        if count <= 0 then return self.bodyOffset;
+        if (self.bodyOffset < 0) or ((self.bodyOffset + count) > self.contentLength) then
             return :Failed("Server sent more than Content-Length");
         try
         begin
-            BinaryMunger(target, targetOffset, count, source, sourceOffset, count);
-            ClearVBOCache(target);
-            return targetOffset + count;
+            BinaryMunger(self.packageBinary, self.bodyOffset, count, source, sourceOffset, count);
+            ClearVBOCache(self.packageBinary);
+            self.bodyOffset := self.bodyOffset + count;
+            return self.bodyOffset;
         end
         onexception |evt.ex| do
             :Failed("Package storage failed");
@@ -168,41 +202,123 @@ mainView := {
     begin
         AddDelayedCall(
             func(theBinary)
-                try
-                    // ponytail: fixed client package only, so the loader never replaces itself.
-                    GetDefaultStore():SuckPackageFromBinary(theBinary, nil)
+                try GetDefaultStore():SuckPackageFromBinary(theBinary, nil)
                 onexception |evt.ex| do nil,
             [binary],
             5000);
     end,
 
-    InputReceived: func(error)
+    ArmHeader: func()
     begin
-        local binary := GetDefaultStore():NewVBO('package, 6456);
-        BinaryMunger(binary, 0, 6456, self.inputTarget, 111, 6456);
-        ClearVBOCache(binary);
-        :InstallBinaryLater(binary);
-        :SetStatus("Harness Client install queued");
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'binary,
+            target: {data: self.inputTarget, offset: 0},
+            termination: {byteCount: 1024},
+            discardAfter: 1024,
+            InputScript: func(endpoint, data, terminator, options)
+            begin
+                try self._parent:HeaderReceived(data)
+                onexception |evt.ex| do
+                begin
+                    endpoint:SetInputSpec(nil);
+                    self._parent:SetStatus("Header callback failed");
+                end;
+            end,
+        });
+        return nil;
+    end,
+
+    HeaderReceived: func(chunk)
+    begin
+        local bodyStart := nil;
+        ClearVBOCache(chunk);
+        for index := 0 to 1023 do
+            if bodyStart = nil then
+            begin
+                local headerState := :AppendHeaderByte(self.headerText, ExtractByte(chunk, index));
+                if headerState = 'tooLong then
+                    return :Failed("Response headers exceeded 4096 bytes");
+                if headerState = 'done then
+                begin
+                    self.headerText := self.headerText & CHR(ExtractByte(chunk, index));
+                    bodyStart := index + 1;
+                end else
+                    self.headerText := headerState;
+            end;
+        if bodyStart = nil then return :Failed("Response headers were incomplete");
+        if not BeginsWith(self.headerText, "HTTP/1.0 200") then
+            return :Failed("HTTP status was not 200");
+        self.contentLength := :ParseContentLength(self.headerText);
+        if (self.contentLength = nil) or (self.contentLength <= 0)
+        or (self.contentLength > 524288) then
+            return :Failed("Content-Length must be 1 to 524288");
+        try self.packageBinary := GetDefaultStore():NewVBO('package, self.contentLength)
+        onexception |evt.ex| do return :Failed("Package allocation failed");
+        if :CopyChunk(chunk, bodyStart, 1024 - bodyStart) = nil then return nil;
+        :SetStatus("Received " & self.bodyOffset & " / " & self.contentLength & " bytes...");
+        // ponytail: stay in binary form and re-arm before InputScript returns.
+        return :ArmBody();
+    end,
+
+    ArmBody: func()
+    begin
+        self.bodyChunk := self.contentLength - self.bodyOffset;
+        if self.bodyChunk > 8192 then self.bodyChunk := 8192;
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'binary,
+            target: {data: self.packageBinary, offset: self.bodyOffset},
+            termination: {byteCount: self.bodyChunk},
+            discardAfter: self.bodyChunk,
+            InputScript: func(endpoint, data, terminator, options)
+            begin
+                try self._parent:BodyReceived()
+                onexception |evt.ex| do
+                begin
+                    endpoint:SetInputSpec(nil);
+                    self._parent:SetStatus("Body callback failed");
+                end;
+            end,
+        });
+        return nil;
+    end,
+
+    BodyReceived: func()
+    begin
+        self.bodyOffset := self.bodyOffset + self.bodyChunk;
+        ClearVBOCache(self.packageBinary);
+        :SetStatus("Received " & self.bodyOffset & " / " & self.contentLength & " bytes...");
+        if self.bodyOffset = self.contentLength then return :InputReceived();
+        // ponytail: advance the target offset and re-arm before InputScript returns.
+        return :ArmBody();
+    end,
+
+    InputReceived: func()
+    begin
+        :InstallBinaryLater(self.packageBinary);
+        :SetStatus(self.packageName & " install queued");
+        return nil;
     end,
 
     DownloadPackage: func()
     begin
-        :SetStatus("Installing input spec...");
-        self.inputTarget := GetDefaultStore():NewVBO('package, 65536);
-        self.endpoint:SetInputSpec({
-            form: 'binary,
-            target: {data: self.inputTarget, offset: 0},
-            termination: {byteCount: 6567},
-            discardAfter: 65536,
-            InputScript: func(endpoint, data, result, error)
-                endpoint._parent:InputReceived(error),
-        });
-        :SetStatus("Requesting /harness-client.pkg...");
+        try self.inputTarget := GetDefaultStore():NewVBO('package, 1024)
+        onexception |evt.ex| do return :Failed("Receive allocation failed");
+        if self.inputTarget = nil then return :Failed("Receive allocation failed");
+        :ArmHeader();
+        :SetStatus("Requesting /" & self.packageName & "...");
         self.endpoint:output(
-            "GET /harness-client.pkg HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
+            "GET /" & self.packageName & " HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
             nil,
-            {async: nil, reqTimeout: 10000});
-        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+            {
+                form: 'string,
+                async: true,
+                reqTimeout: 10000,
+                _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:Failed("Request failed: " & result),
+            });
         return nil;
     end,
 
@@ -225,14 +341,21 @@ mainView := {
             _proto: protoStaticText,
             viewJustify: vjParentFullH + vjParentTopV,
             viewBounds: {left: 12, top: 14, right: -12, bottom: 82},
-            text: kAppTitle & "\nFetches Harness Client v1.1",
+            text: kAppTitle & "\nPackage filename:",
             viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            _proto: protoInputLine,
+            viewJustify: vjParentFullH + vjParentTopV,
+            viewBounds: {left: 20, top: 90, right: -20, bottom: 116},
+            text: "inetenbl.pkg",
+            viewFont: ROM_fontSystem10,
         },
         {
             _proto: protoTextButton,
             viewJustify: vjParentFullH + vjParentFullV,
-            viewBounds: {left: 20, top: 90, right: -20, bottom: -12},
-            text: "Install client update",
+            viewBounds: {left: 20, top: 126, right: -20, bottom: -12},
+            text: "Install package",
             viewFont: ROM_fontSystem12Bold,
             buttonClickScript: func() self:Parent():Install(self),
         },
