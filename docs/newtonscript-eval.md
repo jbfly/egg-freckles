@@ -394,3 +394,33 @@ text in 0.766 s ([front app](../runtime/evidence/r10d-front-app.txt),
 without changing the live device connection; its `Newton tools disconnected`
 line comes from the loopback ephemeral-port heartbeat test, not port 18081
 ([`r10d-pytest.txt`](../runtime/evidence/r10d-pytest.txt)).
+
+## Tenth investigation: the idle "threshold" is a race, not a threshold
+
+Measured on R10D (`40adcfb`), one sweep, source port sampled before idle,
+after idle, and after the bench. Raw data: `runtime/evidence/idle-sweep.txt`.
+
+| Gap | Port during idle | First call |
+|---:|---|---:|
+| 60 s | unchanged -> changed on bench | **7.113 s** |
+| 80 s | changed during idle | 0.100 s |
+| 90 s | unchanged, still valid | 0.090 s |
+| 95 s | unchanged -> changed on bench | **7.263 s** |
+| 110 s | unchanged -> changed on bench | **7.754 s** |
+| 150 s | changed during idle | 0.844 s |
+| 300 s | unchanged -> changed on bench | 0.187 s |
+
+Gap length does not predict cost: 60 s cost 7.1 s, 300 s cost 0.19 s. What
+predicts it is **who notices the dead link first**. The link dies silently
+while idle; if the 4 s watchdog reconnects during the idle window the cost is
+free, and if it does not, the first call pays ~7-9 s of synchronous
+reacquisition.
+
+This is why four separate idle trials (two by a worker at 92 s, two by the
+orchestrator at 95/100 s) disagreed. All four were sampling the same race.
+
+Do not tune the gap. If the ~7 s worst case matters, the fix is a host-side
+keepalive cadence that touches the link more often than it dies, so the
+watchdog always wins the race. Even unfixed, the worst case is no worse than
+the 5.8-11.5 s per-call baseline this transport replaced, and warm calls
+remain ~0.8 s.
