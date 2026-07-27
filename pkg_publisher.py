@@ -30,6 +30,7 @@ DEFAULT_PACKAGE_PATH = Path(
     )
 )
 STATUS_BODY = b"Harness server v1.1 OK\n"
+STAGING_DIR = BASE_DIR / "runtime" / "staging" / "hardware"
 DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "ink-latest.png"
 DEFAULT_NOTE_PATH = BASE_DIR / "runtime" / "evidence" / "notes-latest.json"
 INK_PROMPT = (
@@ -452,9 +453,16 @@ class PublisherHandler(BaseHTTPRequestHandler):
                 body = (f"TOOLS {request['request_id']} {request['op']} {argument}\r\n").encode("ascii")
             self._send_bytes(HTTPStatus.OK, body, "text/plain; charset=us-ascii")
             return
-        if path == "/harness-client.pkg":
+        if path.endswith(".pkg") and "/" not in path[1:]:
+            # ponytail: /harness-client.pkg keeps its configured path; any other
+            # name is served from runtime/staging/hardware. Name-only, no subdirs.
+            source = (
+                self.package_path
+                if path == "/harness-client.pkg"
+                else STAGING_DIR / path[1:]
+            )
             try:
-                body = self.package_path.read_bytes()
+                body = source.read_bytes()
             except OSError:
                 self._not_found("package not found\n")
                 return
