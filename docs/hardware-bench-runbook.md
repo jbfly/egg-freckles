@@ -141,6 +141,64 @@ NEWTON_PUBLISHER_PACKAGE=runtime/staging/hardware/harness-tools.pkg \
 then fetch `http://10.42.0.1:18081/harness-client.pkg` (the route name is
 fixed; the file it serves is whatever `NEWTON_PUBLISHER_PACKAGE` points at).
 
+### TCP Dock bootstrap (current no-cable path)
+
+This uses the Newton OS 2.x ROM Dock protocol's old package-loading session,
+so it needs no loader or installer package on the Newton. The **host listens on
+`10.42.0.1:3679` and the Newton initiates the TCP connection** when you tap
+Connect. Do not try to connect from the host to `10.42.0.36`. The sequence is
+the documented `rtdk` / `dock(loadPackage)` / `name` / `stim` / `dres` /
+`lpkg` / `dres` / `disc` exchange:
+<https://40hz.org/Pages/newton/hacking/newton-docking-protocol/>. NewtonKit
+independently uses the same direction and port: its host starts a server on
+3679, then the Newton Dock app initiates the TCP/IP connection:
+<https://github.com/turbolent/NewtonKit#tcp>.
+
+1. **Allow Dock traffic through the already-running AP firewall.** The checked-in
+   `ap/newton-ap.nft` adds `3679` to the existing Newton-only TCP allowlist.
+   Apply that prepared ruleset; this does not reset the Newton or stop the
+   package server:
+
+   ```sh
+   cd ~/git/newton-harness
+   sudo nft -f ap/newton-ap.nft
+   sudo nft list chain inet newton-ap input | grep 3679
+   ```
+
+   Expect the second command to show `tcp dport { 3679, 6801, 18081 } accept`.
+2. **Prepare Dock, but do not tap Connect yet.** On the Newton, open **Dock**.
+   Choose **TCP/IP** (the network transport; not Serial and not AppleTalk). If
+   Dock asks for the desktop address, enter **`10.42.0.1`**.
+3. **Start the one host command:**
+
+   ```sh
+   cd ~/git/newton-harness
+   runtime/install-newton-tcp runtime/staging/hardware/harness-loader.pkg
+   ```
+
+   It must print `Listening on 10.42.0.1:3679; now tap Connect in Dock on the
+   Newton`. Leave it running.
+4. **Now tap Connect on the Newton.** Expected host output is:
+
+   ```text
+   Newton connected from 10.42.0.36:<ephemeral-port>
+   Sending 10552 bytes from runtime/staging/hardware/harness-loader.pkg
+   Package installed; Dock session closed
+   ```
+
+   The Newton should show its normal package-install progress and then return
+   from Dock. To send the larger proof-of-life package instead, use the same
+   command with `runtime/staging/hardware/harness-tools.pkg`; expected size is
+   `18320` bytes.
+
+Top three TCP Dock failures:
+
+| Symptom | Fix |
+|---|---|
+| `no Newton connected within 60s` | Confirm the Newton still has `10.42.0.36`, Dock is set to **TCP/IP** with desktop `10.42.0.1`, and the live nft rule includes 3679. Run `ss -tn | grep 3679` while tapping Connect; no row means the connection never reached the host. |
+| `Address already in use` or `Cannot assign requested address` | For the first, find the unexpected listener with `ss -ltnp | grep 3679` and stop only that process. For the second, the AP address is missing; `ip addr show wlan0 | grep 10.42.0.1` must succeed before retrying. |
+| `Newton rejected package install with Dock error ...` | Keep Dock open and retry once with the staged package. Error `-28019` means the package cannot load: remove an older package with the same identity or free Newton store space, then retry. Other codes should be recorded verbatim rather than resetting the device. |
+
 ### Serial bootstrap (works with no Newton-side loader)
 
 Use the ROM's built-in Dock application when HTTP installation is unavailable.

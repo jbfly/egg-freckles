@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Install one Newton package through the ROM Dock protocol over TCP."""
+
+import os
+import socket
+import struct
+import sys
+from pathlib import Path
+
+ADDRESS = "10.42.0.1"
+PORT = 3679
+HEADER = b"newtdock"
+
+
+def packet(command, data=b""):
+    padding = b"\0" * (-len(data) % 4)
+    return HEADER + command + struct.pack(">I", len(data)) + data + padding
+
+
+def receive(sock):
+    header = receive_exact(sock, 16)
+    if header[:8] != HEADER:
+        raise RuntimeError(f"bad Dock header: {header[:8]!r}")
+    length = struct.unpack(">I", header[12:])[0]
+    if length > 64 * 1024 * 1024:
+        raise RuntimeError(f"unreasonable Dock packet length: {length}")
+    data = receive_exact(sock, (length + 3) & ~3)[:length]
+    return header[8:12], data
+
+
+def receive_exact(sock, length):
+    data = bytearray()
+    while len(data) < length:
+        chunk = sock.recv(length - len(data))
+        if not chunk:
+            raise RuntimeError("Newton disconnected during transfer")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def expect(sock, command):
+    actual, data = receive(sock)
+    if actual != command:
+        raise RuntimeError(f"expected {command.decode()}, received {actual.decode('ascii', 'replace')}")
+    return data
+
+
+def expect_ok(sock, operation):
+    data = expect(sock, b"dres")
+    if len(data) < 4:
+        raise RuntimeError(f"short result after {operation}")
+    error = struct.unpack(">i", data[:4])[0]
+    if error:
+        raise RuntimeError(f"Newton rejected {operation} with Dock error {error}")
+
+
+def install(package_path):
+    package = Path(package_path).read_bytes()
+    if not package.startswith(b"package0"):
+        raise RuntimeError(f"not a Newton package: {package_path}")
+
+    timeout = float(os.environ.get("NEWTON_DOCK_TIMEOUT", "60"))
+    with socket.create_server((ADDRESS, PORT), reuse_port=False) as server:
+        server.settimeout(timeout)
+        print(f"Listening on {ADDRESS}:{PORT}; now tap Connect in Dock on the Newton", flush=True)
+        try:
+            conn, peer = server.accept()
+        except TimeoutError:
+            raise RuntimeError(
+                f"no Newton connected within {timeout:g}s; confirm Dock is using TCP/IP, "
+                f"the host is {ADDRESS}, and AP TCP port {PORT} is allowed"
+            ) from None
+
+        with conn:
+            conn.settimeout(timeout)
+            print(f"Newton connected from {peer[0]}:{peer[1]}", flush=True)
+            command, _ = receive(conn)
+            if command not in (b"rtdk", b"auto"):
+                raise RuntimeError(f"expected docking request, received {command!r}")
+
+            # Old-protocol load-package session: supported by Newton OS 2.x ROMs.
+            conn.sendall(packet(b"dock", struct.pack(">I", 4)))
+            expect(conn, b"name")
+            conn.sendall(packet(b"stim", struct.pack(">I", 60)))
+            expect_ok(conn, "session setup")
+
+            print(f"Sending {len(package)} bytes from {package_path}", flush=True)
+            conn.sendall(packet(b"lpkg", package))
+            expect_ok(conn, "package install")
+            conn.sendall(packet(b"disc"))
+            print("Package installed; Dock session closed", flush=True)
+
+
+def self_test():
+    left, right = socket.socketpair()
+    try:
+        left.sendall(packet(b"test", b"abc"))
+        assert receive(right) == (b"test", b"abc")
+    finally:
+        left.close()
+        right.close()
+    print("Dock packet self-test passed")
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
+        self_test()
+        return
+    if len(sys.argv) != 2:
+        raise RuntimeError(f"usage: {sys.argv[0]} PACKAGE.pkg")
+    install(sys.argv[1])
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"install-newton-tcp: {error}", file=sys.stderr)
+        sys.exit(1)

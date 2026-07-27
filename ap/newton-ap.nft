@@ -16,7 +16,7 @@ table inet newton-ap {
 		# DHCP: client starts from 0.0.0.0, so no saddr match here.
 		iifname "wlan0" udp dport 67 accept
 		iifname "wlan0" ip saddr 10.42.0.0/24 udp dport 53 accept
-		iifname "wlan0" ip saddr 10.42.0.0/24 tcp dport { 6801, 18081 } accept
+		iifname "wlan0" ip saddr 10.42.0.0/24 tcp dport { 3679, 6801, 18081 } accept
 		# Everything else from the AP interface to the host: drop.
 		iifname "wlan0" drop
 	}
