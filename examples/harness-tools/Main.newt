@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR10K:jbfly|;
-kAppTitle := "Harness Tools R10K";
+kAppSymbol := '|HarnessToolsR10L:jbfly|;
+kAppTitle := "Harness Tools R10L";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -195,6 +195,11 @@ mainView := {
                     self.outcomeValue := :GetNote(ordinal);
                 end;
             end
+            else if StrEqual(op, "note_probe") then
+            begin
+                self.outcomeStatus := "result";
+                self.outcomeValue := :NoteProbe();
+            end
             else
             begin
                 self.outcomeStatus := "unknown_op";
@@ -219,6 +224,210 @@ mainView := {
         if app = nil then return "";
         local symbol := app.appSymbol;
         return GetAppName(symbol) & " (" & symbol & ")";
+    end,
+
+    ExceptionName: func()
+    begin
+        local exception := CurrentException();
+        try
+        begin
+            if IsFrame(exception) then
+            begin
+                if HasSlot(exception, 'name) then return "" & exception.name;
+                if HasSlot(exception, 'error) then return "" & exception.error;
+            end;
+        end
+        onexception |evt.ex| do return "evt.ex";
+        return "evt.ex";
+    end,
+
+    SlotNames: func(frame)
+    begin
+        local out := "";
+        try
+            foreach tag, value in frame do
+            begin
+                if StrLen(out) > 0 then out := out & ",";
+                out := out & tag;
+            end
+        onexception |evt.ex| do out := out & "!" & :ExceptionName();
+        return "[" & out & "]";
+    end,
+
+    NoteProbe: func()
+    begin
+        try return :NoteProbeSteps()
+        onexception |evt.ex| do return "probe!" & :ExceptionName();
+    end,
+
+    NoteProbeSteps: func()
+    begin
+        local out := "";
+        local stores := nil;
+        local targetStore := nil;
+        try
+        begin
+            stores := GetStores();
+            out := "stores=" & Length(stores);
+        end
+        onexception |evt.ex| do out := "stores!" & :ExceptionName();
+
+        if stores <> nil then
+            for index := 0 to Length(stores) - 1 do
+            begin
+                local store := stores[index];
+                out := out & ";s" & index & "=";
+                try out := out & store:GetName()
+                onexception |evt.ex| do out := out & "name!" & :ExceptionName();
+
+                local hasSoup := nil;
+                try
+                begin
+                    hasSoup := store:HasSoup(ROM_paperRollSoupName);
+                    if hasSoup then out := out & ":paper=1" else out := out & ":paper=0";
+                end
+                onexception |evt.ex| do out := out & ":paper!" & :ExceptionName();
+                if targetStore = nil and hasSoup then targetStore := store;
+            end;
+
+        local soup := nil;
+        if targetStore = nil then out := out & ";first=none"
+        else
+        begin
+            try
+            begin
+                soup := targetStore:GetSoup(ROM_paperRollSoupName);
+                out := out & ";soup=get";
+            end
+            onexception |evt.ex| do out := out & ";soup!" & :ExceptionName();
+        end;
+        if soup <> nil then
+            try out := out & ",class=" & ClassOf(soup)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local cursor := nil;
+        if soup <> nil then
+            try
+            begin
+                cursor := soup:Query(nil);
+                out := out & ";cursor=get";
+            end
+            onexception |evt.ex| do out := out & ";cursor!" & :ExceptionName();
+        if cursor <> nil then
+            try out := out & ",class=" & ClassOf(cursor)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local entry := nil;
+        local gotEntry := nil;
+        if cursor <> nil then
+            try
+            begin
+                entry := cursor:Entry();
+                gotEntry := true;
+                out := out & ";entry=get";
+            end
+            onexception |evt.ex| do out := out & ";entry!" & :ExceptionName();
+        if gotEntry then
+        begin
+            try out := out & ",class=" & ClassOf(entry)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+            try
+            begin
+                if entry = nil then out := out & ",kind=nil"
+                else if entry = 'deleted then out := out & ",kind=deleted"
+                else if IsFrame(entry) then out := out & ",kind=frame"
+                else out := out & ",kind=other";
+            end
+            onexception |evt.ex| do out := out & ",kind!" & :ExceptionName();
+            if IsFrame(entry) then out := out & ",slots=" & :SlotNames(entry);
+        end;
+
+        local sysData := nil;
+        local sysOK := nil;
+        if gotEntry then
+            try
+            begin
+                sysData := GetSysEntryData(entry, 'data);
+                sysOK := true;
+                out := out & ";sysdata=ok";
+            end
+            onexception |evt.ex| do out := out & ";sysdata!" & :ExceptionName();
+        if sysOK then
+            try out := out & ",class=" & ClassOf(sysData)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local directData := nil;
+        local directOK := nil;
+        if gotEntry then
+            try
+            begin
+                directData := entry.data;
+                directOK := true;
+                out := out & ";direct=ok";
+            end
+            onexception |evt.ex| do out := out & ";direct!" & :ExceptionName();
+        if directOK then
+            try out := out & ",class=" & ClassOf(directData)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local data := nil;
+        local dataOK := nil;
+        if directOK then
+        begin
+            data := directData;
+            dataOK := true;
+            out := out & ";textvia=direct";
+        end
+        else if sysOK then
+        begin
+            data := sysData;
+            dataOK := true;
+            out := out & ";textvia=sys";
+        end
+        else out := out & ";textvia=none";
+
+        if dataOK then
+        begin
+            try out := out & ",class=" & ClassOf(data)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+            local dataIsArray := nil;
+            try
+            begin
+                dataIsArray := IsArray(data);
+                if dataIsArray then out := out & ",array=1" else out := out & ",array=0";
+            end
+            onexception |evt.ex| do out := out & ",array!" & :ExceptionName();
+            if dataIsArray then
+            begin
+                local dataLength := nil;
+                try
+                begin
+                    dataLength := Length(data);
+                    out := out & ",len=" & dataLength;
+                end
+                onexception |evt.ex| do out := out & ",len!" & :ExceptionName();
+                if dataLength <> nil and dataLength > 0 then
+                begin
+                    local first := nil;
+                    local firstOK := nil;
+                    try
+                    begin
+                        first := data[0];
+                        firstOK := true;
+                        out := out & ";item0=get";
+                    end
+                    onexception |evt.ex| do out := out & ";item0!" & :ExceptionName();
+                    if firstOK then
+                    begin
+                        try out := out & ",class=" & ClassOf(first)
+                        onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+                        if IsFrame(first) then out := out & ",slots=" & :SlotNames(first)
+                        else out := out & ",slots=n/a";
+                    end;
+                end;
+            end;
+        end;
+        return out;
     end,
 
     GetNote: func(ordinal)
