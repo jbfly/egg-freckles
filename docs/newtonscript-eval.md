@@ -459,3 +459,22 @@ The non-blocking failure gates also passed. With the sole listener paused, a
 while reconnects were refused and its health endpoint stayed ready. Restoring
 `runtime/raw_pkg_server.py` produced one connection in 8 seconds and the next ping
 completed in 0.076 s. The 30-test suite passed without disturbing that live link.
+
+## Twelfth finding: `get_note` IDs were not ordinals
+
+Physical hardware with many Notepad entries exposed two bugs hidden by the small
+Einstein soup. R10I compared `args.id` with `EntryUniqueID(entry)`, an internal
+soup identifier callers cannot discover, so values such as 0, 2, and 5 returned an
+empty string even though Notepad contained many notes. Worse, each request walked
+every `paperroll` entry on every store synchronously. A large soup held the
+NewtonScript event loop long enough to starve the 3-second host heartbeat and
+4-second watchdog; `get_note(1)` timed out after 20 seconds and the persistent TCP
+connection was torn down.
+
+R10J defines `args.id` as a 1-based ordinal in ascending `timeStamp` index order.
+It queries the `paperroll` union soup once, reads the cursor's first entry directly,
+and uses one `cursor:Move(id - 1)` call for later entries. Ordinals are deliberately
+limited to 1 through 64 so an arbitrarily large request cannot restore unbounded
+synchronous cursor work; out-of-range values return `status: "error"` with
+`note ordinal must be 1..64`. This keeps the existing `/tools` JSON envelope and
+wire format unchanged while removing the all-stores soup scan.

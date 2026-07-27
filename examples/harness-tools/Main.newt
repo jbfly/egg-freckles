@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR10I:jbfly|;
-kAppTitle := "Harness Tools R10I";
+kAppSymbol := '|HarnessToolsR10J:jbfly|;
+kAppTitle := "Harness Tools R10J";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -183,8 +183,17 @@ mainView := {
             end
             else if StrEqual(op, "get_note") then
             begin
-                self.outcomeStatus := "result";
-                self.outcomeValue := :GetNote(StringToNumber(argument));
+                local ordinal := StringToNumber(argument);
+                if ordinal < 1 or ordinal > 64 then
+                begin
+                    self.outcomeStatus := "error";
+                    self.outcomeValue := "note ordinal must be 1..64";
+                end
+                else
+                begin
+                    self.outcomeStatus := "result";
+                    self.outcomeValue := :GetNote(ordinal);
+                end;
             end
             else
             begin
@@ -212,24 +221,13 @@ mainView := {
         return GetAppName(symbol) & " (" & symbol & ")";
     end,
 
-    GetNote: func(id)
+    GetNote: func(ordinal)
     begin
-        local best := nil;
-        foreach store in GetStores() do
-            if store:HasSoup(ROM_paperRollSoupName) then
-            begin
-                local cursor := store:GetSoup(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
-                cursor:Reset();
-                local entry := cursor:Entry();
-                while entry do
-                begin
-                    if entry <> 'deleted and EntryUniqueID(entry) = id then
-                        if best = nil or EntryModTime(entry) > EntryModTime(best) then best := entry;
-                    entry := cursor:Next();
-                end;
-            end;
-        if best = nil then return "";
-        local data := GetSysEntryData(best, 'data);
+        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+        local entry := cursor:Entry();
+        if ordinal > 1 then entry := cursor:Move(ordinal - 1);
+        if entry = nil or entry = 'deleted then return "";
+        local data := GetSysEntryData(entry, 'data);
         local text := "";
         if IsArray(data) then foreach item in data do
             if item.viewStationery = 'para then
