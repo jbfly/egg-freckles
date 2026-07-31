@@ -5,9 +5,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+DEFAULT_URL = "http://127.0.0.1:18080"
+
+
+def instance_url(instance: str) -> str:
+    """Ask podman which host port the named instance published for 8080."""
+    container = f"newton-harness-{instance}_emulator_1"
+    found = subprocess.run(
+        ["podman", "port", container, "8080"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    published = found.stdout.decode("utf-8", "replace").split()
+    if found.returncode or not published:
+        detail = found.stderr.decode("utf-8", "replace").strip()
+        raise SystemExit(detail or f"emulator instance {instance!r} is not running")
+    return "http://127.0.0.1:" + published[0].rsplit(":", 1)[1]
 
 
 def request(
@@ -41,8 +61,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--url",
-        default="http://127.0.0.1:18080",
-        help="control service base URL",
+        help=f"control service base URL (default {DEFAULT_URL})",
+    )
+    parser.add_argument(
+        "--instance",
+        default=os.environ.get("NEWTON_INSTANCE", ""),
+        help="isolated emulator instance to talk to; its port is looked up",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -64,6 +88,8 @@ def main() -> None:
     key.add_argument("value")
 
     args = parser.parse_args()
+    if not args.url:
+        args.url = instance_url(args.instance) if args.instance else DEFAULT_URL
 
     if args.command == "status":
         body, _ = request(args.url, "/health")
