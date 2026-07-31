@@ -2,29 +2,66 @@ diff --git a/Emulator/TNativePrimitives.cpp b/Emulator/TNativePrimitives.cpp
 index d99d3504..68f25813 100644
 --- a/Emulator/TNativePrimitives.cpp
 +++ b/Emulator/TNativePrimitives.cpp
-@@ -27,0 +28 @@
+@@ -23,10 +23,11 @@
+ 
+ #include "TNativePrimitives.h"
+ 
+ // POSIX
+ #include <signal.h>
 +#include <stdio.h>
-@@ -948,0 +950,6 @@ TNativePrimitives::ExecutePlatformDriverNative(KUInt32 inInstruction)
+ #include <stdlib.h>
+ #include <sys/types.h>
+ 
+ #if !TARGET_OS_WIN32
+ #include <unistd.h>
+@@ -944,10 +945,16 @@ TNativePrimitives::ExecutePlatformDriverNative(KUInt32 inInstruction)
+ 					gToolkit->PrintStd(dstText);
+ 					free(dstText);
+ 					// gToolkit->PrintStd("\n");
+ 				}
+ #endif
 +				// ponytail: one result file beats screen capture/OCR for injected scripts.
 +				if (FILE* result = ::fopen("/state/einstein-ns-result", "a"))
 +				{
 +					::fputs(theLine, result);
 +					::fclose(result);
 +				}
+ 				// TODO should we convert the output text into another encoding?
+ 				if (mLog)
+ 				{
+ 					mLog->LogLine(theLine);
+ 				} else
 diff --git a/app/FLTK/TFLApp.cpp b/app/FLTK/TFLApp.cpp
 index 41a8a8ce..765d3b86 100644
 --- a/app/FLTK/TFLApp.cpp
 +++ b/app/FLTK/TFLApp.cpp
-@@ -194,0 +195,2 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
+@@ -190,14 +190,20 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
+ 
+ // ANSI C & POSIX
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
 +#include <sys/socket.h>
 +#include <sys/stat.h>
-@@ -195,0 +198,2 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
+ #include <sys/types.h>
 +#include <sys/un.h>
 +#include <unistd.h>
-@@ -198,0 +203,2 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
+ 
+ // C++17
+ #include <filesystem>
 +#include <map>
 +#include <string>
-@@ -273,0 +280,130 @@ TFLApp* gApp = nullptr;
+ #include <thread>
+ 
+ // FLTK user interface
+ #include <FL/Fl.H>
+ #include <FL/Fl_Button.H>
+@@ -269,10 +275,140 @@ static const char* tfl_file_chooser(const char* message, const char* pat, const
+ // Local Classes
+ // -------------------------------------------------------------------------- //
+ 
+ TFLApp* gApp = nullptr;
+ 
 +namespace {
 +const char* kControlSocketPath = "/state/einstein-control.sock";
 +const size_t kControlLineLimit = 8192;
@@ -155,8 +192,24 @@ index 41a8a8ce..765d3b86 100644
 +}
 +}
 +
-@@ -419,0 +556,2 @@ TFLApp::Run(int argc, char* argv[])
+ // MARK: - Public: -
+ // --- Constructor and destructor
+ 
+ /**
+  Constructor for the app.
+@@ -415,12 +551,15 @@ TFLApp::Run(int argc, char* argv[])
+ 		// }
+ 	}
+ 	// launch the actual emulation in the background
+ 	auto emulatorThread = new std::thread(&TFLApp::EmulatorThreadEntry, this);
+ 
 +	InitControlSocket();
 +
-@@ -421,0 +560 @@ TFLApp::Run(int argc, char* argv[])
+ 	// run the user interface until all windows are close
+ 	Fl::run();
 +	CloseControlSocket();
+ 	Fl::unlock();
+ 
+ 	// if the emulator does not know yet, tell it to wrap things up and quit
+ 	mEmulator->Quit();
+ 	mPlatformManager->InsertPCCard(0, nullptr); // Flush memory card contents
