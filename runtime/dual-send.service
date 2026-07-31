@@ -1,0 +1,17 @@
+# systemd user unit for the Newton package server on mars.
+# Install:  cp runtime/dual-send.service ~/.config/systemd/user/ &&
+#           systemctl --user enable --now dual-send && loginctl enable-linger jbfly
+# ponytail: user unit + linger, no sudo needed. Root unit only if it must
+# start before login on a headless boot.
+[Unit]
+Description=Newton dual_send package server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/git/newton-harness/runtime/dual_send.py
+WorkingDirectory=%h/git/newton-harness
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
