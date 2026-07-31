@@ -1,0 +1,124 @@
+import importlib.util
+import socket
+import struct
+import threading
+
+import pytest
+
+from pathlib import Path
+
+
+SPEC = importlib.util.spec_from_file_location(
+    "newton_backup", Path(__file__).parent / "runtime" / "newton_backup.py"
+)
+backup = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(backup)
+
+
+def test_packet_and_nsof_round_trip():
+    left, right = socket.socketpair()
+    try:
+        left.sendall(backup.packet(b"test", b"abc"))
+        assert backup.receive(right) == (b"test", b"abc")
+    finally:
+        left.close()
+        right.close()
+
+    value = [{"name": "Internal", "kind": "store", "signature": 1234}]
+    encoded = backup.nsof_root(value)
+    assert backup.nsof_decode(encoded) == (value, len(encoded))
+
+
+def test_synthetic_read_only_enumeration_sends_no_dump(tmp_path):
+    client, newton = socket.socketpair()
+    commands = []
+
+    stores = [{
+        "name": "Internal", "kind": "store", "signature": 1234,
+        "totalsize": 4096, "usedsize": 1024,
+    }]
+    soups = ["Notes", "SystemInformation"]
+    signatures = [11, 22]
+
+    def fake_newton():
+        try:
+            expected = [b"gsto", b"ssto", b"gets", b"ssou", b"gids", b"ssou", b"gids"]
+            for command in expected:
+                actual, data = backup.receive(newton)
+                commands.append(actual)
+                assert actual == command
+                if command == b"gsto":
+                    newton.sendall(backup.packet(b"stor", backup.nsof_root(stores)))
+                elif command in (b"ssto", b"ssou"):
+                    newton.sendall(backup.packet(b"dres", struct.pack(">i", 0)))
+                elif command == b"gets":
+                    newton.sendall(backup.packet(
+                        b"soup", backup.nsof_root(soups) + backup.nsof_root(signatures)
+                    ))
+                else:
+                    count = 2 if len(commands) == 5 else 0
+                    ids = [101, 102][:count]
+                    newton.sendall(backup.packet(
+                        b"sids", struct.pack(">I", count) + b"".join(struct.pack(">I", i) for i in ids)
+                    ))
+        finally:
+            newton.close()
+
+    thread = threading.Thread(target=fake_newton)
+    thread.start()
+    manifest = backup.enumerate_and_dump(client)
+    client.close()
+    thread.join()
+
+    assert commands == [b"gsto", b"ssto", b"gets", b"ssou", b"gids", b"ssou", b"gids"]
+    assert [soup["entry_count"] for soup in manifest["stores"][0]["soups"]] == [2, 0]
+    assert not list(tmp_path.iterdir())
+
+
+def test_synthetic_dump_preserves_raw_entry(tmp_path):
+    client, newton = socket.socketpair()
+    entry = backup.nsof_root({"_uniqueID": 42, "text": "bootstrap"})
+
+    def fake_newton():
+        try:
+            replies = {
+                b"gsto": (b"stor", backup.nsof_root([
+                    {"name": "Internal", "kind": "store", "signature": 1}
+                ])),
+                b"ssto": (b"dres", struct.pack(">i", 0)),
+                b"gets": (b"soup", backup.nsof_root(["Notes"]) + backup.nsof_root([7])),
+                b"ssou": (b"dres", struct.pack(">i", 0)),
+                b"gids": (b"sids", struct.pack(">II", 1, 42)),
+            }
+            for expected in (b"gsto", b"ssto", b"gets", b"ssou", b"gids", b"snds"):
+                command, _ = backup.receive(newton)
+                assert command == expected
+                if command == b"snds":
+                    newton.sendall(backup.packet(b"entr", entry))
+                    newton.sendall(backup.packet(b"bsdn"))
+                else:
+                    reply, data = replies[command]
+                    newton.sendall(backup.packet(reply, data))
+        finally:
+            newton.close()
+
+    thread = threading.Thread(target=fake_newton)
+    thread.start()
+    output = tmp_path / "export"
+    backup.enumerate_and_dump(client, output)
+    client.close()
+    thread.join()
+
+    assert (output / "01-Internal" / "01-Notes" / "000001.nsof").read_bytes() == entry
+    assert "bootstrap" in (output / "01-Internal" / "01-Notes" / "000001.json").read_text()
+    assert (output / "manifest.json").is_file()
+
+
+def test_dump_refuses_existing_directory(tmp_path):
+    left, right = socket.socketpair()
+    try:
+        with pytest.raises(ValueError, match="already exists"):
+            backup.enumerate_and_dump(left, tmp_path)
+    finally:
+        left.close()
+        right.close()
