@@ -111,6 +111,24 @@ python3 -m emulator.client text "hello world"
 python3 -m emulator.client key Return
 ```
 
+Injected NewtonScript can return text without a screenshot. The TCP callback path is not used: live tests recorded payload timeouts, so Einstein's existing `Print(result)` primitive writes one disposable result file instead. Source must fit on one line.
+
+```sh
+runtime/ns_eval.py '2+2'
+```
+
+The equivalent NewtonScript result expression is simply `2+2`; strings are returned quoted, matching Einstein's existing `Print` format. Select another disposable emulator with `--container NAME`.
+
+A second isolated NS Basic scratch emulator uses its own compose project, state volume, ports, and package bind:
+
+```sh
+NEWTON_IMAGE_TAG=ns-eval NEWTON_CONTROL_PORT=18091 NEWTON_NOVNC_PORT=6091 \
+  podman-compose -p newton-scratch2 -f compose.yaml -f runtime/nsbasic-scratch.override.yaml \
+  --profile emulator up -d emulator
+```
+
+Its noVNC URL is `http://127.0.0.1:6091/vnc.html?autoconnect=1`; its control socket is `/state/einstein-control.sock` inside `newton-scratch2_emulator_1` (host volume `newton-scratch2_emulator-state`).
+
 Einstein dialogs and its package installer sit outside the Newton screen. Agents can inspect and control the complete window separately:
 
 ```sh
