@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderZC34:jbfly|;
-kVersion := "2.0";
-kAppTitle := "ZC34 Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC37:jbfly|;
+kVersion := "2.1";
+kAppTitle := "ZC37 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -19,6 +19,7 @@ mainView := {
             self._parent:SetStatus(text);
         end,
     },
+    serverAddress: [10, 42, 0, 1],
     serverPort: 18081,
     endpoint: nil,
     linkID: nil,
@@ -30,8 +31,19 @@ mainView := {
     contentLength: nil,
     bodyOffset: 0,
     bodyChunk: 0,
+    installedIdentity: nil,
     allowedChars: "-._0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     attempt: 0,
+
+    ToggleServer: func(button)
+    begin
+        if self.serverAddress[0] = 10 then
+            self.serverAddress := [192, 168, 1, 11]
+        else
+            self.serverAddress := [10, 42, 0, 1];
+        SetValue(button, 'text,
+            if self.serverAddress[0] = 10 then "Server: Mars" else "Server: LAN");
+    end,
 
     SetStatus: func(message)
     begin
@@ -96,7 +108,7 @@ mainView := {
 
     Resolved: func(results, error)
     begin
-        local address := [10, 42, 0, 1];
+        local address := self.serverAddress;
         local callName := "Instantiate";
         self.endpoint := {_proto: self.endpointClass, _parent: self};
         try
@@ -139,16 +151,8 @@ mainView := {
         onexception |evt.ex| do
         begin
             local exception := CurrentException();
-            local exceptionText := callName & " threw";
             local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
-            if HasSlot(exception, 'name) then
-                exceptionText := exceptionText & "\nn=" & exception.name;
-            exceptionText := exceptionText & "\ne=" & exceptionError;
-            if HasSlot(exception, 'data) then
-                exceptionText := exceptionText & "\nd=" & exception.data;
-            if HasSlot(exception, 'message) then
-                exceptionText := exceptionText & "\nm=" & exception.message;
-            :SetStatus(exceptionText);
+            :SetStatus(callName & " failed: " & exceptionError);
         end;
     end,
 
@@ -174,14 +178,35 @@ mainView := {
         return StringToNumber(SubStr(headers, start, finish - start));
     end,
 
+    InstallNow: func(binary)
+    begin
+        self.installedIdentity := nil;
+        try
+        begin
+            GetDefaultStore():SuckPackageFromBinary(binary, {
+                _parent: self,
+                callbackFrequency: 8192,
+                callback: func(progress)
+                    self._parent.installedIdentity := progress.packageName,
+            });
+            if self.installedIdentity
+            and GetPkgRef(self.installedIdentity, GetDefaultStore()) then
+                :SetStatus(self.installedIdentity & " installed")
+            else
+                :SetStatus("Install not confirmed");
+        end
+        onexception |evt.ex| do
+        begin
+            local exception := CurrentException();
+            local code := call GetGlobalFn('InetGetExceptionError) with (exception);
+            :SetStatus("Install failed: " & code);
+        end;
+    end,
+
     InstallBinaryLater: func(binary)
     begin
-        AddDelayedCall(
-            func(theBinary)
-                try GetDefaultStore():SuckPackageFromBinary(theBinary, nil)
-                onexception |evt.ex| do nil,
-            [binary],
-            5000);
+        AddDelayedCall(func(view, theBinary) view:InstallNow(theBinary),
+            [self, binary], 1000);
     end,
 
     ReportCallbackException: func(callbackName, endpoint, exception)
@@ -230,6 +255,7 @@ mainView := {
     ArmBody: func()
     begin
         self.bodyChunk := self.contentLength - self.bodyOffset;
+        if self.bodyChunk > 8192 then self.bodyChunk := 8192;
         self.endpoint:SetInputSpec({
             _parent: self,
             form: 'binary,
@@ -250,13 +276,14 @@ mainView := {
     begin
         self.bodyOffset := self.bodyOffset + self.bodyChunk;
         :SetStatus("Got " & self.bodyOffset & "/" & self.contentLength);
-        return :InputReceived();
+        if self.bodyOffset = self.contentLength then return :InputReceived();
+        return :ArmBody();
     end,
 
     InputReceived: func()
     begin
         :InstallBinaryLater(self.packageBinary);
-        :SetStatus(self.packageName & " queued");
+        :SetStatus(self.packageName & " installing");
         return nil;
     end,
 
@@ -269,7 +296,7 @@ mainView := {
             nil,
             {
                 form: 'string,
-                async: nil,
+                async: true,
                 reqTimeout: 10000,
                 _parent: self,
                 CompletionScript: func(endpoint, options, result)
@@ -317,13 +344,21 @@ mainView := {
             viewJustify: vjParentFullH + vjParentTopV,
             viewBounds: {left: 20, top: 90, right: -20, bottom: 116},
             // ponytail: prefill the usual target; a 1997 stylus should not retype this each round.
-            text: "harness-tools.pkg",
+            text: "install.pkg",
             viewFont: ROM_fontSystem10,
         },
         {
             _proto: protoTextButton,
             viewJustify: vjParentFullH + vjParentFullV,
-            viewBounds: {left: 20, top: 126, right: -20, bottom: -12},
+            viewBounds: {left: 20, top: 126, right: -20, bottom: 158},
+            text: "Server: Mars",
+            viewFont: ROM_fontSystem10,
+            buttonClickScript: func() self:Parent():ToggleServer(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewJustify: vjParentFullH + vjParentFullV,
+            viewBounds: {left: 20, top: 166, right: -20, bottom: -12},
             text: "Install",
             viewFont: ROM_fontSystem12Bold,
             buttonClickScript: func() self:Parent():Install(self),
