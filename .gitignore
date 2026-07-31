@@ -8,3 +8,6 @@ runtime/
 runtime/evidence/*
 secrets/
 .env
+
+# Mirrored recovery binaries are kept locally; metadata and fetch script are tracked.
+downloads/recovery/*.pkg
