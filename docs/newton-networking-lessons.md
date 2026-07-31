@@ -236,12 +236,14 @@ The traps that cost real time.
 
 Do not treat these as fact.
 
-- **The `-36003` completion failure is not fully resolved.** Commit `559af01`
-  body closes with "still fails at completion with `-36003` (cancel in progress)
-  before reporting install queued." The ref says `-36003` is "usually ignorable"
-  (`:57236`), but we have not confirmed whether it is harmless on real hardware
-  or whether the deferred `AddDelayedCall` install actually succeeds after the
-  overlay. The "install queued" status is reported, not "install succeeded."
+- **The historical ZC34 `-36003` hardware failure remains a hardware gate.**
+  The reference meaning is verified as "Cancel is in progress" (`:57235-57238`,
+  `:74083-74085`). ZC37 removes the mismatched synchronous-output completion
+  callback by using the proven `async: true`, `form: 'string` output shape and
+  reports success only after `SuckPackageFromBinary` returns and `GetPkgRef`
+  finds the installed identity. The ZC37 package builds and its unattended
+  Einstein proof is scripted in `runtime/test_wifi_install.py`; do not call the
+  teardown fixed on physical hardware until that runbook gate passes.
 - **Real-hardware parity for the long-poll transport.** The R9/R10D latency
   numbers are Einstein/emulator-derived. `docs/newtonscript-eval.md` notes R10I
   "real hardware exposed the remaining synchronous endpoint calls" — i.e. the

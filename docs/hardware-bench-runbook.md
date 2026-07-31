@@ -25,7 +25,7 @@ cost of a wrong call is a couple of minutes, not a rebuild.
 | Packages to install on the Newton | `runtime/staging/hardware/` | staged, `SHA256SUMS` verified |
 | Preflight checker | `ap/hardware-preflight.sh` | written, runs clean |
 | AP bring-up / teardown | `ap/apply.sh`, `ap/teardown.sh` | existing, NOPASSWD via sudoers |
-| Package server | `runtime/raw_pkg_server.py` | running on `10.42.0.1:18081` |
+| Package server | `runtime/dual_send.py` | serves bootstrap + named packages on all interfaces, port `18081` |
 | Latency bench | `runtime/bench_tools.py` | written, see step 6 |
 
 Staged packages, in install order:
@@ -127,19 +127,81 @@ tx bitrate. If association is flaky, drops, or the AX200 logs firmware resets
 base station or another 802.11b router on the same `10.42.0.1/24` plan --
 nothing else in this runbook changes, only which box beacons.
 
-## Step 5 — Install the packages
+## Step 5 — Install any package over WiFi/Ethernet
 
-The Newton pulls them over HTTP from the already-running package server. From
-the Newton's browser or the loader, fetch from `10.42.0.1:18081`. To serve a
-specific package:
+This is the preferred no-cable path. Pass the unattended Einstein command below
+before touching hardware, then treat the physical MP2000 as a separate gate.
+Einstein's patched NIE stack can differ from the WaveLAN/NIE stack in link
+acquisition, callback timing, buffering, and timeouts.
+
+### Host: stage one arbitrary package under the zero-typing alias
+
+`install.pkg` is only a filename alias; it does not alter the package's internal
+identity. Never install a second build with an identity already present on the
+Newton.
 
 ```sh
-NEWTON_PUBLISHER_PACKAGE=runtime/staging/hardware/harness-tools.pkg \
-  python3 runtime/raw_pkg_server.py
+cd ~/git/newton-harness
+make -C examples/harness-loader clean all
+cp examples/harness-loader/harness-loader.pkg \
+  runtime/staging/hardware/harness-loader.pkg
+cp examples/harness-loader/harness-loader.pkg \
+  runtime/staging/hardware/harness-loader-zc37.pkg
+cp -- /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
+sha256sum /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
+python3 runtime/dual_send.py
 ```
 
-then fetch `http://10.42.0.1:18081/harness-client.pkg` (the route name is
-fixed; the file it serves is whatever `NEWTON_PUBLISHER_PACKAGE` points at).
+Leave that terminal running. The server binds all interfaces. On the dedicated
+Mars AP the loader connects to **`[10,42,0,1,18081]`**. On the house LAN, Mars
+is **`192.168.1.11:18081`**.
+
+### Newton: one-time loader upgrade, then two taps per package
+
+1. Open the already-installed ZC34 Loader. Enter
+   **`harness-loader-zc37.pkg`** once and tap **Install**. This is a new package
+   identity (`-HarnessLoaderZC37:jbfly`), not an in-place replacement.
+2. Wait for ZC34 to finish its delayed install, then open **ZC37 Loader 2.1**
+   from Extras. If ZC34 shows its known `-36003` overlay, dismiss it and check
+   Extras before retrying; `-36003` is verified as **“Cancel is in progress,”**
+   not proof that package installation failed.
+3. ZC37 defaults to filename **`install.pkg`** and server **Mars**. On the
+   dedicated AP, tap **Install**. On the house LAN, first tap **Server: Mars**
+   once so it reads **Server: LAN**, then tap **Install**.
+4. Do not accept `installing` as success. Wait for
+   **`<internal package identity> installed`**. ZC37 reports that only after
+   `SuckPackageFromBinary` returns and `GetPkgRef(identity, Internal)` finds the
+   installed package.
+5. Open the new application from Extras and exercise one real action. That is
+   the hardware confirmation gate. Record the exact status, package identity,
+   byte size, and whether the app opened; do not infer hardware success from
+   the emulator result.
+
+For the 318,276-byte recovery package, use the same alias:
+
+```sh
+cp runtime/staging/hardware/inetenbl.pkg runtime/staging/hardware/install.pkg
+python3 runtime/dual_send.py
+```
+
+Do this only if that NIE identity is not already installed. A duplicate-package
+error is not a transfer failure, but it is also not a successful install.
+
+### Unattended emulator proof
+
+With the emulator healthy and `10.42.0.1/24` assigned to loopback:
+
+```sh
+sudo ap/emulator-only.sh
+runtime/test_wifi_install.py
+```
+
+The script creates a fresh package identity every run, builds a valid package
+larger than `inetenbl.pkg`, stages it under a random filename, fetches it through
+`dual_send.py`, confirms it with `GetPkgRef`, opens it, and requires its `Proof()`
+method to return `wifi-install-ok`. It is intentionally not in the normal pytest
+suite because it requires a live emulator, NIE state, host networking, and the
+Newton toolchain.
 
 ### TCP Dock bootstrap (current no-cable path)
 
