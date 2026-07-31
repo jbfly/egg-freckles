@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderZC22:jbfly|;
-kVersion := "1.2-zc22";
-kAppTitle := "- ZC22 Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC34:jbfly|;
+kVersion := "2.0";
+kAppTitle := "ZC34 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -8,34 +8,36 @@ mainView := {
     viewBounds: {left: 16, top: 72, right: -16, bottom: -72},
     title: kAppTitle,
     appSymbol: kAppSymbol,
-    endpointClass: {_proto: protoBasicEndpoint},
+    endpointClass: {
+        _proto: protoBasicEndpoint,
+        ExceptionHandler: func(error)
+        begin
+            local text := "X";
+            if HasSlot(error, 'name) then text := text & "\nn=" & error.name;
+            if HasSlot(error, 'data) then text := text & "\ne=" & error.data;
+            if HasSlot(error, 'debug) then text := text & "\nd=" & error.debug;
+            self._parent:SetStatus(text);
+        end,
+    },
+    serverPort: 18081,
     endpoint: nil,
     linkID: nil,
     resultView: nil,
+    lastStatus: nil,
     filenameView: nil,
     packageName: nil,
     packageBinary: nil,
-    inputTarget: nil,
     contentLength: nil,
-    headerText: "",
     bodyOffset: 0,
     bodyChunk: 0,
     allowedChars: "-._0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     attempt: 0,
 
-    Wire: func()
-    begin
-        if self.filenameView then return nil;
-        local kids := self:ChildViewFrames();
-        if kids = nil then return nil;
-        local rootTop := self:GlobalBox().top;
-        foreach child in kids do
-            if child:GlobalBox().top - rootTop = 90 then self.filenameView := child;
-        return nil;
-    end,
-
     SetStatus: func(message)
-        SetValue(self.resultView, 'text, message),
+    begin
+        self.lastStatus := message;
+        SetValue(self.resultView, 'text, message);
+    end,
 
     Stop: func(reason)
     begin
@@ -48,7 +50,7 @@ mainView := {
         end;
         if self.linkID then
         begin
-            :SetStatus("STOP called from " & reason);
+            :SetStatus("Stop " & reason);
             call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
             self.linkID := nil;
         end;
@@ -59,15 +61,14 @@ mainView := {
     Install: func(resultView)
     begin
         self.resultView := resultView;
-        :Wire();
-        if self.filenameView = nil then return :SetStatus("Filename field unavailable");
-        self.packageName := DecodeRichString(self.filenameView.text, self.filenameView.viewFont).text;
+        if self.filenameView = nil then return :SetStatus("No filename field");
+        self.packageName := DecodeRichString(self.filenameView:GetRichString(), self.filenameView.viewFont).text;
         if (self.packageName = nil) or (StrLen(self.packageName) < 5)
         or (StrPos(self.packageName, ".pkg", 0) <> StrLen(self.packageName) - 4) then
-            return :SetStatus("Enter a .pkg filename");
+            return :SetStatus("Enter .pkg name");
         for index := 0 to StrLen(self.packageName) - 1 do
             if StrPos(self.allowedChars, SubStr(self.packageName, index, 1), 0) = nil then
-                return :SetStatus("Filename uses invalid characters");
+                return :SetStatus("Bad filename");
         self.attempt := 1;
         :TryFetch();
     end,
@@ -76,22 +77,18 @@ mainView := {
     begin
         :Stop("TryFetch");
         self.packageBinary := nil;
-        self.inputTarget := nil;
         self.contentLength := nil;
-        self.headerText := "";
         self.bodyOffset := 0;
         self.bodyChunk := 0;
-        :SetStatus("Fetch attempt " & self.attempt & " of 2...");
+        :SetStatus("Try " & self.attempt & "/2");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
     end,
 
     Grabbed: func(id, state, error)
     begin
-        // ponytail: NIE keeps notifying after we're up (incl. on peer close). Once the
-        // endpoint exists this callback has no job -- routing a late status into Failed()
-        // is what called InetReleaseLink mid-connection and raised -48803.
+        // ponytail: once the endpoint exists, late link notifications have no job.
         if self.endpoint then return nil;
-        if error then return :Failed("Link failed: " & error);
+        if error then return :Failed("Link: " & error);
         self.linkID := id;
         if state.linkStatus <> 'connected then return nil;
         :Resolved(nil, nil);
@@ -122,21 +119,21 @@ mainView := {
             callName := "Bind";
             self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
             callName := "connect";
-            :SetStatus("Connecting...");
+            :SetStatus("Connecting");
             self.endpoint:connect([
                 {
                     label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
                     form: 'template,
                     data: {
-                        arglist: [address[0], address[1], address[2], address[3], 18081],
+                        arglist: [address[0], address[1], address[2], address[3], self.serverPort],
                         typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
             ], {async: nil, reqTimeout: 45000});
             // ponytail: async:nil means connect returns synchronously -- completionScript
-            // is never invoked, which is why r11c/r11d sat at "Connecting..." forever.
+            // is never invoked, which is why r11c/r11d sat at "Connecting" forever.
             // Go straight on. Switch to async + completionScript only if we need overlap.
-            callName := "DownloadPackage";
+            callName := "Download";
             :Connected(nil, nil);
         end
         onexception |evt.ex| do
@@ -145,57 +142,36 @@ mainView := {
             local exceptionText := callName & " threw";
             local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
             if HasSlot(exception, 'name) then
-                exceptionText := exceptionText & "\nname=" & exception.name;
-            exceptionText := exceptionText & "\nerror=" & exceptionError;
+                exceptionText := exceptionText & "\nn=" & exception.name;
+            exceptionText := exceptionText & "\ne=" & exceptionError;
             if HasSlot(exception, 'data) then
-                exceptionText := exceptionText & "\ndata=" & exception.data;
+                exceptionText := exceptionText & "\nd=" & exception.data;
             if HasSlot(exception, 'message) then
-                exceptionText := exceptionText & "\nmessage=" & exception.message;
+                exceptionText := exceptionText & "\nm=" & exception.message;
             :SetStatus(exceptionText);
         end;
     end,
 
     Connected: func(result, error)
     begin
-        if error then return :Failed("Connect failed: " & error);
+        if error then return :Failed("Connect: " & error);
         :DownloadPackage();
-    end,
-
-    AppendHeaderByte: func(text, byte)
-    begin
-        text := text & CHR(byte);
-        if Length(text) > 4096 then return 'tooLong;
-        if Length(text) >= 4
-        and StrEqual(SubStr(text, Length(text) - 4, 4), "\r\n\r\n") then
-            return 'done;
-        return text;
     end,
 
     ParseContentLength: func(headers)
     begin
-        foreach line in SplitString(headers, "\n") do
-            if BeginsWith(line, "Content-Length:") then
-            begin
-                local fields := SplitString(line, ":");
-                if Length(fields) > 1 then return StringToNumber(fields[1]);
-            end;
-        return nil;
-    end,
-
-    CopyChunk: func(source, sourceOffset, count)
-    begin
-        if count <= 0 then return self.bodyOffset;
-        if (self.bodyOffset < 0) or ((self.bodyOffset + count) > self.contentLength) then
-            return :Failed("Server sent more than Content-Length");
-        try
-        begin
-            BinaryMunger(self.packageBinary, self.bodyOffset, count, source, sourceOffset, count);
-            ClearVBOCache(self.packageBinary);
-            self.bodyOffset := self.bodyOffset + count;
-            return self.bodyOffset;
-        end
-        onexception |evt.ex| do
-            :Failed("Package storage failed");
+        local start := StrPos(headers, "Content-Length:", 0);
+        local finish;
+        if start = nil then return nil;
+        start := start + StrLen("Content-Length:");
+        while (start < StrLen(headers)) and (SubStr(headers, start, 1) = " ") do
+            start := start + 1;
+        finish := start;
+        while (finish < StrLen(headers))
+        and (StrPos("0123456789", SubStr(headers, finish, 1), 0) <> nil) do
+            finish := finish + 1;
+        if finish = start then return nil;
+        return StringToNumber(SubStr(headers, start, finish - start));
     end,
 
     InstallBinaryLater: func(binary)
@@ -208,63 +184,52 @@ mainView := {
             5000);
     end,
 
+    ReportCallbackException: func(callbackName, endpoint, exception)
+    begin
+        local exceptionText := self.lastStatus;
+        local exceptionError := call GetGlobalFn('InetGetExceptionError) with (exception);
+        if HasSlot(exception, 'name) then
+            exceptionText := exceptionText & "\nn=" & exception.name;
+        exceptionText := exceptionText & "\ne=" & exceptionError;
+        :SetStatus(exceptionText);
+        endpoint:SetInputSpec(nil);
+    end,
+
     ArmHeader: func()
     begin
         self.endpoint:SetInputSpec({
             _parent: self,
-            form: 'binary,
-            target: {data: self.inputTarget, offset: 0},
-            termination: {byteCount: 1024},
-            discardAfter: 1024,
+            form: 'string,
+            termination: {endSequence: "\r\n\r\n"},
+            discardAfter: 4096,
             InputScript: func(endpoint, data, terminator, options)
             begin
-                try self._parent:HeaderReceived(data)
+                try endpoint._parent:HeaderReceived(data)
                 onexception |evt.ex| do
-                begin
-                    endpoint:SetInputSpec(nil);
-                    self._parent:SetStatus("Header callback failed");
-                end;
+                    endpoint._parent:ReportCallbackException("Header", endpoint, CurrentException());
             end,
         });
         return nil;
     end,
 
-    HeaderReceived: func(chunk)
+    HeaderReceived: func(headers)
     begin
-        local bodyStart := nil;
-        ClearVBOCache(chunk);
-        for index := 0 to 1023 do
-            if bodyStart = nil then
-            begin
-                local headerState := :AppendHeaderByte(self.headerText, ExtractByte(chunk, index));
-                if headerState = 'tooLong then
-                    return :Failed("Response headers exceeded 4096 bytes");
-                if headerState = 'done then
-                begin
-                    self.headerText := self.headerText & CHR(ExtractByte(chunk, index));
-                    bodyStart := index + 1;
-                end else
-                    self.headerText := headerState;
-            end;
-        if bodyStart = nil then return :Failed("Response headers were incomplete");
-        if not BeginsWith(self.headerText, "HTTP/1.0 200") then
-            return :Failed("HTTP status was not 200");
-        self.contentLength := :ParseContentLength(self.headerText);
+        if not BeginsWith(headers, "HTTP/1.0 200") then
+            return :Failed("HTTP not 200");
+        self.contentLength := :ParseContentLength(headers);
         if (self.contentLength = nil) or (self.contentLength <= 0)
         or (self.contentLength > 524288) then
-            return :Failed("Content-Length must be 1 to 524288");
+            return :Failed("Bad Content-Length");
         try self.packageBinary := GetDefaultStore():NewVBO('package, self.contentLength)
-        onexception |evt.ex| do return :Failed("Package allocation failed");
-        if :CopyChunk(chunk, bodyStart, 1024 - bodyStart) = nil then return nil;
-        :SetStatus("Received " & self.bodyOffset & " / " & self.contentLength & " bytes...");
-        // ponytail: stay in binary form and re-arm before InputScript returns.
+        onexception |evt.ex| do return :Failed("No package buffer");
+        :SetStatus("Got 0/" & self.contentLength);
+        // ponytail: endSequence leaves the body queued; receive it directly into the package VBO.
         return :ArmBody();
     end,
 
     ArmBody: func()
     begin
         self.bodyChunk := self.contentLength - self.bodyOffset;
-        if self.bodyChunk > 8192 then self.bodyChunk := 8192;
         self.endpoint:SetInputSpec({
             _parent: self,
             form: 'binary,
@@ -273,12 +238,9 @@ mainView := {
             discardAfter: self.bodyChunk,
             InputScript: func(endpoint, data, terminator, options)
             begin
-                try self._parent:BodyReceived()
+                try endpoint._parent:BodyReceived()
                 onexception |evt.ex| do
-                begin
-                    endpoint:SetInputSpec(nil);
-                    self._parent:SetStatus("Body callback failed");
-                end;
+                    endpoint._parent:ReportCallbackException("Body", endpoint, CurrentException());
             end,
         });
         return nil;
@@ -287,53 +249,53 @@ mainView := {
     BodyReceived: func()
     begin
         self.bodyOffset := self.bodyOffset + self.bodyChunk;
-        ClearVBOCache(self.packageBinary);
-        :SetStatus("Received " & self.bodyOffset & " / " & self.contentLength & " bytes...");
-        if self.bodyOffset = self.contentLength then return :InputReceived();
-        // ponytail: advance the target offset and re-arm before InputScript returns.
-        return :ArmBody();
+        :SetStatus("Got " & self.bodyOffset & "/" & self.contentLength);
+        return :InputReceived();
     end,
 
     InputReceived: func()
     begin
         :InstallBinaryLater(self.packageBinary);
-        :SetStatus(self.packageName & " install queued");
+        :SetStatus(self.packageName & " queued");
         return nil;
     end,
 
     DownloadPackage: func()
     begin
-        try self.inputTarget := GetDefaultStore():NewVBO('package, 1024)
-        onexception |evt.ex| do return :Failed("Receive allocation failed");
-        if self.inputTarget = nil then return :Failed("Receive allocation failed");
         :ArmHeader();
-        :SetStatus("Requesting /" & self.packageName & "...");
+        :SetStatus("GET /" & self.packageName & "...");
         self.endpoint:output(
             "GET /" & self.packageName & " HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
             nil,
             {
                 form: 'string,
-                async: true,
+                async: nil,
                 reqTimeout: 10000,
                 _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:Failed("Request failed: " & result),
+                    if result then self._parent:Failed("Request: " & result),
             });
         return nil;
     end,
 
     Failed: func(message)
     begin
-        :SetStatus("FAILED: " & message);
-        :Stop("Failed");
-        if self.attempt < 2 then
+        local retry := self.attempt < 2;
+        if retry then
         begin
             self.attempt := self.attempt + 1;
-            :SetStatus("FAILED: Retrying after: " & message);
-            // ponytail: one deferred retry handles transient link/TCP failures without a scheduler.
-            AddDeferredCall(func(view) view:TryFetch(), [self]);
+            :SetStatus("Retry: " & message);
         end else
-            :SetStatus("FAILED: Install failed twice:\n" & message & "\nTap to retry");
+            :SetStatus("Failed twice:\n" & message & "\nTap retry");
+        AddDeferredCall(
+            func(view, status)
+            begin
+                view:Stop("Failed");
+                view:SetStatus(status);
+            end,
+            [self, self.lastStatus]);
+        // ponytail: teardown must run first; then one deferred retry handles transient failures.
+        if retry then AddDeferredCall(func(view) view:TryFetch(), [self]);
     end,
 
     stepChildren: [
@@ -341,21 +303,28 @@ mainView := {
             _proto: protoStaticText,
             viewJustify: vjParentFullH + vjParentTopV,
             viewBounds: {left: 12, top: 14, right: -12, bottom: 82},
-            text: kAppTitle & "\nPackage filename:",
+            text: kAppTitle & "\nFile:",
             viewFont: ROM_fontSystem12Bold,
         },
         {
             _proto: protoInputLine,
+            // ponytail: bind the live child at setup; pixel offsets and child order both drift.
+            ViewSetupDoneScript: func()
+            begin
+                inherited:?ViewSetupDoneScript();
+                self:Parent().filenameView := self;
+            end,
             viewJustify: vjParentFullH + vjParentTopV,
             viewBounds: {left: 20, top: 90, right: -20, bottom: 116},
-            text: "inetenbl.pkg",
+            // ponytail: prefill the usual target; a 1997 stylus should not retype this each round.
+            text: "harness-tools.pkg",
             viewFont: ROM_fontSystem10,
         },
         {
             _proto: protoTextButton,
             viewJustify: vjParentFullH + vjParentFullV,
             viewBounds: {left: 20, top: 126, right: -20, bottom: -12},
-            text: "Install package",
+            text: "Install",
             viewFont: ROM_fontSystem12Bold,
             buttonClickScript: func() self:Parent():Install(self),
         },
