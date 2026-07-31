@@ -1,28 +1,30 @@
+diff --git a/Emulator/TNativePrimitives.cpp b/Emulator/TNativePrimitives.cpp
+index d99d3504..68f25813 100644
+--- a/Emulator/TNativePrimitives.cpp
++++ b/Emulator/TNativePrimitives.cpp
+@@ -27,0 +28 @@
++#include <stdio.h>
+@@ -948,0 +950,6 @@ TNativePrimitives::ExecutePlatformDriverNative(KUInt32 inInstruction)
++				// ponytail: one result file beats screen capture/OCR for injected scripts.
++				if (FILE* result = ::fopen("/state/einstein-ns-result", "a"))
++				{
++					::fputs(theLine, result);
++					::fclose(result);
++				}
 diff --git a/app/FLTK/TFLApp.cpp b/app/FLTK/TFLApp.cpp
-index 41a8a8ce..0c4a68bf 100644
+index 41a8a8ce..765d3b86 100644
 --- a/app/FLTK/TFLApp.cpp
 +++ b/app/FLTK/TFLApp.cpp
-@@ -192,10 +192,16 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
- #include <stdio.h>
- #include <stdlib.h>
- #include <string.h>
+@@ -194,0 +195,2 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
 +#include <sys/socket.h>
 +#include <sys/stat.h>
- #include <sys/types.h>
+@@ -195,0 +198,2 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
 +#include <sys/un.h>
 +#include <unistd.h>
- 
- // C++17
- #include <filesystem>
+@@ -198,0 +203,2 @@ Developer's Documentation: Basic Ideas, Basic Features, Detailed Class Reference
 +#include <map>
 +#include <string>
- #include <thread>
- 
- // FLTK user interface
-@@ -271,6 +277,135 @@ static const char* tfl_file_chooser(const char* message, const char* pat, const
- 
- TFLApp* gApp = nullptr;
- 
+@@ -273,0 +280,130 @@ TFLApp* gApp = nullptr;
 +namespace {
 +const char* kControlSocketPath = "/state/einstein-control.sock";
 +const size_t kControlLineLimit = 8192;
@@ -92,6 +94,7 @@ index 41a8a8ce..0c4a68bf 100644
 +		}
 +	} else if (command.compare(0, 3, "ns ") == 0 && command.size() > 3)
 +	{
++		::unlink("/state/einstein-ns-result");
 +		gApp->GetPlatformManager()->EvalNewtonScript(command.c_str() + 3);
 +		ReplyControlClient(fd, "queued");
 +	} else
@@ -152,18 +155,8 @@ index 41a8a8ce..0c4a68bf 100644
 +}
 +}
 +
- // MARK: - Public: -
- // --- Constructor and destructor
- 
-@@ -417,8 +552,11 @@ TFLApp::Run(int argc, char* argv[])
- 	// launch the actual emulation in the background
- 	auto emulatorThread = new std::thread(&TFLApp::EmulatorThreadEntry, this);
- 
+@@ -419,0 +556,2 @@ TFLApp::Run(int argc, char* argv[])
 +	InitControlSocket();
 +
- 	// run the user interface until all windows are close
- 	Fl::run();
+@@ -421,0 +560 @@ TFLApp::Run(int argc, char* argv[])
 +	CloseControlSocket();
- 	Fl::unlock();
- 
- 	// if the emulator does not know yet, tell it to wrap things up and quit
