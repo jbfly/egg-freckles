@@ -49,9 +49,19 @@ After chat is reliable, add transfer of **one app-owned plain-text document** at
 2. RUN only after a concrete Newton-side runnable artifact exists and confirmation/error semantics are defined.
 3. Ink after a capture-only spike verifies the actual NewtonOS callback and polygon extraction API.
 
-## 2. UI for a 480x320 grayscale screen
+## 2. UI for a 320x480 grayscale screen (portrait default)
 
-Assume a landscape 480x320 content area for layout planning. Before coding final bounds, verify how `protoFloatNGo` chrome and Einstein rotation map that nominal screen to root-view coordinates; the current examples use roughly 320-pixel-wide portrait bounds, and `README.md` currently describes `/screen.png` as 320x480.
+RESOLVED: the Newton is **320x480 portrait by default** and also rotates to
+480x320 landscape. Do not lay out for a fixed orientation. The client uses
+Newton's runtime parent justification (`vjParentFullH + vjParentFullV` with
+negative margins) so the view tree adapts to whichever orientation is active;
+that replaced the earlier orientation-specific bounds. Evidence:
+`docs/newton-dev-notes.md:439` and `:477`,
+`containers/emulator.Dockerfile:128-129`,
+`runtime/evidence/round8-screen-orientation.txt`.
+
+The fixed bounds table below is historical — it predates the justification
+rewrite. Treat it as a rough sense of proportion, not as coordinates to type in.
 
 ### Proposed view tree
 
@@ -256,4 +266,7 @@ Each step is intended to fit one worker session and ends with a runnable accepta
 
 - Verified locally: endpoint call shape in `examples/harness-loader/Main.newt`; HTTP package publication in `pkg_publisher.py`; reproducible package staging in `Makefile`; control endpoints in `emulator/control.py`; model100 framing and stop-and-wait implementation in `~/git/model100/server.py` and `proto/m100v2_sim.py`; listed text protos/constants in `~/newton-dev/ntk-platform-files/Newton 2.1` and `21PTF/21DEFS.TXT`.
 - Not verified: final landscape root bounds, `protoParagraph` scrolling configuration, `protoInputLine` multiline/cap slots, automatic Send-button disabling, any ink capture proto/callback, `GetPoints`, Notes soup record shape, and a Newton-appropriate whole-object checksum choice.
-- Current mismatch to resolve during implementation: `PLAN.md` and this task target 480x320, while current examples and `README.md` reflect a 320x480 Newton coordinate surface. Do not hard-code final view bounds until the intended orientation is demonstrated in Einstein and on the target MessagePad.
+- Orientation: RESOLVED, no longer an open question. 320x480 portrait is the
+  default and 480x320 landscape is also supported; the client adapts at runtime
+  via parent justification rather than hard-coded bounds
+  (`docs/newton-dev-notes.md:439`, `:477`). `PLAN.md` has been corrected.

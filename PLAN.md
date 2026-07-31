@@ -27,7 +27,8 @@ modeled on ~/git/model100. Client/server over wifi.
 3. Native NewtonScript client app: nicer UI than PT100, framed protocol,
    GET/PUT for notes/files, installed over TCP.
 4. Apps: omnigent/tmux session monitor (top priority), notes/data sync,
-   Beeper/email gateway, image gen (Newton-optimized dithered grayscale 480x320),
+   Beeper/email gateway, image gen (Newton-optimized dithered grayscale, 320x480
+   portrait default),
    handwriting/AI experiments.
 5. Portable networking (later): travel router w/ open SSID + WireGuard upstream.
 
@@ -42,5 +43,8 @@ modeled on ~/git/model100. Client/server over wifi.
 - Remaining Phase 2 verification: connect the emulated Newton to `server:6801`.
 
 ## Constraints
-- Newton screen: 480x320 grayscale. PT100: 45 cols. No TLS on device — server
+- Newton screen: 320x480 grayscale portrait by default; the device also rotates
+  to 480x320 landscape. Do not hard-code either: use runtime parent
+  justification (vjParentFullH + vjParentFullV). See docs/newton-dev-notes.md:439.
+  PT100: 45 cols. No TLS on device — server
   proxies everything. ASCII only.
