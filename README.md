@@ -114,10 +114,10 @@ python3 -m emulator.client key Return
 Injected NewtonScript can return text without a screenshot. The TCP callback path is not used: live tests recorded payload timeouts, so Einstein's existing `Print(result)` primitive writes one disposable result file instead. Source must fit on one line.
 
 ```sh
-runtime/ns_eval.py '2+2'
+runtime/ns_eval.py --container newton-harness_emulator_1 '2+2'
 ```
 
-The equivalent NewtonScript result expression is simply `2+2`; strings are returned quoted, matching Einstein's existing `Print` format. Select another disposable emulator with `--container NAME`.
+The equivalent NewtonScript result expression is simply `2+2`; strings are returned quoted, matching Einstein's existing `Print` format. Pass `--container NAME` to choose the emulator: the built-in default is the `newton-scratch2` scratch instance, which is usually not running.
 
 A second isolated NS Basic scratch emulator uses its own compose project, state volume, ports, and package bind:
 
@@ -175,6 +175,10 @@ The original smoke-test package remains available through `make toolchain-hello`
 
 - The server still needs its one-time Codex device login.
 - Reboot-time startup is not enabled yet.
-- Einstein guest networking and an end-to-end connection to `server:6801` are not wired up yet. That should follow the isolated emulator test, rather than being mixed into it.
+
+Einstein guest networking and the end-to-end connection to `server:6801` are no
+longer gaps. The native client completes a full framed round trip to a real
+backend, wire-confirmed in `docs/phase3-chat-round.md` (2026-07-26); see
+`docs/newton-networking-lessons.md` for how the transport actually works.
 
 The stated verification is deterministic; untested container and guest-network behavior is listed explicitly above.

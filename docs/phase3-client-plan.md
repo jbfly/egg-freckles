@@ -1,5 +1,12 @@
 # Phase 3 client implementation plan
 
+> **Status: largely superseded. This is a plan, not a record of current state.**
+> The text-chat milestone it describes shipped on 2026-07-26 — see
+> `docs/phase3-chat-round.md` for what was actually built and how it behaves.
+> Its transport recommendations in §3 are corrected by
+> `docs/newton-networking-lessons.md` §4.1–4.9. Read those two first; use this
+> document only for the parts still unbuilt (GET/PUT, PATCH, RUN, ink).
+
 ## Recommendation
 
 Ship a **text-first native client** before ink. The first useful release should provide a Newton-native editable prompt, a readable scrolling transcript, Send/New controls, connection status, and a reliable framed request/response loop. That already beats PT100 by removing terminal setup and echo behavior, using native text editing, preserving a visible conversation, and presenting explicit progress and errors.
@@ -24,7 +31,11 @@ One package, retaining the stable `HarnessClient:jbfly` package identity, with:
 - `Send` and `New` buttons;
 - a short status line: `Offline`, `Connecting`, `Thinking`, `Ready`, or a bounded error;
 - ASCII input and output only;
-- one connection per submitted turn unless persistent connections prove simpler in practice;
+- ~~one connection per submitted turn unless persistent connections prove
+  simpler in practice~~ — **resolved: persistent proved simpler and far
+  faster.** One reused endpoint with a long poll gives ~0.8 s steady latency
+  against a 5.8–11.5 s per-turn NIE acquisition cost
+  (`docs/newton-networking-lessons.md` §1.8, §4.1);
 - the framed chat subset: `HELLO`, `MSG`, `STAT`, `TEXT`, and `PROMPT`, with ACK/NAK and retries;
 - host conversation persistence through the existing `server.py` session state;
 - `/new` represented as a framed operation or as a reserved `MSG /new` in milestone 1. Prefer the reserved message unless a separate operation is needed by a test.
@@ -116,6 +127,8 @@ Keep one bounded NewtonScript string, initially capped at 6 KiB. Append `You: ..
 ### Recommendation: move chat to the framed protocol now
 
 Use raw TCP to `server.py` on port 6801 and negotiate native mode with an exact first line such as `~NEWTONCLI 1`. Reusing HTTP/1.0 would be the fastest single round trip, but it would create a temporary chat API in `pkg_publisher.py` and postpone the central Phase 3 risk. The endpoint call shape is already proven; the next unknown worth resolving is bidirectional framing and retry behavior.
+
+**Both are now resolved.** Framing works in both directions with every frame ACKed (`docs/phase3-chat-round.md` §1), and retry/NAK/duplicate behaviour is pinned by host tests (§3). Note also that the "already proven" endpoint shape here is the *synchronous* one: real hardware requires `async: true` on `Bind`, `Connect`, and `Output`, or the app task blocks for the full 45 s connect timeout (`docs/newton-networking-lessons.md` §4.4).
 
 Keep HTTP/1.0 on port 18081 for package publication and installation. Do not combine package delivery with the interactive protocol.
 
@@ -265,7 +278,8 @@ Each step is intended to fit one worker session and ends with a runnable accepta
 ## Evidence and verification boundaries
 
 - Verified locally: endpoint call shape in `examples/harness-loader/Main.newt`; HTTP package publication in `pkg_publisher.py`; reproducible package staging in `Makefile`; control endpoints in `emulator/control.py`; model100 framing and stop-and-wait implementation in `~/git/model100/server.py` and `proto/m100v2_sim.py`; listed text protos/constants in `~/newton-dev/ntk-platform-files/Newton 2.1` and `21PTF/21DEFS.TXT`.
-- Not verified: final landscape root bounds, `protoParagraph` scrolling configuration, `protoInputLine` multiline/cap slots, automatic Send-button disabling, any ink capture proto/callback, `GetPoints`, Notes soup record shape, and a Newton-appropriate whole-object checksum choice.
+- Not verified: automatic Send-button disabling, any ink capture proto/callback, `GetPoints`, Notes soup record shape, and a Newton-appropriate whole-object checksum choice.
+- Settled since this was written (`docs/phase3-chat-round.md`): the transcript ships as a `protoStaticText` bottom-anchored by tail-trimming rather than a scrolled `protoParagraph`, and the 6 KiB cap is proven on-device; the prompt is a `protoInputLine` whose value must be read with `DecodeRichString(field.text, field.viewFont).text`. Landscape root bounds are not an open question — see the orientation note below.
 - Orientation: RESOLVED, no longer an open question. 320x480 portrait is the
   default and 480x320 landscape is also supported; the client adapts at runtime
   via parent justification rather than hard-coded bounds

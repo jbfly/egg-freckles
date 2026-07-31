@@ -5,6 +5,11 @@
 - `emulator/control.py` now accepts `POST /drag` with integer `start_x`, `start_y`, `end_x`, `end_y`, optional `duration` seconds (default `0.5`), and optional `steps` (default `20`). It issues mouse-down, interpolated moves, and mouse-up in Newton screen coordinates.
 - The control source is copied into the emulator image by `containers/emulator.Dockerfile`, so `/drag` needs an image rebuild and container restart before it is live. The raw server also needs a restart for `/status`. Neither service was restarted or rebuilt while preparing this change.
 
+**`/drag` is live as of 2026-07-31.** On the running `newton-harness_emulator_1`,
+`POST /drag` with an empty body returns HTTP 400 (argument validation) while an
+unrouted path returns 404, so the route is present in the deployed image. The
+`/status` half was not re-checked; `10.42.0.1` is not always assigned.
+
 Run these checks after the respective integration restarts:
 
 ```sh
