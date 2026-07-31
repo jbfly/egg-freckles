@@ -5,7 +5,8 @@ NEWTON_PACKAGE_DIRS := examples/harness-loader examples/harness-client
 NEWTON_STAGING_DIR := runtime/staging
 
 .PHONY: check-rootless images server-login server-up server-test emulator-up \
-	emulator-stop toolchain-hello newton-packages status down test
+	emulator-stop emulator-instance-up emulator-instance-down emulator-instances \
+	toolchain-hello newton-packages status down test
 
 check-rootless:
 	@command -v "$(PODMAN)" >/dev/null || { \
@@ -36,6 +37,15 @@ emulator-up: check-rootless
 
 emulator-stop: check-rootless
 	$(COMPOSE) --profile emulator stop emulator
+
+emulator-instance-up: check-rootless
+	@COMPOSE="$(COMPOSE)" scripts/emulator-instance.sh up "$(INSTANCE)"
+
+emulator-instance-down: check-rootless
+	@COMPOSE="$(COMPOSE)" scripts/emulator-instance.sh down "$(INSTANCE)"
+
+emulator-instances: check-rootless
+	@scripts/emulator-instance.sh list
 
 toolchain-hello: check-rootless
 	$(COMPOSE) --profile tools run --rm toolchain \

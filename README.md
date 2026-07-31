@@ -129,6 +129,8 @@ NEWTON_IMAGE_TAG=ns-eval NEWTON_CONTROL_PORT=18091 NEWTON_NOVNC_PORT=6091 \
 
 Its noVNC URL is `http://127.0.0.1:6091/vnc.html?autoconnect=1`; its control socket is `/state/einstein-control.sock` inside `newton-scratch2_emulator_1` (host volume `newton-scratch2_emulator-state`).
 
+`make emulator-instance-up INSTANCE=name` generalises that recipe: it starts an isolated emulator on a free port pair, and `--instance name` (or `NEWTON_INSTANCE=name`) points `emulator.client` and `runtime/ns_eval.py` at it. See [docs/parallel-emulators.md](docs/parallel-emulators.md).
+
 Einstein dialogs and its package installer sit outside the Newton screen. Agents can inspect and control the complete window separately:
 
 ```sh
