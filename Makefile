@@ -69,4 +69,4 @@ down: check-rootless
 	$(COMPOSE) --profile emulator --profile tools down
 
 test:
-	python3 -m unittest -v test_server.py test_emulator_control.py
+	uv run --with pytest pytest -q

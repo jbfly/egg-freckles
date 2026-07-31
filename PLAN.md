@@ -32,7 +32,14 @@ modeled on ~/git/model100. Client/server over wifi.
    handwriting/AI experiments.
 5. Portable networking (later): travel router w/ open SSID + WireGuard upstream.
 
-## Current checkpoint (2026-07-23)
+## Current checkpoint (superseded — see docs/START-HERE.md)
+
+The 2026-07-23 checkpoint below is kept for history. Phase 3 has since shipped:
+the native client completes a framed round trip to a real backend
+(`docs/phase3-chat-round.md`, 2026-07-26). For current state, read
+`docs/START-HERE.md`.
+
+### As of 2026-07-23
 - Einstein and the Linux Newton toolchain build locally; the ROM reaches NewtonOS.
 - Headless rootless-Podman services are scaffolded separately for the always-on
   server, Einstein/Xvfb/noVNC, and reproducible package builds.
@@ -40,7 +47,8 @@ modeled on ~/git/model100. Client/server over wifi.
   Newton-coordinate taps, full-window clicks, text, and key input.
 - Rootless Podman builds and runs the headless emulator; the corrected sample
   package installs and launches successfully through the agent control API.
-- Remaining Phase 2 verification: connect the emulated Newton to `server:6801`.
+- Remaining Phase 2 verification at the time: connect the emulated Newton to
+  `server:6801`. **Since done** — `docs/phase3-chat-round.md`.
 
 ## Constraints
 - Newton screen: 320x480 grayscale portrait by default; the device also rotates
