@@ -4,7 +4,7 @@
 40 FUNCTION vdata() {arglist:[1],typeList:['struct,'ulong]}
 50 FUNCTION ver() {label:"itsv",type:'option,opCode:512,result:nil,form:'template,data:U:vdata()}
 60 FUNCTION opts(id) BEGIN LOCAL a,b,c;a:=U:svc();b:=U:lid(id);c:=U:ver();[a,b,c] END
-70 FUNCTION adata() {arglist:[192,168,1,11,18081],typelist:['struct,'byte,'byte,'byte,'byte,'short]}
+70 FUNCTION adata() {arglist:[10,42,0,1,18081],typelist:['struct,'byte,'byte,'byte,'byte,'short]}
 80 FUNCTION addr() [{label:"itrs",type:'option,opCode:512,result:nil,form:'template,data:U:adata()}]
 90 FUNCTION suck(a) GetDefaultStore():SuckPackageFromBinary(a,nil)
 100 FUNCTION install(d) begin ClearVBOCache(d);AddDelayedCall(U.suck,[d],1000) end

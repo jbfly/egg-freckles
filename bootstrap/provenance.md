@@ -72,3 +72,24 @@ The successful line-60 test happened after those edits. Restoring the obsolete `
 ## Confidence conclusion
 
 There are **no UNCERTAIN lines**. RECONSTRUCTED lines are not guesses: their full text exists in F/G and S later says the corresponding physical-device line or range matched while documenting every subsequent edit. Only line 310 was ordered deleted and later confirmed absent; no later line-300 deletion appears before the final saved state.
+
+## Photo verification, 2026-07-31 (device screenshots)
+
+Three photographs of the NS Basic listing on the physical MessagePad 2000,
+taken 2026-07-31, were diffed against `nsbasic-bootstrap.bas` line by line.
+Photos cover lines 10-120 (screen 1), 130-230 (screen 2), and 155-300 with the
+`*` end-of-listing marker (screen 3).
+
+**Every line matches the reconstruction.** All 27 lines are now VERBATIM
+against the device; no RECONSTRUCTED line survived contradicted. The
+previously RECONSTRUCTED lines 20, 40, 90-140, 170-200, 210-240 are confirmed
+character-for-character.
+
+Two facts the photos settle that the transcript could not:
+
+- **Line 70 on the device already reads `[10,42,0,1,18081]`** (screen 1), not
+  the `[192,168,1,11,18081]` the handoff recorded. The mars edit was made on
+  the device before this session. The repo file has been updated to match.
+- **Line 310 is absent and line 300 is present** (screen 3, terminated by `*`).
+  This confirms the deletion described in the provenance notes was carried out
+  and persists in the saved program.
