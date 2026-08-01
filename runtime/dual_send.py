@@ -11,6 +11,7 @@ again. That manual swap has already cost two hardware test cycles.
 import hashlib
 import os
 import socket
+import struct
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -49,6 +50,20 @@ def serve_http(conn, request):
     ).encode()
     conn.sendall(header + body)
     log(f"HTTP 200 {name} {len(body)} bytes")
+    # ponytail: kernel already counts ACKed bytes; no tcpdump/sudo needed.
+    # A server-side 200 has lied before -- this is the device-end proof.
+    try:
+        conn.settimeout(15)
+        while conn.recv(256):
+            pass
+    except Exception:
+        pass
+    try:
+        info = conn.getsockopt(socket.IPPROTO_TCP, socket.TCP_INFO, 256)
+        acked = struct.unpack_from("<Q", info, 120)[0]  # tcpi_bytes_acked
+        log(f"client acked {acked} of {len(header) + len(body)} bytes")
+    except Exception as error:
+        log(f"acked-bytes probe failed: {error!r}")
 
 
 def main():
