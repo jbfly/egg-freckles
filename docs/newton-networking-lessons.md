@@ -236,14 +236,18 @@ The traps that cost real time.
 
 Do not treat these as fact.
 
-- **The historical ZC34 `-36003` hardware failure remains a hardware gate.**
+- **The loader `-36003` teardown race remains a hardware gate for ZC38.**
   The reference meaning is verified as "Cancel is in progress" (`:57235-57238`,
-  `:74083-74085`). ZC37 removes the mismatched synchronous-output completion
-  callback by using the proven `async: true`, `form: 'string` output shape and
-  reports success only after `SuckPackageFromBinary` returns and `GetPkgRef`
-  finds the installed identity. The ZC37 package builds and its unattended
-  Einstein proof is scripted in `runtime/test_wifi_install.py`; do not call the
-  teardown fixed on physical hardware until that runbook gate passes.
+  `:74083-74085`). On a real MessagePad 2000 on 2026-07-31, ZC37 received four
+  complete HTTP 200 responses of 18,320 bytes for `/harness-tools.pkg`, then
+  displayed `n=evt.ex.comm  e=-36003  d=completionscript`. The async output
+  completion could call `Failed()` again after its first call had queued
+  deferred teardown, so two teardown calls could reach an endpoint already
+  cancelling. ZC38 makes `Failed()`/`Stop()` re-entrant-safe and clears the
+  input spec before `Disconnect`; Einstein installs the package and rejects a
+  synthetic duplicate failure, but did not reproduce the hardware callback
+  timing. Do not call the teardown fixed on physical hardware until ZC38 passes
+  that gate.
 - **Real-hardware parity for the long-poll transport.** The R9/R10D latency
   numbers are Einstein/emulator-derived. `docs/newtonscript-eval.md` notes R10I
   "real hardware exposed the remaining synchronous endpoint calls" — i.e. the

@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderZC37:jbfly|;
-kVersion := "2.1";
-kAppTitle := "ZC37 Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC38:jbfly|;
+kVersion := "2.2";
+kAppTitle := "ZC38 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -34,6 +34,7 @@ mainView := {
     installedIdentity: nil,
     allowedChars: "-._0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     attempt: 0,
+    stopping: nil,
 
     ToggleServer: func(button)
     begin
@@ -53,8 +54,11 @@ mainView := {
 
     Stop: func(reason)
     begin
+        if self.stopping then return nil;
+        self.stopping := true;
         if self.endpoint then
         begin
+            try self.endpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
@@ -88,6 +92,7 @@ mainView := {
     TryFetch: func()
     begin
         :Stop("TryFetch");
+        self.stopping := nil;
         self.packageBinary := nil;
         self.contentLength := nil;
         self.bodyOffset := 0;
@@ -307,6 +312,8 @@ mainView := {
 
     Failed: func(message)
     begin
+        if self.stopping then return nil;
+        self.stopping := true;
         local retry := self.attempt < 2;
         if retry then
         begin
@@ -317,6 +324,7 @@ mainView := {
         AddDeferredCall(
             func(view, status)
             begin
+                view.stopping := nil;
                 view:Stop("Failed");
                 view:SetStatus(status);
             end,

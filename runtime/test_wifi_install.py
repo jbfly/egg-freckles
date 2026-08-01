@@ -12,8 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER = os.environ.get("NEWTON_CONTAINER", "newton-harness_emulator_1")
-LOADER_ID = "-HarnessLoaderZC37:jbfly"
-LOADER_SYMBOL = "|-HarnessLoaderZC37:jbfly|"
+LOADER_ID = "-HarnessLoaderZC38:jbfly"
+LOADER_SYMBOL = "|-HarnessLoaderZC38:jbfly|"
 
 
 def run(*args, input=None, check=True):

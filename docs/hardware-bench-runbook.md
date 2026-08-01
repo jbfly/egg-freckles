@@ -146,7 +146,7 @@ make -C examples/harness-loader clean all
 cp examples/harness-loader/harness-loader.pkg \
   runtime/staging/hardware/harness-loader.pkg
 cp examples/harness-loader/harness-loader.pkg \
-  runtime/staging/hardware/harness-loader-zc37.pkg
+  runtime/staging/hardware/harness-loader-zc38.pkg
 cp -- /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 sha256sum /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 python3 runtime/dual_send.py
@@ -159,17 +159,18 @@ is **`192.168.1.11:18081`**.
 ### Newton: one-time loader upgrade, then two taps per package
 
 1. Open the already-installed ZC34 Loader. Enter
-   **`harness-loader-zc37.pkg`** once and tap **Install**. This is a new package
-   identity (`-HarnessLoaderZC37:jbfly`), not an in-place replacement.
-2. Wait for ZC34 to finish its delayed install, then open **ZC37 Loader 2.1**
-   from Extras. If ZC34 shows its known `-36003` overlay, dismiss it and check
-   Extras before retrying; `-36003` is verified as **“Cancel is in progress,”**
-   not proof that package installation failed.
-3. ZC37 defaults to filename **`install.pkg`** and server **Mars**. On the
+   **`harness-loader-zc38.pkg`** once and tap **Install**. This is a new package
+   identity (`-HarnessLoaderZC38:jbfly`), not an in-place replacement.
+2. Wait for ZC34 to finish its delayed install, then open **ZC38 Loader 2.2**
+   from Extras. ZC37 received complete HTTP 200 bodies on 2026-07-31 but then
+   showed `n=evt.ex.comm  e=-36003  d=completionscript`; `-36003` is verified as
+   **“Cancel is in progress.”** ZC38 guards duplicate teardown, but this still
+   needs the physical-hardware confirmation in step 5.
+3. ZC38 defaults to filename **`install.pkg`** and server **Mars**. On the
    dedicated AP, tap **Install**. On the house LAN, first tap **Server: Mars**
    once so it reads **Server: LAN**, then tap **Install**.
 4. Do not accept `installing` as success. Wait for
-   **`<internal package identity> installed`**. ZC37 reports that only after
+   **`<internal package identity> installed`**. ZC38 reports that only after
    `SuckPackageFromBinary` returns and `GetPkgRef(identity, Internal)` finds the
    installed package.
 5. Open the new application from Extras and exercise one real action. That is
