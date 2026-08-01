@@ -1,0 +1,12 @@
+ZC39 investigation baseline: unchanged ZC38 in private emulator instance zc39
+package: runtime/staging/hardware/harness-loader-zc38.pkg
+sha256: 64501270095038fb4d22573a853c0251439bc3f4732b854e4cee29da6f53e680
+response: 82-byte header + 18320-byte examples/harness-tools/harness-tools.pkg body = 18402
+server result:
+client acked 18402 of 18402 bytes
+PASS: loader ACKed the complete response
+
+The private container cannot route the hardware address 10.42.0.1 by default,
+so only the running ZC38 app frame's serverAddress was changed to the Podman
+host gateway 169.254.1.2. Source and package bytes were unchanged. Einstein did
+not reproduce the physical MessagePad's deterministic 2920-byte stall.

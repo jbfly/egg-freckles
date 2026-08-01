@@ -1,0 +1,20 @@
+ZC39 fixed-package transfer check in private emulator instance zc39
+package: runtime/staging/hardware/harness-loader-zc39.pkg
+size: 14624
+sha256: b9d6d8496c7ebef0c8786f980d2a03c7452f29eaf7d94d9ea6b8f08ff76c072b
+identity: -HarnessLoaderZC39:jbfly
+version/title: ZC39 Loader 2.3
+response: 82-byte header + 18320-byte examples/harness-tools/harness-tools.pkg body = 18402
+The staged artifact byte-matched the emulator-mounted artifact (cmp PASS).
+server result:
+client acked 18402 of 18402 bytes
+PASS: loader ACKed the complete response
+Newton state after receive: contentLength = 18320
+Newton UI: SuckPackageFromBinary reached the installer, which rejected the
+already-present -HarnessToolsR10L:jbfly identity as a duplicate.
+
+The test added 10.42.0.1/32 only inside the private zc39 container namespace.
+It proves complete emulator transfer and installer entry, not fresh installation
+and not physical-hardware parity. The output CompletionScript later reported
+-16009 after the one-shot verifier closed; no hardware conclusion is drawn from
+that emulator-only teardown result.

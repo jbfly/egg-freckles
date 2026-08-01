@@ -56,13 +56,19 @@ SetInputSpec({ _parent: self, form: 'string | 'binary,
                InputScript: func(endpoint, data, terminator, options) ... })
 ```
 
-`InputScript` **must re-arm `SetInputSpec` before returning**; re-arming outside
-the callback caused connection churn.
+After normal termination, the current input spec persists: Newton automatically
+posts another receive request with the same spec when `InputScript` returns.
+Call `SetInputSpec` inside `InputScript` only to replace or stop that spec; this
+inline replacement is required when the next receive needs a different target,
+offset, termination, or options. Options are the exception: they are used once
+and are not reposted with the otherwise-persistent spec.
 
-- Evidence: `docs/newtonscript-eval.md:290-310` (re-arming from inside the
-  input callback, as the Newton endpoint guide permits, removed churn);
-  `examples/harness-loader/Main.newt:200-244` (header as `'string` with
-  `endSequence`, body as `'binary` with `target`); `examples/harness-tools/Main.newt:107-119`.
+- Evidence: `refs/NewtonProgrammerGuide20.txt:50167-50178` (automatic repost and
+  inline replacement), `:50543-50547` (options are used once), and
+  `refs/NewtonProgrammerRef20.txt:56549-56557` (the current spec remains in
+  effect unless `SetInputSpec` changes it). This settles the contradiction
+  recorded in `docs/recovered-session-findings.md:131-143`: persistence and
+  inline replacement are both real, but apply to different needs.
 
 ### 1.4 Error-code corrections (most expensive knowledge we own)
 
@@ -72,7 +78,7 @@ against `refs/NewtonProgrammerRef20.txt`.
 | Code | We initially read it as | Verified meaning | Where the correction landed |
 |---|---|---|---|
 | `-48803` | "link teardown error" | **"Wrong number of arguments"** — the system raises it *when it cannot call a callback at all* | `refs/NewtonProgrammerRef20.txt:74810-74812` ("–48803 / Wrong number of arguments"); also `:57308-57313` ("error … usually results in error –48803 … when a callback can't be called"). Corrected in commit `559af01` body: "–48803 is 'wrong number of arguments' (NewtonProgrammerRef20.txt:74810), not a link-teardown error." |
-| `-36003` | (none — this is the loader completion failure) | **"Cancel is in progress"** — a double cancel; usually ignorable | `refs/NewtonProgrammerRef20.txt:74083-74085` ("–36003 / Cancel is in progress"); `:57235-57238` ("If the Cancel method throws an exception with error -36003, that means a cancel operation is already in progress … you can probably ignore it"). Loader still fails completion with `-36003` per `559af01` body: "still fails at completion with -36003 (cancel in progress) before reporting install queued." |
+| `-36003` | "the loader teardown race is the download failure" | **"Cancel is in progress"** — teardown was already underway | `refs/NewtonProgrammerRef20.txt:74083-74085,57235-57238`; hardware TCP_INFO then showed ZC38 stopped draining at 2,920/18,402 bytes, so `-36003` is the post-stall symptom, not the cause (§1.10). |
 | `-48807` | | **Undefined variable** | `refs/NewtonProgrammerRef20.txt:74821-74824` |
 | `-48808` | (compile failure) | **Undefined global function** — `Compile(string)` is not callable from an installed application on this ROM | `refs/NewtonProgrammerRef20.txt:74825-74828`; reproduced `docs/newtonscript-eval.md:157-167` (`2+2` returned `-48808`, not `4`). |
 | `-48809` | | **Undefined method** | `refs/NewtonProgrammerRef20.txt:74829-74832` |
@@ -166,17 +172,28 @@ So the transport is non-blocking from the user's perspective.
 ### 1.10 One input form throughout an HTTP exchange
 
 Do not read HTTP headers as `'string` and then switch the body to `'binary`.
-Apple's `refs/qa/inptspec.htm` documents that such a non-binary→binary/frame
-transition **discards already-buffered bytes** unless the sender waits for a
-receiver handshake — which a plain HTTP server can't provide. The loader uses
-`'string` with `endSequence:"\r\n\r\n"` for headers and a *separate* `'binary`
-`SetInputSpec` for the body (the `endSequence` leaves the body queued, and the
-binary spec receives directly into the package VBO via `target:{data,offset}`).
+Apple documents that such a non-binary→binary/frame transition **discards all
+bytes already buffered under the first form**, causing corrupt leading data,
+wrong `byteCount`, or a callback that never fires. A plain HTTP server cannot
+perform Apple's required flush/switch/ready handshake.
 
-- Evidence: `docs/client-network-port.md` ("deliberately does **not** read
-  headers as `'string` and then switch the body to `'binary`"); live shape
-  `examples/harness-loader/Main.newt:200-244` with the `ponytail:` comment at
-  `:226`.
+ZC39 therefore stays in `'binary` form from byte zero. It receives the first
+1,024 bytes into a scratch VBO, finds `\r\n\r\n`, copies the body suffix into
+the package VBO, then replaces that binary spec with binary body targets.
+For the hardware response, the 82-byte header leaves `1,024 - 82 = 942` body
+bytes in the first block; offsets then advance `942 + 8,192 + 8,192 + 994 =
+18,320`. No received byte is discarded or counted twice.
+
+The observed failure arithmetic matches Apple's warning: two 1,460-byte TCP
+segments gave `2,920 - 82 = 2,838` body bytes to Newton. The old body spec still
+asked for 8,192 *new* bytes after the string→binary switch discarded those
+2,838 buffered body bytes, so its completion condition could not account for
+what had already arrived. Newton stopped draining, closed its receive window,
+and Mars remained at exactly 2,920 ACKed response bytes.
+
+- Evidence: `refs/qa/inptspec.htm:4` and `refs/qa/endpoint.htm:118` (buffered
+  non-binary data is lost on a binary/frame switch); fixed receive shape in
+  `examples/harness-loader/Main.newt` (`ArmHeader`, `HeaderReceived`, `ArmBody`).
 
 ### 1.11 `SuckPackageFromBinary` must run out of the callback stack
 
@@ -187,8 +204,8 @@ AddDelayedCall(func(theBinary)
     GetDefaultStore():SuckPackageFromBinary(theBinary, nil), [binary], 5000);
 ```
 
-Keep the binary referenced until the delayed call runs. `ClearVBOCache` before
-install.
+Keep the binary referenced until the delayed call runs. Do not call the invented
+`ClearVBOCache` global; it does not exist on NewtonOS 2.1.
 
 - Evidence: `docs/newton-client-notes.md` ("SuckPackageFromBinary" section);
   `examples/harness-loader/Main.newt:179-181`.
@@ -218,11 +235,11 @@ The traps that cost real time.
 | **Zombie package tears down without `Stop()`** | Closing the app's view left the source port alive (zombie) beside a fresh connection. | Add `ViewQuitScript` that calls `Stop()` (unbind, dispose, release NIE). | `docs/newtonscript-eval.md:377-383`; `examples/harness-tools/Main.newt:26-30` |
 | **Startup `Bind`/`Connect`/`Output` can hold the app task for the full 45 s connect timeout** | Real-hardware bring-up exposed synchronous endpoint calls blocking the UI. | Use endpoint callback specs with `async: true` for `Bind`, `Connect`, and both `Output` operations. Input path stays `SetInputSpec`-only. | `docs/newtonscript-eval.md:415-435` (R10I) |
 | **Missing `form: 'string` on the output spec** | Einstein established TCP but emitted no payload. | Every output spec includes `form: 'string`. | `docs/newtonscript-eval.md:431-435` |
-| **Treating replacement of the prior input spec as a communication error** | Caused connection churn. | Remove that error path; `InputScript` re-arming inline before return is the intended use. | `docs/newtonscript-eval.md:435` |
-| **Hand-written header byte loop** | `SubStr(text, Length(text)-4, 4)` threw on the first byte; a stale armed spec then ate body chunks as header text until the 4096 guard tripped. | Use Newton's native `termination: {endSequence: "\r\n\r\n"}`. | commit `559af01` body ("Header scan: replace the hand-written byte loop…") |
+| **Treating replacement of the prior input spec as a communication error** | Caused connection churn. | Inline `SetInputSpec` is valid when changing or stopping the persistent spec; the same spec is automatically reposted if left unchanged. | `refs/NewtonProgrammerGuide20.txt:50167-50178`; `refs/NewtonProgrammerRef20.txt:56549-56557` |
+| **Unguarded header byte loop** | `SubStr(text, Length(text)-4, 4)` threw before four bytes existed. | ZC39 guards the four-byte comparison and keeps the whole HTTP receive in binary form; native string `endSequence` cannot safely hand off to binary. | `examples/harness-loader/Main.newt` (`HeaderReceived`); `refs/qa/inptspec.htm:4` |
 | **Reading the stale `.text` slot for the filename** | Every request went out as the hardcoded `inetenbl.pkg` default regardless of typing. | Read the live edit with `GetRichString()` (and default the field to `harness-tools.pkg`). | commit `559af01` body ("Filename field …") |
 | **Invented globals** | `SplitString`, `ClearVBOCache` were assumed to exist; neither does in NewtonOS 2.1. | Audited all 26 globals in the file against the Reference, Guide and NIE docs. | commit `559af01` body ("Remove invented globals…") |
-| **Reading the callback `data` argument as the VBO** | The receive callback's data argument is not the binary; the VBO is `endpoint._parent.inputTarget`. | Read the configured VBO via `endpoint._parent.inputTarget`, use `async:nil` + explicit `Input()`. | commit `559af01` body ("Receive callbacks…") |
+| **Reading the callback `data` argument as the VBO** | The callback argument is not the configured binary target. | Read `endpoint._parent.inputTarget`; receive stays `SetInputSpec`-only and never calls synchronous `Input()`. | `examples/harness-loader/Main.newt` (`HeaderReceived`); commit `559af01` body |
 | **`Compile(string)` assumed callable** | Resident package returned `-48808` (undefined global function) for `2+2`. | NewtonOS 2.1 documents `Compile(string)` but this ROM/application context does not resolve it. Fixed named operations work; arbitrary received source does not compile. | `docs/newtonscript-eval.md:157-178` |
 | **Log-scraping for an eval result** | A working evaluator emits neither result nor `Exception` to process output, even after forced flush. | Use a distinct result channel (the R6+ `POST /tools` protocol, or the ns_eval Print()-to-file channel). | `docs/newtonscript-eval.md:1-58` |
 | **tntk top-level constant referenced in a function body** | `kCap := 6144; F: func() kCap` segfaults the compiler with no diagnostic. | Put the constant in a view slot (`cap: kCap` then `self.cap`). | `docs/newton-dev-notes.md` "Five NewtonScript/tntk traps" section |
@@ -236,18 +253,16 @@ The traps that cost real time.
 
 Do not treat these as fact.
 
-- **The loader `-36003` teardown race remains a hardware gate for ZC38.**
-  The reference meaning is verified as "Cancel is in progress" (`:57235-57238`,
-  `:74083-74085`). On a real MessagePad 2000 on 2026-07-31, ZC37 received four
-  complete HTTP 200 responses of 18,320 bytes for `/harness-tools.pkg`, then
-  displayed `n=evt.ex.comm  e=-36003  d=completionscript`. The async output
-  completion could call `Failed()` again after its first call had queued
-  deferred teardown, so two teardown calls could reach an endpoint already
-  cancelling. ZC38 makes `Failed()`/`Stop()` re-entrant-safe and clears the
-  input spec before `Disconnect`; Einstein installs the package and rejects a
-  synthetic duplicate failure, but did not reproduce the hardware callback
-  timing. Do not call the teardown fixed on physical hardware until ZC38 passes
-  that gate.
+- **ZC39's binary-only loader receive still needs physical-hardware confirmation.**
+  New TCP_INFO evidence from a real MessagePad disproved the ZC38 teardown
+  diagnosis: two retries ACKed exactly 2,920 of 18,402 response bytes, while a
+  Linux curl control ACKed all 18,402. ZC38's re-entry guard remains harmless,
+  but `-36003` is now understood as teardown after the receive stall, not its
+  cause. ZC39 implements Apple's documented no-form-switch workaround and the
+  private emulator ACKs all 18,402 bytes both before and after the change, so
+  Einstein does not reproduce the hardware stall (`runtime/evidence/zc39-baseline-ack.txt`,
+  `runtime/evidence/zc39-fixed-ack.txt`). Require a real MessagePad
+  run before calling ZC39 fixed.
 - **Real-hardware parity for the long-poll transport.** The R9/R10D latency
   numbers are Einstein/emulator-derived. `docs/newtonscript-eval.md` notes R10I
   "real hardware exposed the remaining synchronous endpoint calls" — i.e. the

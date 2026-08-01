@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderZC38:jbfly|;
-kVersion := "2.2";
-kAppTitle := "ZC38 Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC39:jbfly|;
+kVersion := "2.3";
+kAppTitle := "ZC39 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -19,7 +19,6 @@ mainView := {
             self._parent:SetStatus(text);
         end,
     },
-    serverAddress: [10, 42, 0, 1],
     serverPort: 18081,
     endpoint: nil,
     linkID: nil,
@@ -35,16 +34,6 @@ mainView := {
     allowedChars: "-._0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     attempt: 0,
     stopping: nil,
-
-    ToggleServer: func(button)
-    begin
-        if self.serverAddress[0] = 10 then
-            self.serverAddress := [192, 168, 1, 11]
-        else
-            self.serverAddress := [10, 42, 0, 1];
-        SetValue(button, 'text,
-            if self.serverAddress[0] = 10 then "Server: Mars" else "Server: LAN");
-    end,
 
     SetStatus: func(message)
     begin
@@ -94,6 +83,8 @@ mainView := {
         :Stop("TryFetch");
         self.stopping := nil;
         self.packageBinary := nil;
+        self.inputTarget := nil;
+        self.headerText := "";
         self.contentLength := nil;
         self.bodyOffset := 0;
         self.bodyChunk := 0;
@@ -113,7 +104,7 @@ mainView := {
 
     Resolved: func(results, error)
     begin
-        local address := self.serverAddress;
+        local address := [10, 42, 0, 1];
         local callName := "Instantiate";
         self.endpoint := {_proto: self.endpointClass, _parent: self};
         try
@@ -167,22 +158,6 @@ mainView := {
         :DownloadPackage();
     end,
 
-    ParseContentLength: func(headers)
-    begin
-        local start := StrPos(headers, "Content-Length:", 0);
-        local finish;
-        if start = nil then return nil;
-        start := start + StrLen("Content-Length:");
-        while (start < StrLen(headers)) and (SubStr(headers, start, 1) = " ") do
-            start := start + 1;
-        finish := start;
-        while (finish < StrLen(headers))
-        and (StrPos("0123456789", SubStr(headers, finish, 1), 0) <> nil) do
-            finish := finish + 1;
-        if finish = start then return nil;
-        return StringToNumber(SubStr(headers, start, finish - start));
-    end,
-
     InstallNow: func(binary)
     begin
         self.installedIdentity := nil;
@@ -229,12 +204,13 @@ mainView := {
     begin
         self.endpoint:SetInputSpec({
             _parent: self,
-            form: 'string,
-            termination: {endSequence: "\r\n\r\n"},
-            discardAfter: 4096,
+            form: 'binary,
+            target: {data: self.inputTarget, offset: 0},
+            termination: {byteCount: 1024},
+            discardAfter: 1024,
             InputScript: func(endpoint, data, terminator, options)
             begin
-                try endpoint._parent:HeaderReceived(data)
+                try endpoint._parent:HeaderReceived()
                 onexception |evt.ex| do
                     endpoint._parent:ReportCallbackException("Header", endpoint, CurrentException());
             end,
@@ -242,18 +218,34 @@ mainView := {
         return nil;
     end,
 
-    HeaderReceived: func(headers)
+    HeaderReceived: func()
     begin
-        if not BeginsWith(headers, "HTTP/1.0 200") then
+        local bodyStart := nil;
+        for index := 0 to 1023 do
+            if bodyStart = nil then
+            begin
+                self.headerText := self.headerText & CHR(ExtractByte(self.inputTarget, index));
+                if (index >= 3)
+                and StrEqual(SubStr(self.headerText, index - 3, 4), "\r\n\r\n") then
+                    bodyStart := index + 1;
+            end;
+        if bodyStart = nil then return :Failed("Header too long");
+        if not BeginsWith(self.headerText, "HTTP/1.0 200") then
             return :Failed("HTTP not 200");
-        self.contentLength := :ParseContentLength(headers);
-        if (self.contentLength = nil) or (self.contentLength <= 0)
-        or (self.contentLength > 524288) then
+        local lengthStart := StrPos(self.headerText, "Content-Length:", 0);
+        if lengthStart = nil then return :Failed("Bad Content-Length");
+        // dual_send writes Content-Length last: skip name + one space, exclude CRLFCRLF.
+        self.contentLength := Floor(StringToNumber(SubStr(self.headerText,
+            lengthStart + 16, StrLen(self.headerText) - lengthStart - 20)));
+        if (self.contentLength <= 0) or (self.contentLength > 524288) then
             return :Failed("Bad Content-Length");
         try self.packageBinary := GetDefaultStore():NewVBO('package, self.contentLength)
         onexception |evt.ex| do return :Failed("No package buffer");
-        :SetStatus("Got 0/" & self.contentLength);
-        // ponytail: endSequence leaves the body queued; receive it directly into the package VBO.
+        self.bodyOffset := 1024 - bodyStart;
+        if self.bodyOffset > self.contentLength then return :Failed("Body too long");
+        BinaryMunger(self.packageBinary, 0, self.bodyOffset,
+            self.inputTarget, bodyStart, self.bodyOffset);
+        // ponytail: binary -> binary preserves bytes already buffered by the endpoint.
         return :ArmBody();
     end,
 
@@ -294,6 +286,8 @@ mainView := {
 
     DownloadPackage: func()
     begin
+        try self.inputTarget := GetDefaultStore():NewVBO('package, 1024)
+        onexception |evt.ex| do return :Failed("No input buffer");
         :ArmHeader();
         :SetStatus("GET /" & self.packageName & "...");
         self.endpoint:output(
@@ -358,15 +352,7 @@ mainView := {
         {
             _proto: protoTextButton,
             viewJustify: vjParentFullH + vjParentFullV,
-            viewBounds: {left: 20, top: 126, right: -20, bottom: 158},
-            text: "Server: Mars",
-            viewFont: ROM_fontSystem10,
-            buttonClickScript: func() self:Parent():ToggleServer(self),
-        },
-        {
-            _proto: protoTextButton,
-            viewJustify: vjParentFullH + vjParentFullV,
-            viewBounds: {left: 20, top: 166, right: -20, bottom: -12},
+            viewBounds: {left: 20, top: 126, right: -20, bottom: -12},
             text: "Install",
             viewFont: ROM_fontSystem12Bold,
             buttonClickScript: func() self:Parent():Install(self),

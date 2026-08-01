@@ -146,31 +146,31 @@ make -C examples/harness-loader clean all
 cp examples/harness-loader/harness-loader.pkg \
   runtime/staging/hardware/harness-loader.pkg
 cp examples/harness-loader/harness-loader.pkg \
-  runtime/staging/hardware/harness-loader-zc38.pkg
+  runtime/staging/hardware/harness-loader-zc39.pkg
 cp -- /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 sha256sum /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 python3 runtime/dual_send.py
 ```
 
-Leave that terminal running. The server binds all interfaces. On the dedicated
-Mars AP the loader connects to **`[10,42,0,1,18081]`**. On the house LAN, Mars
-is **`192.168.1.11:18081`**.
+Leave that terminal running. ZC39 is hardcoded to the dedicated Mars AP at
+**`[10,42,0,1,18081]`**; it no longer has a house-LAN toggle.
 
 ### Newton: one-time loader upgrade, then two taps per package
 
-1. Open the already-installed ZC34 Loader. Enter
-   **`harness-loader-zc38.pkg`** once and tap **Install**. This is a new package
-   identity (`-HarnessLoaderZC38:jbfly`), not an in-place replacement.
-2. Wait for ZC34 to finish its delayed install, then open **ZC38 Loader 2.2**
-   from Extras. ZC37 received complete HTTP 200 bodies on 2026-07-31 but then
-   showed `n=evt.ex.comm  e=-36003  d=completionscript`; `-36003` is verified as
-   **“Cancel is in progress.”** ZC38 guards duplicate teardown, but this still
-   needs the physical-hardware confirmation in step 5.
-3. ZC38 defaults to filename **`install.pkg`** and server **Mars**. On the
-   dedicated AP, tap **Install**. On the house LAN, first tap **Server: Mars**
-   once so it reads **Server: LAN**, then tap **Install**.
+1. Open the already-installed ZC38 Loader. Enter
+   **`harness-loader-zc39.pkg`** once and tap **Install**. This is a new package
+   identity (`-HarnessLoaderZC39:jbfly`), not an in-place replacement.
+2. Wait for ZC38 to finish its delayed install, then open **ZC39 Loader 2.3**
+   from Extras. Real-hardware ZC38 retries ACKed exactly 2,920 of 18,402 response
+   bytes and then showed `-36003` ("Cancel is in progress"). ZC38 guards duplicate
+   teardown, but the TCP_INFO evidence proves teardown is the symptom: the real
+   fault is the string-to-binary receive handoff. ZC39 keeps the whole response
+   binary; this still needs the physical-hardware confirmation in step 5.
+3. ZC39 defaults to filename **`install.pkg`** and is hardcoded to Mars at
+   `10.42.0.1:18081`; the dead LAN toggle was removed to keep the package below
+   15,000 bytes. Join the dedicated AP and tap **Install**.
 4. Do not accept `installing` as success. Wait for
-   **`<internal package identity> installed`**. ZC38 reports that only after
+   **`<internal package identity> installed`**. ZC39 reports that only after
    `SuckPackageFromBinary` returns and `GetPkgRef(identity, Internal)` finds the
    installed package.
 5. Open the new application from Extras and exercise one real action. That is

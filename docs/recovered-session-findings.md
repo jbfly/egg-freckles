@@ -128,18 +128,17 @@ Nothing found that was both evidence-backed and absent from the current reposito
 
 ## Contradictions
 
-### Whether every `InputScript` must re-arm `SetInputSpec`
+### Whether every `InputScript` must re-arm `SetInputSpec` — settled
 
-**Transcript side.** `/home/jbfly/.claude/projects/-home-jbfly-git-newton-harness/35bf387d-33a8-4dc1-8c0d-a9cefad6cdb2.jsonl:510` says:
+The two observations describe different cases. After normal input termination,
+Newton automatically reposts the same input spec when `InputScript` returns, so
+the persistent-chat evidence was correct. Calling `SetInputSpec` inline is only
+needed to replace or stop that spec; the loader and tools do so when the next
+target, offset, termination, or one-shot options differ.
 
-> “**InputScript re-arm isn't needed** — `ready` only becomes true via `STAT READY`, which arrives *after* the client already consumed an `ACK` line in a callback that neither outputs nor re-arms. `SetInputSpec` input persists across callbacks. The same argument holds on your hardware log: four sends on one connection required `PROMPT` to clear `inFlight` three times.”
-
-**Current repo side.** `docs/newton-client-notes.md:71` says:
-
-> “Each `InputScript` re-arms `SetInputSpec` before returning”
-
-and `docs/newtonscript-eval.md:434-435` says:
-
-> “`InputScript` installs the next input spec inline before returning”
-
-**Why this matters.** These imply different endpoint contracts. The hardware chat evidence suggests one installed input spec can persist, while the loader/tools docs require explicit inline replacement. Preserve both until a focused test distinguishes input-spec persistence by form, termination type, or endpoint API path.
+**Evidence.** `refs/NewtonProgrammerGuide20.txt:50167-50178` says the system
+"automatically posts another input spec" duplicating the terminated one and
+permits inline replacement; `:50543-50547` says options are used only once.
+`refs/NewtonProgrammerRef20.txt:56549-56557` says the current spec "remains in
+effect" unless `SetInputSpec` changes it. The authoritative conclusions are now
+in `docs/newton-networking-lessons.md` §1.3 and `docs/newton-client-notes.md`.
