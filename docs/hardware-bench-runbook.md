@@ -178,13 +178,14 @@ Leave that terminal running. ZC39 is hardcoded to the dedicated Mars AP at
    byte size, and whether the app opened; do not infer hardware success from
    the emulator result.
 
-The ZC39 hardware gate passed with a fresh 1,136-byte proof package. Mars saw
-exactly one GET and ACKs for all 1,217 HTTP response bytes; Newton installed the
-package on the `Ultimate Newton` flash-card store, showed it in Extras, and ran
-it. The same run also displayed a same-name-already-installed warning. Since
-there was only one GET, ZC40 v2.4 treats that warning as duplicate final-callback
-install scheduling and guards the deferred install so it can be queued once per
-`TryFetch`.
+The hardware gate passed. ZC40 installed and launched fresh 1,136-byte and
+321,920-byte proof packages over WiFi. For the large success Mars saw one GET
+and ACKs for all 322,003 HTTP response bytes. A prior attempt reached the
+installer but returned `-10617` (card memory full) with 498 KB free; the same
+package succeeded after increasing free space on `Ultimate Newton` to 893 KB.
+Budget roughly twice the package size for the download VBO and installation
+copy. `Install not confirmed` remains a faulty post-install status check and
+does not override an app appearing in Extras and launching.
 
 For the 318,276-byte recovery package, use the same alias:
 
