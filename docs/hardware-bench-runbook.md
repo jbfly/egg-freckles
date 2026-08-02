@@ -218,8 +218,9 @@ python3 runtime/dual_send.py
 
 Use ZC40 as above, then open **Newt's Cape** from Extras. On 2026-08-02 the
 same pinned file was absent from an isolated Einstein flash, installed as
-`NewtsCape:NewtsCape` at 296,128 bytes, and opened to its About screen. The
-physical MP2000 remains the separate confirmation gate.
+`NewtsCape:NewtsCape` at 296,128 bytes, and opened to its About screen. ZC40
+also installed it on the physical MP2000, where it appeared as **NewtScape** in
+Extras and launched successfully.
 
 ### Unattended emulator proof
 
@@ -240,28 +241,32 @@ Newton toolchain.
 ### TCP Dock bootstrap (current no-cable path)
 
 This uses the Newton OS 2.x ROM Dock protocol's old package-loading session,
-so it needs no loader or installer package on the Newton. The **host listens on
+so it needs no harness loader. It **does** require the separate Dock TCP
+transport package; NIE alone does not add TCP/IP to Dock. The **host listens on
 `10.42.0.1:3679` and the Newton initiates the TCP connection** when you tap
-Connect. Do not try to connect from the host to `10.42.0.36`. The sequence is
-the documented `rtdk` / `dock(loadPackage)` / `name` / `stim` / `dres` /
-`lpkg` / `dres` / `disc` exchange:
+Connect. Do not try to connect from the host to the Newton. The sequence is the
+documented `rtdk` / `dock(loadPackage)` / `name` / `stim` / `dres` / `lpkg` /
+`dres` / `disc` exchange:
 <https://40hz.org/Pages/newton/hacking/newton-docking-protocol/>. NewtonKit
 independently uses the same direction and port: its host starts a server on
 3679, then the Newton Dock app initiates the TCP/IP connection:
 <https://github.com/turbolent/NewtonKit#tcp>.
 
-1. **Allow Dock traffic through the already-running AP firewall.** The checked-in
-   `ap/newton-ap.nft` adds `3679` to the existing Newton-only TCP allowlist.
-   Apply that prepared ruleset; this does not reset the Newton or stop the
-   package server:
+1. **Install Dock TCP once if TCP/IP is missing.** Stage the verified upstream
+   package and install it with ZC40:
 
    ```sh
    cd ~/git/newton-harness
-   sudo nft -f ap/newton-ap.nft
-   sudo nft list chain inet newton-ap input | grep 3679
+   cp downloads/recovery/Dock_TCP-1.2-en.pkg runtime/staging/hardware/install.pkg
+   sha256sum runtime/staging/hardware/install.pkg
+   python3 runtime/dual_send.py
    ```
 
-   Expect the second command to show `tcp dport { 3679, 6801, 18081 } accept`.
+   Expect SHA-256
+   `44bda0598feddb6329ceec5cbc29d1f079d12b8cca23162769cb8470df89b5fa`.
+   The package is 72,432 bytes; allow about 145 KB free. Install it to internal
+   memory, reopen Dock, and confirm that **TCP/IP** appears. ZC40's `Install not
+   confirmed` text is not the check.
 2. **Prepare Dock, but do not tap Connect yet.** On the Newton, open **Dock**.
    Choose **TCP/IP** (the network transport; not Serial and not AppleTalk). If
    Dock asks for the desktop address, enter **`10.42.0.1`**.
@@ -287,12 +292,19 @@ independently uses the same direction and port: its host starts a server on
    command with `runtime/staging/hardware/harness-tools.pkg`; expected size is
    `18320` bytes.
 
-Top three TCP Dock failures:
+On the Mars + AirPort Express bench, `10.42.0.1/24` is on `enp2s0`; do not load
+the checked-in `ap/newton-ap.nft`, which belongs to the self-hosted `wlan0` AP.
+The Newton already proved inbound TCP reachability to ports 6801 and 18081 on
+this path. If 3679 is blocked despite the listener starting, inspect the live
+firewall before changing rules.
+
+Common TCP Dock failures:
 
 | Symptom | Fix |
 |---|---|
-| `no Newton connected within 60s` | Confirm the Newton still has `10.42.0.36`, Dock is set to **TCP/IP** with desktop `10.42.0.1`, and the live nft rule includes 3679. Run `ss -tn | grep 3679` while tapping Connect; no row means the connection never reached the host. |
-| `Address already in use` or `Cannot assign requested address` | For the first, find the unexpected listener with `ss -ltnp | grep 3679` and stop only that process. For the second, the AP address is missing; `ip addr show wlan0 | grep 10.42.0.1` must succeed before retrying. |
+| Dock has no **TCP/IP** choice | Install the verified `Dock_TCP-1.2-en.pkg` with ZC40, then reopen Dock. Reinstalling NIE is unnecessary when Internet Setup, NewtScape, or Chat A3 already work. |
+| `no Newton connected within 60s` | Confirm Dock is set to **TCP/IP** with desktop `10.42.0.1`. Run `ss -tn | grep 3679` while tapping Connect; no row means the connection never reached the host. |
+| `Address already in use` or `Cannot assign requested address` | For the first, find the unexpected listener with `ss -ltnp | grep 3679` and stop only that process. For the second, the AP address is missing; `ip -brief addr | grep '10.42.0.1/24'` must succeed before retrying. |
 | `Newton rejected package install with Dock error ...` | Keep Dock open and retry once with the staged package. Error `-28019` means the package cannot load: remove an older package with the same identity or free Newton store space, then retry. Other codes should be recorded verbatim rather than resetting the device. |
 
 ### Serial bootstrap (works with no Newton-side loader)

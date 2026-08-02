@@ -118,12 +118,17 @@ evidence in this repo that we own such a card.
 
 ### c. TCP Dock — `runtime/install-newton-tcp`
 Same ROM Dock protocol over TCP; host listens on `10.42.0.1:3679` and the
-Newton initiates. Documented and coded
+Newton initiates. The ROM Dock app still needs the separate Dock TCP transport
+package after NIE is installed; NIE alone does not create the TCP/IP menu item.
+The verified recovery copy is `downloads/recovery/Dock_TCP-1.2-en.pkg`, 72,432
+bytes, SHA-256
+`44bda0598feddb6329ceec5cbc29d1f079d12b8cca23162769cb8470df89b5fa`.
+Documented and coded
 (`docs/hardware-bench-runbook.md:144-201`, commit `c5d2852`).
-Survives hard reset: **no.** Dock's TCP/IP transport rides on NIE, so this is
-unavailable until NIE is reinstalled by another path. Typing once NIE is up:
-the desktop address `10.42.0.1` = **9 characters**, plus SSID `newton` = 6
-during network setup.
+Survives hard reset: **no.** This path is unavailable until both NIE and Dock
+TCP are reinstalled by another path. Typing once they are up: the desktop
+address `10.42.0.1` = **9 characters**, plus SSID `newton` = 6 during network
+setup.
 Verdict: an excellent *steady-state* path, useless as a lifeline.
 
 ### d. Our own `harness-loader.pkg` (10,552 bytes)

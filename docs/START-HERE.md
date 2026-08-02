@@ -168,6 +168,14 @@ Human gates and preserved recovery state:
   freeware/unexpiring package is checksum-addressed in `downloads/recovery/`
   and installed/launched in Einstein. ZC40 installed it on the physical MP2000
   on 2026-08-02; ZC40 is current and ZC39 is the unchanged fallback.
+- **The physical Extras and Storage state is photographed and transcribed.**
+  See `docs/physical-newton-inventory.md`. It confirms Chat A3, NewtScape,
+  ZC39, ZC40, NIE, `Internet Setups`, and `DEMO.BAS:NSBASIC`; Dock TCP was not
+  visible and Dock had no TCP/IP choice.
+- **Dock TCP 1.2 is preserved and ready for ZC40.** The byte-identical upstream
+  data fork appears in Newton Research NCX 1.4, 2.3, and 3.0.2. Its 72,432-byte
+  recovery copy and checksum are in `downloads/recovery/`; it adds the missing
+  TCP/IP choice to Dock after NIE is working.
 - **The serial Dock lifeline is unproven.** It needs one afternoon of hardware
   time and a photograph of the working cable chain
   (`docs/install-lifeline-plan.md`, §4).

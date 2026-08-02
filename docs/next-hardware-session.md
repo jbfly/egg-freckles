@@ -258,17 +258,17 @@ packages. If step 2 fails, go straight to step 3.
 
 ## Step 3 — Read-only Dock enumeration over TCP
 
-**Why third:** it is read-only, it needs nothing installed on the Newton (ROM
-Dock), and it is the only step that survives a total failure of our own package
-stack. It is also the cheapest evidence about what is actually on the device.
+**Why third:** it is read-only and uses the ROM Dock protocol, but TCP/IP is not
+a stock Dock transport. It requires NIE plus the separate Dock TCP package.
+The verified recovery copy is `downloads/recovery/Dock_TCP-1.2-en.pkg`; if Dock
+has no TCP/IP choice, install it with ZC40 before this step. It is still the
+cheapest evidence about what is actually on the device once that transport is
+active.
 
-**Depends on unmerged worker output.** `runtime/newton_backup.py` and
-`docs/newton-backup-runbook.md` live on `task/dock-backup-tcp` (`8756f3d`) and
-are **not on master**. Before relying on this step:
+`runtime/newton_backup.py` and `docs/newton-backup-runbook.md` are merged on
+master. Confirm the offline protocol tests before relying on this step:
 
 ```sh
-git log --all --oneline | head -30      # confirm 8756f3d is still the tip
-git merge task/dock-backup-tcp          # or: git checkout task/dock-backup-tcp
 uv run --with pytest pytest -q test_newton_backup.py
 ```
 
@@ -298,8 +298,8 @@ runtime/newton_backup.py --dump "runtime/backups/messagepad-$(date +%Y%m%d-%H%M%
 ```
 
 It refuses an existing directory, so a retry cannot overwrite an earlier
-attempt. Full detail and failure table:
-`git show task/dock-backup-tcp:docs/newton-backup-runbook.md`.
+attempt. Full detail and the failure table are in
+`docs/newton-backup-runbook.md`.
 
 **If it fails:** `no Newton connected within 60s` → confirm Dock still says
 TCP/IP, the address is exactly `10.42.0.1`, and run `ss -tn | grep 3679` while

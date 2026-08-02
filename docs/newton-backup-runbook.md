@@ -3,6 +3,28 @@
 This is the no-serial-cable path for a MessagePad 2000 running Newton OS 2.1.
 The host listens on `10.42.0.1:3679`; the Newton initiates the connection.
 
+## One-time Newton prerequisite: Dock TCP
+
+NIE does not add TCP/IP to the ROM Dock application by itself. If Dock's
+connection menu has no **TCP/IP** choice, install the separate English **Dock
+TCP/IP 1.2** package first:
+
+```sh
+cp downloads/recovery/Dock_TCP-1.2-en.pkg runtime/staging/hardware/install.pkg
+python3 runtime/dual_send.py
+```
+
+Use ZC40 with `install.pkg`. The verified package is 72,432 bytes with SHA-256
+`44bda0598feddb6329ceec5cbc29d1f079d12b8cca23162769cb8470df89b5fa`;
+allow at least about 145 KB free for ZC40's VBO and the installation copy.
+Install it to internal memory, then reopen Dock and confirm that **TCP/IP** is
+present. `Install not confirmed` remains a ZC40 status defect; the Dock menu is
+the functional check.
+
+The package comes unchanged from Newton Research's NCX 2.3 distribution. Its
+data fork also matches the copies in NCX 1.4 and 3.0.2. It identifies itself as
+**Dock TCP/IP 1.2**, package identity `Dock ZC & TCP/IP:Kallisys`.
+
 ## Important scope and safety
 
 `runtime/newton_backup.py` is **read-only on the Newton**. Its default mode lists
@@ -19,18 +41,19 @@ export alone.
 
 ## First run: safe enumeration
 
-1. On the host, allow the already-prepared Dock port and confirm the AP address:
+1. On the host, confirm the AP address and that port 3679 is free:
 
    ```sh
    cd ~/git/newton-harness
-   sudo nft -f ap/newton-ap.nft
-   ip addr | grep '10.42.0.1/'
-   sudo nft list chain inet newton-ap input | grep 3679
+   ip -brief addr | grep '10.42.0.1/24'
+   ss -ltn | grep ':3679' || true
    ```
 
-   Success: the address command shows `10.42.0.1`, and the firewall rule includes
-   TCP port `3679`. Failure: if either is absent, stop; do not change Newton data
-   or reset the device.
+   On the current Mars + AirPort Express bench, the address is on `enp2s0`.
+   Do **not** apply `ap/newton-ap.nft` there: that checked-in ruleset matches the
+   separate self-hosted `wlan0` AP topology. Success is `10.42.0.1/24` on the
+   active Newton-facing interface and no existing 3679 listener. If the address
+   is absent, stop; do not change Newton data or reset the device.
 
 2. On the Newton, open **Dock** from Extras.
 
