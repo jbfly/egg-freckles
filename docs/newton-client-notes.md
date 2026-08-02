@@ -3,7 +3,7 @@
 ## Current source state
 
 - `examples/harness-loader/Main.newt` is the NewtonOS 2.1 package installer. The user enters a staged `.pkg` filename; it opens an NIE link, connects to `10.42.0.1:18081`, downloads that name with HTTP/1.0, validates a `Content-Length` from 1 to 524,288 bytes, stores the exact body in a VBO, and installs it with `SuckPackageFromBinary`.
-- `examples/harness-client/Main.newt` is Harness Client v1.1. It identifies itself in the window and package title and fetches the small plain-text `/status` resource over the same HTTP/1.0 network path.
+- `examples/harness-client/Main.newt` is Newton Chat 2.1-a1 with the fresh package identity `HarnessClientA1:jbfly`. It holds one framed TCP session to port 6801, sends bounded ASCII prompts, and renders the model response in a 6 KiB transcript.
 - `pkg_publisher.py` is the source-level reference server for `/harness-client.pkg` and `/status`. The separate live raw server is operational runtime state, not part of this build path.
 - Each app has a `.nprj` file and a small Makefile that invokes tntk against the Newton 2.1 platform file.
 
@@ -36,13 +36,12 @@ make newton-packages \
 ## Package and compiler gotchas
 
 - A Newton package starts with `package0`. The reproducible target checks this magic and minimum header length before changing the timestamp.
-- The `.nprj` `name` and the app's `appSymbol` must remain stable for an update to replace the intended application. The loader and client deliberately use different symbols, so the client update cannot replace the loader.
+- A distinct build must receive a fresh `.nprj` `name` and matching `appSymbol`; changing only the package version does not permit replacement. The exact same verified binary may of course be installed on multiple devices. Loader and client identities remain separate.
 - The project platform string is exactly `Newton 2.1`, and tntk's `-P` argument names the directory containing that platform file, not the file itself.
 - tntk's generated package changes only at the package timestamp for identical source in the currently pinned toolchain. If a future tntk changes other bytes, the two-build hash check should fail rather than expanding normalization casually.
 - NewtonScript method names may print with different capitalization in tntk's diagnostic dump (`Stop` appears as `stop`); that is normal symbol behavior.
-- Keep device strings ASCII and responses small. The client caps the complete HTTP status response at 2,048 bytes and displays at most 80 body characters for MP2100-class memory and screen constraints.
-- `protoBasicEndpoint:Input` returns binary chunks and `nil` at EOF. HTTP parsing therefore cannot assume headers or body align with a chunk boundary.
-- HTTP/1.0 plus `Connection: close` is intentional. It avoids persistent-connection and chunked-transfer handling on NewtonOS.
+- Keep device strings ASCII and responses small. The chat client caps each wire frame at 240 bytes and retains at most 6 KiB of transcript.
+- The chat input path is `SetInputSpec`-only. Bind, connect, handshake, ACK, and message outputs use `async: true`; every output explicitly uses `form: 'string`.
 
 ## `SuckPackageFromBinary`
 
@@ -80,15 +79,12 @@ Physical hardware proved the complete WiFi path with fresh packages. ZC40 instal
 
 The earlier same-name warning followed a real retry: Mars logged a first partial transfer and a second complete GET. ZC40's `installQueued` guard remains cheap protection against repeated final callbacks, but duplicate callback scheduling was not the cause observed on hardware. Its post-install `GetPkgRef` check can still display `Install not confirmed` even when a package installs and launches, so treat that text as a status-check defect rather than transfer failure.
 
-Client v1.1 shows its name and version and provides one large `Check harness status` control. It requests:
-
-```http
-GET /status HTTP/1.0
-Host: 10.42.0.1
-Connection: close
-```
-
-The expected response is HTTP/1.0 status 200 followed by a short plain-ASCII body such as `Harness server OK`.
+Newton Chat 2.1-a1 uses the unchanged Phase 3 framed protocol. On 2026-08-02
+an isolated configured Einstein flash connected through one TCP session, sent
+`Reply with exactly A1 ASYNC OK`, rendered `Agent: A1 ASYNC OK`, cleared the
+in-flight state, and returned to `Ready`. Its production address remains
+`10.42.0.1:6801`; the address is a view slot so an isolated emulator can point
+at its rootless-container host without rebuilding or reusing the identity.
 
 ## Path toward ink and notes (not implemented in v1)
 

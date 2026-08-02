@@ -149,20 +149,23 @@ than hand-rolling the sequence.
 - **The emulator is shared.** Other sessions are using it. Never stop,
   rebuild, or reconfigure `newton-harness_emulator_1` without asking.
 
-## Current state — 2026-07-31 (ages fastest; verify before trusting)
+## Current state — 2026-08-02 (ages fastest; verify before trusting)
 
-Working: the framed native client end to end. A prompt typed on the Newton
-goes out as a framed `MSG` over TCP 6801 and a real backend reply renders in
-the transcript, every frame ACKed both directions
-(`docs/phase3-chat-round.md`). Package build, install, and launch are
-zero-click through the Einstein control socket. 30 host tests pass.
+Working: the framed native client end to end. Fresh identity
+`HarnessClientA1:jbfly` moves bind, connect, handshake, ACK, and message output
+off the application task. An isolated Einstein run sent a real prompt, rendered
+`A1 ASYNC OK`, returned to `Ready`, and kept one TCP connection established.
+Package build, install, and launch remain zero-click through the control socket.
 
-Actually blocked, needing a human:
+Human gates and preserved recovery state:
 
-- **The NS Basic bootstrap exists only on the physical Newton.** It is the
-  human's only working install path from a hard-reset device and its source is
-  unrecoverable. Typing it into `docs/nsbasic-bootstrap.bas` is action item 1
-  of `docs/install-lifeline-plan.md:265`. Still not done.
+- **The NS Basic REPLACE DEMO bootstrap is preserved.** All 27 lines in
+  `bootstrap/nsbasic-bootstrap.bas` were checked against device photos; the
+  saved target is Mars at `10.42.0.1:18081`. Keep it as the bare recovery path.
+- **Newt's Cape is preserved but not yet physically confirmed.** The pinned
+  296,128-byte freeware/unexpiring package is checksum-addressed in
+  `downloads/recovery/` and installed/launched in Einstein. ZC40 is the current
+  physical installer; ZC39 is the unchanged fallback.
 - **The serial Dock lifeline is unproven.** It needs one afternoon of hardware
   time and a photograph of the working cable chain
   (`docs/install-lifeline-plan.md`, §4).

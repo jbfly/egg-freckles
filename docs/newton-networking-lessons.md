@@ -251,18 +251,14 @@ The traps that cost real time.
 
 ## 3. What is still unverified
 
-Do not treat these as fact.
+Do not treat these as fact. ZC40's binary-only receive path is no longer in
+this list: a physical MP2000 installed and launched fresh 1,136-byte and
+321,920-byte packages, and the large run ACKed all 322,003 HTTP bytes.
 
-- **ZC39's binary-only loader receive still needs physical-hardware confirmation.**
-  New TCP_INFO evidence from a real MessagePad disproved the ZC38 teardown
-  diagnosis: two retries ACKed exactly 2,920 of 18,402 response bytes, while a
-  Linux curl control ACKed all 18,402. ZC38's re-entry guard remains harmless,
-  but `-36003` is now understood as teardown after the receive stall, not its
-  cause. ZC39 implements Apple's documented no-form-switch workaround and the
-  private emulator ACKs all 18,402 bytes both before and after the change, so
-  Einstein does not reproduce the hardware stall (`runtime/evidence/zc39-baseline-ack.txt`,
-  `runtime/evidence/zc39-fixed-ack.txt`). Require a real MessagePad
-  run before calling ZC39 fixed.
+- **Physical-hardware parity for the A1 chat transport.** The fresh
+  `HarnessClientA1:jbfly` package completed a real-backend emulator turn over
+  the non-blocking bind/connect/output lifecycle on 2026-08-02. The same build
+  has not yet completed a turn over the MP2000's WaveLAN/NIE path.
 - **Real-hardware parity for the long-poll transport.** The R9/R10D latency
   numbers are Einstein/emulator-derived. `docs/newtonscript-eval.md` notes R10I
   "real hardware exposed the remaining synchronous endpoint calls" — i.e. the

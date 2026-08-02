@@ -2,7 +2,7 @@
 
 This is the recovered program currently saved in NS Basic's single **Demo** slot on the physical MessagePad 2000. It is the only hardware-proven bare bootstrap in this project: the transcript records six package installs over Wi-Fi, including a complete 15,000-byte transfer followed by `SuckPackageFromBinary` installation.
 
-The checked-in program preserves the Newton's last saved target, the house-LAN server at `192.168.1.11:18081`. See [Target address](#target-address-house-lan-versus-mars) before using mars.
+The checked-in program preserves the Newton's photo-verified saved target, Mars at `10.42.0.1:18081`. See [Target address](#target-address-mars-versus-house-lan) before changing networks.
 
 ## Program operation, line by line
 
@@ -14,7 +14,7 @@ The checked-in program preserves the Newton's last saved target, the house-LAN s
 | 40 | Builds template data containing Internet transport version `1`. |
 | 50 | Wraps line 40 as the required `itsv` option. |
 | 60 | Evaluates the three option-building functions separately into locals, then returns `[a,b,c]`. This is the decisive NS Basic 2.52b compatibility fix; the inline form throws `type.ref.frame` before `Instantiate` runs. |
-| 70 | Builds the remote IPv4 address and TCP port as four bytes plus one short. The saved version targets `192.168.1.11:18081`. |
+| 70 | Builds the remote IPv4 address and TCP port as four bytes plus one short. The saved version targets `10.42.0.1:18081`. |
 | 80 | Wraps line 70 as the required `itrs` remote-address option. |
 | 90 | Passes a completed package VBO to the Newton store's package installer. |
 | 100 | Clears the VBO cache, then delays installation by one second so package installation does not occur inside the endpoint input callback. |
@@ -62,18 +62,18 @@ These steps preserve the workflow used in the successful transcript. Do this on 
 
 Do not use a bare `opSetRequired` identifier, `protoBasicEndpoint`, reversed `Instantiate` arguments, or the old inline line 60. Those were investigated; the stored forms above are the proven ones.
 
-## Target address: house LAN versus mars
+## Target address: Mars versus house LAN
 
 The file intentionally records what is on the Newton now:
 
 ```basic
-70 FUNCTION adata() {arglist:[192,168,1,11,18081],typelist:['struct,'byte,'byte,'byte,'byte,'short]}
+70 FUNCTION adata() {arglist:[10,42,0,1,18081],typelist:['struct,'byte,'byte,'byte,'byte,'short]}
 ```
 
-For mars on the isolated `10.42.0.0/24` Newton network, replace only line 70 with:
+For the house LAN server, replace only line 70 with:
 
 ```basic
-70 FUNCTION adata() {arglist:[10,42,0,1,18081],typelist:['struct,'byte,'byte,'byte,'byte,'short]}
+70 FUNCTION adata() {arglist:[192,168,1,11,18081],typelist:['struct,'byte,'byte,'byte,'byte,'short]}
 ```
 
 Then tap **REPLACE DEMO** again. Nothing else changes.
@@ -90,7 +90,7 @@ Then tap **REPLACE DEMO** again. Nothing else changes.
 | 40 | VERBATIM | On-device transcription quotes the complete stored line. |
 | 50 | RECONSTRUCTED | Intended literal plus on-device confirmation of the final fields and literal `512`. |
 | 60 | VERBATIM | The exact locals-based replacement is quoted, then identified as the bug fix after successful transfer/install. |
-| 70 | VERBATIM | The exact house-LAN replacement line is quoted; later handoff confirms it remains saved. |
+| 70 | VERBATIM | Device photos show the saved Mars address exactly as checked in; the earlier house-LAN handoff was stale. |
 | 80 | RECONSTRUCTED | Intended literal plus on-device confirmation of `512`, `result:nil`, and `U:adata()`. |
 | 90 | RECONSTRUCTED | Literal intended listing; on-device transcription says lines 90–130 all match. |
 | 100 | RECONSTRUCTED | Literal intended listing; on-device transcription says lines 90–130 all match. |

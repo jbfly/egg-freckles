@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessClient:jbfly|;
-kVersion := "2.0";
+kAppSymbol := '|HarnessClientA1:jbfly|;
+kVersion := "2.1-a1";
 kAppTitle := "Newton Chat " & kVersion;
 
 // The transcript is one bounded string, trimmed from the front at line
@@ -35,6 +35,11 @@ mainView := {
     ready: nil,
     inFlight: nil,
     draftSeq: nil,
+    stopping: nil,
+    // The physical build always uses Mars. An emulator round may override this
+    // slot through ns_eval without rebuilding or changing the package identity.
+    serverAddress: [10, 42, 0, 1],
+    serverPort: 6801,
 
     ViewSetupDoneScript: func()
     begin
@@ -42,6 +47,13 @@ mainView := {
         self.newline := Chr(13);
         // ponytail: the child list is not reachable until the view is fully open.
         AddDelayedCall(func(view) view:Boot(), [self], 800);
+    end,
+
+    ViewQuitScript: func()
+    begin
+        self.stopping := true;
+        :Stop();
+        inherited:?ViewQuitScript();
     end,
 
     Boot: func()
@@ -155,8 +167,10 @@ mainView := {
 
     Stop: func()
     begin
+        self.stopping := true;
         if self.endpoint then
         begin
+            try self.endpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
@@ -177,12 +191,14 @@ mainView := {
     Connect: func()
     begin
         :Stop();
+        self.stopping := nil;
         :SetStatus("Connecting");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
     end,
 
     Grabbed: func(id, state, error)
     begin
+        if self.stopping then return nil;
         if self.endpoint then return nil;
         if error then return :Failed("Network error " & error);
         self.linkID := id;
@@ -192,7 +208,7 @@ mainView := {
 
     OpenSession: func()
     begin
-        local address := [10, 42, 0, 1];
+        local address := self.serverAddress;
         local callName := "Instantiate";
         self.endpoint := {_proto: self.endpointClass, _parent: self};
         try
@@ -211,20 +227,12 @@ mainView := {
                 },
             ]);
             callName := "Bind";
-            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
-            callName := "Connect";
-            self.endpoint:connect([
-                {
-                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
-                    form: 'template,
-                    data: {
-                        arglist: [address[0], address[1], address[2], address[3], 6801],
-                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
-                    },
-                },
-            ], {async: nil, reqTimeout: 45000});
-            callName := "Hello";
-            :Hello();
+            self.endpoint:Bind(nil, {
+                async: true, reqTimeout: 10000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:Failed("Bind error " & result)
+                    else self._parent:Bound(),
+            });
         end
         onexception |evt.ex| do
         begin
@@ -234,11 +242,57 @@ mainView := {
         end;
     end,
 
+    Bound: func()
+    begin
+        if self.stopping then return nil;
+        local address := self.serverAddress;
+        try
+            self.endpoint:connect([
+                {
+                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {
+                        arglist: [address[0], address[1], address[2], address[3], self.serverPort],
+                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                    },
+                },
+            ], {
+                async: true, reqTimeout: 45000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:Failed("Connect error " & result)
+                    else self._parent:Connected(),
+            })
+        onexception |evt.ex.comm| do :Failed("Connect exception");
+        return nil;
+    end,
+
+    Connected: func()
+    begin
+        if self.stopping then return nil;
+        :Hello();
+        return nil;
+    end,
+
     Hello: func()
     begin
         self.responseText := "";
         self.txSeq := 1;
         self.ready := nil;
+        :ArmInput();
+        try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Failed("Handshake error " & result)
+                else self._parent:HelloMarkerSent(),
+        })
+        onexception |evt.ex.comm| do :Failed("Handshake exception");
+        return nil;
+    end,
+
+    ArmInput: func()
+    begin
+        if self.stopping or (self.endpoint = nil) then return nil;
+        try
         self.endpoint:SetInputSpec({
             _parent: self,
             form: 'string,
@@ -249,12 +303,20 @@ mainView := {
                 self._parent:HandleLine(data),
             CompletionScript: func(endpoint, options, result)
                 self._parent:Dropped(),
-        });
-        self.endpoint:output("~NEWTONCLI 1\r\n", nil,
-            {async: nil, reqTimeout: 10000});
-        self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil,
-            {async: nil, reqTimeout: 10000});
-        try self.endpoint:Input() onexception |evt.ex.comm| do nil;
+        })
+        onexception |evt.ex.comm| do :Failed("Input exception");
+        return nil;
+    end,
+
+    HelloMarkerSent: func()
+    begin
+        if self.stopping then return nil;
+        try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Failed("Hello error " & result),
+        })
+        onexception |evt.ex.comm| do :Failed("Hello exception");
         return nil;
     end,
 
@@ -275,8 +337,12 @@ mainView := {
         local star := StrPos(line, "*", 0);
         if star = nil then return nil;
         local seqText := SubStr(line, 1, 2);
-        self.endpoint:output("ACK " & seqText & "\r\n", nil,
-            {async: nil, reqTimeout: 10000});
+        try self.endpoint:output("ACK " & seqText & "\r\n", nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Failed("ACK error " & result),
+        })
+        onexception |evt.ex.comm| do return :Failed("ACK exception");
         if BeginsWith(line, ":" & seqText & " STAT READY*") then
         begin
             self.ready := true;
@@ -316,7 +382,12 @@ mainView := {
         self.draftSeq := self.txSeq;
         self.responseText := "";
         :SetStatus("Thinking");
-        self.endpoint:output(encoded, nil, {async: nil, reqTimeout: 10000});
+        try self.endpoint:output(encoded, nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:Failed("Send error " & result),
+        })
+        onexception |evt.ex.comm| do return :Failed("Send exception");
         self.txSeq := (self.txSeq + 1) mod 100;
         return nil;
     end,
@@ -355,12 +426,14 @@ mainView := {
 
     Dropped: func()
     begin
+        if self.stopping then return nil;
         :SetStatus("Offline");
         :Stop();
     end,
 
     Failed: func(message)
     begin
+        if self.stopping then return nil;
         :SetStatus(message);
         // ponytail: let the peer-close FSM settle before InetReleaseLink.
         AddDelayedCall(func(view) view:Stop(), [self], 1000);

@@ -142,38 +142,26 @@ Newton.
 
 ```sh
 cd ~/git/newton-harness
-make -C examples/harness-loader clean all
-cp examples/harness-loader/harness-loader.pkg \
-  runtime/staging/hardware/harness-loader.pkg
-cp examples/harness-loader/harness-loader.pkg \
-  runtime/staging/hardware/harness-loader-zc39.pkg
 cp -- /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 sha256sum /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 python3 runtime/dual_send.py
 ```
 
-Leave that terminal running. ZC39 is hardcoded to the dedicated Mars AP at
-**`[10,42,0,1,18081]`**; it no longer has a house-LAN toggle.
+Leave that terminal running. **ZC40 is current** and is hardcoded to the
+dedicated Mars AP at **`[10,42,0,1,18081]`**. Keep the checked-in
+`harness-loader-zc39.pkg` unchanged as the fallback; do not rebuild either
+identity to stage an arbitrary payload.
 
 ### Newton: one-time loader upgrade, then two taps per package
 
-1. Open the already-installed ZC38 Loader. Enter
-   **`harness-loader-zc39.pkg`** once and tap **Install**. This is a new package
-   identity (`-HarnessLoaderZC39:jbfly`), not an in-place replacement.
-2. Wait for ZC38 to finish its delayed install, then open **ZC39 Loader 2.3**
-   from Extras. Real-hardware ZC38 retries ACKed exactly 2,920 of 18,402 response
-   bytes and then showed `-36003` ("Cancel is in progress"). ZC38 guards duplicate
-   teardown, but the TCP_INFO evidence proves teardown is the symptom: the real
-   fault is the string-to-binary receive handoff. ZC39 keeps the whole response
-   binary. Physical hardware later confirmed this path with the proof below.
-3. ZC39 defaults to filename **`install.pkg`** and is hardcoded to Mars at
-   `10.42.0.1:18081`; the dead LAN toggle was removed to keep the package below
-   15,000 bytes. Join the dedicated AP and tap **Install**.
-4. Do not accept `installing` as success. Wait for
-   **`<internal package identity> installed`**. ZC39 reports that only after
-   `SuckPackageFromBinary` returns and `GetPkgRef(identity, Internal)` finds the
-   installed package.
-5. Open the new application from Extras and exercise one real action. That is
+1. Open **ZC40 Loader 2.4** from Extras. If ZC40 has been lost but ZC39 remains,
+   use **ZC39 Loader 2.3** only to restore the checked-in
+   `harness-loader-zc40.pkg`; the identities are distinct.
+2. Confirm the filename is **`install.pkg`**, join the dedicated Mars network,
+   and tap **Install**.
+3. Wait for installation to return, then check Extras. `Install not confirmed`
+   is a faulty ZC40 status check, not evidence of failure.
+4. Open the new application from Extras and exercise one real action. That is
    the hardware confirmation gate. Record the exact status, package identity,
    byte size, and whether the app opened; do not infer hardware success from
    the emulator result.
@@ -196,6 +184,24 @@ python3 runtime/dual_send.py
 
 Do this only if that NIE identity is not already installed. A duplicate-package
 error is not a transfer failure, but it is also not a successful install.
+
+### Preserve and install Newt's Cape
+
+The recovery convenience layer is the pinned **freeware/unexpiring** Newt's
+Cape 2.1e-2 build, not the 45-day demo. Its verified file is 296,128 bytes with
+SHA-256 `300c00a291e903e72a8b82749d1427b8f622990b505c4eb11c4a540a8670c611`.
+Allow at least about 600 KB free for ZC40's VBO plus the installation copy.
+
+```sh
+sha256sum runtime/staging/hardware/nwcp21e2.pkg
+cp runtime/staging/hardware/nwcp21e2.pkg runtime/staging/hardware/install.pkg
+python3 runtime/dual_send.py
+```
+
+Use ZC40 as above, then open **Newt's Cape** from Extras. On 2026-08-02 the
+same pinned file was absent from an isolated Einstein flash, installed as
+`NewtsCape:NewtsCape` at 296,128 bytes, and opened to its About screen. The
+physical MP2000 remains the separate confirmation gate.
 
 ### Unattended emulator proof
 
