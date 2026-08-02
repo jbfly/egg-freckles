@@ -66,7 +66,7 @@ Deferring matters: package installation can alter application state, so it shoul
 
 ## Loader and client behavior
 
-Loader ZC39 v2.3 shows its version, accepts a name-only `.pkg` filename, reports fetch/install progress on its large button, and performs one deferred retry after a link, TCP, HTTP, allocation, or length failure. The removed LAN/Mars toggle bought enough package space for the fix; ZC39 always connects to `10.42.0.1`. Filenames are limited to ASCII letters, digits, `-`, `_`, and `.`, and must end in `.pkg`; no directory-listing protocol was added.
+Loader ZC40 v2.4 shows its version, accepts a name-only `.pkg` filename, reports fetch/install progress on its large button, and performs one deferred retry after a link, TCP, HTTP, allocation, or length failure. The removed LAN/Mars toggle bought enough package space for the fix; ZC40 always connects to `10.42.0.1`. Filenames are limited to ASCII letters, digits, `-`, `_`, and `.`, and must end in `.pkg`; no directory-listing protocol was added. ZC40 also sets `installQueued` before deferring installation, so a repeated final input callback cannot schedule the same binary twice; only a genuinely new `TryFetch` resets that guard.
 
 Output is asynchronous and explicitly uses `form: 'string`; its completion script reports send failure. Input remains `'binary` for the complete HTTP response. The first 1,024-byte target contains the header and initial body bytes; `HeaderReceived` copies that body suffix with `BinaryMunger`, then installs binary body specs at advancing VBO offsets. For the 82-byte-header / 18,320-byte-body hardware case, the offsets are 942, 9,134, 17,326, and 18,320.
 
@@ -74,7 +74,9 @@ An input spec normally persists after `InputScript`: Newton automatically repost
 
 The emulator acceptance run downloaded the staged `inetenbl.pkg` at 318,276 bytes and opened its live `PCMCIA Ethernet` / `NE2000` configuration UI after installation. During a repeat large transfer, the Newton opened `AllIcons` while `ss -tnp` still showed the sole client connection to `10.42.0.1:18081` in `ESTAB`, demonstrating that the event loop remained responsive. The physical Newton was not used.
 
-For ZC39, the one-shot `scripts/verify-loader-download.py` check served the exact 82-byte header plus 18,320-byte `harness-tools.pkg` body. Both unchanged ZC38 and fixed ZC39 ACKed all 18,402 bytes in the private emulator, so Einstein did not reproduce the hardware-only 2,920-byte stall. ZC39 parsed 18,320 and reached `SuckPackageFromBinary`; the copied flash then rejected the already-present package identity. Evidence: `runtime/evidence/zc39-baseline-ack.txt` and `runtime/evidence/zc39-fixed-ack.txt`. Physical ZC39 remains unverified.
+For ZC39, the one-shot `scripts/verify-loader-download.py` check served the exact 82-byte header plus 18,320-byte `harness-tools.pkg` body. Both unchanged ZC38 and fixed ZC39 ACKed all 18,402 bytes in the private emulator, so Einstein did not reproduce the hardware-only 2,920-byte stall. ZC39 parsed 18,320 and reached `SuckPackageFromBinary`; the copied flash then rejected the already-present package identity. Evidence: `runtime/evidence/zc39-baseline-ack.txt` and `runtime/evidence/zc39-fixed-ack.txt`.
+
+Physical hardware then proved ZC39's complete WiFi path with a fresh 1,136-byte package: Mars logged exactly one GET and TCP ACKs for all 1,217 HTTP response bytes; the package installed on the `Ultimate Newton` flash-card store, appeared in Extras, and launched. Newton nevertheless displayed a same-name-already-installed warning. Because the server saw only one request and the fresh package did install and run, the remaining diagnosis is duplicate internal install scheduling from a repeated final callback, not a second download. ZC40 adds the idempotent guard described above.
 
 Client v1.1 shows its name and version and provides one large `Check harness status` control. It requests:
 

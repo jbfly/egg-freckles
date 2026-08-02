@@ -1,6 +1,6 @@
-kAppSymbol := '|-HarnessLoaderZC39:jbfly|;
-kVersion := "2.3";
-kAppTitle := "ZC39 Loader " & kVersion;
+kAppSymbol := '|-HarnessLoaderZC40:jbfly|;
+kVersion := "2.4";
+kAppTitle := "ZC40 Loader " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -34,6 +34,7 @@ mainView := {
     allowedChars: "-._0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     attempt: 0,
     stopping: nil,
+    installQueued: nil,
 
     SetStatus: func(message)
     begin
@@ -88,6 +89,7 @@ mainView := {
         self.contentLength := nil;
         self.bodyOffset := 0;
         self.bodyChunk := 0;
+        self.installQueued := nil;
         :SetStatus("Try " & self.attempt & "/2");
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
     end,
@@ -279,6 +281,8 @@ mainView := {
 
     InputReceived: func()
     begin
+        if self.installQueued then return nil;
+        self.installQueued := true;
         :InstallBinaryLater(self.packageBinary);
         :SetStatus(self.packageName & " installing");
         return nil;

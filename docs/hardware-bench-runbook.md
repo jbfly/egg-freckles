@@ -165,7 +165,7 @@ Leave that terminal running. ZC39 is hardcoded to the dedicated Mars AP at
    bytes and then showed `-36003` ("Cancel is in progress"). ZC38 guards duplicate
    teardown, but the TCP_INFO evidence proves teardown is the symptom: the real
    fault is the string-to-binary receive handoff. ZC39 keeps the whole response
-   binary; this still needs the physical-hardware confirmation in step 5.
+   binary. Physical hardware later confirmed this path with the proof below.
 3. ZC39 defaults to filename **`install.pkg`** and is hardcoded to Mars at
    `10.42.0.1:18081`; the dead LAN toggle was removed to keep the package below
    15,000 bytes. Join the dedicated AP and tap **Install**.
@@ -177,6 +177,14 @@ Leave that terminal running. ZC39 is hardcoded to the dedicated Mars AP at
    the hardware confirmation gate. Record the exact status, package identity,
    byte size, and whether the app opened; do not infer hardware success from
    the emulator result.
+
+The ZC39 hardware gate passed with a fresh 1,136-byte proof package. Mars saw
+exactly one GET and ACKs for all 1,217 HTTP response bytes; Newton installed the
+package on the `Ultimate Newton` flash-card store, showed it in Extras, and ran
+it. The same run also displayed a same-name-already-installed warning. Since
+there was only one GET, ZC40 v2.4 treats that warning as duplicate final-callback
+install scheduling and guards the deferred install so it can be queued once per
+`TryFetch`.
 
 For the 318,276-byte recovery package, use the same alias:
 
