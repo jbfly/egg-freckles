@@ -182,9 +182,9 @@ Harness Client A1 also passed the physical WiFi gate on 2026-08-02. Newton Chat
 `10.42.0.1:6801`, sent `Hi`, and rendered the Codex response. If a persisted
 Codex thread can no longer be resumed, tap the client's **New** button before
 retrying; this resets host conversation state without Newton-side typing or a
-package reinstall. The current client renders a blank `Agent:` line after that
-host error, so confirm the cause in the Mars server log rather than treating it
-as a network failure.
+package reinstall. A1 renders a blank `Agent:` line after that host error, so
+confirm the cause in the Mars server log rather than treating it as a network
+failure; A3 retains the error in the transcript.
 
 Harness Client A3 passed its physical UI gate on 2026-08-02. ZC40 installed the
 fresh 19,184-byte `HarnessClientA3:jbfly` package after one HTTP 200; Mars saw
