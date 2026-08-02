@@ -156,16 +156,18 @@ Working: the framed native client end to end. Fresh identity
 off the application task. An isolated Einstein run sent a real prompt, rendered
 `A1 ASYNC OK`, returned to `Ready`, and kept one TCP connection established.
 Package build, install, and launch remain zero-click through the control socket.
+On 2026-08-02 the physical MP2000 also held one WiFi session to Mars, sent `Hi`
+from Newton Chat 2.1-a1, and rendered the real Codex response.
 
 Human gates and preserved recovery state:
 
 - **The NS Basic REPLACE DEMO bootstrap is preserved.** All 27 lines in
   `bootstrap/nsbasic-bootstrap.bas` were checked against device photos; the
   saved target is Mars at `10.42.0.1:18081`. Keep it as the bare recovery path.
-- **Newt's Cape is preserved but not yet physically confirmed.** The pinned
-  296,128-byte freeware/unexpiring package is checksum-addressed in
-  `downloads/recovery/` and installed/launched in Einstein. ZC40 is the current
-  physical installer; ZC39 is the unchanged fallback.
+- **Newt's Cape is preserved and physically installed.** The pinned 296,128-byte
+  freeware/unexpiring package is checksum-addressed in `downloads/recovery/`
+  and installed/launched in Einstein. ZC40 installed it on the physical MP2000
+  on 2026-08-02; ZC40 is current and ZC39 is the unchanged fallback.
 - **The serial Dock lifeline is unproven.** It needs one afternoon of hardware
   time and a photograph of the working cable chain
   (`docs/install-lifeline-plan.md`, §4).

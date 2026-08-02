@@ -177,6 +177,15 @@ Budget roughly twice the package size for the download VBO and installation
 copy. `Install not confirmed` remains a faulty post-install status check and
 does not override an app appearing in Extras and launching.
 
+Harness Client A1 also passed the physical WiFi gate on 2026-08-02. Newton Chat
+2.1-a1 connected from `10.42.0.114` to the real Mars backend at
+`10.42.0.1:6801`, sent `Hi`, and rendered the Codex response. If a persisted
+Codex thread can no longer be resumed, tap the client's **New** button before
+retrying; this resets host conversation state without Newton-side typing or a
+package reinstall. The current client renders a blank `Agent:` line after that
+host error, so confirm the cause in the Mars server log rather than treating it
+as a network failure.
+
 For the 318,276-byte recovery package, use the same alias:
 
 ```sh

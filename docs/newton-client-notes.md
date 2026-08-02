@@ -94,6 +94,17 @@ opening it. This hardware install followed a single HTTP 200 response for the
 19,040-byte package, with all 19,122 HTTP bytes acknowledged; ZC40 nevertheless
 ended with its known-faulty `Install not confirmed` status.
 
+The physical command/response gate passed on 2026-08-02. The MP2000 at
+`10.42.0.114` held one TCP connection to Mars at `10.42.0.1:6801`; after the
+user tapped **New**, Newton Chat sent `Hi`, the real Codex backend answered
+`Hi! What can I help you with?`, and the response rendered on the Newton. The
+first attempt exposed stale host state rather than a transport failure: Codex
+could no longer resume the saved 2026-07-22 thread. The server sent a status
+error followed by `PROMPT`, and A1 rendered a blank `Agent:` line. Tapping
+**New** reset the host thread and made the next turn succeed without reconnecting
+or reinstalling. A future fresh client identity should retain the error text in
+the transcript instead of appending a blank agent response.
+
 ## Path toward ink and notes (not implemented in v1)
 
 Keep the current view as the connection/status shell. A later version can add one Newton-native drawing/ink view and serialize completed strokes or selected Notes data into a bounded request body. Send one item at a time to a harness endpoint, wait for an explicit server acknowledgement, and retain the local item until acknowledged. That preserves the current small-memory, close-after-each-request transport and leaves batching, interpretation, and richer synchronization on the server. Do not add an ink abstraction or queue until the Newton APIs and payload format have been verified on-device.
