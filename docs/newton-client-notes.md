@@ -86,6 +86,14 @@ in-flight state, and returned to `Ready`. Its production address remains
 `10.42.0.1:6801`; the address is a view slot so an isolated emulator can point
 at its rootless-container host without rebuilding or reusing the identity.
 
+On the physical MP2000, the A1 package appears in Extras with the short caption
+**Newton Chat**, not **Newton Chat 2.1-a1**. Opening it shows the full window
+title **Newton Chat 2.1-a1**, which is the reliable on-device version check.
+Do not assume an Extras item captioned **Newton Chat** is an older build without
+opening it. This hardware install followed a single HTTP 200 response for the
+19,040-byte package, with all 19,122 HTTP bytes acknowledged; ZC40 nevertheless
+ended with its known-faulty `Install not confirmed` status.
+
 ## Path toward ink and notes (not implemented in v1)
 
 Keep the current view as the connection/status shell. A later version can add one Newton-native drawing/ink view and serialize completed strokes or selected Notes data into a bounded request body. Send one item at a time to a harness endpoint, wait for an explicit server acknowledgement, and retain the local item until acknowledged. That preserves the current small-memory, close-after-each-request transport and leaves batching, interpretation, and richer synchronization on the server. Do not add an ink abstraction or queue until the Newton APIs and payload format have been verified on-device.

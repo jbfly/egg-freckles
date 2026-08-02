@@ -162,9 +162,11 @@ identity to stage an arbitrary payload.
 3. Wait for installation to return, then check Extras. `Install not confirmed`
    is a faulty ZC40 status check, not evidence of failure.
 4. Open the new application from Extras and exercise one real action. That is
-   the hardware confirmation gate. Record the exact status, package identity,
-   byte size, and whether the app opened; do not infer hardware success from
-   the emulator result.
+   the hardware confirmation gate. For Harness Client A1, the Extras caption is
+   only **Newton Chat**; open it and confirm the window title **Newton Chat
+   2.1-a1**. Do not reject that plain Extras caption as an old build. Record the
+   exact status, package identity, byte size, and whether the app opened; do not
+   infer hardware success from the emulator result.
 
 The hardware gate passed. ZC40 installed and launched fresh 1,136-byte and
 321,920-byte proof packages over WiFi. For the large success Mars saw one GET
