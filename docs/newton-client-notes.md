@@ -3,7 +3,7 @@
 ## Current source state
 
 - `examples/harness-loader/Main.newt` is the NewtonOS 2.1 package installer. The user enters a staged `.pkg` filename; it opens an NIE link, connects to `10.42.0.1:18081`, downloads that name with HTTP/1.0, validates a `Content-Length` from 1 to 524,288 bytes, stores the exact body in a VBO, and installs it with `SuckPackageFromBinary`.
-- `examples/harness-client/Main.newt` is Newton Chat 2.1-a1 with the fresh package identity `HarnessClientA1:jbfly`. It holds one framed TCP session to port 6801, sends bounded ASCII prompts, and renders the model response in a 6 KiB transcript.
+- `examples/harness-client/Main.newt` is Newton Chat 2.3-a3 with the fresh package identity `HarnessClientA3:jbfly`. It holds one framed TCP session to port 6801, sends bounded ASCII prompts, and renders the model response in a 6 KiB transcript. A1 remains the installed, physically proven fallback.
 - `pkg_publisher.py` is the source-level reference server for `/harness-client.pkg` and `/status`. The separate live raw server is operational runtime state, not part of this build path.
 - Each app has a `.nprj` file and a small Makefile that invokes tntk against the Newton 2.1 platform file.
 
@@ -102,8 +102,24 @@ first attempt exposed stale host state rather than a transport failure: Codex
 could no longer resume the saved 2026-07-22 thread. The server sent a status
 error followed by `PROMPT`, and A1 rendered a blank `Agent:` line. Tapping
 **New** reset the host thread and made the next turn succeed without reconnecting
-or reinstalling. A future fresh client identity should retain the error text in
-the transcript instead of appending a blank agent response.
+or reinstalling.
+
+Newton Chat 2.3-a3 is current. It removes `protoInputLine`'s default
+`oneLineOnly` justification and provides a 276-by-118-pixel prompt with four
+visible 24-pixel handwriting lines. The transcript gives up 66 vertical pixels;
+the status, New, and Send controls share one compact row. Its Extras label is
+**Chat A3**, while the open window title remains **Newton Chat 2.3-a3**. A3 also
+copies a host `STAT ERROR` payload into the transcript before `PROMPT`, avoiding
+A1's blank `Agent:` result.
+
+The final 19,184-byte A3 package has SHA-256
+`ee5280dfc67b05b84e5a976ddb79b948ceefd162226bc3faa378b62debaa5736`.
+An isolated Einstein run showed the four ruled lines and wrapped a long prompt
+onto two of them. On the physical MP2000, ZC40 fetched it with one HTTP 200 and
+Mars saw ACKs for all 19,266 HTTP bytes; the user confirmed that handwriting in
+the larger field worked much better. The app then opened a live TCP connection
+from `10.42.0.114` to Mars port 6801. Preserve A1 as fallback; A2 was an
+emulator-only layout iteration and was never staged as the final package.
 
 ## Path toward ink and notes (not implemented in v1)
 

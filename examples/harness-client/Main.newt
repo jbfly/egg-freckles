@@ -1,6 +1,7 @@
-kAppSymbol := '|HarnessClientA1:jbfly|;
-kVersion := "2.1-a1";
+kAppSymbol := '|HarnessClientA3:jbfly|;
+kVersion := "2.3-a3";
 kAppTitle := "Newton Chat " & kVersion;
+kAppLabel := "Chat A3";
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -75,8 +76,8 @@ mainView := {
         begin
             local top := child:GlobalBox().top - rootTop;
             if top = 32 then self.transcriptView := child
-            else if top = 302 then self.promptView := child
-            else if top = 370 then self.statusView := child;
+            else if top = 236 then self.promptView := child
+            else if top = 364 then self.statusView := child;
         end;
         return nil;
     end,
@@ -353,7 +354,8 @@ mainView := {
         begin
             self.ready := true;
             self.inFlight := nil;
-            :SetStatus(SubStr(line, 15, star - 15));
+            self.responseText := "ERROR: " & SubStr(line, 15, star - 15);
+            :SetStatus(self.responseText);
         end else if BeginsWith(line, ":" & seqText & " TEXT ") then
         begin
             if StrLen(self.responseText) > 0 then
@@ -448,7 +450,7 @@ mainView := {
         },
         {
             _proto: protoStaticText,
-            viewBounds: {left: 14, top: 32, right: 290, bottom: 272},
+            viewBounds: {left: 14, top: 32, right: 290, bottom: 206},
             viewFont: ROM_fontSystem10,
             // ponytail: protoStaticText defaults to vjLeftH + oneLineOnly, which
             // draws the whole transcript on one clipped line. Drop oneLineOnly.
@@ -459,14 +461,18 @@ mainView := {
         },
         {
             _proto: protoDivider,
-            viewBounds: {left: 0, top: 280, right: 304, bottom: 298},
+            viewBounds: {left: 0, top: 214, right: 304, bottom: 232},
             viewFont: ROM_fontSystem10Bold,
             title: "Prompt",
         },
         {
             _proto: protoInputLine,
-            viewBounds: {left: 14, top: 302, right: 290, bottom: 326},
+            viewBounds: {left: 14, top: 236, right: 290, bottom: 354},
             viewFont: ROM_fontSystem10,
+            // protoInputLine defaults to oneLineOnly. Removing that flag makes
+            // the taller field usable as a multi-line handwriting area.
+            viewJustify: vjLeftH,
+            viewLineSpacing: 24,
             text: "",
             ViewKeyDownScript: func(key, flags)
             begin
@@ -480,19 +486,19 @@ mainView := {
         },
         {
             _proto: protoStaticText,
-            viewBounds: {left: 14, top: 370, right: 290, bottom: 386},
+            viewBounds: {left: 14, top: 364, right: 168, bottom: 380},
             viewFont: ROM_fontSystem9,
             text: "Offline",
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 146, top: 336, right: 214, bottom: 362},
+            viewBounds: {left: 178, top: 360, right: 230, bottom: 382},
             text: "New",
             buttonClickScript: func() self:Parent():NewChat(),
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 222, top: 336, right: 290, bottom: 362},
+            viewBounds: {left: 238, top: 360, right: 290, bottom: 382},
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
         },
@@ -501,6 +507,6 @@ mainView := {
 
 {
     app: kAppSymbol,
-    text: kAppTitle,
+    text: kAppLabel,
     theForm: mainView,
 }

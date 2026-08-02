@@ -151,13 +151,13 @@ than hand-rolling the sequence.
 
 ## Current state — 2026-08-02 (ages fastest; verify before trusting)
 
-Working: the framed native client end to end. Fresh identity
-`HarnessClientA1:jbfly` moves bind, connect, handshake, ACK, and message output
-off the application task. An isolated Einstein run sent a real prompt, rendered
-`A1 ASYNC OK`, returned to `Ready`, and kept one TCP connection established.
-Package build, install, and launch remain zero-click through the control socket.
-On 2026-08-02 the physical MP2000 also held one WiFi session to Mars, sent `Hi`
-from Newton Chat 2.1-a1, and rendered the real Codex response.
+Working: the framed native client end to end. A1 proved the asynchronous
+transport in Einstein and completed a real Codex turn on the physical MP2000.
+Fresh identity `HarnessClientA3:jbfly` is current; it keeps that transport and
+adds a four-line handwriting field, compact controls, a distinct **Chat A3**
+Extras label, and visible host errors. ZC40 physically installed A3 on
+2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
+confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
 Human gates and preserved recovery state:
 

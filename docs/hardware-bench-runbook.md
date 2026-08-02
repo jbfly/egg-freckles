@@ -162,11 +162,11 @@ identity to stage an arbitrary payload.
 3. Wait for installation to return, then check Extras. `Install not confirmed`
    is a faulty ZC40 status check, not evidence of failure.
 4. Open the new application from Extras and exercise one real action. That is
-   the hardware confirmation gate. For Harness Client A1, the Extras caption is
-   only **Newton Chat**; open it and confirm the window title **Newton Chat
-   2.1-a1**. Do not reject that plain Extras caption as an old build. Record the
-   exact status, package identity, byte size, and whether the app opened; do not
-   infer hardware success from the emulator result.
+   the hardware confirmation gate. Current Harness Client A3 appears as **Chat
+   A3** and opens with the title **Newton Chat 2.3-a3**. The A1 fallback appears
+   only as **Newton Chat** and opens with the title **Newton Chat 2.1-a1**.
+   Record the exact status, package identity, byte size, and whether the app
+   opened; do not infer hardware success from the emulator result.
 
 The hardware gate passed. ZC40 installed and launched fresh 1,136-byte and
 321,920-byte proof packages over WiFi. For the large success Mars saw one GET
@@ -185,6 +185,13 @@ retrying; this resets host conversation state without Newton-side typing or a
 package reinstall. The current client renders a blank `Agent:` line after that
 host error, so confirm the cause in the Mars server log rather than treating it
 as a network failure.
+
+Harness Client A3 passed its physical UI gate on 2026-08-02. ZC40 installed the
+fresh 19,184-byte `HarnessClientA3:jbfly` package after one HTTP 200; Mars saw
+all 19,266 HTTP bytes acknowledged. Its four-line handwriting field and compact
+control row worked substantially better on the MP2000, and opening it created a
+live connection from `10.42.0.114` to Mars port 6801. Keep A1 installed as the
+fallback.
 
 For the 318,276-byte recovery package, use the same alias:
 
