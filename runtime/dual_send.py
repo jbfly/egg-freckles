@@ -79,7 +79,8 @@ def main():
             log(f"peer {peer}")
             try:
                 with conn:
-                    conn.settimeout(20)
+                    # A real MP2000 can take well over 20s to drain a 300KiB package.
+                    conn.settimeout(180)
                     first = conn.recv(512)
                     text = first.decode("latin-1", "replace")
                     if text.startswith("GET "):
