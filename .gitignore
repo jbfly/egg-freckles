@@ -11,3 +11,15 @@ secrets/
 
 # Mirrored recovery binaries are kept locally; metadata and fetch script are tracked.
 downloads/recovery/*.pkg
+
+# Apple-copyrighted reference material and NIE distributions are never tracked.
+# Run refs/fetch-refs.sh and downloads/fetch-downloads.sh once after cloning;
+# each verifies its downloads against the SHA256SUMS beside it.
+refs/*.pdf
+refs/*.txt
+refs/nie11/
+refs/qa/
+downloads/*.ZIP
+downloads/*.EXE
+downloads/*.sea.hqx
+downloads/NIM-source.zip

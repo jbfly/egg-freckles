@@ -1,2 +1,0 @@
-Inet Constants	INTCNSTN.TXT
-Inet Errors	INETRRRS.TXT
