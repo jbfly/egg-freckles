@@ -13,7 +13,9 @@ fixed-operation tool client, not a code-eval target: arbitrary
 
 ## Read-first order
 
-Four docs matter. Read them in this order and stop.
+Four docs matter. Read them in this order and stop. (If you are here to pick
+*what to work on next*, also read **`docs/ROADMAP.md`** — the 2026-08-03
+track plan that succeeds `PLAN.md`.)
 
 1. **This file.**
 2. **`docs/newton-networking-lessons.md`** — the distilled, evidence-carrying

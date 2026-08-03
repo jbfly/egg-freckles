@@ -1,4 +1,8 @@
-# newton-harness — plan
+# newton-harness — plan (historical)
+
+> **Superseded 2026-08-03.** Phases 0–3 shipped; the living roadmap for
+> phase-4-and-beyond work is **`docs/ROADMAP.md`**. This file is kept for the
+> original recon facts and constraints.
 
 Agentic AI harness for the Apple Newton MessagePad 2000 (NewtonOS 2.1),
 modeled on ~/git/model100. Client/server over wifi.
