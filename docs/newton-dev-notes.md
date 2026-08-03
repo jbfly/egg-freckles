@@ -1048,3 +1048,52 @@ round, both from a malformed `ns_eval` or a closed view's pending delayed call
 rather than from the app under test — and each one sat exactly where the next
 tap was going. Screenshot before every tap sequence, and run a `2+2` sanity eval
 before believing an `ns_eval` timeout, per the F1 round.
+
+## Track F4 round — slash commands from the Newton (2026-08-03)
+
+Isolated instance `f4round`, seeded flash, Chat A7 installed from the
+**committed** package bytes (`git show HEAD:examples/harness-client/harness-client.pkg`,
+37,264 B) — this round changed no NewtonScript at all. Everything it proves is
+host-side, which is the point: `/help`, `/status`, `/model`, `/effort`,
+`/sessions`, `/new [name]` and `/resume <n|name>` are answered in `server.py`
+before the backend runs, as ordinary `TEXT` frames, so **hardware Chat A3 has
+them without a rebuild**. Full record `runtime/evidence/f4round-round.txt`; the
+page is `docs/chat-commands.md`.
+
+**The defect this round found is in shipped client code.** `/sessions` first
+came back on screen as a bare `3.` where it should have read `3.*demo 0t now`.
+`examples/harness-client/Main.newt:432` is
+
+```
+local star := StrPos(line, "*", 0);
+```
+
+— the **first** `*` in the frame is taken as the checksum delimiter, and the
+payload is sliced up to it. The frame still ACKs, so the loss is silent. The
+host's own `parse_frame` uses the last `*` and `docs/phase3-protocol.md`
+explicitly allows `*` inside a payload, so this is a client limitation, and A3
+carries the same code. The fix is a host-side rule — **no reply the server
+builds may contain `*`** — implemented as a `>` marker and a `*`-stripping
+`snippet()`, pinned by two tests. Anyone adding a host reply should know it.
+
+Three operational notes, all cheap to lose an hour to:
+
+- **Chat A7's prompt field only takes typed text when the tap lands on a ruled
+  line.** A tap at `150,285` (between lines) focuses nothing, `xdotool` typing
+  goes nowhere, and Send answers `Type a prompt first` — which reads like a
+  protocol failure. `100,272` works.
+- **The transcript renders top-down and clips**, and the Newton's global scroll
+  arrows do not scroll it. For a readable screenshot of reply number six, tap
+  **New** first; that also exercises bare `/new`, which is why bare `/new` on an
+  untouched session resets in place instead of appending an empty registry row.
+- **After the host server restarts, the first Send only reconnects.** Tap Send
+  a second time to actually deliver the line still sitting in the field.
+
+And one accident worth more than the fixture it replaced: the state directory
+still held the **Track D3 round's** pre-F4 `state/session.json`, so the first
+start migrated real data — thread `019fc923-c03a-7fd3-b7c7-4fe1670ebd77`, one
+turn, name taken from D3's own prompt
+(`runtime/evidence/f4round-registry-after-migration.json`). The real-backend
+spot check then resumed that same thread with a model chosen on the Newton, and
+its codex rollout now reads `gpt-5.6-sol/high` for the D3 turn and
+`gpt-5.4-mini/low` for this one.

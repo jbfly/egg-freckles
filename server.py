@@ -3,7 +3,12 @@
 
 45 cols, 7-bit ASCII, CRLF. Backend: `codex exec` with a JSON output schema
 (model100 pattern). Env: NEWTON_FAKE_BACKEND=1 stubs the agent for tests,
-NEWTON_PORT / NEWTON_STATE_DIR / NEWTON_CODEX_TIMEOUT override defaults.
+NEWTON_PORT / NEWTON_STATE_DIR / NEWTON_CODEX_TIMEOUT / NEWTON_MODELS override
+defaults.
+
+Slash commands (`/help`, `/status`, `/model`, `/effort`, `/sessions`, `/new`,
+`/resume`) are answered here, before the backend is called, so they need no
+client change and no wire change — see docs/chat-commands.md.
 """
 
 from __future__ import annotations
@@ -38,10 +43,16 @@ FRAME_TIMEOUT = 1.0
 FRAME_RETRIES = 3
 
 GREETING = "newton-harness ready. /help for commands."
-HELP_TEXT = (
-    "Commands: /new resets the conversation, /quit disconnects, "
-    "/help shows this text. Anything else goes to the agent."
-)
+# Model names this host's codex accepts (empirically: an unknown one fails the
+# turn with HTTP 400 "model is not supported when using Codex with a ChatGPT
+# account"). Override with NEWTON_MODELS="a,b,c".
+DEFAULT_MODELS = "gpt-5.6-sol,gpt-5.6-terra,gpt-5.5,gpt-5.4,gpt-5.4-mini"
+MODELS = [name.strip() for name in
+          os.environ.get("NEWTON_MODELS", DEFAULT_MODELS).split(",") if name.strip()]
+# `minimal` parses but the API rejects it while web_search is on, so it is out.
+EFFORTS = ["low", "medium", "high", "xhigh"]
+MAX_LIST = 8          # sessions shown by /sessions
+NAME_MAX = 18         # session name width on a 320px screen
 
 
 class BackendError(Exception):
@@ -191,7 +202,11 @@ class LineEditor:
 
 
 class Session:
-    """Single persisted conversation (state/session.json)."""
+    """One conversation's transcript file (session 1 is state/session.json).
+
+    `Chat` below owns which of these is current; the registry, not this file,
+    is authoritative for thread id / model / effort.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -228,22 +243,300 @@ class Session:
         self.save()
 
 
+def pick(value: str, choices: list[str]) -> str | None:
+    """`2`, a full name, or an unambiguous prefix -> the chosen item."""
+    value = value.strip().lower()
+    if not value:
+        return None
+    if value.isdigit():
+        index = int(value)
+        return choices[index - 1] if 1 <= index <= len(choices) else None
+    for choice in choices:
+        if choice.lower() == value:
+            return choice
+    hits = [choice for choice in choices if choice.lower().startswith(value)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def age_text(iso: str) -> str:
+    """Real wall-clock age, short enough for a 320px line: now / 7m / 3h / 2d."""
+    try:
+        seconds = (datetime.now(timezone.utc)
+                   - datetime.fromisoformat(iso)).total_seconds()
+    except (TypeError, ValueError):
+        return "?"
+    if seconds < 90:
+        return "now"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}m"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)}h"
+    return f"{int(seconds // 86400)}d"
+
+
+def snippet(text: str) -> str:
+    # `*` is dropped, not escaped: the shipped client reads the first `*` in a
+    # frame as its checksum delimiter (Main.newt:432) and truncates the line
+    # there, so no reply the host builds may contain one.
+    clean = " ".join(ascii_clean(text).replace("*", "").split())
+    return clean[:NAME_MAX].strip() or "chat"
+
+
+def new_entry(file: str, name: str = "") -> dict:
+    stamp = now_iso()
+    return {"name": name or "chat " + stamp[11:16], "auto": not name,
+            "file": file, "thread_id": None, "model": None, "effort": None,
+            "turns": 0, "created_at": stamp, "last_used": stamp}
+
+
+class Chat:
+    """The session registry (state/sessions.json) plus the current transcript.
+
+    Slash commands are answered here, before any backend call, so the native
+    framed client and the PT100 terminal get identical behaviour and neither
+    needs a change (docs/chat-commands.md).
+    """
+
+    def __init__(self, state_dir: Path) -> None:
+        self.dir = state_dir
+        self.path = state_dir / "sessions.json"
+        self.data = self._load()
+        self.session = Session(self.dir / self.entry["file"])
+
+    def _load(self) -> dict:
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if (isinstance(data, dict) and isinstance(data.get("sessions"), list)
+                    and data["sessions"]):
+                data["current"] = min(max(int(data.get("current", 0)), 0),
+                                      len(data["sessions"]) - 1)
+                return data
+        except (OSError, ValueError, TypeError):
+            pass
+        return {"version": 1, "current": 0, "sessions": [self._adopt()]}
+
+    def _adopt(self) -> dict:
+        """First run with a registry: an older state/session.json is session 1."""
+        entry = new_entry("session.json")
+        try:
+            old = json.loads((self.dir / "session.json").read_text(encoding="utf-8"))
+            history = old["history"]
+            if not isinstance(history, list):
+                raise ValueError
+        except (OSError, ValueError, KeyError, TypeError):
+            return entry
+        entry["thread_id"] = old.get("thread_id") or None
+        turns = [item for item in history
+                 if isinstance(item, dict) and item.get("role") == "user"]
+        entry["turns"] = len(turns)
+        entry["created_at"] = old.get("created_at") or entry["created_at"]
+        entry["last_used"] = old.get("updated_at") or entry["last_used"]
+        if turns:
+            entry["name"] = snippet(str(turns[0].get("content", "")))
+            entry["auto"] = False
+        return entry
+
+    @property
+    def sessions(self) -> list[dict]:
+        return self.data["sessions"]
+
+    @property
+    def entry(self) -> dict:
+        return self.sessions[self.data["current"]]
+
+    @property
+    def index(self) -> int:
+        return self.data["current"] + 1
+
+    @property
+    def thread_id(self) -> str | None:
+        return self.entry.get("thread_id") or None
+
+    @property
+    def model(self) -> str | None:
+        return self.entry.get("model") or None
+
+    @property
+    def effort(self) -> str | None:
+        return self.entry.get("effort") or None
+
+    def remember_thread(self, thread_id: str) -> None:
+        self.entry["thread_id"] = thread_id
+        self.session.data["thread_id"] = thread_id
+
+    def record(self, role: str, content: str) -> None:
+        self.session.record(role, content)
+        self.entry["last_used"] = now_iso()
+        if role == "user":
+            self.entry["turns"] = self.entry.get("turns", 0) + 1
+            if self.entry.get("auto"):
+                self.entry["name"] = snippet(content)
+                self.entry["auto"] = False
+
+    def save(self) -> None:
+        self.session.save()
+        self.dir.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.data, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(self.path)
+
+    def switch(self, index: int) -> None:
+        self.data["current"] = index
+        self.entry["last_used"] = now_iso()
+        self.session = Session(self.dir / self.entry["file"])
+
+    def start(self, name: str = "") -> dict:
+        used = {item.get("file") for item in self.sessions}
+        number = len(self.sessions) + 1
+        while f"session-{number}.json" in used:
+            number += 1
+        entry = new_entry(f"session-{number}.json", name)
+        self.sessions.append(entry)
+        self.switch(len(self.sessions) - 1)
+        return entry
+
+    def command(self, text: str) -> str | None:
+        """Answer a slash command, or return None to send `text` to the agent.
+
+        The rule (documented in docs/chat-commands.md): the first whitespace
+        token is looked up in COMMANDS; a miss is an error only when the whole
+        input is that one token, so `/ 2+2` and `/usr/bin/env is a path` still
+        reach the agent.
+        """
+        parts = text.strip().split(None, 1)
+        if not parts or not parts[0].startswith("/"):
+            return None
+        handler = COMMANDS.get(parts[0].lower())
+        if handler is None:
+            if len(parts) > 1:
+                return None
+            return f"Unknown command {parts[0]}. /help for the list."
+        reply = handler(self, parts[1].strip() if len(parts) > 1 else "")
+        try:
+            self.save()
+        except OSError as exc:
+            log(f"state save failed: {exc}")
+        return reply
+
+
+def choice_list(command: str, current: str | None, choices: list[str]) -> str:
+    lines = [f"{command[1:].capitalize()}: {current or 'codex default'}"]
+    lines += [f"{number}. {name}" for number, name in enumerate(choices, 1)]
+    lines.append(f"{command} <n> to set")
+    return "\n".join(lines)
+
+
+def cmd_help(chat: Chat, rest: str) -> str:
+    return HELP_TEXT
+
+
+def cmd_status(chat: Chat, rest: str) -> str:
+    entry = chat.entry
+    return "\n".join([
+        f"Session {chat.index}/{len(chat.sessions)}: {entry['name'][:NAME_MAX]}",
+        f"Model: {entry.get('model') or 'codex default'}",
+        f"Effort: {entry.get('effort') or 'codex default'}",
+        f"Turns: {entry.get('turns', 0)}",
+    ])
+
+
+def cmd_model(chat: Chat, rest: str) -> str:
+    if not rest:
+        return choice_list("/model", chat.model, MODELS)
+    choice = pick(rest, MODELS)
+    if choice is None:
+        return f"No model '{rest[:20]}'. /model to list."
+    chat.entry["model"] = choice
+    return f"Model: {choice}"
+
+
+def cmd_effort(chat: Chat, rest: str) -> str:
+    if not rest:
+        return choice_list("/effort", chat.effort, EFFORTS)
+    choice = pick(rest, EFFORTS)
+    if choice is None:
+        return f"No effort '{rest[:20]}'. /effort to list."
+    chat.entry["effort"] = choice
+    return f"Effort: {choice}"
+
+
+def cmd_sessions(chat: Chat, rest: str) -> str:
+    rows = sorted(enumerate(chat.sessions, 1),
+                  key=lambda row: row[1].get("last_used") or "", reverse=True)
+    lines = [f"{number}.{'>' if number == chat.index else ' '}"
+             f"{entry['name'][:NAME_MAX]} {entry.get('turns', 0)}t "
+             f"{age_text(entry.get('last_used', ''))}"
+             for number, entry in rows[:MAX_LIST]]
+    if len(rows) > len(lines):
+        lines.append(f"(+{len(rows) - len(lines)} older)")
+    return "\n".join(lines)
+
+
+def cmd_new(chat: Chat, rest: str) -> str:
+    name = snippet(rest) if rest else ""
+    entry = chat.entry
+    if not name and not entry.get("thread_id") and not entry.get("turns"):
+        # A7's New button on an untouched session: reset in place rather than
+        # pile up empty registry rows. Same reply bytes as before Track F4.
+        chat.session.reset()
+        return "New session."
+    started = chat.start(name)
+    return "New session." if not name else f"New session {chat.index}: {started['name']}"
+
+
+def cmd_resume(chat: Chat, rest: str) -> str:
+    if not rest:
+        return "Usage: /resume <n or name>"
+    names = [entry["name"] for entry in chat.sessions]
+    choice = pick(rest, names)
+    if choice is None:
+        return f"No session '{rest[:20]}'. /sessions to list."
+    chat.switch(names.index(choice))
+    entry = chat.entry
+    return (f"Session {chat.index}: {entry['name'][:NAME_MAX]}"
+            f" {entry.get('turns', 0)}t"
+            f" model {entry.get('model') or 'default'}")
+
+
+COMMANDS = {"/help": cmd_help, "/status": cmd_status, "/model": cmd_model,
+            "/effort": cmd_effort, "/sessions": cmd_sessions, "/new": cmd_new,
+            "/resume": cmd_resume}
+
+HELP_TEXT = "\n".join([
+    "/help          this list",
+    "/status        session, model, effort",
+    "/model [n]     show or set the model",
+    "/effort [n]    show or set reasoning",
+    "/sessions      list sessions",
+    "/new [name]    start a session",
+    "/resume <n>    switch session",
+])
+
+
 class CodexBackend:
-    def __init__(self, session: Session) -> None:
-        self.session = session
+    def __init__(self, ctx: Chat) -> None:
+        self.ctx = ctx
 
     async def chat(self, user_text: str) -> str:
-        thread_id = self.session.thread_id
+        thread_id = self.ctx.thread_id
         request = "User text: " + ascii_clean(user_text).strip()
         with tempfile.TemporaryDirectory(prefix="newton-codex-") as tmp:
             cmd = ["codex", "exec", "--sandbox", "read-only",
                    "--skip-git-repo-check", "--cd", tmp]
+            # Both flags must precede `resume`: the subcommand rejects them
+            # ("unexpected argument '--sandbox'"), and a resumed thread does
+            # honour them — docs/chat-commands.md, "What codex actually does".
+            if self.ctx.model:
+                cmd += ["-m", self.ctx.model]
+            if self.ctx.effort:
+                cmd += ["-c", f"model_reasoning_effort={self.ctx.effort}"]
             if thread_id:
                 cmd += ["resume", "--json", "--output-schema",
                         str(SCHEMA_FILE), thread_id, request]
             else:
                 prompt = PROMPT_FILE.read_text(encoding="utf-8") + "\n\n" + request
                 cmd += ["--json", "--output-schema", str(SCHEMA_FILE), prompt]
+            log("codex argv: " + " ".join(cmd[:-1]))
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *cmd, cwd=tmp,
@@ -297,17 +590,21 @@ class CodexBackend:
             visible = final_text
         if not seen:
             raise BackendError("agent reported no thread id")
-        self.session.data["thread_id"] = seen
+        self.ctx.remember_thread(seen)
         return visible
 
 
 class FakeBackend:
-    def __init__(self, session: Session) -> None:
-        self.session = session
+    def __init__(self, ctx: Chat) -> None:
+        self.ctx = ctx
 
     async def chat(self, user_text: str) -> str:
-        self.session.data["thread_id"] = self.session.thread_id or "fake-thread-1"
-        return ("FAKE REPLY TO: " + ascii_clean(user_text).strip() +
+        self.ctx.remember_thread(self.ctx.thread_id or f"fake-thread-{self.ctx.index}")
+        # The tag is how tests see which model/effort the backend was handed.
+        tag = ""
+        if self.ctx.model or self.ctx.effort:
+            tag = f" [m={self.ctx.model or '-'} e={self.ctx.effort or '-'}]"
+        return ("FAKE REPLY TO: " + ascii_clean(user_text).strip() + tag +
                 " -- the quick brown fox jumps over the lazy dog 0123456789.")
 
 
@@ -373,7 +670,7 @@ def parse_part(payload: str) -> tuple[int, int, str] | None:
 
 
 async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                      session: Session, backend) -> None:
+                      ctx: Chat, backend) -> None:
     # parts/parts_total hold one in-progress MSGP prompt; part 1 always restarts
     # it and any plain MSG drops it, so the state machine has no other resets.
     state = {"last_rx": None, "tx_seq": 0, "hello": False,
@@ -440,15 +737,16 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         else:
             state["parts"], state["parts_total"] = [], None
         text = payload.strip()
-        if text.lower() == "/new":
-            session.reset()
+        command_reply = ctx.command(text)
+        if command_reply is not None:
             await send_frame(reader, writer, state, "STAT", "READY")
-            await send_frame(reader, writer, state, "TEXT", "New session.")
+            for chunk in text_parts(command_reply, state["tx_seq"]):
+                await send_frame(reader, writer, state, "TEXT", chunk)
             await send_frame(reader, writer, state, "PROMPT")
             continue
         await send_frame(reader, writer, state, "STAT", "THINKING")
         async with TURN_LOCK:
-            session.record("user", text)
+            ctx.record("user", text)
             try:
                 reply = await backend.chat(text)
             except Exception as exc:
@@ -456,9 +754,9 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                 log(f"backend error: {exc!r}")
                 error = ascii_clean(str(exc)).strip()[:200] or "backend failure"
             else:
-                session.record("assistant", reply)
+                ctx.record("assistant", reply)
             try:
-                session.save()
+                ctx.save()
             except OSError as exc:
                 log(f"state save failed: {exc}")
         if reply is None:
@@ -492,13 +790,13 @@ async def initial_input(reader: asyncio.StreamReader) -> tuple[bool, bytes]:
 async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     addr = writer.get_extra_info("peername")
     log(f"connect {addr}")
-    session = Session(STATE_DIR / "session.json")
-    backend = FakeBackend(session) if FAKE else CodexBackend(session)
+    ctx = Chat(STATE_DIR)
+    backend = FakeBackend(ctx) if FAKE else CodexBackend(ctx)
     editor = LineEditor()
     try:
         native, pending = await initial_input(reader)
         if native:
-            await native_mode(reader, writer, session, backend)
+            await native_mode(reader, writer, ctx, backend)
             return
         writer.write(wire_text(GREETING) + b"\r\n" + PROMPT.encode("ascii"))
         await writer.drain()
@@ -513,31 +811,24 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> 
                 if line is None:
                     continue
                 text = line.strip()
-                low = text.lower()
-                if low == "/quit":
+                if text.lower() == "/quit":
                     writer.write(wire_text("Bye."))
                     await writer.drain()
                     return
-                if low == "/new":
-                    session.reset()
-                    out: str | None = "New session."
-                elif low == "/help":
-                    out = HELP_TEXT
-                elif not text:
-                    out = None
-                else:
+                out: str | None = ctx.command(text)
+                if out is None and text:
                     async with TURN_LOCK:
-                        session.record("user", text)
+                        ctx.record("user", text)
                         try:
                             reply = await backend.chat(text)
                         except Exception as exc:  # keep session alive on any failure
                             out = f"ERROR: {ascii_clean(str(exc)).strip()}"
                             log(f"backend error: {exc!r}")
                         else:
-                            session.record("assistant", reply)
+                            ctx.record("assistant", reply)
                             out = reply
                         try:
-                            session.save()
+                            ctx.save()
                         except OSError as exc:
                             log(f"state save failed: {exc}")
                 if out is not None:

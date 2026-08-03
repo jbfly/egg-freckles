@@ -15,7 +15,7 @@ NAK SS REASON\r\n
 | Direction | Type | Payload |
 |---|---|---|
 | Client → host | `HELLO` | `NEWTON1`, optionally followed by a space and app version |
-| Client → host | `MSG` | One prompt; `/new` resets the conversation |
+| Client → host | `MSG` | One prompt; a leading `/` may make it a host command |
 | Host → client | `STAT` | `READY`, `THINKING`, or `ERROR short-text` |
 | Host → client | `TEXT` | One ASCII display chunk |
 | Host → client | `PROMPT` | Empty; the turn is complete |
@@ -23,6 +23,16 @@ NAK SS REASON\r\n
 Long replies use multiple `TEXT` frames. A prompt too long for one frame uses
 the `MSGP` extension below; a client that does not implement it still sends one
 `MSG` and the host still answers it, unchanged.
+
+Some prompts never reach the agent: since Track F4 the host intercepts a set of
+slash commands (`/help`, `/status`, `/model`, `/effort`, `/sessions`, `/new`,
+`/resume`) and answers them as ordinary `TEXT` frames. **This is not a protocol
+change** — the client cannot tell the difference, and `/new` still answers
+exactly `New session.` The command set and the interception rule are in
+`docs/chat-commands.md`. One constraint the client puts on any host reply:
+`Main.newt:432` reads the *first* `*` in a frame as the checksum delimiter, so
+although the grammar above permits `*` inside a payload, the shipped client
+truncates the line there — the host must not emit one.
 
 ## Extension: `MSGP` — multi-frame prompts
 

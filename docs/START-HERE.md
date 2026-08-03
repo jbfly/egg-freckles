@@ -38,6 +38,7 @@ Everything else is reference you open only when the task lands on it:
 | Doc | Open it when |
 |---|---|
 | `docs/phase3-protocol.md` | You touch the wire format. **Read-only** — see constraints. |
+| `docs/chat-commands.md` | You touch `server.py`'s slash commands (`/model`, `/effort`, `/sessions`, `/resume`), the sessions registry, or how the codex backend is invoked. Records what this host's codex accepts (model names, effort levels, whether `resume` honours them) and the one rule the client imposes: **no `*` in a reply**. |
 | `docs/newtonscript-eval.md` | You work on the `POST /tools` fixed-op channel or `ns_eval`. |
 | `docs/install-lifeline-plan.md` | Anything about recovering a bare-metal Newton. |
 | `docs/hardware-bench-runbook.md` | You are about to touch the real MessagePad. |
@@ -97,12 +98,12 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 60 pass (45 + the 15 client-source tests that pin the `MSGP` split,
-the note path and the ink encoder, 2026-08-03). `pytest` is not in the system
-python, so use `uv`:
+**Tests** — 76 pass (45 + 15 client-source tests that pin the `MSGP` split, the
+note path and the ink encoder + 16 for the Track F4 slash commands and session
+registry, 2026-08-03). `pytest` is not in the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 60 passed
+uv run --with pytest pytest -q          # 76 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only

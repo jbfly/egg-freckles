@@ -67,6 +67,83 @@ class FrameTest(unittest.TestCase):
         self.assertEqual(len(encoded), server.MAX_FRAME)
 
 
+class RegistryTest(unittest.TestCase):
+    """Track F4: the sessions registry, offline."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_an_old_single_session_file_becomes_session_one(self) -> None:
+        (self.dir / "session.json").write_text(json.dumps({
+            "version": 1, "thread_id": "thread-from-before",
+            "created_at": "2026-08-01T10:00:00+00:00",
+            "updated_at": "2026-08-01T10:05:00+00:00",
+            "history": [{"role": "user", "content": "what is a Newton"},
+                        {"role": "assistant", "content": "a 1997 PDA"},
+                        {"role": "user", "content": "thanks"}]}))
+        chat = server.Chat(self.dir)
+        entry = chat.entry
+        self.assertEqual(len(chat.sessions), 1)
+        self.assertEqual(entry["file"], "session.json")
+        self.assertEqual(entry["thread_id"], "thread-from-before")
+        self.assertEqual(entry["turns"], 2)
+        self.assertEqual(entry["name"], "what is a Newton")
+        self.assertEqual(entry["created_at"], "2026-08-01T10:00:00+00:00")
+        # The transcript itself is left where it was.
+        self.assertEqual(len(chat.session.data["history"]), 3)
+
+    def test_a_missing_or_corrupt_registry_starts_one_empty_session(self) -> None:
+        (self.dir / "sessions.json").write_text("{not json")
+        chat = server.Chat(self.dir)
+        self.assertEqual(len(chat.sessions), 1)
+        self.assertEqual(chat.entry["turns"], 0)
+        self.assertIsNone(chat.thread_id)
+
+    def test_a_registry_round_trips_through_the_file(self) -> None:
+        chat = server.Chat(self.dir)
+        chat.command("/model 2")
+        chat.command("/new second")
+        chat.record("user", "hi")
+        chat.save()
+        again = server.Chat(self.dir)
+        self.assertEqual(again.index, 2)
+        self.assertEqual(again.entry["name"], "second")
+        self.assertEqual(again.sessions[0]["model"], server.MODELS[1])
+        self.assertEqual(again.entry["file"], "session-2.json")
+
+    def test_bare_new_on_an_untouched_session_does_not_add_a_row(self) -> None:
+        chat = server.Chat(self.dir)
+        self.assertEqual(chat.command("/new"), "New session.")
+        self.assertEqual(len(chat.sessions), 1)
+        chat.record("user", "now this session has a long first turn")
+        self.assertEqual(chat.command("/new"), "New session.")
+        self.assertEqual(len(chat.sessions), 2)
+        # The auto name comes from the first prompt, clipped to the screen.
+        self.assertEqual(chat.sessions[0]["name"], "now this session h")
+
+    def test_a_session_name_never_carries_a_star(self) -> None:
+        chat = server.Chat(self.dir)
+        self.assertEqual(chat.command("/new a*b c"), "New session 2: ab c")
+        self.assertNotIn("*", chat.command("/sessions"))
+
+    def test_pick_takes_a_number_a_name_or_a_prefix(self) -> None:
+        choices = ["low", "medium", "high"]
+        self.assertEqual(server.pick("2", choices), "medium")
+        self.assertEqual(server.pick("HIGH", choices), "high")
+        self.assertEqual(server.pick("med", choices), "medium")
+        for bad in ("0", "4", "", "x", "-1"):
+            self.assertIsNone(server.pick(bad, choices), bad)
+
+    def test_the_model_list_is_overridable_by_env(self) -> None:
+        out = subprocess.run(
+            [sys.executable, "-c", "import server; print(','.join(server.MODELS))"],
+            cwd=str(BASE), capture_output=True, text=True,
+            env=dict(os.environ, NEWTON_MODELS="alpha-1, beta-2")).stdout.strip()
+        self.assertEqual(out, "alpha-1,beta-2")
+
+
 class ServerSocketTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -98,6 +175,11 @@ class ServerSocketTest(unittest.TestCase):
     def history(self) -> list[dict]:
         path = Path(self.tmp.name) / "session.json"
         return json.loads(path.read_text())["history"] if path.exists() else []
+
+    @property
+    def registry(self) -> dict:
+        path = Path(self.tmp.name) / "sessions.json"
+        return json.loads(path.read_text()) if path.exists() else {}
 
     def native_socket(self) -> socket.socket:
         sock = socket.create_connection(("127.0.0.1", self.port), timeout=2)
@@ -199,6 +281,115 @@ class ServerSocketTest(unittest.TestCase):
             received = self.finish_turn(sock)
         self.assertIn(("TEXT", "New session."), received)
         self.assertEqual(self.history, [])
+
+    def say(self, sock: socket.socket, seq: int, text: str) -> list[str]:
+        """Send one MSG and return the TEXT payloads of the completed turn."""
+        sock.sendall(server.frame_line(seq, "MSG", text))
+        self.assertEqual(socket_line(sock), f"ACK {seq:02d}\r\n".encode())
+        return [payload for op, payload in self.finish_turn(sock) if op == "TEXT"]
+
+    def test_help_lists_every_command(self) -> None:
+        with self.native_socket() as sock:
+            lines = self.say(sock, 1, "/help")
+        for name in ("/help", "/status", "/model", "/effort", "/sessions",
+                     "/new", "/resume"):
+            self.assertTrue(any(line.startswith(name) for line in lines), name)
+        self.assertTrue(all(len(line) <= 45 for line in lines), lines)
+
+    def test_status_reports_the_current_session(self) -> None:
+        with self.native_socket() as sock:
+            lines = self.say(sock, 1, "/status")
+        self.assertEqual(lines[0].split(":")[0], "Session 1/1")
+        self.assertIn("Model: codex default", lines)
+        self.assertIn("Effort: codex default", lines)
+        self.assertIn("Turns: 0", lines)
+
+    def test_model_by_number_is_used_and_persisted(self) -> None:
+        wanted = server.MODELS[1]
+        with self.native_socket() as sock:
+            self.assertEqual(self.say(sock, 1, "/model"),
+                             ["Model: codex default"]
+                             + [f"{i}. {name}" for i, name
+                                in enumerate(server.MODELS, 1)]
+                             + ["/model <n> to set"])
+            self.assertEqual(self.say(sock, 2, "/model 2"), [f"Model: {wanted}"])
+            self.assertEqual(self.say(sock, 3, "/effort low"), ["Effort: low"])
+            reply = " ".join(self.say(sock, 4, "ping"))
+        # The fake backend echoes what the turn was actually handed.
+        self.assertIn(f"[m={wanted} e=low]", reply)
+        entry = self.registry["sessions"][0]
+        self.assertEqual((entry["model"], entry["effort"]), (wanted, "low"))
+
+    def test_a_bad_model_or_effort_is_refused(self) -> None:
+        with self.native_socket() as sock:
+            self.assertEqual(self.say(sock, 1, "/model 99"),
+                             ["No model '99'. /model to list."])
+            self.assertEqual(self.say(sock, 2, "/effort turbo"),
+                             ["No effort 'turbo'. /effort to list."])
+        self.assertIsNone(self.registry["sessions"][0]["model"])
+
+    def test_new_named_keeps_the_old_session_in_the_registry(self) -> None:
+        with self.native_socket() as sock:
+            self.say(sock, 1, "remember me")
+            self.assertEqual(self.say(sock, 2, "/new test"),
+                             ["New session 2: test"])
+            listing = self.say(sock, 3, "/sessions")
+        names = [entry["name"] for entry in self.registry["sessions"]]
+        self.assertEqual(names, ["remember me", "test"])
+        self.assertEqual(self.registry["sessions"][0]["thread_id"], "fake-thread-1")
+        self.assertEqual(self.registry["current"], 1)
+        self.assertEqual(len(listing), 2)
+        self.assertTrue(any(line.startswith("2.>test 0t") for line in listing), listing)
+        # No reply may contain `*`: the client truncates the line at the first
+        # one (Main.newt:432, found live in the Track F4 round).
+        self.assertNotIn("*", "".join(listing))
+
+    def test_resume_switches_the_codex_thread(self) -> None:
+        with self.native_socket() as sock:
+            self.say(sock, 1, "first")
+            self.say(sock, 2, "/new second")
+            self.say(sock, 3, "hello again")
+            threads = [entry["thread_id"] for entry in self.registry["sessions"]]
+            self.assertEqual(threads, ["fake-thread-1", "fake-thread-2"])
+            self.assertEqual(self.say(sock, 4, "/resume 1"),
+                             ["Session 1: first 1t model default"])
+            self.say(sock, 5, "back on one")
+        entries = self.registry["sessions"]
+        self.assertEqual(self.registry["current"], 0)
+        self.assertEqual(entries[0]["thread_id"], "fake-thread-1")
+        self.assertEqual((entries[0]["turns"], entries[1]["turns"]), (2, 1))
+        self.assertEqual(
+            [item["content"] for item in self.history if item["role"] == "user"],
+            ["first", "back on one"])
+
+    def test_unknown_command_is_refused_but_a_slash_prompt_is_not(self) -> None:
+        with self.native_socket() as sock:
+            self.assertEqual(self.say(sock, 1, "/nope"),
+                             ["Unknown command /nope. /help for the list."])
+            reply = " ".join(self.say(sock, 2, "/ 2+2"))
+        self.assertIn("FAKE REPLY TO: / 2+2", reply)
+        self.assertEqual(
+            [item["content"] for item in self.history if item["role"] == "user"],
+            ["/ 2+2"])
+
+    def test_the_registry_survives_a_reconnect(self) -> None:
+        with self.native_socket() as sock:
+            self.say(sock, 1, "/model 1")
+            self.say(sock, 2, "/new later")
+        with self.native_socket() as sock:
+            lines = self.say(sock, 1, "/status")
+            self.assertEqual(lines[0], "Session 2/2: later")
+            self.assertIn("Model: codex default", lines)   # per session, not global
+            self.assertEqual(self.say(sock, 2, "/resume 1")[0].split(" model ")[1],
+                             server.MODELS[0])
+
+    def test_the_pt100_path_answers_the_same_commands(self) -> None:
+        with socket.create_connection(("127.0.0.1", self.port), timeout=2) as sock:
+            read_until(sock, b"N> ")
+            sock.sendall(b"/model 2\r\n")
+            self.assertIn(server.MODELS[1].encode(), read_until(sock, b"N> "))
+            sock.sendall(b"/status\r\n")
+            self.assertIn(b"Session 1/1", read_until(sock, b"N> "))
 
     def part(self, seq: int, k: int, n: int, chunk: str) -> bytes:
         return server.frame_line(seq, "MSGP", f"{k:02d} {n:02d} {chunk}")

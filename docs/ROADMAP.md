@@ -7,6 +7,45 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-03 — Track F4 done: the Newton drives its own agent.** Seven slash
+  commands — `/help`, `/status`, `/model`, `/effort`, `/sessions`,
+  `/new [name]`, `/resume <n|name>` — are intercepted in `server.py` before the
+  backend is called and answered as ordinary `TEXT` frames. **Nothing on the
+  Newton changed**: no client rebuild, no new wire op, so this is live on
+  hardware **Chat A3** as it stands, and the PT100 terminal path gets it for
+  free from the same code. Model and effort are **per session**, persisted in a
+  new `sessions.json` registry that adopts the old single `session.json` as
+  session 1, and they reach codex as `-m <model>` / `-c
+  model_reasoning_effort=<level>`. Numbers beat names on a touchscreen, so
+  `/model 2` and `/resume 1` work everywhere a name does.
+  Proven on isolated instance `f4round` (seeded flash) with the **committed**
+  Chat A7 bytes and `NEWTON_FAKE_BACKEND=1 server.py:6801`, then with the real
+  backend: `/model 5` typed on the Newton, then a prompt, produced
+  `codex argv: codex exec … -m gpt-5.4-mini -c model_reasoning_effort=low
+  resume --json … 019fc923-c03a-7fd3-b7c7-4fe1670ebd77` — the **Track D3
+  thread** — and that thread's codex rollout now records turn 1 as
+  `gpt-5.6-sol/high` (D3) and turn 2 as `gpt-5.4-mini/low`. A 1997 MessagePad
+  changed the model of a live codex thread. Clean screenshot of the whole
+  feature with a real reply: `runtime/evidence/f4round-21-real-clean.png`.
+  **Four empirical findings about this host's codex**, all in
+  `docs/chat-commands.md`: valid model names come from
+  `~/.codex/models_cache.json` and an invalid one is *not* a CLI error but an
+  HTTP 400 mid-turn; `minimal` effort parses but the API refuses it while
+  `web_search` is enabled, so the list is `low/medium/high/xhigh`; **`resume`
+  does honour `-m` and `-c`** (so a model change needs no `/new`); and both
+  flags must precede the `resume` subcommand or the CLI rejects `--sandbox`.
+  One real defect found in **shipped** client code: `Main.newt:432` takes the
+  **first** `*` in a frame as the checksum delimiter, so a `TEXT` payload
+  containing one is silently truncated on screen — `/sessions` first rendered
+  as a bare `3.`. The wire format allows `*` and the host parses it correctly,
+  so the fix is a host-side rule: no reply may contain `*` (marker is now `>`,
+  session names are stripped). A3 has the same code, so this matters for
+  hardware. 76 tests (60 at baseline + 16). Round record
+  `runtime/evidence/f4round-round.txt`, screens `runtime/evidence/f4round-*.png`.
+  Still open: `/model` cannot list what codex would default to (it reports
+  `codex default` rather than reading `config.toml`), and the A7 transcript
+  clips long replies with no scroll — a client-side matter for a future round.
+
 - **2026-08-03 — publishing prep: the repo is ready to go public as "Egg
   Freckles".** Three things changed, none of them functional. (1) `README.md`
   is now a public front door — what works, an architecture diagram, an honest
@@ -534,6 +573,17 @@ Evolve the chat client toward the panel-over-Notes dream, incrementally:
 - **F3. True Notes integration** (later): a floating `protoFloatNGo` panel
   or a Notes auxButton that grabs the *currently open* note rather than the
   newest. API surface `[verify]` — this is genuinely unexplored.
+- **F4. Claude-Code-style session and model control — DONE 2026-08-03.**
+  `/help`, `/status`, `/model`, `/effort`, `/sessions`, `/new [name]`,
+  `/resume <n|name>`, answered in `server.py` **before** the backend runs, as
+  ordinary `TEXT` frames. No client change, no wire change — so it works from
+  hardware **Chat A3 unchanged**, from emulator Chat A7, and from the PT100
+  terminal path. Model and effort are per session and reach codex as `-m` /
+  `-c model_reasoning_effort=`, placed before the `resume` subcommand; state
+  lives in a `sessions.json` registry that absorbs the old single
+  `session.json` as session 1. Bare `/new` keeps its exact pre-F4 reply
+  because A7's New button sends it. Page: `docs/chat-commands.md`; status log
+  entry above; round record `runtime/evidence/f4round-round.txt`.
 
 ## Track G — agent-driven app development loop (after D; 2 sessions)
 

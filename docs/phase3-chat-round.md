@@ -117,6 +117,11 @@ Evidence: `q5-draft-double.png` (draft retained, one `You:` line, status
 `Turn in flight`), `q5-after-ack.png` (field cleared), `q5-new-cleared.png`,
 `q5-wire.log`.
 
+Still true, and since Track F4 `/new` is one of seven such prompts the host
+answers itself — `/help`, `/status`, `/model`, `/effort`, `/sessions`, `/new`,
+`/resume` — all of them ordinary `MSG` frames answered with ordinary `TEXT`
+frames, with no client change. See `docs/chat-commands.md`.
+
 ## What cost the most time — NewtonScript lessons
 
 Three of the four hard bugs this round were NewtonScript string and view
