@@ -1,9 +1,12 @@
 Track C1-C3 acceptance round for HarnessToolsR10M:jbfly -- 2026-08-03
 =====================================================================
 
-RESULT: build + install proven on an isolated emulator instance; the three new
-ops (battery, store_info, pkg_list) are NOT yet exercised on a live link and
-remain [verify]. The blocker is host-side and human-gated.
+RESULT: build + install proven on an isolated emulator instance, and every
+system call the three new ops (battery, store_info, pkg_list) make was proven
+on the real ROM by evaluating their expressions with runtime/ns_eval.py --
+see toolsround-r10m-nseval.txt for the values returned. What remains unproven
+is only the TRANSPORT: the ops have never travelled the /tools long-poll,
+because the broker address is host-side and human-gated.
 
 What was done
 -------------
@@ -32,8 +35,21 @@ What was done
      runtime/ns_eval.py --instance c1round 'GetRoot().|HarnessToolsR10M:jbfly|:Open()'
        -> TRUE
 
-Why the ops were not exercised
-------------------------------
+6. Evaluated each op's NewtonScript directly on the instance -- full transcript
+   in toolsround-r10m-nseval.txt. Summary:
+     battery      -> "count=0 cap=100% charge=discharging ac=no type=nimh"
+     store_info   -> "Internal total=7638048 used=599716 free=7038332 ro=n"
+     pkg_list     -> 32 packages; ordinal 1 "1/32 ScreenBuffer|428|?";
+                     ordinal 32 "32/32 NIE Ethernet Module|74888|Internal"
+   Deviations from the documentation, all handled by the committed code:
+     - BatteryCount() returns 0 while BatteryStatus(0) returns a full frame.
+     - GetPackages()[0].store is nil (ClassOf -> 'weird_immediate), so an
+       unguarded pkg.store:GetName() throws on the first ordinal.
+     - Dynamic slot access frame.(tagVariable) works at runtime; that is the
+       SlotOr helper's mechanism.
+
+Why the ops were not exercised over the /tools link
+---------------------------------------------------
 a) HOST ADDRESS MISSING (the hard blocker).
    examples/harness-tools/Main.newt:72 hardcodes the broker at 10.42.0.1:18081
    with no runtime override, and runtime/raw_pkg_server.py binds that literal

@@ -491,9 +491,49 @@ frame (`examples/harness-tools/Main.newt` `Reply`).
 
 | op | args | reply shape | status |
 |---|---|---|---|
-| `battery` | none | `count=N cap=NN% charge=<state> ac=<yes/no> type=<t>` | **[verify]** — compiles; not yet exercised on a live link |
-| `store_info` | none | one line per store, `<name> total=N used=N free=N ro=<y/n>`, newline-separated (the reply escaper turns them into `\n`) | **[verify]** — compiles; not yet exercised on a live link |
-| `pkg_list` | optional `id` (1-based ordinal) | no `id` or `id=0` → `count=N`; valid `id` → `i/N <title>\|<size>\|<storeName>`; out of range → `status: "error"`, `package ordinal must be 1..N` | **[verify]** — compiles; not yet exercised on a live link |
+| `battery` | none | `count=N cap=NN% charge=<state> ac=<yes/no> type=<t>` | calls proven on emulator, link untested |
+| `store_info` | none | one line per store, `<name> total=N used=N free=N ro=<y/n>`, newline-separated (the reply escaper turns them into `\n`) | calls proven on emulator, link untested |
+| `pkg_list` | optional `id` (1-based ordinal) | no `id` or `id=0` → `count=N`; valid `id` → `i/N <title>\|<size>\|<storeName>`; out of range → `status: "error"`, `package ordinal must be 1..N` | calls proven on emulator, link untested |
+
+### What the ops actually produce on Einstein
+
+The `10.42.0.1` blocker below stopped the `POST /tools` round, but it does not
+stop the *NewtonScript* from being run: each op's expression was evaluated
+directly on isolated instance `c1round` through `runtime/ns_eval.py`, which
+proves every system call against the real 717006 ROM. Full transcript in
+[`toolsround-r10m-nseval.txt`](../runtime/evidence/toolsround-r10m-nseval.txt).
+
+| op | value returned on Einstein |
+|---|---|
+| `battery` | `count=0 cap=100% charge=discharging ac=no type=nimh` |
+| `store_info` | `Internal total=7638048 used=599716 free=7038332 ro=n` (one store) |
+| `pkg_list` (count) | `32` |
+| `pkg_list` id 1 | `1/32 ScreenBuffer\|428\|?` |
+| `pkg_list` id 32 | `32/32 NIE Ethernet Module\|74888\|Internal` |
+
+Three things behaved differently from the documentation, and all three are the
+reason the defensive code earns its keep:
+
+1. **`BatteryCount()` returns `0` on Einstein** while `BatteryStatus(0)` still
+   returns a fully populated frame. The reference describes the count as "the
+   count of installed battery packs" with battery 0 always being the primary
+   pack, so a `0` count with a live battery 0 is self-contradictory — it is an
+   emulator artifact. Callers must not use `count` to decide whether to ask for
+   status. On this ROM `chargeState`, `acPower`, and `batteryType` all came back
+   as the documented symbols, and `batteryCapacity` as a plain integer.
+2. **A package's `store` slot can be `nil`.** `GetPackages()[0]` on this ROM is
+   `ScreenBuffer`, whose slot classes are
+   `id=int;size=int;store=weird_immediate;pssid=weird_immediate;title=string;version=int;timestamp=int;copyprotection=weird_immediate;`
+   — `weird_immediate` is `nil`. Calling `pkg.store:GetName()` on it throws, so
+   the unguarded form of the op would have failed on its very first ordinal. The
+   guarded form prints `?`. (There is also an undocumented `pssid` slot.)
+3. **Dynamic slot access `frame.(tagVariable)` works** at runtime, not just at
+   compile time — `BatteryStatus(0).('batteryCapacity)` returned `100`. That is
+   what lets one `SlotOr` helper nil-guard every battery slot instead of eight
+   copies of `HasSlot`.
+
+What remains untested is only the transport: the three ops have never travelled
+the `/tools` long-poll as a `TOOLS` line and back as an escaped reply.
 
 ### Which system calls these use, and which are traps
 
@@ -570,4 +610,5 @@ with no runtime override, and `runtime/raw_pkg_server.py` binds that literal
 address, so the host must have `10.42.0.1/24` on `lo` before any of this can be
 exercised. Adding it needs `sudo ap/emulator-only.sh`, which the installed
 sudoers rules do not cover — an agent cannot bring it up. Until a human runs it,
-all three ops stay `[verify]`.
+the ops' *transport* stays `[verify]`; their system calls are already proven by
+the ns_eval table above.

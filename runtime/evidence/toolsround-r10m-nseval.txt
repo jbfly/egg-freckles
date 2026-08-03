@@ -1,0 +1,29 @@
+HarnessToolsR10M (Track C1-C3) -- op expressions evaluated on emulator instance c1round
+via runtime/ns_eval.py, 2026-08-03. These prove the system calls each op uses on the
+717006 ROM. They are NOT an end-to-end test of the /tools link (see
+toolsround-r10m-status.txt for why that could not run).
+
+$ runtime/ns_eval.py --instance c1round 'BatteryCount()'
+0
+
+$ ... 'begin local s := BatteryStatus(0); "count=" & BatteryCount() & " cap=" & s.batteryCapacity & "% charge=" & s.chargeState & " ac=" & s.acPower & " type=" & s.batteryType; end'
+"count=0 cap=100% charge=discharging ac=no type=nimh"
+
+$ ... store_info equivalent (GetStores / GetName / TotalSize / UsedSize / IsReadOnly)
+"Internal total=7638048 used=599716 free=7038332 ro=n"
+
+$ ... 'Length(GetPackages())'
+32
+
+$ ... pkg_list entry, ordinal 32 (store slot present)
+"32/32 NIE Ethernet Module|74888|Internal"
+
+$ ... pkg_list entry, ordinal 1 -- slot classes (note store=weird_immediate, i.e. NIL)
+"id=int;size=int;store=weird_immediate;pssid=weird_immediate;title=string;version=int;timestamp=int;copyprotection=weird_immediate;"
+
+$ ... pkg_list entry, ordinal 1 WITH the nil guard the op uses
+"1/32 ScreenBuffer|428|?"
+
+$ ... dynamic slot access f.(tag), the idiom in the op helper SlotOr
+"100"
+ok

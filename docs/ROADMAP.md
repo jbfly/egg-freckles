@@ -28,8 +28,14 @@ agent can complete one task and verify it.
   (generic `POST /tools` pass-through, C6 note below). API choices verified
   against `refs/` before coding — `BatteryLevel` is documented-obsolete,
   `BatteryStatus`/`GetStores` sizes/`GetPackages` are the real calls; details
-  and citations in `docs/newtonscript-eval.md` thirteenth finding. **The three
-  ops are `[verify]`**: the acceptance round could not run because
+  and citations in `docs/newtonscript-eval.md` thirteenth finding. Each op's
+  expression was then evaluated on isolated instance `c1round` via
+  `runtime/ns_eval.py` and returns real values — `battery` →
+  `count=0 cap=100% charge=discharging ac=no type=nimh`, `store_info` →
+  `Internal total=7638048 used=599716 free=7038332 ro=n`, `pkg_list` → 32
+  packages, ordinal 1 `1/32 ScreenBuffer|428|?`
+  (`runtime/evidence/toolsround-r10m-nseval.txt`). **What is still unproven is
+  the transport**: the `POST /tools` acceptance round could not run because
   `10.42.0.1/24` was never added to `lo` (needs `sudo ap/emulator-only.sh`,
   outside the agent sudoers rules). Two mechanics learned in the attempt and
   now documented: `POST /install` takes a raw `/packages/…` path, not a
@@ -71,8 +77,9 @@ Emulator-proven, **not yet on hardware**:
 - **Tools channel**: `examples/harness-tools` (`HarnessToolsR10M`) long-polls
   `pkg_publisher.py`'s `ToolBroker` on 18081; emulator-proven ops are `ping`,
   `front_app`, `get_note`, `note_probe`, and R10M adds `battery`,
-  `store_info`, `pkg_list` — those three are **written and compiling but
-  `[verify]`**, see `docs/newtonscript-eval.md` thirteenth finding. Host API:
+  `store_info`, `pkg_list` — those three return real values on Einstein
+  (`runtime/evidence/toolsround-r10m-nseval.txt`) but have **not yet travelled
+  the link**, see `docs/newtonscript-eval.md` thirteenth finding. Host API:
   `POST /tools` (`pkg_publisher.py:354-385`). Median 0.3–0.8 s per call on the
   warm link.
 - **Ink**: contrary to `docs/START-HERE.md`'s stale claim, this is built

@@ -655,3 +655,41 @@ Two operational notes: `tntk` hardcodes package version 1
 `SafeRemovePackage(GetPkgRef(...))` over the control API did not clear it. And an
 accumulation of open apps holding NIE links wedges the link layer until every connect
 returns `-16013`; restarting the emulator container clears it.
+
+## 2026-08-03 — Track C1–C3 round: three ops proven by evaluation, not by link
+
+Isolated instance `c1round` (`make emulator-instance-up INSTANCE=c1round`,
+control `http://127.0.0.1:55225`), `HarnessToolsR10M:jbfly` built and installed.
+The `POST /tools` acceptance round did **not** run — `10.42.0.1/24` never
+appeared on `lo`, and that address is hardcoded in the client
+(`examples/harness-tools/Main.newt:72`) and bound literally by the broker. So the
+three new ops' NewtonScript was evaluated directly through `runtime/ns_eval.py`
+instead, which proves every system call on the 717006 ROM while leaving the
+transport unproven. `battery` → `count=0 cap=100% charge=discharging ac=no
+type=nimh`; `store_info` → `Internal total=7638048 used=599716 free=7038332
+ro=n`; `GetPackages()` → 32 packages, ordinal 1 `1/32 ScreenBuffer|428|?`,
+ordinal 32 `32/32 NIE Ethernet Module|74888|Internal`. Evidence:
+`runtime/evidence/toolsround-r10m-nseval.txt`,
+`runtime/evidence/toolsround-r10m-status.txt`,
+`runtime/evidence/toolsround-r10m-screen.png`.
+
+Four things worth carrying forward:
+
+1. **`BatteryCount()` returns `0` on Einstein** even though `BatteryStatus(0)`
+   returns a fully populated frame. Never gate a status read on the count.
+2. **A package's `store` slot can be `nil`** — `GetPackages()[0]` here is
+   `ScreenBuffer` with `store` and `pssid` and `copyProtection` all nil, so an
+   unguarded `pkg.store:GetName()` throws on the very first ordinal.
+3. **A fresh instance is not network-ready.** `make emulator-instance-up` gives a
+   blank flash: the ROM boots into the first-run Welcome tour, and while that
+   tour is up a `protoFloatNGo` app will not show even though `:Open()` returns
+   `TRUE` and `GetRoot().|sym|` is a frame. Click the tour through to the Notepad
+   first. None of `runtime/nie2/` is installed either, so there is no Ethernet
+   driver and no saved Internet Setup for `InetGrabLink` (which *is* in ROM) to
+   use.
+4. **`newtdev.pkg` must be installed before `NE2K.pkg`**, or the driver installs
+   but refuses to activate: "Unable to activate NE2K since Newton Device Drivers
+   are not in the system", followed by `-48807` on the next boot. Also,
+   `POST /install` only accepts container paths under `/packages/`
+   (`containers/patches/einstein-control-socket.patch:119-124`), which is the
+   read-only `examples/` mount — the `nie2` packages have to be staged there.
