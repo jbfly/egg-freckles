@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR10N:jbfly|;
-kAppTitle := "Harness Tools R10N";
+kAppSymbol := '|HarnessToolsR10P:jbfly|;
+kAppTitle := "Harness Tools R10P";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -183,7 +183,11 @@ mainView := {
             end
             else if StrEqual(op, "get_note") then
             begin
-                local ordinal := StringToNumber(argument);
+                // Same nil guard + Floor as pkg_list: a missing argument must
+                // not throw, and StringToNumber yields a Real on this ROM.
+                local ordinal := 0;
+                if argument <> nil then ordinal := StringToNumber(argument);
+                if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
                 if ordinal < 1 or ordinal > 64 then
                 begin
                     self.outcomeStatus := "error";
@@ -193,6 +197,33 @@ mainView := {
                 begin
                     self.outcomeStatus := "result";
                     self.outcomeValue := :GetNote(ordinal);
+                end;
+            end
+            else if StrEqual(op, "note_list") then
+            begin
+                local ordinal := 0;
+                if argument <> nil then ordinal := StringToNumber(argument);
+                if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
+                local total := :NoteCount();
+                // Paged for the same reason pkg_list is, and capped at the
+                // same 64 as get_note: one reply must never walk an
+                // arbitrarily long soup and starve the heartbeat.
+                local limit := total;
+                if limit > 64 then limit := 64;
+                if ordinal = 0 then
+                begin
+                    self.outcomeStatus := "result";
+                    self.outcomeValue := "count=" & total;
+                end
+                else if ordinal < 1 or ordinal > limit then
+                begin
+                    self.outcomeStatus := "error";
+                    self.outcomeValue := "note ordinal must be 1.." & limit;
+                end
+                else
+                begin
+                    self.outcomeStatus := "result";
+                    self.outcomeValue := :NoteEntry(ordinal, total);
                 end;
             end
             else if StrEqual(op, "note_probe") then
@@ -592,7 +623,11 @@ mainView := {
         return out;
     end,
 
-    GetNote: func(ordinal)
+    // The R10J cursor walk, unchanged, lifted out so note_list and get_note
+    // share one implementation. Returns the ordinal-th entry in ascending
+    // timeStamp order across every store that has the paperroll soup, or nil.
+    // Walk cost is O(ordinal), never O(soup) -- twelfth finding.
+    NoteAt: func(ordinal)
     begin
         local cursors := [];
         local entries := [];
@@ -603,7 +638,7 @@ mainView := {
                 AddArraySlot(cursors, cursor);
                 AddArraySlot(entries, cursor:Entry());
             end;
-        if Length(entries) = 0 then return "";
+        if Length(entries) = 0 then return nil;
 
         local entry := nil;
         for position := 1 to ordinal do
@@ -620,10 +655,14 @@ mainView := {
                         selected := index;
                     end;
             end;
-            if entry = nil then return "";
+            if entry = nil then return nil;
             if position < ordinal then entries[selected] := cursors[selected]:Next();
         end;
+        return entry;
+    end,
 
+    NoteText: func(entry)
+    begin
         local data := GetSysEntryData(entry, 'data);
         local text := "";
         if IsArray(data) then foreach item in data do
@@ -634,6 +673,78 @@ mainView := {
                 else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
             end;
         return text;
+    end,
+
+    GetNote: func(ordinal)
+    begin
+        local entry := :NoteAt(ordinal);
+        if entry = nil then return "";
+        return :NoteText(entry);
+    end,
+
+    NoteCount: func()
+    begin
+        local total := 0;
+        foreach store in GetStores() do
+            if store:HasSoup(ROM_paperRollSoupName) then
+            begin
+                local counted := nil;
+                try counted := store:GetSoup(ROM_paperRollSoupName)
+                    :Query({indexPath: 'timeStamp}):CountEntries()
+                onexception |evt.ex| do counted := nil;
+                if IsInteger(counted) then total := total + counted;
+            end;
+        return total;
+    end,
+
+    // One short ASCII line: no newlines, no "|" (the field separator), capped.
+    OneLine: func(text, limit)
+    begin
+        local out := "";
+        local length := StrLen(text);
+        local kept := length;
+        if kept > limit then kept := limit;
+        local i := 0;
+        while i < kept do
+        begin
+            local ch := SubStr(text, i, 1);
+            if ch = "\n" or ch = "\r" or ch = "\t" or ch = "|" then out := out & " "
+            else out := out & ch;
+            i := i + 1;
+        end;
+        if length > limit then out := out & "...";
+        return out;
+    end,
+
+    // Notepad entries usually have no title at all -- every entry on the
+    // seeded flash had title = nil -- so fall back to the note's first
+    // characters, which is what makes the listing readable.
+    NoteLabel: func(entry)
+    begin
+        local title := nil;
+        try title := GetSysEntryData(entry, 'title)
+        onexception |evt.ex| do title := nil;
+        if title <> nil and not IsString(title) then
+            try title := DecodeRichString(title, ROM_fontSystem10).text
+            onexception |evt.ex| do title := nil;
+        if IsString(title) and StrLen(title) > 0 then return :OneLine(title, 32);
+
+        local text := "";
+        try text := :NoteText(entry)
+        onexception |evt.ex| do text := "";
+        if not IsString(text) or StrLen(text) = 0 then return "(untitled)";
+        return :OneLine(text, 32);
+    end,
+
+    NoteEntry: func(ordinal, total)
+    begin
+        local entry := :NoteAt(ordinal);
+        if entry = nil then return "" & ordinal & "/" & total & " ?|?";
+        local stamp := nil;
+        try stamp := GetSysEntryData(entry, 'timeStamp)
+        onexception |evt.ex| do stamp := nil;
+        return "" & ordinal & "/" & total & " " & :NoteLabel(entry)
+            & "|" & :NumStr(stamp);
     end,
 
     Escape: func(text)

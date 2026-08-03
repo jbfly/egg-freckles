@@ -816,3 +816,55 @@ Six things worth carrying forward:
    the leading `Use ` and turned `:` into `;` and `?` into `/`. Tap the field,
    wait ~3 s, then send short chunks with a pause between them. Check the
    screenshot before tapping Send.
+
+## 2026-08-03 — Track C4: `note_list`, and `get_note` grows a guard
+
+`HarnessToolsR10P:jbfly`. Isolated instance `c4round`, flash seeded from
+`internal-before-round9-loader-20260725-195622.flash`, broker
+`runtime/raw_pkg_server.py` on `10.42.0.1:18081`, which logged
+`Newton tools connected 10.42.0.1:57652`. Fourteen `POST /tools` calls, all
+answered; transcripts `runtime/evidence/c4round-*.txt`, summary
+`c4round-wire-summary.txt`, ROM probes `c4round-nseval.txt`, screenshot
+`c4round-screen.png`. Full page: `docs/newtonscript-eval.md`, fifteenth finding.
+
+```
+{"op":"note_list"}                   -> "count=6"
+{"op":"note_list","args":{"id":4}}   -> "4/6 C4 alpha note about batteries|64477198"
+{"op":"note_list","args":{"id":6}}   -> "6/6 C4 charlie note that is delibera...|64477198"
+{"op":"note_list","args":{"id":7}}   -> 422 "note ordinal must be 1..6"
+{"op":"get_note","args":{"id":6}}    -> the whole 89-character note
+```
+
+Five things worth carrying forward:
+
+1. **`cursor:CountEntries()` exists and works on this ROM** — `n=3` on the
+   seeded Notepad, matching the manual cursor walk. It is how `note_list`
+   answers `count=`, and unlike R10I's full-soup scan it walks the index rather
+   than reading entries, so it does not reintroduce the twelfth finding's
+   event-loop starvation. `refs/NewtonProgrammerRef20.txt:34215-34243`.
+2. **A Notepad entry with no title is the normal case.** Every entry in the
+   seed flash had `title` = nil (`ClassOf` → `weird_immediate`), so a listing
+   that printed `title` unguarded would print nothing useful for almost every
+   real note. `note_list` falls back to the note's first 32 characters, and
+   `(untitled)` only when there is no text either.
+3. **`ns_eval` cannot see NTK platform constants, and the error blames the
+   wrong thing.** `store:HasSoup(ROM_paperRollSoupName)` through `ns_eval`
+   throws `evt.ex.fr.intrp;type.ref.frame`; the constant is resolved at
+   *compile* time out of `~/newton-dev/ntk-platform-files`, and injected script
+   is never compiled by NTK, so the name is unbound and `HasSoup(nil)` throws.
+   `GetSoupNames()` proves the literal is `"Notes"`. Probe with literals, ship
+   the constant. Second known `ns_eval`-vs-wire divergence after the fourteenth
+   finding's string arguments.
+4. **The seed flash's three notes are the old failed writes.** All three have
+   `data` = nil — the exact garbage shape `docs/notes-bridge.md` diagnosed as
+   N2/N3 entry 4, carried along by the snapshot ever since. They are why
+   `get_note(1)` legitimately returns `""`. Anything proving note *content*
+   must create its own notes first; the sanctioned two-step
+   (`notes:NewNote(notes:MakeTextNote(text, nil), nil, nil)`) worked first try
+   through `ns_eval` here, three times, each confirmed by the count going
+   3 → 4 → 5 → 6 and by all three rendering in stock Notepad.
+5. **The seeded flash can boot with stacked `-48807` / `-48601` NIE alerts.**
+   They queue up behind the PCMCIA Ethernet card slip before any broker is
+   listening. Tap the close box repeatedly until they are gone, then dismiss
+   the card slip; the link came up normally afterwards. Not a fault — do not
+   go debugging the driver over it.

@@ -1,0 +1,64 @@
+HarnessToolsR10P (Track C4) -- ROM probes on emulator instance c4round via runtime/ns_eval.py,
+2026-08-03. Flash seeded from internal-before-round9-loader-20260725-195622.flash.
+These prove the system calls note_list uses on the 717006 ROM. The end-to-end
+POST /tools transcripts are the sibling c4round-*.txt files.
+
+--- ns_eval cannot see NTK platform constants -------------------------------
+
+$ runtime/ns_eval.py --instance c4round "... store:HasSoup(ROM_paperRollSoupName) ..."
+"EX evt.ex.fr.intrp;type.ref.frame"
+
+ROM_paperRollSoupName is an NTK *compile-time* constant from
+~/newton-dev/ntk-platform-files (strings shows ROM_paperRollSoupName,
+ROM_paperRollIndices, ROM_paperrollSoupDef there). Injected NewtonScript is not
+compiled by NTK, so the name is unbound -> nil -> HasSoup(nil) throws
+"expected a frame". Probe with the literal soup name instead; the package source
+keeps using the constant.
+
+$ ... 'begin local r := ""; foreach n in GetStores()[0]:GetSoupNames() do r := r & n & ";"; r end'
+"Calendar;Calendar Notes;Calls;Directory;InBox;Internet DNS Cache;Internet Setups;Library;Names;Notes;OutBox;Packages;Repeat Meetings;Repeat Notes;System;SystemAlarmSoup;To do;To Do List;"
+
+So ROM_paperRollSoupName == "Notes" on this ROM.
+
+--- cursor:CountEntries() works, and is what note_list counts with -----------
+
+$ ... 'begin local r := "?"; try r := "n=" & GetStores()[0]:GetSoup("Notes"):Query({indexPath: 'timeStamp}):CountEntries() onexception |evt| do r := "EX " & CurrentException().name; r end'
+"n=3"
+
+refs/NewtonProgrammerRef20.txt:34215-34243 documents it and warns that counting
+a large number of entries is time-consuming; it walks the index, not the
+entries, so it is far cheaper than the R10I full-soup entry scan that caused the
+twelfth finding's event-loop starvation.
+
+--- every seeded Notepad entry has title = nil ------------------------------
+
+$ ... 'begin local c := GetStores()[0]:GetSoup("Notes"):Query({indexPath: 'timeStamp}); local e := c:Entry(); "cls=" & ClassOf(e) & " ts=" & GetSysEntryData(e, 'timeStamp) & " titlecls=" & ClassOf(GetSysEntryData(e, 'title)) end'
+"cls=paperroll ts=64461125 titlecls=weird_immediate"
+
+$ ... walk of all entries: ordinal:timeStamp/ClassOf(title)
+"1:64461125/weird_immediate;2:64462106/weird_immediate;3:64464021/weird_immediate;"
+
+weird_immediate is NIL (same rendering as the pkg_list store slot in the
+thirteenth finding). A nil title is the normal case, not the exception, which is
+why note_list falls back to the note's first characters.
+
+--- and all three of them have data = nil too -------------------------------
+
+$ ... walk of all entries: ordinal:ClassOf(GetSysEntryData(e, 'data))
+"1:dataclass=weird_immediate;2:dataclass=weird_immediate;3:dataclass=weird_immediate;"
+
+These are the failed-write garbage entries documented in docs/notes-bridge.md
+("Verdict: entry 4 was failed-write garbage"), preserved in the seed flash. They
+carry no paragraph text at all, so note_list labels them "(untitled)" and
+get_note returns "" -- the two ops agree, and neither throws.
+
+--- three real notes created for the round ----------------------------------
+
+Created with the sanctioned two-step (docs/notes-bridge.md:173):
+  local notes := GetRoot().paperroll;
+  notes:NewNote(notes:MakeTextNote(<text>, nil), nil, nil);
+each call returning the new CountEntries():
+  4      "C4 alpha note about batteries"
+  5      "C4 bravo note about stores"
+  6      "C4 charlie note that is deliberately much longer than the thirty-two character preview cap"
+All three rendered in stock Notepad: runtime/evidence/c4round-screen.png.

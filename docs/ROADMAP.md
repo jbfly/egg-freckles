@@ -128,10 +128,34 @@ agent can complete one task and verify it.
   but the tools client's reconnect throws a cosmetic modal `Communications`
   slip over the chat window mid-turn; and `xdotool` typing drops the first
   characters and mangles shifted keys, so tap, wait, then type in chunks.
-- **Next up:** C4 (`note_list` / `get_note` v2), then E2, F1, F2, G per
-  Sequencing. Two things D3 leaves open: none of the `emulator_*` tools or
-  `stage_hw` has been driven by an agent yet (only by tests), and the whole
-  tools channel has still never run on the **physical** MessagePad.
+- **2026-08-03 — Track C4 done (proven over the wire).** `HarnessToolsR10P:jbfly`
+  adds `note_list` and hardens `get_note`; the acceptance round ran on isolated
+  instance `c4round` (seeded flash) against `runtime/raw_pkg_server.py` on
+  `10.42.0.1:18081`, broker logged `Newton tools connected 10.42.0.1:57652`.
+  Wire replies: `note_list` → `count=6`, id 1 → `1/6 (untitled)|64461125`,
+  id 4 → `4/6 C4 alpha note about batteries|64477198`, id 6 →
+  `6/6 C4 charlie note that is delibera...|64477198`, id 7 and id 99 → HTTP 422
+  `note ordinal must be 1..6`; `get_note` id 6 → the whole 89-character note,
+  id 1 → `""`; `ping` and `battery` unchanged. ~0.8 s per device-touching op
+  (`ping` 0.127 s). Evidence `runtime/evidence/c4round-*.txt` (summary in
+  `c4round-wire-summary.txt`, ROM probes in `c4round-nseval.txt`, the three
+  notes rendered in stock Notepad in `c4round-screen.png`). Three things
+  learned, all in `docs/newtonscript-eval.md` fifteenth finding:
+  **`cursor:CountEntries()` works on this ROM** and walks the index rather than
+  the entries, so counting does not reintroduce the twelfth finding's
+  starvation; **a nil `title` is the normal case** for a Notepad entry, so the
+  listing label falls back to the note's first 32 characters; and **`ns_eval`
+  cannot see NTK platform constants** such as `ROM_paperRollSoupName` — they are
+  compile-time symbols, so probing with one throws
+  `evt.ex.fr.intrp;type.ref.frame` and you must use the literal (`"Notes"`).
+  Also confirmed: the three Notepad entries inside the seed flash are the
+  `data=nil` failed writes `docs/notes-bridge.md` diagnosed in N2/N3.
+- **Next up:** E2, then F1, F2, G per Sequencing. Two things still open: none
+  of the `emulator_*` tools or `stage_hw` has been driven by an agent yet (only
+  by tests), and the whole tools channel has still never run on the **physical**
+  MessagePad. (`newton_mcp.py`'s `newton_tool` forwards `op` generically, so
+  `note_list` is callable from a chat turn already; only its listed-ops
+  description needed updating.)
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -161,12 +185,14 @@ Hardware-proven and current:
 
 Emulator-proven, **not yet on hardware**:
 
-- **Tools channel**: `examples/harness-tools` (`HarnessToolsR10N`) long-polls
+- **Tools channel**: `examples/harness-tools` (`HarnessToolsR10P`) long-polls
   `pkg_publisher.py`'s `ToolBroker` on 18081; emulator-proven ops are `ping`,
-  `front_app`, `get_note`, `note_probe`, `battery`, `store_info`, `pkg_list` —
-  the last three travelled the real link on 2026-08-03
+  `front_app`, `get_note`, `note_list`, `note_probe`, `battery`, `store_info`,
+  `pkg_list` — the last three travelled the real link on 2026-08-03
   (`runtime/evidence/toolsround-r10m-wire-*.txt`, `docs/newtonscript-eval.md`
-  thirteenth finding). Host API: `POST /tools` (`pkg_publisher.py:354-385`).
+  thirteenth finding) and `note_list` + `get_note` v2 the same day
+  (`runtime/evidence/c4round-*.txt`, fifteenth finding). Host API:
+  `POST /tools` (`pkg_publisher.py:354-385`).
   Median 0.3–0.8 s per call on the warm link.
 - **Ink**: contrary to `docs/START-HERE.md`'s stale claim, this is built
   end-to-end: `examples/ink-capture` (`InkPad`) captures strokes with
@@ -274,7 +300,7 @@ not by rewriting servers:
 
 ## Track C — tools channel v2: device management ops (2–3 sessions)
 
-Grow `examples/harness-tools` (R10N lineage) into the device-management
+Grow `examples/harness-tools` (R10P lineage) into the device-management
 surface the agent needs. Fixed-op dispatch stays (arbitrary eval is a proven
 dead end — `docs/newtonscript-eval.md`; four investigations reverted). New
 ops, each one session-sized with its emulator acceptance test:
@@ -284,10 +310,12 @@ ops, each one session-sized with its emulator acceptance test:
 - **C3. `pkg_list` — done 2026-08-03**, proven over the wire in `R10N`. Note
   its `size` is uncompressed bytes, so it does *not* match the Dock counts in
   `docs/installed-package-inventory.md`.
-- **C4. `note_list` / `get_note` v2** — titles + ids, then fetch by id;
-  respect the 1..64 ordinal lesson (event-loop starvation on big soups,
-  `docs/newtonscript-eval.md` twelfth finding) by paging. Any wire argument
-  used as an array index must be `Floor`ed first — fourteenth finding.
+- **C4. `note_list` / `get_note` v2 — done 2026-08-03**, proven over the wire
+  in `R10P`. `note_list` is paged exactly like `pkg_list` (`count=N`, then one
+  `i/N <label>|<timeStamp>` line per request, ordinals capped at 64) and counts
+  with `cursor:CountEntries()`, which walks the index rather than the entries.
+  `get_note` keeps its reply shape and gains the nil-guard + `Floor` at its
+  dispatch site. Details in `docs/newtonscript-eval.md` fifteenth finding.
 - **C5. `pkg_install <name>` / `pkg_remove <name>`** — reuse ZC40's proven
   VBO receive + `SuckPackageFromBinary` code inside the tools client;
   removal API `[verify]`. **Human gate on physical hardware, always**

@@ -302,7 +302,8 @@ TOOLS: list[dict] = [
             "pkg_publisher broker (POST /tools on 18081). Works against "
             "whichever Newton is polling -- the physical MessagePad or an "
             "emulator with networking. Read-only ops available today: ping, "
-            "front_app, get_note, note_probe, battery, store_info, pkg_list. "
+            "front_app, note_list, get_note, note_probe, battery, store_info, "
+            "pkg_list. "
             "Ops that would change the device are refused and handed back as a "
             "command for the human."),
         "inputSchema": {

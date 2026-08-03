@@ -713,3 +713,85 @@ Note that `runtime/emulators/mp2000-core-20260803/internal.flash` is **not** a
 suitable seed — it is a blank flash restored with core packages over Dock and
 contains no `NE2K` at all (`strings -a … | grep -c NE2K` → `0`), which
 `docs/installed-package-inventory.md:167-171` records but does not spell out.
+
+## Fifteenth finding: `note_list`, and `get_note` v2 (Track C4)
+
+`HarnessToolsR10P:jbfly` adds `note_list` and hardens `get_note`. As with
+C1–C3 no host-side change was needed: `POST /tools` forwards any
+`TOOL_OP`-matching name and only validates that `args.id` is an integer
+(`pkg_publisher.py:354-386`). Proven over the wire on isolated instance
+`c4round`, 2026-08-03 — the broker logged
+`Newton tools connected 10.42.0.1:57652` and every call below travelled the
+long-poll. Full `curl -i` transcripts are `runtime/evidence/c4round-*.txt`
+(summary table in
+[`c4round-wire-summary.txt`](../runtime/evidence/c4round-wire-summary.txt)),
+the three created notes are photographed in stock Notepad at
+[`c4round-screen.png`](../runtime/evidence/c4round-screen.png), and the ROM
+probes are in [`c4round-nseval.txt`](../runtime/evidence/c4round-nseval.txt).
+
+| op | args | reply shape | status |
+|---|---|---|---|
+| `note_list` | optional `id` (1-based ordinal) | no `id` or `id=0` → `count=N`; valid `id` → `i/N <label>\|<timeStamp>`; out of range → `status: "error"`, `note ordinal must be 1..min(N,64)` | **proven over the wire** in `R10P` |
+| `get_note` | `id` (1-based ordinal, 1..64) | unchanged: the note's paragraph text, or `""` | **proven over the wire** in `R10P`; reply shape identical to `R10N` |
+
+`<label>` is the entry's `title` when it has one, otherwise the first 32
+characters of its text with `…` appended, with newlines, tabs and `|` mapped to
+spaces so the one field separator stays unambiguous; an entry with neither is
+`(untitled)`. `<timeStamp>` is the raw Notepad stamp — **minutes since
+1904-01-01**, not seconds and not a date string (`docs/notes-bridge.md:27`).
+
+Wire replies, ~0.8 s each on the warm link (`ping` 0.127 s):
+
+| request | wire reply | HTTP |
+|---|---|---:|
+| `{"op":"note_list"}` | `"count=6"` | 200 |
+| `{"op":"note_list","args":{"id":1}}` | `"1/6 (untitled)\|64461125"` | 200 |
+| `{"op":"note_list","args":{"id":4}}` | `"4/6 C4 alpha note about batteries\|64477198"` | 200 |
+| `{"op":"note_list","args":{"id":6}}` | `"6/6 C4 charlie note that is delibera...\|64477198"` | 200 |
+| `{"op":"note_list","args":{"id":7}}` | `status: "error"`, `"note ordinal must be 1..6"` | 422 |
+| `{"op":"note_list","args":{"id":99}}` | `status: "error"`, `"note ordinal must be 1..6"` | 422 |
+| `{"op":"get_note","args":{"id":6}}` | the whole 89-character note | 200 |
+| `{"op":"get_note","args":{"id":1}}` | `""` | 200 |
+
+Four things the round settled:
+
+1. **`cursor:CountEntries()` works on this ROM** and is what `note_list` counts
+   with (`refs/NewtonProgrammerRef20.txt:34215-34243`). It walks the *index*,
+   not the entries, so it does not reintroduce the twelfth finding's
+   event-loop starvation the way R10I's full-soup entry scan did. The
+   reference still warns that counting a large soup costs heap and time, so
+   `count` remains the one unpaged number the op will ever return; every
+   listing line is a separate request, and ordinals stay capped at 64 exactly
+   like `get_note`'s.
+2. **A nil `title` is the normal case, not the exception.** Every entry in the
+   seeded flash had `ClassOf(GetSysEntryData(entry, 'title))` =
+   `weird_immediate`, i.e. `nil` — the same rendering `pkg_list`'s `store` slot
+   has in the thirteenth finding. A `note_list` that printed `title` unguarded
+   would have printed nothing useful on any note the user has not explicitly
+   named, which is most of them. Hence the first-characters fallback.
+3. **`ns_eval` cannot see NTK platform constants.** Probing
+   `store:HasSoup(ROM_paperRollSoupName)` through `runtime/ns_eval.py` throws
+   `evt.ex.fr.intrp;type.ref.frame`, because `ROM_paperRollSoupName` is a
+   *compile-time* symbol NTK resolves out of
+   `~/newton-dev/ntk-platform-files`, and injected NewtonScript is never
+   compiled by NTK — the name is simply unbound, so `HasSoup(nil)` throws.
+   Probe with the literal (`GetSoupNames()` on this ROM proves
+   `ROM_paperRollSoupName` is `"Notes"`); keep the constant in package source.
+   This is the second way `ns_eval` differs from the dispatch path, after the
+   fourteenth finding's string-vs-integer argument.
+4. **Empty is a real answer, and both ops agree on it.** The three Notepad
+   entries carried in the seed flash all have `data = nil` — they are the
+   failed-write garbage `docs/notes-bridge.md` diagnosed in N2/N3, preserved by
+   the snapshot. `note_list` labels them `(untitled)` and `get_note` returns
+   `""`; neither throws, and the pair is consistent, which is what makes an
+   empty `get_note` readable as "this note has no text" rather than "the
+   ordinal was wrong".
+
+`get_note` v2 is a hardening, not a reshape. Its dispatch now nil-guards a
+missing argument and `Floor`s the ordinal like `pkg_list` does — a `get_note`
+with no `id` used to reach `StringToNumber(nil)` and answer with a raw Newton
+exception name, and the fourteenth finding's rule ("any wire argument that
+becomes an array index must be `Floor`ed") now holds at every dispatch site
+whether or not the current implementation happens to index with it. The cursor
+walk itself is unchanged R10J code, lifted into a shared `NoteAt(ordinal)` that
+both ops call, so `note_list` cannot drift away from what `get_note` reads.

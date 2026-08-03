@@ -1,0 +1,49 @@
+HarnessToolsR10P:jbfly (Track C4) -- POST /tools acceptance round, 2026-08-03.
+
+instance   c4round (own podman project; flash seeded from
+           ~/newton-archive/newton-harness/flash-backups/
+           internal-before-round9-loader-20260725-195622.flash)
+broker     python3 runtime/raw_pkg_server.py on 10.42.0.1:18081
+install    NEWTON_CONTROL_URL=http://127.0.0.1:57755 \
+             scripts/install-and-launch.sh \
+             /packages/harness-tools/harness-tools.pkg 'HarnessToolsR10P:jbfly'
+link       broker logged: Newton tools connected 10.42.0.1:57652
+notepad    6 entries: 3 inherited from the seed flash (all title=nil, data=nil)
+           + 3 created for this round (see c4round-nseval.txt)
+
+request                                    wire reply                                              http    total
+{"op":"ping"}                              "pong"                                                  200   0.127s
+{"op":"note_list"}                         "count=6"                                               200   0.802s
+{"op":"note_list","args":{"id":1}}         "1/6 (untitled)|64461125"                               200   0.804s
+{"op":"note_list","args":{"id":2}}         "2/6 (untitled)|64462106"                               200   0.817s
+{"op":"note_list","args":{"id":3}}         "3/6 (untitled)|64464021"                               200   0.806s
+{"op":"note_list","args":{"id":4}}         "4/6 C4 alpha note about batteries|64477198"            200   0.817s
+{"op":"note_list","args":{"id":5}}         "5/6 C4 bravo note about stores|64477198"               200   0.812s
+{"op":"note_list","args":{"id":6}}         "6/6 C4 charlie note that is delibera...|64477198"      200   0.827s
+{"op":"note_list","args":{"id":7}}         error "note ordinal must be 1..6"                       422   0.978s
+{"op":"note_list","args":{"id":99}}        error "note ordinal must be 1..6"                       422   0.800s
+{"op":"get_note","args":{"id":1}}          ""                                                      200   0.428s
+{"op":"get_note","args":{"id":3}}          ""                                                      200   0.811s
+{"op":"get_note","args":{"id":6}}          "C4 charlie note that is deliberately much longer       200   0.811s
+                                            than the thirty-two character preview cap"
+{"op":"battery"}                           "count=0 cap=100% charge=discharging ac=no type=nimh"   200   0.803s
+{"op":"ping"} (after the round)            "pong"                                                  200   ~0.1s
+
+Full curl -i transcripts with headers: runtime/evidence/c4round-<slug>.txt.
+Screenshot of the three created notes in stock Notepad: c4round-screen.png.
+Broker log: c4round-broker.log.
+
+Notes on the results:
+- ~0.8s per device-touching op, the same warm-link profile as the C1-C3 round.
+  note_list id=k costs the same as note_list count -- the k<=64 cursor walk is
+  not what the latency is made of.
+- id 6's label is the 32-character preview cap plus "..."; get_note id 6 returns
+  the whole 89-character note, so the cap is a listing-only truncation.
+- ordinals 1-3 label "(untitled)" and read back "" because those seed entries
+  have data=nil; note_list and get_note agree rather than either one throwing.
+- 4,5,6 share timeStamp 64477198 -- Notepad stamps are minutes since 1904-01-01,
+  so notes made in one minute tie. The listing order stays stable because the
+  merge walks each store's timeStamp cursor in index order.
+- The Communications "connection may have been dropped" modal appeared once
+  mid-round (cosmetic reconnect artifact, docs/newton-dev-notes.md round C1-C3);
+  the ping after dismissing it still returned pong on the same broker.

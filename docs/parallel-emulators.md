@@ -71,6 +71,17 @@ Ethernet` card-inserted slip to dismiss (tap its close box at roughly `247,178`)
 and that slip reappearing after a container restart is the sign the NE2K driver
 is live. Verified 2026-08-03 for the Track C1–C3 wire round.
 
+It may also boot with one or more `Sorry, a problem has occurred` alerts stacked
+*on top of* that slip — `-48807` and `-48601` were both seen in the Track C4
+round, before any broker was listening. Tap the alert's close box (roughly
+`247,271`) repeatedly until they are all gone, then dismiss the card slip. The
+NIE link came up normally afterwards; they are not worth debugging.
+
+The Notepad on this seed holds three entries whose `data` is `nil` — the failed
+writes `docs/notes-bridge.md` diagnosed in N2/N3. They read back as empty text.
+If you need notes with content, create them
+(`local notes := GetRoot().paperroll; notes:NewNote(notes:MakeTextNote(text, nil), nil, nil);`).
+
 **Picking a seed flash.** It has to contain both the driver and a saved setup:
 
 ```sh
