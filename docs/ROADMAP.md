@@ -708,6 +708,40 @@ Newton's data made useful in the modern age.
   later. J1's store is also what a future mobile/RSS/export anything would
   read — keep it dumb and documented.
 
+## Track K — crash telemetry (requested 2026-08-03, designed, research in flight)
+
+The human reports frequent crashes on the physical MP2000, usually right
+after package installs (classic NS-heap exhaustion), and most go unreported.
+Goal: the agent learns about crashes and memory pressure without the human
+retyping error slips.
+
+- **K1. Reboot detection, host-side (nearly free).** The tools client
+  reconnects after every restart; the broker already logs
+  `Newton tools connected`. Timestamp these in a durable host log
+  (`state/device-events.jsonl`), classify reconnect-after-silence as a
+  probable reboot, and expose the recent event list to the agent (an MCP
+  tool or a `newton_tool` alias reading the host file). Correlate with
+  install events (dual_send/loader log) so the agent can say "3 reboots
+  tonight, each after an install".
+- **K2. `mem` tools op.** Heap free / largest free block / frames-heap
+  stats + store free (store part exists via `store_info`). API names
+  `[verify]` — research agent checking refs for the real NewtonScript
+  memory-introspection surface (Gestalt selectors, `Stats`-family,
+  `SystemRAMSize`-family — do not trust these names until quoted from the
+  Ref). Agent-facing use: warn BEFORE installs when heap is tight.
+- **K3. Structured error reporting from our packages.** Our clients catch
+  their own exceptions and show them on-screen; also POST them to the host
+  (tools channel or the 18081 HTTP surface) into the same
+  `device-events.jsonl`. No OS-level crash capture — NewtonScript cannot
+  catch a system crash — but our own failures stop depending on the human's
+  memory.
+- **K4 [verify].** Does NewtonOS 2.1 record ANY durable last-error/restart
+  reason readable from NewtonScript (reboot-reason Gestalt, last error
+  global)? Research in flight; if yes it joins `mem`; expected answer is no.
+- Also practical, not code: retire superseded packages from the physical
+  device (A3 once A7 is trusted, old proof payloads) — installed packages
+  consume RAM even idle; C5 (`pkg_remove`) makes this agent-assisted later.
+
 ## Sequencing
 
 A → B → (C6, D1) → C1–C3 → D2–D3 → E1–E2 → F1 → F2 → G → C5/E3/F3 → H.
