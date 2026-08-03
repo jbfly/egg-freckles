@@ -5,7 +5,10 @@
 > `docs/phase3-chat-round.md` for what was actually built and how it behaves.
 > Its transport recommendations in §3 are corrected by
 > `docs/newton-networking-lessons.md` §4.1–4.9. Read those two first; use this
-> document only for the parts still unbuilt (GET/PUT, PATCH, RUN, ink).
+> document only for the parts still unbuilt (GET/PUT, PATCH, RUN). Ink itself
+> is no longer in that list — Stages 1-4 of `docs/ink-client-design.md` are
+> built and emulator-proven; see that doc's Status note and `docs/ROADMAP.md`
+> Track E for what remains.
 
 ## Recommendation
 

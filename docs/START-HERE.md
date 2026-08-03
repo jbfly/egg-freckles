@@ -43,7 +43,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/hardware-bench-runbook.md` | You are about to touch the real MessagePad. |
 | `docs/einstein-automation.md` | You need Einstein internals, serial ports, or the control socket. |
 | `docs/newton-client-notes.md` | Package build/toolchain overrides. |
-| `docs/ink-client-design.md` | Ink. Entirely unbuilt; its APIs are marked `[verify]` and are not verified. |
+| `docs/ink-client-design.md` | Ink. Stages 1–4 built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended at `docs/ink-client-design.md:224-408`. Not installed on physical hardware; ink is invisible on canvas after pen-up (`:380-401`); multi-part POST still unbuilt. See `docs/ROADMAP.md` Track E. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc
@@ -64,7 +64,10 @@ treat as current state:
   `docs/phase3-chat-round.md`; the client it plans has shipped. Its §3
   transport recommendations are corrected by
   `docs/newton-networking-lessons.md` §4.1–4.9.
-- `docs/ink-client-design.md`, `docs/install-lifeline-plan.md` — proposals.
+- `docs/install-lifeline-plan.md` — proposal.
+- `docs/ink-client-design.md` — mostly a proposal document, but its Stage
+  1–4 result sections (`:224-408`) are verified findings, not plan; trust
+  those the same as the four docs above.
 
 When the two classes disagree, the verified doc wins, and **fixing the stale
 one is part of your task** (see `CLAUDE.md`).

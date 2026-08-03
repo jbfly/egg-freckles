@@ -1,5 +1,13 @@
 # Ink client design — Newton as an AI input surface
 
+> **Status (2026-08-03 audit): largely implemented.** The design below reads
+> as a proposal, but Stages 1–4 have been built and proven end to end on the
+> emulator — see the "Stage 1 result" through "Stage 4 result" sections
+> appended at `:224-408`. Remaining gaps: ink is invisible on canvas after
+> pen-up (`:380-401`), nothing here is installed on physical hardware yet,
+> and the multi-part `/ink` POST is still unbuilt. See `docs/ROADMAP.md`
+> Track E for what remains.
+
 Scope: a future `harness-client` that captures stylus ink on a NewtonOS 2.1
 device (MP2100-class, or Einstein), ships it to the host over the existing
 HTTP/1.0 path, and displays a short model response. Ink is the primary
