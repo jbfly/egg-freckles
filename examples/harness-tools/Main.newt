@@ -1,5 +1,5 @@
-kAppSymbol := '|HarnessToolsR10M:jbfly|;
-kAppTitle := "Harness Tools R10M";
+kAppSymbol := '|HarnessToolsR10N:jbfly|;
+kAppTitle := "Harness Tools R10N";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -214,7 +214,10 @@ mainView := {
             begin
                 local ordinal := 0;
                 if argument <> nil then ordinal := StringToNumber(argument);
-                if ordinal = nil then ordinal := 0;
+                // StringToNumber returns a Real on this ROM, and an array
+                // cannot be indexed by a Real: packages[1.0 - 1] throws
+                // evt.ex.fr.type;type.ref.frame. Floor it back to an integer.
+                if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
                 local total := :PkgCount();
                 if ordinal = 0 then
                 begin

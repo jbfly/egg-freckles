@@ -481,7 +481,8 @@ wire format unchanged while removing the all-stores soup scan.
 
 ## Thirteenth finding: three device-management ops (Track C1–C3)
 
-`HarnessToolsR10M:jbfly` adds `battery`, `store_info`, and `pkg_list` to the
+`HarnessToolsR10M:jbfly` (shipped as `HarnessToolsR10N:jbfly` after the wire
+round found the `pkg_list` defect below) adds `battery`, `store_info`, and `pkg_list` to the
 fixed-op dispatch. Nothing about the wire protocol changed: the host `POST
 /tools` route is a generic pass-through that forwards any `TOOL_OP`-matching
 name and validates only that `args.id` is an integer if present
@@ -491,9 +492,9 @@ frame (`examples/harness-tools/Main.newt` `Reply`).
 
 | op | args | reply shape | status |
 |---|---|---|---|
-| `battery` | none | `count=N cap=NN% charge=<state> ac=<yes/no> type=<t>` | calls proven on emulator, link untested |
-| `store_info` | none | one line per store, `<name> total=N used=N free=N ro=<y/n>`, newline-separated (the reply escaper turns them into `\n`) | calls proven on emulator, link untested |
-| `pkg_list` | optional `id` (1-based ordinal) | no `id` or `id=0` → `count=N`; valid `id` → `i/N <title>\|<size>\|<storeName>`; out of range → `status: "error"`, `package ordinal must be 1..N` | calls proven on emulator, link untested |
+| `battery` | none | `count=N cap=NN% charge=<state> ac=<yes/no> type=<t>` | **proven over the wire** |
+| `store_info` | none | one line per store, `<name> total=N used=N free=N ro=<y/n>`, newline-separated (the reply escaper turns them into `\n`) | **proven over the wire** |
+| `pkg_list` | optional `id` (1-based ordinal) | no `id` or `id=0` → `count=N`; valid `id` → `i/N <title>\|<size>\|<storeName>`; out of range → `status: "error"`, `package ordinal must be 1..N` | **proven over the wire** in `R10N`; `R10M` threw on every valid `id` (see the `StringToNumber` finding below) |
 
 ### What the ops actually produce on Einstein
 
@@ -532,8 +533,93 @@ reason the defensive code earns its keep:
    what lets one `SlotOr` helper nil-guard every battery slot instead of eight
    copies of `HasSlot`.
 
-What remains untested is only the transport: the three ops have never travelled
-the `/tools` long-poll as a `TOOLS` line and back as an escaped reply.
+### Proven over the `POST /tools` long-poll (2026-08-03)
+
+The transport round finally ran, on isolated instance `c2round` against
+`runtime/raw_pkg_server.py` on `10.42.0.1:18081`. The broker logged
+`Newton tools connected 10.42.0.1:33744` and every op below travelled the link
+as a `TOOLS` line and came back as an escaped three-line reply. Evidence files
+are `runtime/evidence/toolsround-r10m-wire-*.txt` (full `curl -i` transcripts
+with headers and `%{time_total}`) plus
+[`toolsround-r10m-wire-screen.png`](../runtime/evidence/toolsround-r10m-wire-screen.png).
+
+| request | wire reply | HTTP | round trip | evidence |
+|---|---|---:|---:|---|
+| `{"op":"ping"}` | `"pong"` | 200 | 0.053 s | [`…-ping.txt`](../runtime/evidence/toolsround-r10m-wire-ping.txt) |
+| `{"op":"battery"}` | `"count=0 cap=100% charge=discharging ac=no type=nimh"` | 200 | 0.817 s | [`…-battery.txt`](../runtime/evidence/toolsround-r10m-wire-battery.txt) |
+| `{"op":"store_info"}` | `"Internal total=7638048 used=883236 free=6754812 ro=n"` | 200 | 0.823 s | [`…-store-info.txt`](../runtime/evidence/toolsround-r10m-wire-store-info.txt) |
+| `{"op":"pkg_list"}` | `"count=39"` | 200 | 0.825 s | [`…-pkg-list-count.txt`](../runtime/evidence/toolsround-r10m-wire-pkg-list-count.txt) |
+| `{"op":"pkg_list","args":{"id":1}}` | `"1/39 ScreenBuffer\|428\|?"` | 200 | 0.856 s | [`…-pkg-list-1.txt`](../runtime/evidence/toolsround-r10m-wire-pkg-list-1.txt) |
+| `{"op":"pkg_list","args":{"id":39}}` | `"39/39 PT100:Scrawl\|174416\|Internal"` | 200 | 0.814 s | [`…-pkg-list-max.txt`](../runtime/evidence/toolsround-r10m-wire-pkg-list-max.txt) |
+| `{"op":"pkg_list","args":{"id":99}}` | `status: "error"`, `"package ordinal must be 1..39"` | 422 | 0.744 s | [`…-pkg-list-oor.txt`](../runtime/evidence/toolsround-r10m-wire-pkg-list-oor.txt) |
+
+Latency is **~0.8 s for every op that touches the device**, and ~0.05 s for
+`ping` when a poll is already parked — the same warm-link profile the fifth
+investigation measured, and far below the 10-second cold-link numbers of the
+R6 round. No op needed a host-side change, confirming the generic-pass-through
+claim above.
+
+Two wire-vs-`ns_eval` differences showed up, and both mattered:
+
+1. **`pkg_list id=<n>` failed over the wire while passing under `ns_eval`** —
+   the `StringToNumber` finding immediately below. This is the single most
+   useful result of the round: `ns_eval` proves *system calls*, it does not
+   prove the *dispatch path*, because it hands the op body an integer literal
+   where the wire hands it a string.
+2. **`GetPackages()` ordering is not stable across a reboot.** Before the
+   container restart ordinal 38 was `HarnessToolsR10M:jbfly|23336|Internal`;
+   after it, ordinal 39 was `PT100:Scrawl|174416|Internal`. Treat the ordinal
+   as a paging cursor for one conversation, never as a package identifier.
+
+### Fourteenth finding: `StringToNumber` returns a `Real`, and arrays reject it
+
+`HarnessToolsR10M`'s `pkg_list` returned `status: "error"` /
+`evt.ex.fr.type;type.ref.frame` for *every* valid ordinal over the wire
+([`…-pkg-list-1-r10m-bug.txt`](../runtime/evidence/toolsround-r10m-wire-pkg-list-1-r10m-bug.txt),
+[`…-pkg-list-38-r10m-bug.txt`](../runtime/evidence/toolsround-r10m-wire-pkg-list-38-r10m-bug.txt)),
+while `:PkgEntry(1, 38)` called directly through `ns_eval` returned
+`"1/38 ScreenBuffer|428|?"`. The cause, proven on instance `c2round`:
+
+```
+runtime/ns_eval.py --instance c2round 'ClassOf(StringToNumber("1"))'
+  -> 'Real
+runtime/ns_eval.py --instance c2round \
+  'begin local r := "ok"; try r := "" & GetPackages()[StringToNumber("1") - 1].title
+   onexception |evt| do r := "EX " & CurrentException().name; r end'
+  -> "EX evt.ex.fr.type;type.ref.frame"
+```
+
+`Dispatch` gets `args.id` as a **string token** off the wire and converts it
+with `StringToNumber`, which on this ROM yields a `Real` even for `"1"`.
+`1.0 - 1` is `0.0`, and **indexing an array with a `Real` throws
+`evt.ex.fr.type;type.ref.frame`** ("expected a frame") rather than any
+index-flavoured exception, which is why the error text is so misleading.
+
+`get_note` escapes the same bug by luck of implementation: it never indexes
+with the ordinal, it drives `for position := 1 to ordinal`, and a `for` limit
+accepts a `Real` happily. That is why the twelfth finding's ordinal work
+passed its wire round and `pkg_list` did not.
+
+The fix in `R10N` is one line at the dispatch site
+(`examples/harness-tools/Main.newt`, `pkg_list` branch):
+
+```newtonscript
+if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
+```
+
+`Floor` is applied *after* the nil guard because `Floor(nil)` throws. **Any
+future op that turns a wire argument into an array index must do the same.**
+
+### A cosmetic anomaly worth knowing
+
+On the seeded flash the `protoFloatNGo` window never painted, even though the
+package was fully alive: `Visible()` returned `TRUE`, `viewCObject` was
+non-nil, `viewBounds` was the expected `220,34,316,72`, `:Dirty()` +
+`RefreshViews()` changed nothing — and it answered every request on the link.
+Do not use "I can see the float" as the liveness test; use the broker's
+`Newton tools connected` line. The Extras drawer screenshot
+([`toolsround-r10m-wire-screen.png`](../runtime/evidence/toolsround-r10m-wire-screen.png))
+is the installation evidence for this round instead.
 
 ### Which system calls these use, and which are traps
 
@@ -584,7 +670,7 @@ not previously written down anywhere: `make emulator-instance-up INSTANCE=<name>
 gives you a **blank Newton flash**, which means
 
 1. the ROM boots into the first-run Welcome tour, which suppresses the tools
-   client's `protoFloatNGo` window even though `GetRoot().|HarnessToolsR10M:jbfly|`
+   client's `protoFloatNGo` window even though `GetRoot().|HarnessToolsR10N:jbfly|`
    exists and `:Open()` returns `TRUE` — the tour has to be clicked through
    (name, country, address, phones, date, time, handwriting, signature, Done)
    before the float will appear;
@@ -603,12 +689,27 @@ paths under `/packages/`, i.e. the repo's `examples/` mount
 driver installs but refuses to activate with `Unable to activate NE2K since
 Newton Device Drivers are not in the system`.
 
-### What still blocks the live round
+### The host-address precondition (resolved, but still a precondition)
 
 `examples/harness-tools/Main.newt:72` hardcodes the broker at `10.42.0.1:18081`
 with no runtime override, and `runtime/raw_pkg_server.py` binds that literal
 address, so the host must have `10.42.0.1/24` on `lo` before any of this can be
-exercised. Adding it needs `sudo ap/emulator-only.sh`, which the installed
-sudoers rules do not cover — an agent cannot bring it up. Until a human runs it,
-the ops' *transport* stays `[verify]`; their system calls are already proven by
-the ns_eval table above.
+exercised. Check with `ip addr show lo | grep 10.42.0.1`; add it with
+`sudo ap/emulator-only.sh`. This was the blocker that stopped the first attempt
+at the round; it was satisfied for the 2026-08-03 wire round above.
+
+### Seeding an instance's flash instead of building one (the fast path)
+
+The manual route described above — click through the tour, stage
+`runtime/nie2/` into `examples/`, install `newtdev.pkg` then `NE2K.pkg`, then
+configure Internet Setup by hand — was **not needed** for the wire round and
+should not be needed again. A saved flash that already has the NIE stack and a
+saved `Untitled Ethernet Setup` can simply be copied into a fresh instance's
+state volume; the full recipe is in `docs/parallel-emulators.md`
+("Seed an instance from a saved flash"). It cost about 90 seconds and booted
+straight into the Notepad with the `PCMCIA Ethernet` card recognised.
+
+Note that `runtime/emulators/mp2000-core-20260803/internal.flash` is **not** a
+suitable seed — it is a blank flash restored with core packages over Dock and
+contains no `NE2K` at all (`strings -a … | grep -c NE2K` → `0`), which
+`docs/installed-package-inventory.md:167-171` records but does not spell out.

@@ -43,6 +43,53 @@ Booting to `healthy` takes about 20-40 seconds. Wait for it:
 until [ "$(podman inspect -f '{{.State.Health.Status}}' newton-harness-dock_emulator_1)" = healthy ]; do sleep 5; done
 ```
 
+## Seed an instance from a saved flash (do this if you need the network)
+
+A fresh instance is a **blank Newton**: it boots into the first-run Welcome
+tour, which suppresses floating windows until you click all the way through it,
+and it has none of the `runtime/nie2/` stack, so there is no Ethernet driver and
+no saved Internet Setup for `InetGrabLink`. Anything that talks to
+`10.42.0.1:18081` — the tools long-poll, the loader — will not work on it.
+
+Do not rebuild that by hand. Copy a flash that already has it:
+
+```sh
+make emulator-instance-up INSTANCE=c2round
+until [ "$(podman inspect -f '{{.State.Health.Status}}' newton-harness-c2round_emulator_1)" = healthy ]; do sleep 5; done
+
+podman stop -t 20 newton-harness-c2round_emulator_1
+podman cp ~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash \
+          newton-harness-c2round_emulator_1:/state/internal.flash
+podman start newton-harness-c2round_emulator_1
+until [ "$(podman inspect -f '{{.State.Health.Status}}' newton-harness-c2round_emulator_1)" = healthy ]; do sleep 5; done
+```
+
+The instance must be brought up once first so the `emulator-state` volume
+exists; you are overwriting `internal.flash` inside it, not creating it. Total
+cost is about 90 seconds. It boots straight into the Notepad with a `PCMCIA
+Ethernet` card-inserted slip to dismiss (tap its close box at roughly `247,178`),
+and that slip reappearing after a container restart is the sign the NE2K driver
+is live. Verified 2026-08-03 for the Track C1–C3 wire round.
+
+**Picking a seed flash.** It has to contain both the driver and a saved setup:
+
+```sh
+strings -a  "$f" | grep -c NE2K              # want >0
+strings -el "$f" | grep -ci 'Untitled Ethernet'   # want >0
+```
+
+| Flash | NE2K | Ethernet Setup | Use it? |
+| --- | ---: | ---: | --- |
+| `runtime/emulators/mp2000-core-20260803/internal.flash` | 0 | 0 | **No** — core packages restored onto a blank flash over Dock; the NIE install onto it failed with `-48807` (`docs/installed-package-inventory.md:167-171`) |
+| `~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash` | 4 | 3 | **Yes** — newest working snapshot; carries `HarnessLoaderR3O`/`R7B` and no HarnessTools, so nothing competes for the broker |
+| `runtime/backups/internal-before-*.flash` (Jul 24) | 4 | 3 | Workable older fallbacks |
+
+Prefer a seed with **no HarnessTools package installed**. Two tools clients on
+one broker fight over the single long-poll slot, and a client whose window you
+closed keeps retrying its endpoint and raises modal `Communications — Sorry, a
+problem has occurred` alerts over whatever you are doing. If you do end up with
+a stale one, `podman restart` the container clears it.
+
 ## What is actually isolated
 
 Each instance is its own `podman-compose` project (`-p newton-harness-<name>`),

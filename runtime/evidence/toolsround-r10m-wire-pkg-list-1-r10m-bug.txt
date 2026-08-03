@@ -1,0 +1,13 @@
+# 2026-08-03T20:14:18+01:00  instance c2round  HarnessToolsR10M:jbfly
+$ curl -sS -i -X POST 'http://10.42.0.1:18081/tools?timeout=25' -H 'Content-Type: application/json' -d '{"op":"pkg_list","args":{"id":1}}'
+
+HTTP/1.0 422 Unprocessable Content
+Server: BaseHTTP/0.6 Python/3.14.6
+Date: Mon, 03 Aug 2026 19:14:19 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 76
+Connection: close
+
+{"request_id":"5","status":"error","error":"evt.ex.fr.type;type.ref.frame"}
+
+--- total 0.852421s http 422

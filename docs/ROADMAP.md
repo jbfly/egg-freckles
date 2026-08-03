@@ -21,28 +21,45 @@ agent can complete one task and verify it.
 - **Open decisions resolved 2026-08-03:** superseded sources deleted (git
   history retains); archive location is `~/newton-archive/newton-harness/`;
   Track D stays codex + MCP.
-- **2026-08-03 — Track C1–C3 partial (code done, live proof pending).**
-  `examples/harness-tools` bumped `R10L`→`R10M` and gained `battery`,
-  `store_info`, `pkg_list` on the existing `StrEqual` dispatch; builds clean
-  with `make -C examples/harness-tools`; no host-side change was needed
-  (generic `POST /tools` pass-through, C6 note below). API choices verified
-  against `refs/` before coding — `BatteryLevel` is documented-obsolete,
+- **2026-08-03 — Track C1–C3 done (proven over the wire).** The `POST /tools`
+  acceptance round ran on isolated instance `c2round` against
+  `runtime/raw_pkg_server.py` on `10.42.0.1:18081`; the broker logged
+  `Newton tools connected` and all three ops answered. Wire replies:
+  `battery` → `count=0 cap=100% charge=discharging ac=no type=nimh`;
+  `store_info` → `Internal total=7638048 used=883236 free=6754812 ro=n`;
+  `pkg_list` → `count=39`, id 1 → `1/39 ScreenBuffer|428|?`, id 39 →
+  `39/39 PT100:Scrawl|174416|Internal`, id 99 → HTTP 422
+  `package ordinal must be 1..39`. **~0.8 s per device-touching op** on the warm
+  link (`ping` 0.05 s). Full `curl -i` transcripts in
+  `runtime/evidence/toolsround-r10m-wire-*.txt`, Extras drawer in
+  `runtime/evidence/toolsround-r10m-wire-screen.png`.
+  The round found one real defect that `ns_eval` could not have found:
+  **`StringToNumber` returns a `Real` on this ROM**, and indexing an array with
+  a `Real` throws `evt.ex.fr.type;type.ref.frame`, so `R10M`'s `pkg_list` failed
+  on *every* valid ordinal over the wire
+  (`runtime/evidence/toolsround-r10m-wire-pkg-list-1-r10m-bug.txt`). Fixed by a
+  one-line `Floor` at the dispatch site and shipped as
+  **`HarnessToolsR10N:jbfly`**; details in `docs/newtonscript-eval.md`
+  fourteenth finding. Also learned: seeding a fresh instance's
+  `/state/internal.flash` from a saved NIE-configured flash replaces the whole
+  tour + `newtdev`/`NE2K` + Internet Setup dance and takes ~90 s
+  (`docs/parallel-emulators.md`, "Seed an instance from a saved flash"); and
+  `GetPackages()` ordering is not stable across a reboot.
+- **2026-08-03 — Track C1–C3 code round (`af6be49`, `1dd099a`) — the transport
+  claim in it is superseded by the entry above.** `examples/harness-tools`
+  bumped `R10L`→`R10M` and gained `battery`, `store_info`, `pkg_list` on the
+  existing `StrEqual` dispatch; no host-side change was needed (generic
+  `POST /tools` pass-through, C6 note below). API choices verified against
+  `refs/` before coding — `BatteryLevel` is documented-obsolete,
   `BatteryStatus`/`GetStores` sizes/`GetPackages` are the real calls; details
   and citations in `docs/newtonscript-eval.md` thirteenth finding. Each op's
-  expression was then evaluated on isolated instance `c1round` via
-  `runtime/ns_eval.py` and returns real values — `battery` →
-  `count=0 cap=100% charge=discharging ac=no type=nimh`, `store_info` →
-  `Internal total=7638048 used=599716 free=7038332 ro=n`, `pkg_list` → 32
-  packages, ordinal 1 `1/32 ScreenBuffer|428|?`
-  (`runtime/evidence/toolsround-r10m-nseval.txt`). **What is still unproven is
-  the transport**: the `POST /tools` acceptance round could not run because
-  `10.42.0.1/24` was never added to `lo` (needs `sudo ap/emulator-only.sh`,
-  outside the agent sudoers rules). Two mechanics learned in the attempt and
-  now documented: `POST /install` takes a raw `/packages/…` path, not a
-  `curl -F` upload (`docs/install-paths.md` row 1), and a fresh
-  `make emulator-instance-up` Newton is *not* network-ready (first-run tour
-  suppresses the float window; the whole `runtime/nie2/` stack is missing and
-  `newtdev.pkg` must precede `NE2K.pkg`).
+  expression was evaluated on isolated instance `c1round` via
+  `runtime/ns_eval.py` (`runtime/evidence/toolsround-r10m-nseval.txt`), which
+  proved the *system calls* but, as the wire round later showed, not the
+  dispatch path. Two mechanics learned and documented: `POST /install` takes a
+  raw `/packages/…` path, not a `curl -F` upload (`docs/install-paths.md`
+  row 1), and a fresh `make emulator-instance-up` Newton is *not* network-ready
+  — since fixed by flash seeding rather than by hand.
 - **2026-08-03 — Track D1 code done, live demo pending.** `newton_mcp.py` —
   one stdlib-only file, MCP over stdio (JSON-RPC 2.0, hand-rolled
   `initialize`/`ping`/`tools/list`/`tools/call`) exposing `newton_tool`,
@@ -61,13 +78,16 @@ agent can complete one task and verify it.
   tool (control ports are published on `127.0.0.1` only, and `instance_url`
   needs `podman`) plus `build_pkg`/`stage_hw` require running `server.py` on
   the host. Also observed this session: `10.42.0.1/24` **is** now on `lo`
-  (`ip -4 addr show lo`), so the C1–C3 acceptance blocker below is gone.
+  (`ip -4 addr show lo`), so the C1–C3 acceptance blocker is gone — that round
+  has since run, see the C1–C3 entry above.
   Still unverified: whether `codex exec` auto-approves MCP tool calls
   non-interactively, and whether the MCP subprocess inherits
   `--sandbox read-only`.
 - **Next up:** the D1/D3 live demo (broker + polling Newton + one chat turn
-  that calls `front_app`, then `store_info`/`pkg_list` — the C1–C3 acceptance
-  round rides along), then C4.
+  that calls `front_app`, then `store_info`/`pkg_list`), then C4. Get a
+  network-ready instance in ~90 s with the flash-seeding recipe in
+  `docs/parallel-emulators.md`, and install `HarnessToolsR10N:jbfly` — `R10M`'s
+  `pkg_list` is broken over the wire.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -97,14 +117,13 @@ Hardware-proven and current:
 
 Emulator-proven, **not yet on hardware**:
 
-- **Tools channel**: `examples/harness-tools` (`HarnessToolsR10M`) long-polls
+- **Tools channel**: `examples/harness-tools` (`HarnessToolsR10N`) long-polls
   `pkg_publisher.py`'s `ToolBroker` on 18081; emulator-proven ops are `ping`,
-  `front_app`, `get_note`, `note_probe`, and R10M adds `battery`,
-  `store_info`, `pkg_list` — those three return real values on Einstein
-  (`runtime/evidence/toolsround-r10m-nseval.txt`) but have **not yet travelled
-  the link**, see `docs/newtonscript-eval.md` thirteenth finding. Host API:
-  `POST /tools` (`pkg_publisher.py:354-385`). Median 0.3–0.8 s per call on the
-  warm link.
+  `front_app`, `get_note`, `note_probe`, `battery`, `store_info`, `pkg_list` —
+  the last three travelled the real link on 2026-08-03
+  (`runtime/evidence/toolsround-r10m-wire-*.txt`, `docs/newtonscript-eval.md`
+  thirteenth finding). Host API: `POST /tools` (`pkg_publisher.py:354-385`).
+  Median 0.3–0.8 s per call on the warm link.
 - **Ink**: contrary to `docs/START-HERE.md`'s stale claim, this is built
   end-to-end: `examples/ink-capture` (`InkPad`) captures strokes with
   `GetPointsArray`, encodes NSI1, POSTs to `/ink`; host renders a PNG
@@ -207,20 +226,20 @@ not by rewriting servers:
 
 ## Track C — tools channel v2: device management ops (2–3 sessions)
 
-Grow `examples/harness-tools` (R10M lineage) into the device-management
+Grow `examples/harness-tools` (R10N lineage) into the device-management
 surface the agent needs. Fixed-op dispatch stays (arbitrary eval is a proven
 dead end — `docs/newtonscript-eval.md`; four investigations reverted). New
 ops, each one session-sized with its emulator acceptance test:
 
-- **C1. `battery`** — level/charging state. API names need `[verify]`
-  against `refs/NewtonProgrammerRef20.txt` first (repo convention).
-- **C2. `store_info`** — per-store total/used/free bytes. This is the
-  free-space gate for agent-driven installs.
-- **C3. `pkg_list`** — installed package names + sizes (compare against
-  `docs/installed-package-inventory.md` format).
+- **C1. `battery` — done 2026-08-03**, proven over the wire in `R10N`.
+- **C2. `store_info` — done 2026-08-03**, proven over the wire in `R10N`.
+- **C3. `pkg_list` — done 2026-08-03**, proven over the wire in `R10N`. Note
+  its `size` is uncompressed bytes, so it does *not* match the Dock counts in
+  `docs/installed-package-inventory.md`.
 - **C4. `note_list` / `get_note` v2** — titles + ids, then fetch by id;
   respect the 1..64 ordinal lesson (event-loop starvation on big soups,
-  `docs/newtonscript-eval.md` twelfth finding) by paging.
+  `docs/newtonscript-eval.md` twelfth finding) by paging. Any wire argument
+  used as an array index must be `Floor`ed first — fourteenth finding.
 - **C5. `pkg_install <name>` / `pkg_remove <name>`** — reuse ZC40's proven
   VBO receive + `SuckPackageFromBinary` code inside the tools client;
   removal API `[verify]`. **Human gate on physical hardware, always**

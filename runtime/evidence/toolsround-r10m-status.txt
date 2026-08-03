@@ -87,3 +87,30 @@ To finish this round
      curl -X POST 'http://10.42.0.1:18081/tools?timeout=20' \
        -H 'Content-Type: application/json' -d '{"op":"battery","args":{}}'
      ... likewise store_info, pkg_list (no id / id=1 / id out of range).
+
+RESOLVED 2026-08-03 -- see toolsround-r10m-wire-*.txt
+=====================================================
+The transport round ran on a fresh isolated instance `c2round`. 10.42.0.1/24
+was on `lo`, `runtime/raw_pkg_server.py` served 10.42.0.1:18081, and the broker
+logged "Newton tools connected 10.42.0.1:33744".
+
+Step 3 above ("complete an Internet Setup on the instance") turned out to be
+unnecessary: the instance's /state/internal.flash was seeded by `podman cp`
+from
+  ~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash
+which already carries the NIE stack and a saved `Untitled Ethernet Setup`.
+90 seconds, no tour, no newtdev/NE2K dance. Recipe in docs/parallel-emulators.md.
+
+Wire results (~0.8 s per device-touching op, ping 0.05 s):
+  battery       "count=0 cap=100% charge=discharging ac=no type=nimh"
+  store_info    "Internal total=7638048 used=883236 free=6754812 ro=n"
+  pkg_list      "count=39" / id 1 "1/39 ScreenBuffer|428|?"
+                / id 39 "39/39 PT100:Scrawl|174416|Internal"
+                / id 99 HTTP 422 "package ordinal must be 1..39"
+
+The round found a defect ns_eval could not: StringToNumber returns a Real on
+this ROM, so R10M's `packages[ordinal - 1]` threw
+`evt.ex.fr.type;type.ref.frame` for every valid ordinal
+(toolsround-r10m-wire-pkg-list-1-r10m-bug.txt). Fixed with one `Floor` at the
+dispatch site; shipped as HarnessToolsR10N:jbfly. See docs/newtonscript-eval.md
+fourteenth finding.

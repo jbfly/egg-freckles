@@ -693,3 +693,69 @@ Four things worth carrying forward:
    `POST /install` only accepts container paths under `/packages/`
    (`containers/patches/einstein-control-socket.patch:119-124`), which is the
    read-only `examples/` mount — the `nie2` packages have to be staged there.
+
+## 2026-08-03 — Track C1–C3 wire round: the three ops travelled the link
+
+The round the entry above could not finish. `10.42.0.1/24` was on `lo` this
+time, so `python3 runtime/raw_pkg_server.py` came up on `10.42.0.1:18081` and
+the whole thing ran end to end on a fresh isolated instance `c2round`
+(control `http://127.0.0.1:42165`).
+
+**The network setup took 90 seconds, not an afternoon.** Point 3 of the entry
+above — tour, `newtdev`, `NE2K`, Internet Setup by hand — was skipped entirely
+by seeding the instance's flash. Bring the instance up so the `emulator-state`
+volume exists, `podman stop` it, `podman cp` a saved NIE-configured flash over
+`/state/internal.flash`, `podman start`. The seed used was
+`~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash`,
+picked because `strings -a … | grep -c NE2K` → 4 and
+`strings -el … | grep -ci 'Untitled Ethernet'` → 3, and because it carries no
+HarnessTools package to compete for the broker's single poll slot. It booted
+straight into the Notepad with the `PCMCIA Ethernet` card slip up. Full recipe
+in `docs/parallel-emulators.md`. Do **not** use
+`runtime/emulators/mp2000-core-20260803/internal.flash` — it has zero `NE2K`
+hits; it is a Dock-restored core baseline, not a network image.
+
+After `scripts/install-and-launch.sh /packages/harness-tools/harness-tools.pkg`
+the broker logged `Newton tools connected 10.42.0.1:33744` about 15 seconds
+later, and every op answered in **~0.8 s** (`ping` 0.05 s when a poll is already
+parked). Replies, all in `runtime/evidence/toolsround-r10m-wire-*.txt`:
+
+```
+ping            "pong"                                                  200  0.053 s
+battery         "count=0 cap=100% charge=discharging ac=no type=nimh"    200  0.817 s
+store_info      "Internal total=7638048 used=883236 free=6754812 ro=n"   200  0.823 s
+pkg_list        "count=39"                                              200  0.825 s
+pkg_list id=1   "1/39 ScreenBuffer|428|?"                               200  0.856 s
+pkg_list id=39  "39/39 PT100:Scrawl|174416|Internal"                    200  0.814 s
+pkg_list id=99  error "package ordinal must be 1..39"                   422  0.744 s
+```
+
+Four things worth carrying forward:
+
+1. **The wire found a bug `ns_eval` could not.** `R10M`'s `pkg_list` returned
+   `evt.ex.fr.type;type.ref.frame` for every valid ordinal
+   (`…-wire-pkg-list-1-r10m-bug.txt`) while `:PkgEntry(1, 38)` under `ns_eval`
+   returned the right string. Cause: `StringToNumber("1")` is a **`Real`** on
+   this ROM, and `packages[1.0 - 1]` throws that frame-type exception rather
+   than anything index-shaped. `ns_eval` hands the op an integer literal; the
+   wire hands it a string token. Fixed with one `Floor` at the dispatch site and
+   shipped as `HarnessToolsR10N:jbfly`. `get_note` was never affected only
+   because it uses `for position := 1 to ordinal` instead of an array index.
+2. **`GetPackages()` order is not stable across a reboot.** Ordinal 38 was
+   `HarnessToolsR10M` before a `podman restart` and ordinal 39 was
+   `PT100:Scrawl` after. The ordinal is a paging cursor, never an identifier.
+3. **A closed tools client keeps fighting.** Closing `R10M`'s float with
+   `:Close()` (which returned `TRUE`) did not stop its endpoint from retrying,
+   and it raised modal `Communications — Sorry, a problem has occurred.
+   (Connection may have been dropped.)` alerts over the Notepad while `R10N`
+   was answering fine. `podman restart` on the container cleared it — the same
+   remedy as the wedged-NIE-link note in the previous entry.
+4. **Do not use "I can see the float" as the liveness test.** On this flash the
+   `protoFloatNGo` window never painted, while `Visible()` was `TRUE`,
+   `viewCObject` non-nil, `viewBounds` the expected `220,34,316,72`, and
+   `:Dirty()` + `RefreshViews()` changed nothing — and it answered every
+   request. The broker's `Newton tools connected` line is the real signal. The
+   round's screenshot is the Extras drawer instead
+   (`runtime/evidence/toolsround-r10m-wire-screen.png`), which incidentally
+   shows the seeded flash's whole NIE stack: `NE2K`, `Newton Devices`,
+   `Newton Internet`, `NIE Ethernet`, `Internet Setup`, `PT100`.

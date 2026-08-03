@@ -1,0 +1,14 @@
+# 2026-08-03T20:20:58+01:00  instance c2round (flash seeded from internal-before-round9-loader-20260725-195622.flash)
+# package HarnessToolsR10N:jbfly = R10M + the pkg_list Floor fix; broker runtime/raw_pkg_server.py on 10.42.0.1:18081
+$ curl -sS -i -X POST 'http://10.42.0.1:18081/tools?timeout=25' -H 'Content-Type: application/json' -d '{"op":"ping","args":{}}'
+
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.6
+Date: Mon, 03 Aug 2026 19:20:58 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 54
+Connection: close
+
+{"request_id":"16","status":"result","result":"pong"}
+
+--- total 0.052702s http 200
