@@ -60,7 +60,8 @@ agent can complete one task and verify it.
   raw `/packages/…` path, not a `curl -F` upload (`docs/install-paths.md`
   row 1), and a fresh `make emulator-instance-up` Newton is *not* network-ready
   — since fixed by flash seeding rather than by hand.
-- **2026-08-03 — Track D1 code done, live demo pending.** `newton_mcp.py` —
+- **2026-08-03 — Track D1 code done** (its live demo ran the same day, see the
+  D3 entry below). `newton_mcp.py` —
   one stdlib-only file, MCP over stdio (JSON-RPC 2.0, hand-rolled
   `initialize`/`ping`/`tools/list`/`tools/call`) exposing `newton_tool`,
   `emulator_screen/tap/text/key/newtonscript/install`, `build_pkg`, `stage_hw`.
@@ -80,9 +81,8 @@ agent can complete one task and verify it.
   the host. Also observed this session: `10.42.0.1/24` **is** now on `lo`
   (`ip -4 addr show lo`), so the C1–C3 acceptance blocker is gone — that round
   has since run, see the C1–C3 entry above.
-  Still unverified: whether `codex exec` auto-approves MCP tool calls
-  non-interactively, and whether the MCP subprocess inherits
-  `--sandbox read-only`.
+  The two unverified items in this entry were **settled by D3 below**: no, and
+  no.
 - **2026-08-03 — Track E1 done (visible ink).** `examples/ink-capture` is now
   `InkPad2:jbfly` v2: one `MakePolygon` retained per stroke, painted in a
   `ViewDrawScript` on the capture view, with `Dirty()` + `RefreshViews()` at
@@ -100,11 +100,38 @@ agent can complete one task and verify it.
   defect it did not fix: `Encode()` adds the ink view's origin to points that
   are already global, so the host's render is shifted +16,+54 — folded into
   **E2**, which stays open along with hardware install.
-- **Next up:** the D1/D3 live demo (broker + polling Newton + one chat turn
-  that calls `front_app`, then `store_info`/`pkg_list`), then C4. Get a
-  network-ready instance in ~90 s with the flash-seeding recipe in
-  `docs/parallel-emulators.md`, and install `HarnessToolsR10N:jbfly` — `R10M`'s
-  `pkg_list` is broken over the wire.
+- **2026-08-03 — Track D3 done: the keystone demo is live.** From Chat on an
+  emulated Newton (isolated instance `d3demo`, seeded flash), the typed prompt
+  *"use your newton tools. what app is in front, how much free space, and how
+  many packages are installed."* came back on the Newton's own screen 19
+  seconds later as **"Front app: Notepad (paperroll) / Free space: 6,758,976
+  bytes (6.45 MiB) / Installed packages: 39"**. Three `newton_tool` calls ran
+  inside that one turn — `front_app` 0.127 s, `store_info` 0.805 s, `pkg_list`
+  0.796 s — so the model, not the Newton, is the latency. The numbers are
+  device-derived: a pre-flight `curl` before `HarnessClientA3` was installed
+  read `free=6778912`/`count=38`, one package fewer. Evidence:
+  `runtime/evidence/d3demo-screen.png`, `…-chat-turn.txt`, `…-mcp-verify.txt`,
+  `…-prompt-typed.png`; page is `docs/agent-tools.md`, now flipped to
+  live-proven. **Both `[verify]` items are settled and one was a real
+  blocker:** (1) `codex exec` does **not** auto-approve MCP tool calls — the
+  call fails with `user cancelled MCP tool call` until the server entry carries
+  `default_tools_approval_mode = "approve"` (valid values `auto`/`prompt`/
+  `writes`/`approve`; `codex mcp add` has no flag for it, so `make server-mcp`
+  now writes it and the host registration has it by hand); (2) the MCP
+  subprocess is **not** inside `--sandbox read-only` — `build_pkg` wrote a real
+  `.pkg` under that flag, so no `--add-dir` is needed *and* the sandbox is not
+  a rail for this surface, only `newton_mcp.py`'s own D2 rails are.
+  `server.py` ran on the **host** per the container-networking finding, and
+  `HarnessClientA3` needed no rebuild — its hardcoded `10.42.0.1:6801` reaches
+  a host process on the `lo` alias just like the tools long-poll. Two
+  operational notes: the tools client and the chat client coexist on one Newton
+  but the tools client's reconnect throws a cosmetic modal `Communications`
+  slip over the chat window mid-turn; and `xdotool` typing drops the first
+  characters and mangles shifted keys, so tap, wait, then type in chunks.
+- **Next up:** C4 (`note_list` / `get_note` v2), then E2, F1, F2, G per
+  Sequencing. Two things D3 leaves open: none of the `emulator_*` tools or
+  `stage_hw` has been driven by an agent yet (only by tests), and the whole
+  tools channel has still never run on the **physical** MessagePad.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -154,13 +181,15 @@ Emulator-proven, **not yet on hardware**:
   POSTs `/note`, and creates a native reply note via the proven two-step
   `MakeTextNote(answer, nil)` + `NewNote` path.
 
-The critical architectural gap: **the agent has no tools.** `server.py` only
-relays chat. `/tools`, `/ink`, the emulator control API, and the build
-toolchain all exist as separate host surfaces that a *human* curls. Nothing
-lets the agent behind the chat session call them. Closing that gap is Track D
-and it is the heart of this roadmap. **Partly closed 2026-08-03**: the MCP
-server that calls them exists (`newton_mcp.py`, `docs/agent-tools.md`) and is
-registered with codex; no live chat turn has driven it yet.
+The critical architectural gap was: **the agent has no tools.** `/tools`,
+`/ink`, the emulator control API, and the build toolchain all existed as
+separate host surfaces that a *human* curled, and nothing let the agent behind
+the chat session call them. **Closed 2026-08-03** by Track D: `newton_mcp.py`
+exposes them as MCP tools (`docs/agent-tools.md`), and on 2026-08-03 a prompt
+typed into Chat on an emulated Newton drove three of them and answered with the
+device's own numbers (D3 entry above). What is left is breadth, not shape — the
+`emulator_*` tools and `stage_hw` have not been driven by an agent yet, and
+none of it has run against the physical MessagePad.
 
 ## Track A — repo cleanup and doc truth (first; one cheap-agent session)
 
@@ -294,18 +323,21 @@ server** (stdlib-thin, one file) exposing:
 gains these without changing the chat wire protocol. If the backend ever
 switches to Claude, the same MCP server plugs in. Steps:
 
-- **D1. Code done 2026-08-03, live half open.** `newton_mcp.py` written and
-  registered (`make server-mcp`); `docs/agent-tools.md` is the page. Still to
-  do: the chat turn from the client — "what app is front on the newton?" →
-  agent calls `front_app` → answers in chat.
+- **D1. Done 2026-08-03.** `newton_mcp.py` written and registered
+  (`make server-mcp`, or `codex mcp add newton` on the host);
+  `docs/agent-tools.md` is the page. Its acceptance — a chat turn from the
+  Newton client whose answer comes from `front_app` — passed as part of D3.
 - **D2. Done 2026-08-03, in code.** Rails live in `newton_mcp.py`, not in a
   prompt: device-mutating `newton_tool` ops return "needs human confirmation"
   with the exact command; the shared emulator refuses mutating ops without
   `NEWTON_ALLOW_SHARED=1` while `emulator_screen` stays open; no
   physical-install tool exists in the surface at all. Tested in
   `test_newton_mcp.py`.
-- **D3.** End-to-end demo gate: from Chat on the emulated Newton, ask the
-  agent to check free space (C2) and report installed packages (C3).
+- **D3. Done 2026-08-03 — gate passed.** From Chat on the emulated Newton, one
+  prompt drove `front_app`, `store_info` (C2) and `pkg_list` (C3) and answered
+  `Free space: 6,758,976 bytes (6.45 MiB)` / `Installed packages: 39` on the
+  device's own screen. Status log entry above; `docs/agent-tools.md` "The live
+  demo (D3)"; `runtime/evidence/d3demo-*`.
 
 ## Track E — finish ink and the HWR-assist loop (2 sessions)
 

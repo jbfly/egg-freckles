@@ -759,3 +759,60 @@ Four things worth carrying forward:
    (`runtime/evidence/toolsround-r10m-wire-screen.png`), which incidentally
    shows the seeded flash's whole NIE stack: `NE2K`, `Newton Devices`,
    `Newton Internet`, `NIE Ethernet`, `Internet Setup`, `PT100`.
+
+## 2026-08-03 — Track D3: the agent behind chat calls the Newton's tools
+
+The keystone round. A prompt typed on an emulated Newton reached `codex`, the
+model called `newton_tool` three times through `newton_mcp.py`, and the answer
+rendered in the Newton's own chat transcript with the device's real numbers.
+Nineteen seconds end to end. Full page: `docs/agent-tools.md`, "The live demo
+(D3)"; evidence `runtime/evidence/d3demo-*`.
+
+```
+You:   use your newton tools. what app is in front, how much free
+       space, and how many packages are installed.
+Agent: Front app: Notepad (paperroll)
+       Free space: 6,758,976 bytes (6.45 MiB)
+       Installed packages: 39
+```
+
+Setup was the cheap path throughout: a fresh instance `d3demo`, flash seeded
+from `internal-before-round9-loader-20260725-195622.flash` (~90 s, the
+`docs/parallel-emulators.md` recipe — it works exactly as written, PCMCIA
+Ethernet slip and all), then `HarnessToolsR10N` and `HarnessClientA3` installed
+over `POST /install` and opened with one `ns_eval` `:Open()` each.
+
+Six things worth carrying forward:
+
+1. **`codex exec` does not auto-approve MCP tool calls, and the failure is
+   disguised.** The tool call is *attempted* and comes back
+   `"error": {"message": "user cancelled MCP tool call"}` — no human, no
+   approval, auto-decline. Nothing in the output says "approval". The cure is
+   `default_tools_approval_mode = "approve"` in the server's config block;
+   `codex mcp add` has no flag for it, so it is a hand-edit (or the new step in
+   `make server-mcp`). Valid values are `auto`, `prompt`, `writes`, `approve`,
+   which is knowable only from codex's rejection message for a bad one.
+2. **`--sandbox read-only` does not reach the MCP server subprocess.** Under
+   that flag, `build_pkg` ran `make` and wrote a real `.pkg`. Good news for
+   `build_pkg`/`stage_hw`; a standing warning otherwise, because it means the
+   sandbox is not a rail here. The only rails on this surface are the ones
+   coded into `newton_mcp.py`.
+3. **`HarnessClientA3` needed no rebuild to talk to a host `server.py`.** Its
+   hardcoded `serverAddress: [10, 42, 0, 1]` / `serverPort: 6801` lands on the
+   host's `lo` alias exactly like the tools long-poll does. Run `server.py`
+   with plain `python3` on the host — that is the shape the container
+   networking finding calls for, and it is now proven, not just recommended.
+4. **The model batched the three tool calls through code mode.** It emitted one
+   `exec` script doing `await Promise.all([tools.mcp__newton__newton_tool(…) ×3])`
+   rather than three tool turns. The tools are re-exported into that sandbox as
+   `mcp__<server>__<tool>`, and the parallel calls serialised fine on the
+   broker's single poll slot.
+5. **Two NIE clients on one Newton is noisy but works.** Mid-turn the broker
+   logged one `Newton tools disconnected` / `connected`, and a modal
+   `Communications — Sorry, a problem has occurred` slip appeared *over the
+   chat window*. The turn completed correctly; the slip has a close box. Same
+   family as the closed-client alerts in the previous entry — expect it.
+6. **`xdotool` typing into a Newton field is lossy.** The first attempt lost
+   the leading `Use ` and turned `:` into `;` and `?` into `/`. Tap the field,
+   wait ~3 s, then send short chunks with a pause between them. Check the
+   screenshot before tapping Send.

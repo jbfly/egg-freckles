@@ -5,9 +5,13 @@ gap named in `docs/ROADMAP.md`: "the agent has no tools". `server.py` still
 only relays chat; the *agent* behind that chat (`codex exec`,
 `server.py:227-260`) now gets the host's Newton surfaces as MCP tools.
 
-**Status 2026-08-03: code + registration + tests done, live demo pending.**
-Nothing in this page has been exercised against a running broker or emulator
-yet — see "What the live demo still has to do" at the bottom.
+**Status 2026-08-03: LIVE-PROVEN (Track D3).** A prompt typed into Chat on an
+emulated Newton made the agent call `newton_tool` three times and answer with
+the device's real numbers, on screen, in 19 seconds. The transcript, the three
+tool calls and the screenshot are at the bottom of this page under "The live
+demo (D3)". `emulator_screen/tap/text/key/newtonscript/install` and `stage_hw`
+are still only exercised by tests; `build_pkg` ran for real (it is what settled
+the sandbox question below).
 
 `newton_mcp.py` is one stdlib-only file at the repo root. It speaks MCP over
 stdio as newline-delimited JSON-RPC 2.0 and implements exactly `initialize`,
@@ -66,16 +70,7 @@ named volume `codex-home`. That volume is also where `make server-login` puts
 `auth.json`, so registration follows the same one-shot-per-volume pattern:
 
 ```sh
-make server-mcp      # podman-compose run --rm server codex mcp add newton -- python3 /app/newton_mcp.py
-```
-
-which writes (verified by running the same `codex mcp add` against a scratch
-`CODEX_HOME` on the host, codex-cli 0.146.0):
-
-```toml
-[mcp_servers.newton]
-command = "python3"
-args = ["/app/newton_mcp.py"]
+make server-mcp
 ```
 
 `containers/server.Dockerfile` copies `newton_mcp.py` and
@@ -83,26 +78,56 @@ args = ["/app/newton_mcp.py"]
 the chat wire protocol is untouched, and if the backend is ever swapped for
 Claude the same MCP server plugs in.
 
-Running the server on the *host* instead (see the next section — this is the
-recommended shape for the emulator tools), the same registration is:
+**On the host** — the recommended shape for tool work, see the networking
+section below — the registration used for the live demo was exactly:
 
 ```sh
 codex mcp add newton -- python3 /home/jbfly/git/newton-harness/newton_mcp.py
 ```
 
-Two things are **unverified** and are the first things the live-demo session
-should check:
+which appended this to `~/.codex/config.toml` (a symlink to
+`~/git/ai-ops/moon/config.toml` on this machine), plus one line that has to be
+added by hand:
 
-- **`[verify]` whether `codex exec` auto-approves MCP tool calls** in
-  non-interactive mode, or whether `[mcp_servers.newton]` needs an approval
-  setting (the host config uses `default_tools_approval_mode = "prompt"` for
-  another server, `~/.codex/config.toml`). A prompt-mode tool in a
-  non-interactive run has nobody to ask.
-- **`[verify]` whether the MCP server subprocess is inside the
-  `--sandbox read-only` policy** that `server.py:235` passes. If it is,
-  `build_pkg`/`stage_hw` cannot write and would need `--add-dir` or a
-  different sandbox mode; `newton_tool` and the emulator tools only need
-  network and would be unaffected either way.
+```toml
+[mcp_servers.newton]
+command = "python3"
+args = ["/home/jbfly/git/newton-harness/newton_mcp.py"]
+default_tools_approval_mode = "approve"   # added by hand -- see below
+```
+
+Confirm with `codex mcp get newton`, which prints the approval mode as its own
+line. This registration is meant to stay: leave it in place. Two side effects
+worth knowing — `codex mcp add` rewrites the *whole* config file, so it
+reflowed an unrelated `disabled_tools` array onto one line, and it does not
+touch anything else.
+
+### The two `[verify]` items, settled 2026-08-03
+
+Full transcripts: `runtime/evidence/d3demo-mcp-verify.txt`.
+
+1. **Does `codex exec` auto-approve MCP tool calls non-interactively? No.**
+   With the plain two-line registration the call is *attempted and then
+   fails*: the JSONL carries
+   `"error": {"message": "user cancelled MCP tool call"}, "status": "failed"`.
+   Nobody is there to answer the approval request, so it is auto-declined —
+   which reads like a broken tool, not like a missing permission.
+   The fix is `default_tools_approval_mode = "approve"` on the server entry.
+   `codex mcp add` has **no flag** for it (`codex mcp add --help`), so it must
+   be written into the TOML; `make server-mcp` now does that step for the
+   container. The valid values, from codex's own rejection message, are
+   `auto`, `prompt`, `writes`, `approve` — and the default (`auto`) is what
+   fails above. With `approve` the identical prompt returned
+   `{"request_id":"5","status":"result","result":"Notepad (paperroll)"}`.
+2. **Is the MCP server subprocess inside `--sandbox read-only`? No.**
+   `--sandbox` governs the commands the *model* runs, not the MCP server
+   process. Proof: `examples/hello/hello.pkg` was deleted, then a
+   `codex exec --sandbox read-only` run called `build_pkg(dir="examples/hello")`
+   and the tool wrote the file (1104 bytes). So `build_pkg`/`stage_hw` need no
+   `--add-dir` and no sandbox change. The flip side is a security note:
+   **the sandbox flag is not a rail for this tool surface.** The only rails on
+   these tools are the ones coded into `newton_mcp.py` (Track D2), and
+   `approve` means the agent uses them without asking.
 
 ## Container networking — measured, 2026-08-03
 
@@ -133,7 +158,8 @@ What that means:
 - **`build_pkg` / `stage_hw` do not work from inside the container either** —
   the image has no `make`, no `tntk`, and no repo checkout.
 
-**Recommended fix: run `server.py` on the host for agent-tool work**, where
+**Recommended fix — and what the D3 demo did: run `server.py` on the host for
+agent-tool work**, where
 `codex`, `podman`, `make` and `127.0.0.1` all already exist (`python3
 server.py` needs only stdlib; `codex` is at `~/.local/bin/codex`). Keep the
 container for the chat-only deployment. The alternatives, for the record and
@@ -154,19 +180,76 @@ to lift under `NEWTON_ALLOW_SHARED=1`, and `newton_mcp.http_request` is
 monkeypatched for the `newton_tool` URL/body assertion and the
 `emulator_screen` image encoding. Suite total: 45 passed.
 
-## What the live demo still has to do (D3)
+## The live demo (D3) — 2026-08-03
 
-1. Start the tools broker on the host (`pkg_publisher.py`, 18081) and get a
-   Newton — physical or a network-ready emulator — polling it. Note the
-   ROADMAP's blocker is gone: `10.42.0.1/24` **is** on `lo` as of 2026-08-03.
-2. Register the server (`make server-mcp`, or the host `codex mcp add` above)
-   and settle the two `[verify]` items in "How it is registered".
-3. Prove D1's acceptance: from Chat on the Newton, ask *"what app is front on
-   the newton?"*; the agent calls `newton_tool(op="front_app")` and the answer
-   comes back as a chat reply.
-4. Prove D3's gate: ask for free space and installed packages — `store_info`
-   and `pkg_list`, the two C1–C3 ops that have returned real values under
-   `ns_eval` but have never travelled the `/tools` link
-   (`runtime/evidence/toolsround-r10m-nseval.txt`, ROADMAP status log).
-5. Record the transcript and the timings under `runtime/evidence/` and update
-   this page's status line.
+Isolated emulator instance `d3demo`, flash seeded from
+`internal-before-round9-loader-20260725-195622.flash`
+(`docs/parallel-emulators.md`), `HarnessToolsR10N:jbfly` and
+`HarnessClientA3:jbfly` both installed on it. Everything host-side:
+
+| Piece | Where | Note |
+|---|---|---|
+| `runtime/raw_pkg_server.py` | `10.42.0.1:18081` | tools broker |
+| `server.py` | `0.0.0.0:6801` | host python3, `NEWTON_CODEX_TIMEOUT=300` |
+| `codex` | `~/.local/bin/codex` 0.146.0 | picked up from `PATH` by `server.py:235` |
+
+The chat client needed **no change and no rebuild**: `HarnessClientA3`'s
+hardcoded `serverAddress: [10, 42, 0, 1]` / `serverPort: 6801`
+(`examples/harness-client/Main.newt:42-43`) reaches a host process on the `lo`
+alias exactly the way the tools long-poll does. `server.py` logged
+`connect ('10.42.0.1', 40642)`.
+
+**The prompt, typed on the Newton with the on-screen keyboard:**
+
+> use your newton tools. what app is in front, how much free space, and how
+> many packages are installed.
+
+**The reply, rendered in the Newton's chat transcript 19 seconds later:**
+
+```
+Front app: Notepad (paperroll)
+Free space: 6,758,976 bytes (6.45 MiB)
+Installed packages: 39
+```
+
+Screenshot: [`d3demo-screen.png`](../runtime/evidence/d3demo-screen.png).
+Full chain: [`d3demo-chat-turn.txt`](../runtime/evidence/d3demo-chat-turn.txt).
+
+Three `newton_tool` calls happened inside that one turn, and the codex rollout
+records each with its own duration:
+
+| call | broker reply | duration |
+|---|---|---:|
+| `newton_tool(op="front_app", timeout=30)` | `{"request_id":"6","status":"result","result":"Notepad (paperroll)"}` | 0.127 s |
+| `newton_tool(op="store_info", timeout=30)` | `…"result":"Internal total=7638048 used=879072 free=6758976 ro=n"` | 0.805 s |
+| `newton_tool(op="pkg_list", timeout=30)` | `…"result":"count=39"` | 0.796 s |
+
+That is the same warm-link profile as the C1–C3 wire round, so essentially all
+of the 19 seconds is the model, not the Newton.
+
+**Why the answer could only have come from the device.** `free=6758976` and
+`count=39` are the numbers the reply quotes verbatim. A pre-flight `curl`
+against the same broker minutes earlier — before `HarnessClientA3` was
+installed onto this instance — read `free=6778912` and `count=38`. The pair
+moved by exactly one package.
+
+Three things learned running it:
+
+- **The model batched the three calls through code mode.** Rather than three
+  separate tool-call turns it emitted one `exec` script,
+  `await Promise.all([tools.mcp__newton__newton_tool({op:"front_app", …}), …])`.
+  The tools are re-exported into that sandbox as `mcp__<server>__<tool>`, and
+  the parallel calls serialised correctly on the broker's single poll slot.
+- **The tools client and the chat client coexist on one Newton, noisily.**
+  Both hold NIE endpoints. During the turn the broker logged one
+  `Newton tools disconnected` / `Newton tools connected 10.42.0.1:52144`, and
+  the Newton raised the familiar modal `Communications — Sorry, a problem has
+  occurred` slip *over the chat window*. The turn completed correctly anyway;
+  the slip has a close box and is cosmetic. Expect it, do not chase it.
+- **`xdotool` typing drops the first characters and mangles shifted keys.**
+  The first attempt lost the leading `Use ` and turned `:` into `;` and `?`
+  into `/`. Tap the field, wait ~3 s, then type in short chunks with a pause
+  between them (`runtime/evidence/d3demo-prompt-typed.png` is the good one).
+
+Not yet demonstrated: any of this against the **physical** MessagePad — the
+tools client has still never run on hardware (ROADMAP "Where we are").

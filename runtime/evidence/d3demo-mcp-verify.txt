@@ -1,0 +1,49 @@
+Track D3 -- the two [verify] items in docs/agent-tools.md, settled empirically
+Host: codex-cli 0.146.0, CODEX_HOME=~/.codex, 2026-08-03
+MCP registration under test:
+  codex mcp add newton -- python3 /home/jbfly/git/newton-harness/newton_mcp.py
+
+==========================================================================
+[verify] 1 -- does `codex exec` auto-approve MCP tool calls non-interactively?
+==========================================================================
+VERDICT: NO, not by default. With only the plain registration above, a
+non-interactive `codex exec` attempts the call and it comes back FAILED with
+`user cancelled MCP tool call` -- the approval request has nobody to answer it.
+
+Command (broker up, HarnessToolsR10N polling on instance d3demo):
+  codex exec --sandbox read-only --skip-git-repo-check --cd <tmp> --json \
+    'Call the MCP tool newton_tool with op="front_app" (args {}) ...'
+
+Raw JSONL events:
+  {"type": "item.completed", "item": {"id": "item_0", "type": "agent_message", "text": "I\u2019m locating the requested MCP tool and will return its raw result unchanged."}}
+  {"type": "item.started", "item": {"id": "item_1", "type": "mcp_tool_call", "server": "newton", "tool": "newton_tool", "arguments": {"op": "front_app", "args": {}}, "result": null, "error": null, "status": "in_progress"}}
+  {"type": "item.completed", "item": {"id": "item_1", "type": "mcp_tool_call", "server": "newton", "tool": "newton_tool", "arguments": {"op": "front_app", "args": {}}, "result": null, "error": {"message": "user cancelled MCP tool call"}, "status": "failed"}}
+  {"type": "item.completed", "item": {"id": "item_2", "type": "agent_message", "text": "`user cancelled MCP tool call`"}}
+
+FIX: `default_tools_approval_mode` on the server entry. Valid variants,
+from codex's own error text when given a bad one:
+  Error loading config.toml: unknown variant `never`, expected one of
+  `auto`, `prompt`, `writes`, `approve`
+  in `mcp_servers.newton.default_tools_approval_mode`
+`approve` is the one that auto-approves. Same command with
+-c 'mcp_servers.newton.default_tools_approval_mode="approve"':
+
+  {"type": "item.completed", "item": {"id": "item_1", "type": "mcp_tool_call", "server": "newton", "tool": "newton_tool", "arguments": {"op": "front_app", "args": {}}, "result": {"content": [{"type": "text", "text": "{\"request_id\":\"5\",\"status\":\"result\",\"result\":\"Notepad (paperroll)\"}"}], "structured_content": null}, "error": null, "status": "completed"}}
+
+==========================================================================
+[verify] 2 -- is the MCP server subprocess inside `--sandbox read-only`?
+==========================================================================
+VERDICT: NO. `--sandbox` governs the model's own shell commands, not the
+MCP server process. Proof: with `--sandbox read-only` on the command line,
+build_pkg ran `make -C examples/hello` and WROTE examples/hello/hello.pkg.
+The file had been deleted immediately before the run.
+
+  $ rm -f examples/hello/hello.pkg
+  $ codex exec --sandbox read-only ... 'Call the MCP tool build_pkg with dir="examples/hello"'
+  {"type": "item.completed", "item": {"id": "item_1", "type": "mcp_tool_call", "server": "newton", "tool": "build_pkg", "arguments": {"dir": "examples/hello"}, "result": {"content": [{"type": "text", "text": "/home/jbfly/git/newton-harness/examples/hello/hello.pkg\n...\nproto: @180, \n\t\tviewBounds: {\n\t\t\tleft: 24, \n\t\t\ttop: 120, \n\t\t\tright: 296, \n\t\t\tbottom: 210\n\t\t}, \n\t\ttitle: \"Harness Hello\", \n\t\tappSymbol: '|HarnessHello:jbfly|, \n\t\tstepChildren: [\n\t\t\t{\n\t\t\t\t_proto: @218, \n\t\t\t\tviewBounds: {#325b10c1}, \n\t\t\t\ttext: \"Newton harness is alive!\", \n\t\t\t\tviewFont: @91\n\t\t\t}\n\t\t]\n\t}\n}\nPackage hello.pkg created.\nmake: Leaving directory '/home/jbfly/git/newton-harness/examples/hello'"}], "structured_content": null}, "error": null, "status": "completed"}}
+  $ ls -la examples/hello/hello.pkg
+  -rw-r--r-- 1 jbfly jbfly 1104 Aug  3 20:36 examples/hello/hello.pkg
+
+Consequence: build_pkg and stage_hw need no --add-dir and no sandbox change.
+It also means the sandbox flag is NOT a rail for the MCP surface -- the only
+rails on these tools are the ones coded into newton_mcp.py (Track D2).

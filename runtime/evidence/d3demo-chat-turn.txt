@@ -1,0 +1,122 @@
+Track D3 -- the keystone chat turn: emulated Newton -> server.py -> codex
+-> newton_mcp -> POST /tools -> HarnessToolsR10N -> back to the Newton screen.
+2026-08-03, isolated emulator instance d3demo (seeded flash, NIE live).
+
+Topology, all on the host:
+  runtime/raw_pkg_server.py   10.42.0.1:18081   tools broker
+  server.py                   0.0.0.0:6801      chat, NEWTON_CODEX_TIMEOUT=300
+  HarnessToolsR10N:jbfly      polling 18081 from the Newton
+  HarnessClientA3:jbfly       dialling 10.42.0.1:6801 from the same Newton
+
+==========================================================================
+1. What was typed on the Newton and what came back (state/session.json)
+==========================================================================
+{
+  "version": 1,
+  "thread_id": "019fc923-c03a-7fd3-b7c7-4fe1670ebd77",
+  "created_at": "2026-08-03T19:39:00+00:00",
+  "history": [
+    {
+      "role": "user",
+      "content": "use your newton tools. what app is in front, how much free space, and how many packages are installed.",
+      "ts": "2026-08-03T19:39:51+00:00"
+    },
+    {
+      "role": "assistant",
+      "content": "Front app: Notepad (paperroll)\nFree space: 6,758,976 bytes (6.45 MiB)\nInstalled packages: 39",
+      "ts": "2026-08-03T19:40:10+00:00"
+    }
+  ],
+  "updated_at": "2026-08-03T19:40:10+00:00"
+}
+
+Turn latency: 19:39:51 -> 19:40:10 UTC = 19 s.
+
+==========================================================================
+2. server.py log
+==========================================================================
+[newton] ts=2026-08-03T19:37:47+00:00 serving on 0.0.0.0:6801 fake=False state=/tmp/claude-1000/-home-jbfly-git-newton-harness/682e8501-fe83-4a48-b2e5-89d4ae637ad5/scratchpad/state
+[newton] ts=2026-08-03T19:38:14+00:00 connect ('10.42.0.1', 40642)
+
+==========================================================================
+3. The three MCP tool calls inside that turn (codex rollout JSONL)
+==========================================================================
+Rollout: /home/jbfly/.codex/sessions/2026/08/03/rollout-2026-08-03T20-39-51-019fc923-c03a-7fd3-b7c7-4fe1670ebd77.jsonl
+
+The model batched them through code mode:
+const calls = await Promise.all([
+  tools.mcp__newton__newton_tool({op:"front_app", timeout:30}),
+  tools.mcp__newton__newton_tool({op:"store_info", timeout:30}),
+  tools.mcp__newton__newton_tool({op:"pkg_list", timeout:30})
+]);
+calls.forEach((r,i) => { text(JSON.stringify({i, r})); });
+
+
+{"timestamp": "2026-08-03T19:40:04.655Z", "type": "event_msg", "payload": {"type": "mcp_tool_call_end", "call_id": "exec-791b5916-9549-460d-a0d9-4438b852f482", "invocation": {"server": "newton", "tool": "newton_tool", "arguments": {"op": "front_app", "timeout": 30}}, "duration": {"secs": 0, "nanos": 126824174}, "result": {"Ok": {"content": [{"type": "text", "text": "{\"request_id\":\"6\",\"status\":\"result\",\"result\":\"Notepad (paperroll)\"}"}], "isError": false}}}}
+
+{"timestamp": "2026-08-03T19:40:05.495Z", "type": "event_msg", "payload": {"type": "mcp_tool_call_end", "call_id": "exec-33a05213-ffb5-4bf1-98a5-904874b5eb88", "invocation": {"server": "newton", "tool": "newton_tool", "arguments": {"op": "store_info", "timeout": 30}}, "duration": {"secs": 0, "nanos": 804878913}, "result": {"Ok": {"content": [{"type": "text", "text": "{\"request_id\":\"7\",\"status\":\"result\",\"result\":\"Internal total=7638048 used=879072 free=6758976 ro=n\"}"}], "isError": false}}}}
+
+{"timestamp": "2026-08-03T19:40:06.323Z", "type": "event_msg", "payload": {"type": "mcp_tool_call_end", "call_id": "exec-4cc904b0-7353-4434-a0bf-819320d43db9", "invocation": {"server": "newton", "tool": "newton_tool", "arguments": {"op": "pkg_list", "timeout": 30}}, "duration": {"secs": 0, "nanos": 796425903}, "result": {"Ok": {"content": [{"type": "text", "text": "{\"request_id\":\"8\",\"status\":\"result\",\"result\":\"count=39\"}"}], "isError": false}}}}
+
+==========================================================================
+4. Broker log for the same seconds (local time, UTC+1)
+==========================================================================
+serving http://10.42.0.1:18081
+Newton tools connected 10.42.0.1:49764
+10.42.0.1 - - [03/Aug/2026 20:32:19] "POST /tools?timeout=30 HTTP/1.1" 400 -
+10.42.0.1 - - [03/Aug/2026 20:32:19] "POST /tools?timeout=30 HTTP/1.1" 400 -
+10.42.0.1 - - [03/Aug/2026 20:32:19] "POST /tools?timeout=30 HTTP/1.1" 400 -
+10.42.0.1 - - [03/Aug/2026 20:32:19] "POST /tools?timeout=30 HTTP/1.1" 400 -
+Newton tools disconnected
+Newton tools connected 10.42.0.1:42590
+10.42.0.1 - - [03/Aug/2026 20:32:48] "POST /tools?timeout=30 HTTP/1.1" 200 -
+10.42.0.1 - - [03/Aug/2026 20:32:49] "POST /tools?timeout=30 HTTP/1.1" 200 -
+10.42.0.1 - - [03/Aug/2026 20:32:50] "POST /tools?timeout=30 HTTP/1.1" 200 -
+10.42.0.1 - - [03/Aug/2026 20:32:51] "POST /tools?timeout=30 HTTP/1.1" 200 -
+10.42.0.1 - - [03/Aug/2026 20:35:27] "POST /tools?timeout=20 HTTP/1.1" 200 -
+Newton tools disconnected
+Newton tools connected 10.42.0.1:52144
+10.42.0.1 - - [03/Aug/2026 20:40:04] "POST /tools?timeout=30 HTTP/1.1" 200 -
+10.42.0.1 - - [03/Aug/2026 20:40:05] "POST /tools?timeout=30 HTTP/1.1" 200 -
+10.42.0.1 - - [03/Aug/2026 20:40:06] "POST /tools?timeout=30 HTTP/1.1" 200 -
+
+==========================================================================
+5. Why the numbers prove the device answered
+==========================================================================
+store_info returned free=6758976; the chat reply says '6,758,976 bytes'.
+pkg_list returned count=39; the chat reply says 'Installed packages: 39'.
+Both moved during this session in exactly the way installing a package
+moves them -- the pre-flight curl below, taken before HarnessClientA3 was
+installed, read free=6778912 and count=38.
+
+
+=== POST /tools {"op":"ping","args":{}} ===
+Connection: close
+
+{"request_id":"1","status":"result","result":"pong"}
+
+time_total=14.672223
+
+=== POST /tools {"op":"front_app","args":{}} ===
+Connection: close
+
+{"request_id":"2","status":"result","result":"Notepad (paperroll)"}
+
+time_total=0.812895
+
+=== POST /tools {"op":"store_info","args":{}} ===
+Connection: close
+
+{"request_id":"3","status":"result","result":"Internal total=7638048 used=859136 free=6778912 ro=n"}
+
+time_total=0.829485
+
+=== POST /tools {"op":"pkg_list","args":{}} ===
+Connection: close
+
+{"request_id":"4","status":"result","result":"count=38"}
+
+time_total=0.831941
+
+Screenshot of the reply on the Newton: runtime/evidence/d3demo-screen.png
+Screenshot of the prompt as typed:     runtime/evidence/d3demo-prompt-typed.png

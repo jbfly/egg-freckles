@@ -31,8 +31,13 @@ server-login: check-rootless
 # [mcp_servers.newton] into the `codex-home` volume, the same place
 # server-login writes auth.json -- run it once per volume, and again after a
 # `podman volume rm newton-harness_codex-home`. docs/agent-tools.md.
+# The second line is not optional: `codex mcp add` has no flag for it, and
+# without default_tools_approval_mode = "approve" every tool call in a
+# non-interactive `codex exec` fails with `user cancelled MCP tool call`
+# (runtime/evidence/d3demo-mcp-verify.txt). Idempotent.
 server-mcp: check-rootless
 	$(COMPOSE) run --rm server codex mcp add newton -- python3 /app/newton_mcp.py
+	$(COMPOSE) run --rm server python3 -c "import pathlib; p = pathlib.Path('/home/node/.codex/config.toml'); t = p.read_text(); k = 'default_tools_approval_mode'; a = 'args = [\"/app/newton_mcp.py\"]'; p.write_text(t if k in t else t.replace(a, a + '\n' + k + ' = \"approve\"'))"
 	$(COMPOSE) run --rm server codex mcp get newton
 
 server-up: check-rootless

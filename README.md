@@ -82,9 +82,23 @@ emulator control API, and the package build — register the MCP server once per
 make server-mcp
 ```
 
-That writes `[mcp_servers.newton]` into the same volume as the login. Read
-`docs/agent-tools.md` first: the safety rails, and the measured limits on what
-those tools can reach from inside the container.
+That writes `[mcp_servers.newton]` into the same volume as the login, with the
+`default_tools_approval_mode = "approve"` line without which every tool call in
+a non-interactive run fails.
+
+**For tool work, run the server on the host instead** — `python3 server.py`
+needs only stdlib, and only there do `podman`, `make` and `127.0.0.1` exist for
+the `emulator_*` and build tools:
+
+```sh
+codex mcp add newton -- python3 $PWD/newton_mcp.py   # once; then add the
+                                                     # approval line by hand
+python3 server.py                                    # 0.0.0.0:6801
+```
+
+Read `docs/agent-tools.md` first: the safety rails, the measured limits on what
+these tools reach from inside the container, and the live demo that proved the
+host shape.
 
 The Codex login and Newton conversation state live in rootless named volumes. A
 container replacement does not discard them.
