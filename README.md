@@ -1,218 +1,201 @@
-# Newton harness
+# Egg Freckles
 
-**The harness uses rootless Podman for an always-on Newton server and an optional headless Einstein development environment.**
+**Modern AI for the Apple Newton MessagePad — Claude Code for a 1997 PDA.**
 
-*Prepared 2026-07-23 from the locally verified Einstein, `tntk`, cDCL, and NEWT/0 builds. Podman is daemonless: agents can operate these containers without access to a root-owned Docker socket.*
+In 1993 a *Doonesbury* strip put a Newton in Michael Doonesbury's hands, had him
+write "I am writing a test sentence," and had the Newton read it back as **"Egg
+freckles?"** Apple's engineers took the joke on the chin and buried it in the
+ROM: scrawl *egg freckles* in NewtonOS and the machine still answers back. This
+project gives that machine the assistant it needed 33 years ago — a frontier
+model that reads your ink instead of guessing at it, answers on the Newton's own
+screen, and has real tools for managing the device it lives on.
 
-## Security boundary
+It also writes Newton software. Ask for an app and the agent designs it, builds
+a `.pkg` with the period toolchain, installs it into an emulated MessagePad,
+taps the buttons, looks at the screen, and iterates.
 
-All services run in a rootless user namespace with `keep-id`. Container root maps
-to an unprivileged host identity, not host root. The project deliberately does
-not enable or mount the Podman API socket.
+## What works today
 
-This protects the host from container-to-root escalation through a daemon
-socket. It does not isolate an agent from files that the host user can already
-read: agents run as that user. Keep bind mounts narrow, keep private mounts
-read-only, and do not add host devices or broad home-directory mounts.
+Everything below has run. The screenshots are the Newton's own framebuffer,
+320×480, straight out of the emulator.
 
-The emulator's noVNC and control ports bind only to loopback. Port `6801` binds
-to the host network because a physical Newton must be able to reach the server.
+**Chat with a frontier model, from the Newton.** A native NewtonScript client
+talks to a host server over WiFi in a framed ASCII protocol. Proven on the
+physical MessagePad 2000 on 2026-08-02 — a full round trip, 19,266 bytes
+acknowledged — and continuously in the Einstein emulator since.
 
-## One-time host setup
+**The agent has tools for the device.** Battery, storage, installed packages,
+notes, and the front application, exposed to the agent over MCP. The prompt in
+this screenshot was typed on the Newton; the numbers in the reply came back off
+the Newton:
 
-On Arch Linux:
+![Newton chat answering with device-derived numbers](runtime/evidence/d3demo-screen.png)
 
-```sh
-sudo pacman -S --needed podman podman-compose passt fuse-overlayfs
-```
+*"Front app: Notepad (paperroll) / Free space: 6,758,976 bytes (6.45 MiB) /
+Installed packages: 39"* — three tool calls inside one turn, 0.13 s, 0.81 s and
+0.80 s on the wire. The model is the slow part, not the Newton.
 
-That is the only routine requiring root. Do not add the user to the `docker`
-group, do not run `sudo podman`, and do not enable `podman.socket`.
+**Ink goes to a vision model.** Newton handwriting recognition was the joke;
+this skips it. Draw on the canvas, tap Send, and the strokes are encoded,
+rendered host-side and read by a vision model whose answer joins the transcript.
 
-This host already has subordinate UID/GID ranges, unprivileged user namespaces,
-cgroup v2, and systemd user lingering enabled. On another host, verify them
-before relying on reboot-time startup:
+| Drawn on the Newton | Read back into the chat |
+|---|---|
+| ![Ink capture canvas with two strokes](runtime/evidence/f2round-13-ink-drawn.png) | ![The vision model's reading in the transcript](runtime/evidence/f2round-16-ink-reply.png) |
 
-```sh
-podman info --format '{{.Host.Security.Rootless}}'
-loginctl show-user "$USER" -p Linger
-```
+**Notes in, notes out.** `Ask Note` sends the current note as the prompt —
+splitting it across protocol frames if it is long — and `Save Note` writes the
+reply back as a real NewtonOS note you can find in the Notepad.
 
-## What runs where
+**The agent builds Newton apps.** Told to build a dice roller, an agent ran the
+whole loop in six tool calls with no intervention and no failed build: compile,
+install into an isolated emulator, launch, screenshot, tap the button,
+screenshot again.
 
-| Service | Purpose | Default host access | Persistent data |
-| --- | --- | --- | --- |
-| `server` | Telnet chat endpoint for a real or emulated Newton | TCP `6801` | Conversation state and Codex login |
-| `emulator` | Einstein on a private Xvfb display | HTTP `127.0.0.1:18080`; noVNC `127.0.0.1:6080` | Newton internal flash |
-| `toolchain` | Reproducible `tntk` package builds | None | Writes build output into the checked-out repo |
+![NewtonDice running in the emulator after a tap](runtime/evidence/gloop-03-codex-after-tap.png)
 
-The emulator never connects to the host desktop. Xvfb owns its display, so automated taps and keystrokes cannot steal focus from normal windows.
+Every claim above is logged with its evidence in
+[`docs/ROADMAP.md`](docs/ROADMAP.md)'s status log, and the raw transcripts and
+screenshots live in `runtime/evidence/`.
 
-## Required private files
-
-Einstein and `tntk` need two Apple files that are not included in this repository:
+## How it works
 
 ```text
-secrets/
-├── 717006
-└── Newton 2.1
+  ┌──────────────────────────┐
+  │  MessagePad 2000 / 2100  │   NewtonOS 2.1, native NewtonScript client
+  │  or Einstein emulator    │   chat · Ask Note · Save Note · Ink canvas
+  └────────────┬─────────────┘
+               │  WiFi (Lucent WaveLAN card) — or emulated NE2000
+               │  framed ASCII, 240-byte frames, stop-and-wait, checksummed
+  ┌────────────┴─────────────┐
+  │  host: server.py :6801   │   stdlib only, one turn in flight
+  └────────────┬─────────────┘
+               │  spawns a CLI agent as a subprocess
+  ┌────────────┴─────────────┐
+  │  codex exec  (the agent) │   swap in another CLI agent here
+  └────────────┬─────────────┘
+               │  MCP over stdio — newton_mcp.py
+  ┌────────────┴─────────────────────────────────────────────┐
+  │  newton_tool  ──→ POST /tools :18081 ──→ the Newton      │
+  │  emulator_*   ──→ Einstein control API (screen/tap/text) │
+  │  build_pkg    ──→ tntk toolchain ──→ a real .pkg         │
+  │  stage_hw     ──→ staged for the human to install        │
+  └──────────────────────────────────────────────────────────┘
 ```
 
-- `717006` is your own Newton ROM dump and must be exactly 8,388,608 bytes.
-- `Newton 2.1` is the NTK platform file used when compiling packages.
+The constraints are the fun part, and they are 1997's, not ours. Frames are 240
+bytes because that is what the client can hold. Everything on the wire is 7-bit
+ASCII with CRLF, because the Newton's endpoint layer corrupts a
+string-to-binary transition. It is stop-and-wait with an explicit ACK, because
+the ROM's `protoBasicEndpoint` does not forgive a second outstanding write. A
+prompt longer than 227 characters is split into 220-byte parts and reassembled
+on the host. The wire format is pinned by tests and documented in
+[`docs/phase3-protocol.md`](docs/phase3-protocol.md).
 
-Both `secrets/` and emulator runtime data are ignored by Git.
+## Try it
 
-## Start the always-on server
+The honest version: this runs on a Linux host, and the emulator path is the one
+to start with. You do not need a Newton to see it work — you need a Newton
+**ROM**, which is a different problem.
 
-Build the image, authenticate Codex once using the headless device flow, then
-start the service:
+**Before you start you need:**
 
-```sh
-podman-compose build server
-make server-login
-make server-up
-```
+- A Linux host with rootless [Podman](https://podman.io/) and `podman-compose`.
+  On Arch: `sudo pacman -S --needed podman podman-compose passt fuse-overlayfs`.
+  That is the only step that wants root.
+- **A Newton ROM you dumped from your own MessagePad**, at `secrets/717006`,
+  exactly 8,388,608 bytes. It is not distributed here and never will be — see
+  the [Einstein emulator's documentation](https://github.com/pguyot/Einstein)
+  for how to dump your own.
+- The `Newton 2.1` NTK platform file at `secrets/Newton 2.1`, if you want to
+  compile packages. Same rule: yours, from your own toolkit.
+- An OpenAI account for the `codex` CLI, which is the agent backend today. The
+  server spawns it as a plain subprocess (`server.py`, `codex exec`), so
+  swapping in another CLI agent is a designed-for change rather than a rewrite.
+- `python3` (stdlib only for the host code) and `uv` if you want to run tests.
 
-To give the agent behind that chat actual tools — the Newton `/tools` ops, the
-emulator control API, and the package build — register the MCP server once per
-`codex-home` volume:
+**Then:**
 
-```sh
-make server-mcp
-```
+1. `./refs/fetch-refs.sh` — downloads the Newton manuals and Apple's developer
+   Q&A notes that the code and docs cite constantly, and checks them against
+   `refs/SHA256SUMS`. Agents working in this repo grep `refs/` all day; without
+   this step they are guessing.
+2. `./downloads/fetch-downloads.sh` — the Newton Internet Enabler distributions
+   and the NIE TCP source used to reverse-engineer the transport. Optional
+   unless you are doing networking work.
+3. `podman-compose build server` — build the server image.
+4. `make server-login` — one-time headless Codex device-auth flow.
+5. `make server-mcp` — register the Newton MCP tools with that same Codex home,
+   including the approval mode without which non-interactive tool calls fail.
+6. `make server-up` — start the chat server on `0.0.0.0:6801`. (`make
+   server-test` runs it with a stubbed backend if you just want to prove the
+   socket.)
+7. `make emulator-up` then `make status` — start headless Einstein. Watch it at
+   `http://127.0.0.1:6080/vnc.html?autoconnect=1`.
+8. `make newton-packages` — build the client and the loader into
+   `runtime/staging/`. (`make toolchain-hello` is the smaller smoke test.)
+9. `scripts/install-and-launch.sh /packages/harness-client/harness-client.pkg
+   'HarnessClientA7:jbfly'` — install the client into the running emulator and
+   open it.
+10. `make test` — the suite, via `uv run --with pytest pytest -q`.
 
-That writes `[mcp_servers.newton]` into the same volume as the login, with the
-`default_tools_approval_mode = "approve"` line without which every tool call in
-a non-interactive run fails.
+Full operational detail — ports, the security boundary, the emulator control
+API, isolated instances — is in
+[`docs/dev-harness.md`](docs/dev-harness.md).
 
-**For tool work, run the server on the host instead** — `python3 server.py`
-needs only stdlib, and only there do `podman`, `make` and `127.0.0.1` exist for
-the `emulator_*` and build tools:
+### On real hardware
 
-```sh
-codex mcp add newton -- python3 $PWD/newton_mcp.py   # once; then add the
-                                                     # approval line by hand
-python3 server.py                                    # 0.0.0.0:6801
-```
+A physical MessagePad gets packages over WiFi: a loader app on the Newton pulls
+a staged `.pkg` from a host listener on port 18081, and the human types the
+filename and taps Install. `make stage-hw PKG=examples/<name>` builds and stages
+one package and prints the exact short filename to type. The whole story — which
+of the three host listeners to use and why, and the bare-metal recovery path
+through the NS Basic bootstrap for a device with no installer at all — is in
+[`docs/install-paths.md`](docs/install-paths.md). The NS Basic bootstrap is a
+lifeline, not the normal path. Installs on real hardware are always
+human-confirmed; there is deliberately no agent tool that installs to the
+physical device.
 
-Read `docs/agent-tools.md` first: the safety rails, the measured limits on what
-these tools reach from inside the container, and the live demo that proved the
-host shape.
+## Status and roadmap
 
-The Codex login and Newton conversation state live in rootless named volumes. A
-container replacement does not discard them.
-Set `NEWTON_UPSTREAM_DNS` if the host network blocks the default `1.1.1.1` resolver.
+This works, and it is young. The physical MessagePad currently runs the older
+`Chat A3` client; everything since — the harness panel with notes and ink, the
+device tools, multi-frame prompts — is proven in the emulator and waiting on
+bench time. The tools channel has never run on the physical device. Ink has
+never been drawn with a real stylus into a real vision-model round trip.
 
-For a backend-free connection test:
+[`docs/ROADMAP.md`](docs/ROADMAP.md) is the plan and the evidence log;
+[`docs/START-HERE.md`](docs/START-HERE.md) is where a contributor or a coding
+agent should actually start, because it says which docs are ground truth and
+which are stale plans.
 
-```sh
-make server-test
-```
+If you own a Newton: please try this and open an issue. Different card,
+different ROM, different NIE version — all of that is untested outside one
+MessagePad 2000, and the failure reports are worth more than the successes.
 
-## Start the headless emulator
+## Credits
 
-```sh
-make emulator-up
-make status
-```
+This project is a thin layer on top of other people's long, patient work.
 
-Human access is available at `http://127.0.0.1:6080/vnc.html?autoconnect=1`. The noVNC and control ports are bound to loopback deliberately; use an SSH tunnel when the container runs on another machine.
+- **[Einstein](https://github.com/pguyot/Einstein)** — Paul Guyot's NewtonOS
+  emulator. Nothing here would be testable without it.
+- **[tntk](https://github.com/ekoeppen/tntk)**,
+  **[cDCL](https://github.com/ekoeppen/cDCL)** and
+  **[NEWT/0](https://github.com/ekoeppen/NEWT0)** — Eckhart Köppen's toolchain,
+  which is how a NewtonScript source file becomes a `.pkg` on Linux in 2026.
+- **[UNNA](http://www.unna.org/)** — the United Network of New Tonians
+  Archive, which still serves the manuals, the NIE distributions and the driver
+  sources this project is built on. The fetch scripts point there.
+- **Hiroshi Noguchi's WaveLAN driver** — the reason a MessagePad can join a
+  modern-ish WiFi network at all.
+- **Paul Guyot's Dock TCP** and the **Newton Research** NCX distributions that
+  carry it, preserved here as a recovery layer.
+- **The newtontalk community**, whose archived threads answered questions no
+  manual does.
 
-Stop it without deleting the virtual Newton’s flash:
+## License
 
-```sh
-make emulator-stop
-```
-
-## Agent screen and input control
-
-The control service uses Newton screen coordinates: `x=0..319`, `y=0..479`.
-
-```sh
-python3 -m emulator.client status
-python3 -m emulator.client screen /tmp/newton-screen.png
-python3 -m emulator.client tap 160 240
-python3 -m emulator.client drag 40 400 280 400 --duration 0.5 --steps 20
-python3 -m emulator.client text "hello world"
-python3 -m emulator.client key Return
-python3 -m emulator.client install /packages/hello/hello.pkg
-python3 -m emulator.client newtonscript 'GetRoot().|HarnessHello:jbfly|:Open();'
-```
-
-Injected NewtonScript can return text without a screenshot. The TCP callback path is not used: live tests recorded payload timeouts, so Einstein's existing `Print(result)` primitive writes one disposable result file instead. Source must fit on one line.
-
-```sh
-runtime/ns_eval.py --container newton-harness_emulator_1 '2+2'
-```
-
-The equivalent NewtonScript result expression is simply `2+2`; strings are returned quoted, matching Einstein's existing `Print` format. Pass `--container NAME` to choose the emulator: the built-in default is the `newton-scratch2` scratch instance, which is usually not running.
-
-A second isolated NS Basic scratch emulator uses its own compose project, state volume, ports, and package bind:
-
-```sh
-NEWTON_IMAGE_TAG=ns-eval NEWTON_CONTROL_PORT=18091 NEWTON_NOVNC_PORT=6091 \
-  podman-compose -p newton-scratch2 -f compose.yaml -f runtime/nsbasic-scratch.override.yaml \
-  --profile emulator up -d emulator
-```
-
-Its noVNC URL is `http://127.0.0.1:6091/vnc.html?autoconnect=1`; its control socket is `/state/einstein-control.sock` inside `newton-scratch2_emulator_1` (host volume `newton-scratch2_emulator-state`).
-
-`make emulator-instance-up INSTANCE=name` generalises that recipe: it starts an isolated emulator on a free port pair, and `--instance name` (or `NEWTON_INSTANCE=name`) points `emulator.client` and `runtime/ns_eval.py` at it. See [docs/parallel-emulators.md](docs/parallel-emulators.md).
-
-Einstein dialogs and its package installer sit outside the Newton screen. Agents can inspect and control the complete window separately:
-
-```sh
-python3 -m emulator.client window /tmp/einstein-window.png
-python3 -m emulator.client window-tap 290 40
-```
-
-The raw HTTP endpoints are:
-
-| Method | Path | Meaning |
-| --- | --- | --- |
-| `GET` | `/health` | Emulator readiness and window geometry |
-| `GET` | `/screen.png` | Cropped 320×480 Newton display |
-| `GET` | `/window.png` | Full Einstein window, including dialogs |
-| `POST` | `/tap` | Tap Newton coordinates with `{"x": 160, "y": 240}` |
-| `POST` | `/window/tap` | Click full-window coordinates |
-| `POST` | `/drag` | Drag from `{"start_x", "start_y", "end_x", "end_y"}`, optional `duration`/`steps` |
-| `POST` | `/text` | Type `{"text": "..."}` into the active Einstein control |
-| `POST` | `/key` | Send a key such as `{"key": "Return"}` |
-| `POST` | `/install` | Install the `.pkg` at the given path (raw text body, not JSON) |
-| `POST` | `/newtonscript` | Run the given NewtonScript source (raw text body, not JSON) |
-
-## Build Newton packages reproducibly
-
-Build and stage Harness Loader v1.1 and Harness Client v1.1 with one target:
-
-```sh
-make newton-packages
-```
-
-The install candidates and checksums are written to `runtime/staging/`. The target pins tntk's embedded package timestamp so repeated builds from unchanged source are byte-identical. See `docs/newton-client-notes.md` for toolchain overrides, package-format details, and the update flow.
-
-The original smoke-test package remains available through `make toolchain-hello`; it writes `examples/hello/hello.pkg`.
-
-## Current verification
-
-- The local Einstein build boots the supplied ROM through Newton setup and into Notes.
-- The rootless Podman image boots Einstein on Xvfb without opening a host window.
-- The telnet server socket test passes.
-- The container toolchain rebuilds the corrected sample, and Einstein installs
-  and launches it without the previous activation error.
-- Controller unit tests verify screen cropping, tap bounds, the 78-pixel Einstein toolbar offset, and command failures.
-- The Compose model validates with the existing Docker Compose parser; a
-  rootless guard prevents the project shortcuts from using rootful Podman.
-
-## Gaps
-
-- The server still needs its one-time Codex device login.
-- Reboot-time startup is not enabled yet.
-
-Einstein guest networking and the end-to-end connection to `server:6801` are no
-longer gaps. The native client completes a full framed round trip to a real
-backend, wire-confirmed in `docs/phase3-chat-round.md` (2026-07-26); see
-`docs/newton-networking-lessons.md` for how the transport actually works.
-
-The stated verification is deterministic; untested container and guest-network behavior is listed explicitly above.
+MIT — see [`LICENSE`](LICENSE). That covers this repository's own code and
+documentation. It does not cover the Apple manuals, ROM, NTK platform file, or
+NIE distributions, none of which are redistributed here; the fetch scripts get
+them from public archives, and the ROM you dump yourself.

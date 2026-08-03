@@ -7,6 +7,39 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-03 — publishing prep: the repo is ready to go public as "Egg
+  Freckles".** Three things changed, none of them functional. (1) `README.md`
+  is now a public front door — what works, an architecture diagram, an honest
+  emulator-first "Try it", credits — and its old operational content moved
+  verbatim to **`docs/dev-harness.md`** (ports, security boundary, emulator
+  control API, package builds). The three docs that cited `README.md` by line
+  number were repointed: `docs/install-lifeline-plan.md` and the two in this
+  file. (2) **Apple-copyrighted material is no longer tracked.** All 11 files
+  under `refs/` and the 9 NIE/NewtonIM archives under `downloads/` were
+  `git rm --cached`'d (kept on disk) and are now fetched by
+  **`refs/fetch-refs.sh`** and **`downloads/fetch-downloads.sh`**, in the style
+  of `scripts/fetch-recovery-packages.sh`. Every URL was verified the same day:
+  all 14 fetched files returned HTTP 200 from `unna.org` and hashed
+  **byte-identical** to the copies this repo was developed against. Two derived
+  layers also reproduce exactly — `refs/nie11/` is extracted from
+  `NIEDVLPR.EXE`'s nested `DATA` zip with stdlib `python3` (no p7zip), and the
+  `.txt` files are **regenerated with `pdftotext`, not downloaded**, because
+  dozens of docs cite them by line number; poppler 26.07.0 reproduces all three
+  byte-for-byte, and `refs/SHA256SUMS` is the check that a different poppler
+  would fail loudly. `downloads/unixnpi-1.1.3.tar.gz` stays tracked: it is GPL
+  C source, redistributable, 21 KB. New `refs/README.md`, `downloads/README.md`,
+  and a `.gitignore` block keep the untracked binaries out of `git status`.
+  `docs/START-HERE.md`'s dev loop now opens with the fetch step, because agents
+  grep `refs/` constantly and a fresh clone has an empty one. (3) `LICENSE` —
+  MIT, © 2026 jbfly, with a clause naming what it does *not* cover. A privacy
+  sweep found nothing needing removal; the only private-infrastructure detail
+  is `docs/next-hardware-session.md:74`'s `ssh jbfly@10.13.13.12` /
+  `192.168.1.242`, RFC1918 addresses with no credentials, in an
+  already-SUPERSEDED doc. 76 tests pass (the count includes another session's
+  in-flight Track F4 work in `server.py`/`test_server.py`; nothing here touches
+  either). Internal names are unchanged — Egg Freckles is the public name, the
+  package identities and directory names stay as they are.
+
 - **2026-08-03 — Track F2 done: the harness panel is one app.**
   `HarnessClientA7:jbfly` ("Chat A7", v2.4-a7) is Chat A4 plus a second control
   row — **`Ask Note`**, **`Save Note`**, **`Ink`** — and a hideable ink overlay.
@@ -357,7 +390,8 @@ tells it to do something destructive.
   status (current / smoke-test / seed-for-Track-X), where it runs. This is
   the cheap alternative to renaming `examples/` (renaming would break dozens
   of doc references and the `compose.yaml:41` mount for no functional gain).
-- **A8. Fix README drift**: endpoint table (`README.md:143-151`) omits
+- **A8. Fix README drift**: endpoint table (then in `README.md`, now
+  `docs/dev-harness.md`, "Agent screen and input control") omits
   `/drag`, `/install`, `/newtonscript`; add the missing `emulator.client`
   subcommands note or (5 lines) add `drag`/`install`/`newtonscript`
   subcommands to `emulator/client.py`.
@@ -533,7 +567,7 @@ is glue + a runbook:
 - Backend abstraction (Claude alongside codex) — only if/when wanted; the
   MCP design in Track D already keeps this cheap.
 - Reboot-persistent host services (`dual-send` unit exists; server/emulator
-  units don't — `README.md:176-180`).
+  units don't — `docs/dev-harness.md`, "Verification status").
 
 ## Sequencing
 

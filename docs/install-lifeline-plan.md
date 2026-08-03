@@ -150,7 +150,8 @@ which has already happened once.
 Typing: the entire bootstrap program, by hand, on a 1997 touchscreen.
 **I cannot give you a character count, because the bootstrap source is not in
 this repository.** I grepped the whole tree; the only `nsbasic` hits are an
-unrelated emulator compose profile (`README.md:122-130`). Whatever you typed
+unrelated emulator compose profile (then in `README.md`, now
+`docs/dev-harness.md`, "Agent screen and input control"). Whatever you typed
 last time exists only on the device and in your memory. Fixing that costs
 nothing and is the first action item below.
 

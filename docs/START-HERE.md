@@ -46,6 +46,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/agent-tools.md` | You touch `newton_mcp.py` — the MCP server that gives the chat agent tools (ROADMAP Track D). Also the place the container→host networking limits are measured. |
 | `docs/agent-dev-loop.md` | You are building a **new** Newton app. Ten numbered steps from `cp -r examples/hello` to teardown, with the identity rule and the UI footguns. An agent ran it end to end on 2026-08-03 (ROADMAP Track G, "Proven 2026-08-03"). |
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
+| `docs/dev-harness.md` | You need the containers, ports, security boundary, or the full emulator control API. This was the old `README.md`; the README is now the public front door. |
 | `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended after the design. Ink stays visible after pen-up ("Stage 5 result") and since Track F2 it lives **inside the chat client** as an overlay, with the `Encode()` origin bug fixed and measured ("Track F2 result"). Still open: not installed on physical hardware, multi-part POST unbuilt. See `docs/ROADMAP.md` Tracks E and F. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
@@ -79,6 +80,22 @@ one is part of your task** (see `CLAUDE.md`).
 
 Every command below was executed in this repo on 2026-07-31 and produced the
 stated result. Run from the repo root.
+
+**Setup, once per clone — fetch `refs/`.** The Apple manuals and Q&A notes are
+not tracked (they are Apple copyright); a fresh clone has an empty `refs/`.
+Almost every doc in this repo backs a claim with a line citation into
+`refs/*.txt`, and you will `grep refs/` constantly, so do this first or you are
+guessing at the API:
+
+```sh
+./refs/fetch-refs.sh                    # ~14 MB from unna.org, checksum-verified
+./downloads/fetch-downloads.sh          # NIE distributions; only for network work
+```
+
+`refs/fetch-refs.sh` regenerates the `.txt` extractions with `pdftotext` rather
+than downloading them, and `refs/SHA256SUMS` is what proves your poppler
+numbers the lines the same way the citations assume. Details in
+`refs/README.md`.
 
 **Tests** — 60 pass (45 + the 15 client-source tests that pin the `MSGP` split,
 the note path and the ink encoder, 2026-08-03). `pytest` is not in the system
