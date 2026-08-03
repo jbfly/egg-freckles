@@ -5,6 +5,25 @@ Written 2026-08-03 after a full-repo audit. This is the successor to `PLAN.md`
 sessions here; each track below is sized so a single session of a cheaper
 agent can complete one task and verify it.
 
+## Status log (update this section as tracks complete)
+
+- **2026-08-03 — Track A done.** A3/A5 `3ca0b94` (spikes deleted, old staged
+  loaders untracked; true test count was 40 not the documented 30 — now 37);
+  A4/A6 `923ae43` (untracked debris archived to
+  `~/newton-archive/newton-harness/` — 9 flash snapshots + 100 logs; patch
+  audit found **all 9 patches applied**, nothing to archive); A1/A2/A7
+  `46565a1` (superseded banner, ink claims fixed, `examples/README.md`);
+  A8 `65caa6f` (`drag`/`install`/`newtonscript` CLI subcommands, README
+  endpoint table).
+- **2026-08-03 — Track B done.** `2786479`: `docs/install-paths.md` (the one
+  blessed install story) + `make stage-hw PKG=<dir>` (dry-run verified with
+  `examples/hello`).
+- **Open decisions resolved 2026-08-03:** superseded sources deleted (git
+  history retains); archive location is `~/newton-archive/newton-harness/`;
+  Track D stays codex + MCP.
+- **Next up:** Track C1–C3 (Newton-side ops; see revised C6 note — no host
+  refactor needed first), then D1.
+
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
 as notes. The agent has tools to manage the device: see status and battery,
@@ -155,11 +174,16 @@ ops, each one session-sized with its emulator acceptance test:
   VBO receive + `SuckPackageFromBinary` code inside the tools client;
   removal API `[verify]`. **Human gate on physical hardware, always**
   (`docs/notes-bridge.md:16`).
-- **C6. Rehost ToolBroker.** Move `ToolBroker` + `/tools` + `/ink` + `/note`
-  out of `pkg_publisher.py` (534 lines, self-described overloaded) into a
-  dedicated `tools_server.py`, leaving `pkg_publisher.py` as package serving
-  only. Pure refactor, tests move with it. Do this *before* C1–C5 fan out,
-  or accept the mess until after.
+- **C6. Rehost ToolBroker — deferred, no longer a prerequisite.** Two facts
+  found 2026-08-03: (1) the host `POST /tools` route is a **generic
+  pass-through** — any op name matching `TOOL_OP` is forwarded and the
+  Newton client answers `unknown_op` for names it lacks
+  (`pkg_publisher.py:354-386`), so C1–C5 need *only* Newton-side changes
+  (plus host arg validation if a new op takes args beyond `id`); (2) the
+  tools long-poll and package serving **share port 18081 by design** (the
+  `POLL` hijack, `pkg_publisher.py:284-292`), so splitting them means either
+  a new port (client rebuild + identity bump) or a pointless rename. Revisit
+  only if the file becomes genuinely hard to work in.
 
 Constraint carried from the wire: keep every op's reply ASCII and small;
 the 3 s host heartbeat and >3 s client watchdog relationship is load-bearing
