@@ -7,6 +7,25 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-03 — first full-stack hardware test (MP2000, mars).** A7 + R10P
+  installed over ZC40; chat, slash commands, agent tool calls, Ask/Save Note
+  all worked on real hardware. Findings, triaged: (1) **transcript does not
+  scroll** — `/status` ran off the viewport; blocker, fix in flight (A8).
+  (2) **Agent refused a battery question until told to use tools** — the
+  system prompt never mentioned they exist; fixed `2459a48`. (3) Cosmetic
+  `Communications` slip during tool calls — the known two-NIE-client noise
+  (D3 finding), expected. (4) `POST /ink` 502 `Errno 2` — ops error, codex
+  was not on the tools server's PATH; not a code bug; runbook lesson: both
+  host services need `~/.local/bin` on PATH. (5) **InkPad canvas drops all
+  but the first stroke when drawing freely** — real client defect, but per
+  the human's direction it will NOT be fixed: the pivot is to send **native
+  Notes sketches** instead (real drawing tools, no reinvented canvas); the
+  sketch-note soup probe (Track I3's `[verify]`) is in flight and becomes
+  the design basis for "Ask Sketch". (6) **Dice-from-chat failed on mars**
+  — correct behavior: mars has no podman/tntk, the dev-loop tools live on
+  alpha. Split-host support (MCP proxying to the dev box, or a mars
+  toolchain install) is a new backlog item under Track H.
+
 - **2026-08-03 — Track F4 done: the Newton drives its own agent.** Seven slash
   commands — `/help`, `/status`, `/model`, `/effort`, `/sessions`,
   `/new [name]`, `/resume <n|name>` — are intercepted in `server.py` before the
