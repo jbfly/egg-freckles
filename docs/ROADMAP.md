@@ -92,6 +92,11 @@ tells it to do something destructive.
   TCP investigation. Check `containers/emulator.Dockerfile` for which patches
   are actually applied; move unapplied ones to `containers/patches/archive/`
   with a README line each.
+  **Audited 2026-08-03: all 9 patches, including all five suspected-unapplied
+  diagnostic ones, are applied by `containers/emulator.Dockerfile`'s single
+  `RUN` block (`git apply` calls at lines 37–44); `git blame` shows they were
+  added during the TCP investigation (`8b471e0`, `2ddc8cc`, `6680ef1`) and
+  never removed. Nothing archived; `containers/patches/` is unchanged.**
 - **A7. Add `examples/README.md`** — a 10-line table: package, identity,
   status (current / smoke-test / seed-for-Track-X), where it runs. This is
   the cheap alternative to renaming `examples/` (renaming would break dozens
