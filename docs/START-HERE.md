@@ -43,6 +43,8 @@ Everything else is reference you open only when the task lands on it:
 | `docs/hardware-bench-runbook.md` | You are about to touch the real MessagePad. |
 | `docs/einstein-automation.md` | You need Einstein internals, serial ports, or the control socket. |
 | `docs/newton-client-notes.md` | Package build/toolchain overrides. |
+| `docs/agent-tools.md` | You touch `newton_mcp.py` — the MCP server that gives the chat agent tools (ROADMAP Track D). Also the place the container→host networking limits are measured. |
+| `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
 | `docs/ink-client-design.md` | Ink. Stages 1–4 built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended at `docs/ink-client-design.md:224-408`. Not installed on physical hardware; ink is invisible on canvas after pen-up (`:380-401`); multi-part POST still unbuilt. See `docs/ROADMAP.md` Track E. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
@@ -77,10 +79,11 @@ one is part of your task** (see `CLAUDE.md`).
 Every command below was executed in this repo on 2026-07-31 and produced the
 stated result. Run from the repo root.
 
-**Tests** — 37 pass. `pytest` is not in the system python, so use `uv`:
+**Tests** — 45 pass (37 + the 8 Track D1 MCP tests, 2026-08-03). `pytest` is
+not in the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 37 passed
+uv run --with pytest pytest -q          # 45 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only

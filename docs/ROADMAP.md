@@ -43,8 +43,31 @@ agent can complete one task and verify it.
   `make emulator-instance-up` Newton is *not* network-ready (first-run tour
   suppresses the float window; the whole `runtime/nie2/` stack is missing and
   `newtdev.pkg` must precede `NE2K.pkg`).
-- **Next up:** rerun the C1–C3 acceptance round once `10.42.0.1` is on `lo`,
-  then C4, then D1.
+- **2026-08-03 — Track D1 code done, live demo pending.** `newton_mcp.py` —
+  one stdlib-only file, MCP over stdio (JSON-RPC 2.0, hand-rolled
+  `initialize`/`ping`/`tools/list`/`tools/call`) exposing `newton_tool`,
+  `emulator_screen/tap/text/key/newtonscript/install`, `build_pkg`, `stage_hw`.
+  D2's rails are folded in **as code**: mutating emulator ops refuse the shared
+  instance unless `NEWTON_ALLOW_SHARED=1` (screen always allowed), `newton_tool`
+  refuses device-mutating op names with the human's `curl`, and there is no
+  physical-install tool at all. Registered with `make server-mcp`
+  (`codex mcp add newton -- python3 /app/newton_mcp.py`, writes
+  `[mcp_servers.newton]` into the `codex-home` volume, same pattern as
+  `make server-login`); `containers/server.Dockerfile` copies the file in;
+  `server.py` unchanged. `test_newton_mcp.py` adds 8 tests (45 total).
+  **Measured networking finding** (`docs/agent-tools.md`): from the server
+  container `10.42.0.1:<port>` on the host **is** reachable — so `newton_tool`
+  works in-container — but host `127.0.0.1` is refused, so every `emulator_*`
+  tool (control ports are published on `127.0.0.1` only, and `instance_url`
+  needs `podman`) plus `build_pkg`/`stage_hw` require running `server.py` on
+  the host. Also observed this session: `10.42.0.1/24` **is** now on `lo`
+  (`ip -4 addr show lo`), so the C1–C3 acceptance blocker below is gone.
+  Still unverified: whether `codex exec` auto-approves MCP tool calls
+  non-interactively, and whether the MCP subprocess inherits
+  `--sandbox read-only`.
+- **Next up:** the D1/D3 live demo (broker + polling Newton + one chat turn
+  that calls `front_app`, then `store_info`/`pkg_list` — the C1–C3 acceptance
+  round rides along), then C4.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -97,7 +120,9 @@ The critical architectural gap: **the agent has no tools.** `server.py` only
 relays chat. `/tools`, `/ink`, the emulator control API, and the build
 toolchain all exist as separate host surfaces that a *human* curls. Nothing
 lets the agent behind the chat session call them. Closing that gap is Track D
-and it is the heart of this roadmap.
+and it is the heart of this roadmap. **Partly closed 2026-08-03**: the MCP
+server that calls them exists (`newton_mcp.py`, `docs/agent-tools.md`) and is
+registered with codex; no live chat turn has driven it yet.
 
 ## Track A — repo cleanup and doc truth (first; one cheap-agent session)
 
@@ -231,14 +256,16 @@ server** (stdlib-thin, one file) exposing:
 gains these without changing the chat wire protocol. If the backend ever
 switches to Claude, the same MCP server plugs in. Steps:
 
-- **D1.** Write `newton_mcp.py` + register in the codex config used by
-  `containers/server.Dockerfile`; prove with a chat turn from the emulator
-  client: "what app is front on the newton?" → agent calls `front_app` →
-  answers in chat.
-- **D2.** Add the safety rails in the MCP layer, not in prompts: physical
-  device = read-only ops allowed, mutating ops return "needs human
-  confirmation" with the exact command for the human; emulator instances =
-  unrestricted except the shared instance.
+- **D1. Code done 2026-08-03, live half open.** `newton_mcp.py` written and
+  registered (`make server-mcp`); `docs/agent-tools.md` is the page. Still to
+  do: the chat turn from the client — "what app is front on the newton?" →
+  agent calls `front_app` → answers in chat.
+- **D2. Done 2026-08-03, in code.** Rails live in `newton_mcp.py`, not in a
+  prompt: device-mutating `newton_tool` ops return "needs human confirmation"
+  with the exact command; the shared emulator refuses mutating ops without
+  `NEWTON_ALLOW_SHARED=1` while `emulator_screen` stays open; no
+  physical-install tool exists in the surface at all. Tested in
+  `test_newton_mcp.py`.
 - **D3.** End-to-end demo gate: from Chat on the emulated Newton, ask the
   agent to check free space (C2) and report installed packages (C3).
 

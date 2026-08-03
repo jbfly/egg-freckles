@@ -5,7 +5,7 @@ NEWTON_PACKAGE_DIRS := examples/harness-loader examples/harness-client
 NEWTON_STAGING_DIR := runtime/staging
 NEWTON_HW_STAGING_DIR := runtime/staging/hardware
 
-.PHONY: check-rootless images server-login server-up server-test emulator-up \
+.PHONY: check-rootless images server-login server-mcp server-up server-test emulator-up \
 	emulator-stop emulator-instance-up emulator-instance-down emulator-instances \
 	toolchain-hello newton-packages stage-hw status down test
 
@@ -26,6 +26,14 @@ images: check-rootless
 
 server-login: check-rootless
 	$(COMPOSE) run --rm server codex login --device-auth
+
+# Registers newton_mcp.py with the codex inside the server container. Writes
+# [mcp_servers.newton] into the `codex-home` volume, the same place
+# server-login writes auth.json -- run it once per volume, and again after a
+# `podman volume rm newton-harness_codex-home`. docs/agent-tools.md.
+server-mcp: check-rootless
+	$(COMPOSE) run --rm server codex mcp add newton -- python3 /app/newton_mcp.py
+	$(COMPOSE) run --rm server codex mcp get newton
 
 server-up: check-rootless
 	$(COMPOSE) up -d server

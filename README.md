@@ -74,6 +74,18 @@ make server-login
 make server-up
 ```
 
+To give the agent behind that chat actual tools — the Newton `/tools` ops, the
+emulator control API, and the package build — register the MCP server once per
+`codex-home` volume:
+
+```sh
+make server-mcp
+```
+
+That writes `[mcp_servers.newton]` into the same volume as the login. Read
+`docs/agent-tools.md` first: the safety rails, and the measured limits on what
+those tools can reach from inside the container.
+
 The Codex login and Newton conversation state live in rootless named volumes. A
 container replacement does not discard them.
 Set `NEWTON_UPSTREAM_DNS` if the host network blocks the default `1.1.1.1` resolver.

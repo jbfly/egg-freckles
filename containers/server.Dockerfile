@@ -9,7 +9,10 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --chown=node:node server.py agent_prompt.txt response_schema.json ./
+COPY --chown=node:node server.py newton_mcp.py agent_prompt.txt response_schema.json ./
+# newton_mcp.py imports emulator.client for instance port lookup; see
+# docs/agent-tools.md for what that can and cannot do from inside this image.
+COPY --chown=node:node emulator/__init__.py emulator/client.py ./emulator/
 
 RUN mkdir -p /state /home/node/.codex \
     && chown -R node:node /state /home/node/.codex
