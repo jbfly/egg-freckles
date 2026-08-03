@@ -840,6 +840,306 @@ probe: the probe that would have caught it needs the *literal* `"Notes"` soup
 name, since `ROM_paperRollSoupName` is an NTK compile-time symbol that `ns_eval`
 cannot see (fifteenth finding).
 
+## Seventeenth finding: sketch notes, and how to get the strokes out (Track I3)
+
+**Sketch geometry is extractable, exactly, and every stroke survives.** This
+settles the `[verify]` that Track I3 has carried since it was written
+("probe with `note_probe`/ns_eval on a hand-drawn sketch note first; nobody has
+looked yet") and it is the evidence base for the "Ask Sketch" pivot in
+`docs/ink-client-design.md`. Measured on isolated instance `sketchprobe`
+(seeded flash, ROM 717006). Full transcript with every probe and its verbatim
+answer: [`sketchprobe-probe.txt`](../runtime/evidence/sketchprobe-probe.txt).
+
+### There is no sketch stationery — there is a drawing *mode*
+
+The Notes `+New` picker offers only **Note / Checklist / Outline / Recording**
+([`sketchprobe-02-new-picker.png`](../runtime/evidence/sketchprobe-02-new-picker.png)),
+which matches the reference exactly — *"The Notes application includes three
+types of built-in stationery: notes, outlines, and checklists"*
+(`refs/NewtonProgrammerGuide20.txt:42614-42616`; the three are itemised at
+`:42627`, `:42631`, `:42635`).
+A "sketch note" is an ordinary `class 'paperroll` note that happens to contain
+drawn objects.
+
+What you actually switch is the **recognition mode**, from the `A` button in
+the Notes bottom bar at screen `(30, 425)`. Its popup
+([`sketchprobe-05-styles.png`](../runtime/evidence/sketchprobe-05-styles.png))
+is the whole drawing UI, and these are the tap coordinates:
+
+| Mode | Tap | What it stores |
+|---|---|---|
+| Text | `(88, 354)` | a `'para` object |
+| Ink Text | `(88, 369)` | ink text (`'inkWord`) |
+| Shapes | `(88, 387)` | a cleaned-up `'poly` object |
+| **Sketches** | `(88, 402)` | **freehand `'ink2` sketching ink** |
+| Preferences | `(88, 422)` | — |
+
+Selecting Sketches swaps the `A` glyph for a pen squiggle, which is the only
+on-screen confirmation you get
+([`sketchprobe-06-sketches-mode.png`](../runtime/evidence/sketchprobe-06-sketches-mode.png)).
+
+### The soup shape
+
+The entry itself is unremarkable — nothing at entry level says "sketch":
+
+```text
+id=3 class=paperroll slots=viewStationery:symbol class:symbol height:int
+ data:Array timestamp:int _version:int _modTime:int _uniqueID:int
+```
+
+The kinds live in `data`, one item **per pen stroke**. On the mixed probe note
+— five freehand strokes, four shape-recognised strokes, one typed paragraph —
+the ten items classified as:
+
+```text
+n=10 0=ink2 1=ink2 2=ink2 3=ink2 4=ink2 5=poly 6=poly 7=poly 8=poly 9=para
+```
+
+| Kind | Slots on this ROM | Reference |
+|---|---|---|
+| freehand | `ink:ink2 viewBounds:frame _proto:frame` — **no `viewStationery`** | `refs/NewtonProgrammerRef20.txt:47843-47852` — *"The ink object frames have these slots: `ink` … `viewBounds` … `timeStamp`"* |
+| shape | `viewStationery:'poly viewBounds:frame points:polygonshape _proto:frame` | `refs/NewtonProgrammerRef20.txt:47835-47842` |
+| text | `viewStationery:'para viewBounds:frame text:…` | `refs/NewtonProgrammerRef20.txt:47808-47820` |
+
+Two ROM-vs-reference differences: the ink binary's class is **`'ink2`**, not the
+documented `'ink` — `InkConvert`'s own parameter list settles what that means,
+`'ink2` being *"converted to 2.x sketching ink"* against `'ink` for
+*"1.x-compatible ink"* and `'inkword` for *"2.x ink text"*
+(`refs/NewtonProgrammerRef20.txt:30147-30158`) — and the ink items carry **no
+`timeStamp`** but do carry an undocumented `_proto`.
+
+### `ExpandInk` cracks `'ink2`, and it takes the soup frame directly
+
+This was the load-bearing unknown and it is settled. The reference describes
+`ExpandInk(poly, format)` as taking "a `clPolygonView`, which is stored as a
+child of a `clEditView` and has an `ink` slot"
+(`refs/NewtonProgrammerRef20.txt:29948-29968`), which reads like it needs a
+live view. **It does not.** Handed the raw soup data frame it returns a stroke
+bundle:
+
+```text
+polyContainsInk= expand=strokeBundle slots=class:symbol bounds:frame strokes:Array
+```
+
+`PolyContainsInk` returns `nil` on the same frame — *that* one really does want
+a live view — so do not use it as the gate. Test `ClassOf(item.ink) = 'ink2`.
+
+The full chain, all four calls proven on this ROM:
+
+```newtonscript
+local bundle := ExpandInk(item, 0);              // 0 = screen resolution
+local n      := CountStrokes(bundle);
+local stroke := GetStroke(bundle, i);
+local points := GetStrokePointsArray(stroke, 0); // flat, alternating Y,X
+```
+
+`format` `0` is "screen resolution, filter out duplicate points"
+(Table 8-6, `refs/NewtonProgrammerRef20.txt:27098-27125`); `2`/`3` give tablet
+resolution, which is for recognition, not for us. The point array is the same
+Y-then-X structure `GetPointsArray` returns
+(`refs/NewtonProgrammerRef20.txt:27164-27171`), so the Stage 5 pair-swap rule
+applies unchanged. Also live and useful: `CountPoints(stroke)`
+(`refs/NewtonProgrammerRef20.txt:30018-30023`) and `GetStrokeBounds(stroke)`
+(`:30065-30071`).
+
+Three API names that look plausible and are **not** the path:
+`GetInkWordInfo` returns font metrics for an ink *word*
+(`refs/NewtonProgrammerRef20.txt:25333-25352`), not sketch geometry; `InkOff`
+merely stops the inker drawing during capture (`:29606-29609`); and
+`PointsToArray` on a sketch item returns an empty polygon (see the trap below).
+
+### The extraction, cross-checked against where the pen went
+
+Three strokes were dragged at known screen coordinates and read back:
+
+| Stroke | Dragged (screen) | Stored (note space) | Points | Delta |
+|---|---|---|---:|---|
+| vertical | `(60,120) → (60,220)` | `(60,84) → (60,184)` | 17 | `0, -36` |
+| diagonal | `(100,120) → (180,220)` | `(100,84) → (180,185)` | 89 | `0, -36` |
+| horizontal | `(210,140) → (280,140)` | `(210,104) → (280,104)` | 17 | `0, -36` |
+
+X is exact and Y is off by **one constant, 36, for every stroke**: the
+coordinates are the paper roll's own space, not screen space, and 36 is where
+this note happened to sit under the current scroll. Every stroke in a note
+shares that space, so a host renderer normalises against the note's own
+bounding box and never has to know the offset. The raw dump of the first
+stroke, for the record:
+
+```text
+nstrokes=1 npoints=17 alen=34
+pts=84 60 94 60 103 60 111 60 117 60 122 60 126 60 130 60 134 60 138 60
+     142 60 146 60 151 60 157 60 165 60 174 60 184 60
+```
+
+### Every stroke survives — this is the whole point of the pivot
+
+Five pen strokes, including two that physically cross, produced five separate
+items each holding exactly one stroke:
+
+```text
+dlen=5 [0] inkbytes=10 ns=1 np=17, | [1] inkbytes=24 ns=1 np=89, |
+       [2] inkbytes=9  ns=1 np=17, | [3] inkbytes=22 ns=1 np=74, |
+       [4] inkbytes=24 ns=1 np=74, |
+```
+
+271 points in **89 bytes** of compressed ink. Nothing merged and nothing was
+dropped — which is exactly what the client's own InkPad-derived canvas failed
+to do on hardware (`docs/ROADMAP.md` status log, first full-stack hardware
+test, finding 5). Screenshots:
+[`sketchprobe-07-drawn.png`](../runtime/evidence/sketchprobe-07-drawn.png) (three
+strokes),
+[`sketchprobe-10-cross.png`](../runtime/evidence/sketchprobe-10-cross.png) (five,
+with the X),
+[`sketchprobe-13-mixed.png`](../runtime/evidence/sketchprobe-13-mixed.png) (the
+mixed note).
+
+### The `_proto` trap
+
+Every ink item's `_proto` is a `clPolygonView` template that carries **its own
+`points` binary**:
+
+```text
+inkclass=ink2 inklen=10 vb=58,82,63,186
+protoslots=viewClass:int viewFlags:int viewFormat:int points:polygonshape debug:int
+```
+
+So `item.points` resolves through the proto chain on a *sketch* item and hands
+you a degenerate polygon — `PointsToArray` on all three read `14 0`, meaning
+shape type 14 with **zero** points. A classifier that tests `points` before
+`viewStationery` will silently report every freehand stroke as an empty shape.
+Test in this order: `viewStationery = 'para`, then `'poly`, then `'pict`, then
+`ClassOf(item.ink) = 'ink2`.
+
+### Shapes mode is a different, simpler shape — and a coordinate trap
+
+A hand-drawn box in Shapes mode was cleaned into four *separate* 2-point line
+shapes, not one rectangle:
+
+```text
+[5] vb=200,214,290,215 arr=8 2 0 0 90 0  |
+[6] vb=290,214,291,294 arr=8 2 0 0 0 80  |
+[7] vb=200,294,290,295 arr=8 2 90 0 0 0  |
+[8] vb=200,214,201,294 arr=8 2 0 80 0 0  |
+```
+
+`PointsToArray` gives `[shapeType, nPoints, x1,y1, …]`
+(`refs/NewtonProgrammerRef20.txt:37811-37846`). Adding `viewBounds.left/top`
+to each pair reproduces the four drags exactly, with the same `0,-36` offset.
+
+**The two kinds disagree about coordinates, and both disagree with each other's
+axis order:**
+
+| | Origin | Pair order |
+|---|---|---|
+| `'poly` via `PointsToArray` | **relative** to the item's `viewBounds` | **x, y** |
+| `'ink2` via `ExpandInk` + `GetStrokePointsArray` | **absolute** in the note's space | **y, x** |
+
+Getting either one backwards produces geometry that is plausible-looking and
+wrong, which is the expensive kind of bug.
+
+### Ink Text is a fourth case, and it hides inside a paragraph
+
+The `A` menu's other ink mode does **not** add a `data` item. Two strokes
+written in Ink Text left the array at ten and went into the existing `'para`
+item instead:
+
+```text
+slots=viewStationery:symbol viewBounds:frame text:string _proto:frame styles:Array
+styles n=8  0=int 1=int 2=int 3=inkWord 4=int 5=int 6=int 7=inkWord
+codes=110 111 116 101 32 112 114 111 98 101 32 63233 32 63233
+```
+
+`text` is a plain string carrying placeholder character **63233 (0xF701)** once
+per ink word, and `styles` is the usual alternating `[runLength, style]` array
+whose style for an ink run is a binary of class `'inkWord`. Two consequences:
+
+1. **A text-only extractor puts 63233 straight into the prompt.** That is a
+   live defect in `examples/harness-client/Main.newt:683-689`, which reads
+   `item.text` and cleans it without knowing about the placeholder.
+2. **It expands too**, via the same bridge as the inverse path below, with
+   `GetInkWordInfo` supplying the bounds `ExpandInk` needs:
+
+```text
+class=inkWord len=22 w=52 asc=7 desc=0 conv=ink2 ns=1 np=46
+```
+
+So all three ink representations on this ROM are extractable, and this is the
+one place `GetInkWordInfo` is the right call rather than a decoy:
+
+| Mode | Stored as | Extract with |
+|---|---|---|
+| Sketches | `'ink2` in its own data item | `ExpandInk(item, 0)` |
+| Shapes | `'poly` with a `points` binary | `PointsToArray(item.points)` |
+| Ink Text | `'inkWord` inside a `'para`'s `styles` | `InkConvert(w, 'ink2)` → `ExpandInk`, bounds from `GetInkWordInfo` |
+
+### The inverse direction works too (Track I3's write half)
+
+Not needed for Ask Sketch, but it is the other half of I3 and it was one probe
+away, so: a host-supplied point array round-trips into native sketching ink.
+
+```text
+MakeStrokeBundle([[10,10,20,20,30,30,40,40]], 0) -> strokeBundle, ns=1 np=4
+CompressStrokes(bundle)                          -> frame {ink:inkWord, viewBounds:frame}
+InkConvert(p.ink, 'ink2)                         -> ink2, 8 bytes
+ExpandInk({ink: i2, viewBounds: p.viewBounds}, 0) -> ns=1 np=17
+  pts=10 10 13 13 16 16 18 18 20 20 21 21 23 23 24 24 25 25 26 26 27 27
+       29 29 30 30 32 32 34 34 37 37 40 40
+```
+
+`CompressStrokes` (`refs/NewtonProgrammerRef20.txt:30010-30016`) returns
+exactly the `{ink, viewBounds}` frame a note's `data` array holds, but as
+`'inkWord` — 2.x ink *text* — so `InkConvert(…, 'ink2)` is a required step, not
+an optional one. Points in at `(10,10)…(40,40)`, same endpoints back out,
+interpolated to 17. `MakeStrokeBundle` is at `:30160-30175`.
+
+### "Newest note" is not what `timeStamp` says
+
+Walking the whole soup, with `EntryModTime` beside the creation stamp:
+
+```text
+id0 ts=64461125 mod=64461125 n=-1 | id1 ts=64462106 mod=64462106 n=-1 |
+id2 ts=64464021 mod=64464021 n=-1 | id3 ts=64477370 mod=64477379 n=10 |
+```
+
+The sketch note's two stamps are **nine minutes apart**: drawing updates
+`EntryModTime` and never touches `timeStamp`, which is creation time
+(`docs/notes-bridge.md:41-42`). So a drawing added to an existing page never
+becomes "newest" under `Query({indexPath: 'timeStamp})` — the index
+`examples/harness-client/Main.newt:677` orders by. And the obvious fix is not
+available:
+
+```text
+GetUnionSoupAlways("Notes"):Query({indexPath: '_modTime})
+  -> EX evt.ex.fr.store
+```
+
+**There is no modification-time index on the Notes soup on this ROM.** Finding
+the most recently *touched* note therefore means comparing `EntryModTime`
+yourself, which must be bounded — see the design in
+`docs/ink-client-design.md`, "Sketch-note pivot". (The three `n=-1` entries are
+the seed flash's `data=nil` failed writes, `docs/notes-bridge.md` N2/N3.)
+
+### Two operational notes
+
+`ExpandInk` needs no live view and no frontmost Notes: the section-5 probe was
+re-run with the Extras drawer open over Notes
+([`sketchprobe-12-extras.png`](../runtime/evidence/sketchprobe-12-extras.png))
+and returned byte-identical output. A tools op can read a sketch while the chat
+client owns the screen.
+
+A modal `Sorry, a problem has occurred. (-48601)` appeared once mid-drawing and
+**swallowed the two strokes issued while it was up**
+([`sketchprobe-08-cross.png`](../runtime/evidence/sketchprobe-08-cross.png));
+dismissing it and redrawing worked. The seed flash is already documented as
+throwing `-48807`/`-48601` (`docs/parallel-emulators.md`), so this is that same
+noise rather than anything about sketches — but it is a reminder that an alert
+can eat pen input on this ROM.
+
+Honest limit on the measurement: `emulator/control.py:185`'s `/drag` is
+start-to-end only, so every probe stroke is a straight line. The digitizer still
+sampled 17-89 points per stroke, so the capture and storage mechanism is the
+one a freehand curve uses; only the drawn shapes are simpler than a human's.
+
 ## Eighteenth finding: a `protoFloatNGo` app never receives the scroll arrows (Track A8)
 
 The Newton's own scroll arrows — the button-bar pair a user reaches without

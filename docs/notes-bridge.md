@@ -100,8 +100,15 @@ unchanged by export.
 
 ## Unsupported note content
 
-- Polygon (`'poly`), ink, and picture (`'pict`) objects are ignored; no safe
-  plain-text accessor was established for them.
+- Polygon (`'poly`), ink, and picture (`'pict`) objects are ignored by the
+  exporter, and there is no plain-*text* accessor for them. **Their geometry is
+  no longer unknown, though** — as of 2026-08-04 the sketch-note probe extracts
+  exact points from all three ink representations (`'ink2` freehand, `'poly`
+  shapes, `'inkWord` embedded in a paragraph's `styles`). See
+  `docs/newtonscript-eval.md`, "Seventeenth finding", and the design that
+  consumes it in `docs/ink-client-design.md`, "Sketch-note pivot".
+  A related trap the exporter does not yet handle: an Ink Text paragraph leaves
+  placeholder character **63233** in its `text`.
 - Outlines (`class 'list`) and checklists (`class 'checkList`) use `topics`
   rather than `data` and are not exported.
 - Folder `labels` was documented and the test note was Unfiled, but it is not

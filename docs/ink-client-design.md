@@ -10,6 +10,14 @@
 > Remaining gaps: nothing here is installed on physical hardware yet, and the
 > multi-part `/ink` POST is still unbuilt. See `docs/ROADMAP.md` Tracks E and
 > F2.
+>
+> **Superseded in part (2026-08-04): the capture canvas is being retired.**
+> Hardware testing found it drops all but the first stroke when drawing
+> freely, and the human's direction is to stop reinventing an ink canvas and
+> read **native Notes sketches** instead. The stroke *encoding* and the
+> `/ink` host pipeline below all survive; the on-device capture view does not.
+> Read the last section, "Sketch-note pivot (design)", before building
+> anything from sections 1 and 4.
 
 Scope: a future `harness-client` that captures stylus ink on a NewtonOS 2.1
 device (MP2100-class, or Einstein), ships it to the host over the existing
@@ -631,3 +639,225 @@ connect and output, and a `SetInputSpec` whose `InputScript` looks for the
 `INK ` prefix.
 
 Full round record: `runtime/evidence/f2round-round.txt`.
+
+---
+
+## Sketch-note pivot (design) — 2026-08-04
+
+**This section is a plan, not a result.** Nothing below is built. What *is*
+proven is the thing the plan rests on: the sketch-note soup probe in
+`docs/newtonscript-eval.md`, "Seventeenth finding", with its transcript at
+`runtime/evidence/sketchprobe-probe.txt`.
+
+### Why the canvas dies
+
+The first full-stack hardware test found that the client's capture canvas
+"drops all but the first stroke when drawing freely" (`docs/ROADMAP.md` status
+log, 2026-08-03, finding 5). The human's direction was not to fix it: stop
+reinventing an ink canvas, and let people draw in stock Notes with its real
+drawing tools instead. The probe says that works — a native sketch note keeps
+**every** stroke, including strokes that physically cross, and hands the
+geometry back exactly:
+
+> Five pen strokes → five data items, each holding exactly one stroke.
+> 271 points in 89 bytes of compressed ink. Nothing merged and nothing dropped.
+
+So the pivot trades code we wrote and got wrong for code Apple wrote and got
+right.
+
+**What is deleted when this ships:** the `Ink` overlay Track F2 folded into the
+chat client — the capture `clView`, its `ViewStrokeScript`, the retained
+`strokes`/`shapes` arrays, the `MakePolygon` + `ViewDrawScript` repaint, the
+`Repaint`/`Undo`/`Clear` methods and the `Clear`/`Undo`/`Send`/`Chat` button
+bar. The multi-stroke defect goes with it **unfixed**, because the code that
+has it is gone. Net client size goes down.
+
+**What survives and moves behind the new button:** `Encode()`'s `NSI1` emitter
+(host-proven, origin bug already fixed — "Track F2 result"), the asynchronous
+`/ink` POST machinery (`async: true` Bind/connect/output plus the
+`INK `-prefix `InputScript`), and the transcript append. None of that is
+touched.
+
+### One button, one meaning
+
+The failure that motivates this is not only the canvas. On hardware
+2026-08-03 the human drew a cat as a sketch note, tapped **Ask Note**, and got
+an answer about an older D&D *text* note. So the design rule is a UX rule
+first:
+
+> **One button whose meaning is "send the newest note, whatever kind it is."**
+
+Never a "Ask Note" and a separate "Ask Sketch" the user has to choose between,
+and never a silent skip. The routing happens inside, on the classification the
+probe proved:
+
+| Newest note's `data` contains | Route |
+|---|---|
+| only `'para`, no embedded ink words | the chat path, exactly as today — `Send(text)` over `MSG`/`MSGP` |
+| `'poly` and/or `'ink2`, no `'para` | the `/ink` vision path |
+| **both** | **one `/ink` request carrying both** — see below |
+| a `'para` whose `styles` holds `'inkWord` runs | treat as mixed: the ink words are drawing, the rest is text |
+| nothing readable | say so on the status line; never fall through to an older note |
+
+Order the tests `'para` → `'poly` → `'pict` → `ClassOf(item.ink) = 'ink2`.
+Testing `item.points` first is a trap: it resolves through every ink item's
+`_proto` and returns an empty polygon (seventeenth finding).
+
+Ink Text needs saying out loud because it is invisible in the `data` array: it
+adds no item, it embeds `'inkWord` binaries in a paragraph's `styles` and
+leaves placeholder character **63233 (0xF701)** in `text`. A7's `ReadNote`
+(`Main.newt:683-689`) reads that `text` and cleans it without knowing, so
+**today it puts 63233 into the prompt**. The client must at minimum strip the
+placeholder; the better answer is to expand those words and send them as
+strokes like anything else — `InkConvert(w, 'ink2)` then `ExpandInk`, with
+`GetInkWordInfo` supplying the bounds, proven on this ROM at
+`class=inkWord len=22 w=52 asc=7 desc=0 conv=ink2 ns=1 np=46`.
+
+### The mixed-note rule, and why it is "send both"
+
+A mixed note goes out as **one** `/ink` POST: the strokes as `NSI1` `S` lines,
+the note's paragraph text as a single new `H <text>` line after the header.
+The alternatives were considered and lost:
+
+1. *Strokes only, ignore the text* — repeats the bug in the other direction.
+2. *Text only, ignore the strokes* — this is literally today's behaviour.
+3. *Two requests* — two model calls, two replies, and an ordering problem in a
+   transcript that has one column.
+
+Sending both is one round trip, one reply, one transcript line, and it can
+never silently drop half of what the user put on the page. It is also just
+better input: a word written under a drawing is the most useful token in a
+vision prompt. The cost is one line in the client encoder and one branch in
+the host parser.
+
+**Wire delta.** `pkg_publisher.py:308-341` currently requires
+`len(lines) == stroke_count + 1` and every non-header line to start with `S`.
+The change is to permit at most one `H <text>` line immediately after the
+`NSI1` header, cap it at ~200 ASCII characters, and pass it to `interpret()`
+as prompt context. **Keep the `NSI1` tag** — the header's four fields do not
+change, `H` is optional, and the physical MP2000 still runs an older client, so
+a new host must keep parsing bodies that have no `H` line.
+
+### Coordinates — the one real encoding hazard
+
+`/ink` validates the canvas as exactly `320x480` and rejects any point outside
+it (`pkg_publisher.py:320` and `:337`). Sketch points do **not** arrive in
+screen coordinates: they are absolute in the paper roll's own space, which for
+the probe note meant a uniform `0,-36` offset from where the pen actually went,
+and which for a long note can exceed 480. So the client must translate before
+encoding: take the minimum `viewBounds.left`/`.top` across the note's drawn
+items, subtract it from every point, and clamp. That preserves the existing
+320×480 contract and existing host validation, and renders the sketch as drawn.
+
+Two converters are needed, not one, because the two kinds disagree on both
+origin and axis order (seventeenth finding):
+
+```newtonscript
+// 'poly item — points are RELATIVE to viewBounds, ordered x,y
+local a := PointsToArray(item.points);           // [type, n, x1,y1, x2,y2, ...]
+x := a[k]     + item.viewBounds.left;
+y := a[k + 1] + item.viewBounds.top;
+
+// 'ink2 item — points are ABSOLUTE in the note's space, ordered y,x
+local bundle := ExpandInk(item, 0);              // 0 = screen resolution
+local pts    := GetStrokePointsArray(GetStroke(bundle, i), 0);
+y := pts[k];
+x := pts[k + 1];
+```
+
+Getting either backwards yields plausible-looking wrong geometry, which is the
+expensive kind. `test_newton_client_source.py` should pin both, the way it
+already pins the `Encode()` origin fix.
+
+### Which component ships it — recommend the chat client (Chat A9)
+
+**Recommendation: the client button, not a `/tools` op.** Four reasons:
+
+1. **The reply belongs in the user's transcript.** A `/tools` op answers the
+   *host agent*, not the person holding the Newton. The flow being designed is
+   "draw, tap once, read the answer on the Newton", and the client already
+   does that last step.
+2. **The transport is already in the client and nowhere else.** It owns the NIE
+   link, the asynchronous `/ink` POST and the `INK ` reply parsing (Track F2
+   result). A tools op would need a second package installed and running, and
+   the tools reply is a small single-line escaped ASCII envelope
+   (`examples/harness-tools/Main.newt` `Reply`) — the wrong shape for a
+   279-point payload, and the twelfth finding's starvation lesson says building
+   that string synchronously is exactly how the long-poll link dies.
+3. **It replaces code instead of adding it.** The overlay comes out, a
+   content-aware read goes in.
+4. **Deployment is already scheduled.** The human has to install a new client
+   anyway for A8's transcript-scrolling fix; this rides that identity bump
+   rather than buying its own.
+
+**Where a tools op still makes sense — later, not now.** A read-only
+`sketch_note` op would let Track J2's web UI render a note's strokes as inline
+SVG and let the Track D agent look at a drawing with no human tap at all. Same
+extraction code, different consumer. Build it after A9 proves the extraction on
+hardware, so the NewtonScript is debugged once.
+
+### Finding the right note — the second half of the hardware bug
+
+`ReadNote` (`examples/harness-client/Main.newt:675-691`) collects only items
+where `item.viewStationery = 'para`, and `AskNote` (`:696-706`) refuses with
+`"Newest note has no text"` when that comes back empty. That explains the
+silent skip. It does **not** by itself explain answering from the older D&D
+note, and the probe found the missing half:
+
+> `id3 ts=64477370 mod=64477379` — the sketch note's creation stamp and its
+> modification time are nine minutes apart.
+
+`timeStamp` is **creation** time and never moves (`docs/notes-bridge.md:41-42`);
+drawing updates `EntryModTime` only. `ReadNote` orders by
+`{indexPath: 'timeStamp}` (`Main.newt:677`), so a drawing added to an
+*existing* page never becomes "newest" and an untouched older note wins. That
+is the shape of what the human saw.
+
+And the obvious fix is not available: `Query({indexPath: '_modTime})` on the
+Notes union soup throws `evt.ex.fr.store` on this ROM — **there is no
+modification-time index**. So:
+
+> Walk the `timeStamp` cursor back from the end over at most **16** entries and
+> take the highest `EntryModTime`; fall back to the last entry.
+
+Bounded work, so the twelfth finding's event-loop starvation cannot return.
+**Honest limit:** a drawing added to a note older than those 16 still loses.
+The real fix for that case is Track F3 — grab the *currently open* note rather
+than the newest — which stays the right long-term answer and is still
+unexplored.
+
+### The flow, end to end
+
+1. Human draws in stock Notes. The drawing tools are the `A` button in the
+   Notes bottom bar → **Sketches** (tap coordinates are tabulated in the
+   seventeenth finding); no stationery to pick, there isn't one.
+2. Switches to Chat, taps **Ask**.
+3. Client finds the newest-by-`EntryModTime` entry within a 16-entry window and
+   classifies its `data` array.
+4. Text only → `Send(text)`, unchanged.
+5. Any drawn items → convert each (the two converters above), translate by the
+   note's bounding box, emit `NSI1` plus an optional `H` line, async POST to
+   `/ink`.
+6. Host renders the PNG it already renders, calls the vision model with the
+   hint as context, replies `INK <reading>`.
+7. Client appends `Sketch: <reading>` to the transcript, same as
+   `Ink: An L-shaped right angle.` does today.
+
+### Budget, and what this does *not* need
+
+The probe note held 9 drawn items and 279 points. At the format's ~4 ASCII
+bytes per delta point that is roughly 1.1 KB — comfortably inside the 16 KiB
+single-body cap (`pkg_publisher.py:313`). **The multi-part `/ink` POST that
+Track E3 has been carrying is therefore still not needed**, and should stay
+unbuilt until a real drawing exceeds the cap. Cap the client at ~400 points and
+~64 items, and say so on the status line when it truncates, rather than
+building an unbounded string on the Newton.
+
+### Open risks
+
+| # | Risk | Cheapest experiment |
+|---|---|---|
+| S1 | A real freehand curve produces far more points than a straight `/drag` did | Draw a cat by hand in Einstein via noVNC, count points; the emulator `/drag` is start-to-end only (`emulator/control.py:185`) so the probe could not measure this |
+| S2 | The 16-entry `EntryModTime` window is wrong for how the human actually files notes | Ask; or ship it and watch |
+| S3 | `ExpandInk` cost on a large sketch holds the event loop | Time a 400-point note on-device before shipping; cap already specified |
+| ~~S4~~ | ~~Ink Text notes fall through the classifier~~ | **Closed by the probe** — Ink Text adds no data item, it embeds `'inkWord` in a `'para`'s `styles` with placeholder 63233 in `text`, and it expands via `InkConvert` → `ExpandInk`. Folded into the routing table above |

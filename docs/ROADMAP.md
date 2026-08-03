@@ -7,6 +7,53 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — sketch-note probe: the ink pivot is GO.** Research and design
+  only; no client code shipped. Track I3's long-standing `[verify]` ("nobody
+  has looked yet") is answered on isolated instance `sketchprobe`, and it
+  answers Track E3 as well. Full finding with quoted probe output and refs
+  citations: `docs/newtonscript-eval.md` "Seventeenth finding"; transcript
+  `runtime/evidence/sketchprobe-probe.txt`; design
+  `docs/ink-client-design.md` "Sketch-note pivot (design)".
+  - **There is no sketch stationery** — the `+New` picker offers only
+    Note/Checklist/Outline/Recording. The drawing tools are the **recognition
+    mode**, reached from the `A` button in the Notes bottom bar at `(30, 425)`
+    → **Sketches** at `(88, 402)`.
+  - **A sketch note stores one item per pen stroke**, and nothing is merged or
+    lost: five strokes including two that physically cross gave five items,
+    271 points in 89 bytes of compressed ink. That is exactly what the client's
+    own canvas could not do (finding 5 below).
+  - **Extraction is proven exact.** `ExpandInk(item, 0)` takes the raw soup
+    frame — no live view needed, and it works with Notes not even frontmost —
+    then `CountStrokes`/`GetStroke`/`GetStrokePointsArray`. Points read back at
+    the drag coordinates with a single uniform note-origin offset (`0,-36`) for
+    every stroke. All three ink representations crack: `'ink2` (Sketches),
+    `'poly` (Shapes), `'inkWord` (Ink Text, via `InkConvert`).
+  - **The inverse works too**, which de-risks I3's write half:
+    `MakeStrokeBundle` → `CompressStrokes` → `InkConvert(…, 'ink2)` round-trips
+    host points into native sketching ink.
+  - **Two hardware defects in shipped `Ask Note` diagnosed**, extending finding
+    5 of the hardware test below. The human drew a cat, tapped Ask Note, and
+    got an answer about an older D&D *text* note. (a) `ReadNote`
+    (`examples/harness-client/Main.newt:675-691`) collects `'para` items only,
+    so a drawing is skipped outright; (b) it orders by `timeStamp`, which is
+    **creation** time — the probe note read `ts=64477370 mod=64477379`, nine
+    minutes apart, because drawing moves `EntryModTime` and never `timeStamp`.
+    A drawing added to an existing page therefore never becomes "newest". There
+    is no `_modTime` index to order by instead
+    (`Query({indexPath: '_modTime})` → `evt.ex.fr.store`), so the fix is a
+    bounded 16-entry `EntryModTime` scan. A third, smaller one: an Ink Text
+    paragraph leaves placeholder character **63233** in `text`, which
+    `ReadNote` currently puts straight into the prompt.
+  - **The design is one button, not two.** "Ask" means *send the newest note,
+    whatever kind it is* — text via chat, drawings via `/ink`, and a mixed note
+    in **one** `/ink` request carrying both (strokes as `NSI1` `S` lines, the
+    text as one new optional `H` line). Recommended to ship in the **chat
+    client (Chat A9)** rather than as a tools op, because the answer belongs in
+    the user's transcript and the client already owns the transport. The
+    InkPad-derived canvas is deleted when it lands, multi-stroke bug and all.
+    The multi-part `/ink` POST stays unbuilt — 279 points is ~1.1 KB against a
+    16 KiB cap.
+
 - **2026-08-04 — Track A8 done: the transcript scrolls.** Ships as `Chat A8`
   (`HarnessClientA8:jbfly`, v2.4-a8, package version 16), fixing the blocker
   finding from the hardware test below. **The root cause was a unit mismatch,
@@ -65,8 +112,13 @@ agent can complete one task and verify it.
   but the first stroke when drawing freely** — real client defect, but per
   the human's direction it will NOT be fixed: the pivot is to send **native
   Notes sketches** instead (real drawing tools, no reinvented canvas); the
-  sketch-note soup probe (Track I3's `[verify]`) is in flight and becomes
-  the design basis for "Ask Sketch". (6) **Dice-from-chat failed on mars**
+  sketch-note soup probe **passed 2026-08-04** (entry above) and is the design
+  basis for "Ask Sketch", which deletes this canvas rather than fixing it.
+  (5b) **`Ask Note` answered from an older text note when the human sent a
+  drawing** — found on the same hardware day, root-caused by that probe to two
+  causes in `ReadNote`: `'para`-only extraction, and ordering by `timeStamp`
+  (creation time) when drawing only moves `EntryModTime`. Fixed by the same
+  Track E3 work. (6) **Dice-from-chat failed on mars**
   — correct behavior: mars has no podman/tntk, the dev-loop tools live on
   alpha. Split-host support (MCP proxying to the dev box, or a mars
   toolchain install) is a new backlog item under Track H.
@@ -613,10 +665,34 @@ switches to Claude, the same MCP server plugs in. Steps:
   y 110..281), and the ink client is now the chat client, so the hardware step
   is one ZC40 install of `HarnessClientA7` — which is the same human gate as
   every other hardware deploy.
-- **E3. HWR assist.** New flow: send a note's *ink* to the agent, get clean
-  text back as a new note. Needs the multi-part `/ink` POST that was
-  designed and deferred (`pkg_publisher.py:313` caps at 16 KiB; `?part=k&of=n`
-  reassembly is specified in `docs/ink-client-design.md` but unwritten).
+- **E3. "Ask Sketch" — the capture canvas is replaced by native Notes.**
+  Designed 2026-08-04 and evidence-backed; **not built**. The old E3 ("send a
+  note's ink to the agent, get clean text back") is subsumed: the probe proved
+  every stroke of a stock sketch note comes out with exact geometry
+  (`docs/newtonscript-eval.md`, "Seventeenth finding"), so the flow is one
+  content-aware button rather than a second feature.
+  - **`Ask Note` becomes `Ask`**: read the newest note, classify its `data`,
+    and route — `'para` only → the chat path unchanged; any `'poly`/`'ink2`
+    → the `/ink` vision path; **both → one `/ink` request carrying both**, the
+    strokes as `NSI1` `S` lines and the text as one new optional `H` line.
+    Never silently skip either half.
+  - **Two hardware defects it must fix**, both diagnosed on the probe:
+    `ReadNote` extracts `'para` only and refuses a drawing outright, and it
+    orders by `timeStamp`, which is *creation* time — a drawing added to an
+    existing page never becomes "newest", and there is no `_modTime` index to
+    order by instead (`Query({indexPath: '_modTime})` throws `evt.ex.fr.store`).
+    Fix is a bounded 16-entry `EntryModTime` scan.
+  - **Ships in the chat client (Chat A9), not a tools op** — the reply belongs
+    in the user's transcript and the client already owns the NIE link, the
+    async `/ink` POST and the `INK ` reply parsing. Reasoning and the rejected
+    alternative are in `docs/ink-client-design.md`, "Sketch-note pivot
+    (design)".
+  - **The InkPad-derived canvas is deleted** when this ships, and its
+    multi-stroke bug with it, unfixed.
+  - **The multi-part `/ink` POST is NOT needed** and stays unbuilt. The probe
+    note's 9 items and 279 points encode to roughly 1.1 KB against the 16 KiB
+    cap (`pkg_publisher.py:313`); `?part=k&of=n` remains specified-but-unwritten
+    in `docs/ink-client-design.md` until a real drawing exceeds it.
 
 ## Track F — the harness panel (Chat A4/A7; 2–3 sessions)
 
@@ -708,20 +784,33 @@ or ideally as a native note.
   bitmap APIs against `refs/` before coding: candidate path is a raw
   bitmap frame for `DrawShape` (`MakeBitmap`/`SetPixel` family — names
   unverified; grep the Ref before believing any of them).
-- **I3. Vector-into-a-note (the ideal).** Notes' sketch stationery stores
-  strokes natively, and Track E proved stroke geometry round-trips
-  (`GetPointsArray`, `MakePolygon`, the x,y/y,x swap — sixteenth-finding
-  territory). Invert it: host converts the generated image to polylines
-  (edge-trace, or ask the model for SVG and flatten paths to polylines),
-  ships them over `/tools` or the bulk HTTP path, and the client writes a
-  **sketch note** the Newton renders natively and the human can edit with
-  the stylus. `[verify]` how sketch-note entries store strokes
-  (`viewStationery` and slot shape — probe with `note_probe`/ns_eval on a
-  hand-drawn sketch note first; nobody has looked yet). Cap complexity
-  (points per note) — the twelfth-finding event-loop lessons apply to soup
-  writes too.
+- **I3. Vector-into-a-note (the ideal). The `[verify]` is DONE — 2026-08-04.**
+  Host converts the generated image to polylines (edge-trace, or ask the model
+  for SVG and flatten paths), ships them over `/tools` or the bulk HTTP path,
+  and the client writes a **sketch note** the Newton renders natively and the
+  human can edit with the stylus. The probe round is complete and the write
+  path is de-risked; only the *building* is left.
+  - **There is no sketch stationery.** The `+New` picker offers only
+    Note/Checklist/Outline/Recording. A sketch note is an ordinary
+    `class 'paperroll` note; what you switch is the *recognition mode*, from
+    the `A` button in the Notes bottom bar → **Sketches**.
+  - **The soup shape:** `data` is an array with **one item per pen stroke**.
+    Freehand items are `{ink: <'ink2 binary>, viewBounds, _proto}` with **no**
+    `viewStationery`; shape-recognised items are `{viewStationery: 'poly,
+    viewBounds, points: <polygonshape>}`; Ink Text hides `'inkWord` binaries in
+    a `'para`'s `styles`.
+  - **The write path is proven**, not assumed:
+    `MakeStrokeBundle(pointArrays, 0)` → `CompressStrokes` → a
+    `{ink, viewBounds}` frame — but as `'inkWord`, so **`InkConvert(ink, 'ink2)`
+    is a required step**, and the geometry survives the round trip
+    (`(10,10)…(40,40)` in, same endpoints out).
+  - Cap points per note — the twelfth-finding event-loop lessons apply to soup
+    writes too.
+  - Evidence: `docs/newtonscript-eval.md` "Seventeenth finding",
+    `runtime/evidence/sketchprobe-*`.
 - Sizing: I1 one session (host-only, testable without a Newton); I2 one
-  session (client round); I3 one to two (probe round, then write round).
+  session (client round); **I3 is now one session** — the probe round is spent,
+  only the write round remains.
 
 ## Track J — web interface for the modern side (designed 2026-08-03, not started)
 
