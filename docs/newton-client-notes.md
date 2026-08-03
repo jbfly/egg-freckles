@@ -147,6 +147,17 @@ The complete ignored directory exists on both Mars and the local workspace at
 `runtime/backups/mp2000-20260803-docktcp-a3`, with matching tree digest
 `8203cc2de461b51b3b62380804b011b4c1b35df51dd32393f98f8a250265ebc2`.
 
+The same path then backed up a second physical card in one uninterrupted
+connection. The user identified it as a 32 MB CF card in a PC Card ATA adapter;
+Newton identified its mounted store as **16 MB**, kind `ATA Store`. The store
+contained 5 soups and 49 entries: 1 OutBox entry, 48 Packages entries, and 3
+empty soups. The complete Internal-plus-card export has 40 soups and 417 raw
+entries at `runtime/backups/mp2000-cf32-20260803-docktcp-a1` on both Mars and
+the local workspace. Its matching tree digest is
+`e7bab0732e39d936c6d3092aabacc7c6fcafa0de423e228628d02b829f1a6a13`;
+the ignored 5,056,544-byte local archive has SHA-256
+`5409b5ef0171bb80d97d0ebf16b878e848dcaa926e5b91d28e26a329a9e0ba1b`.
+
 ## Path toward ink and notes (not implemented in v1)
 
 Keep the current view as the connection/status shell. A later version can add one Newton-native drawing/ink view and serialize completed strokes or selected Notes data into a bounded request body. Send one item at a time to a harness endpoint, wait for an explicit server acknowledgement, and retain the local item until acknowledged. That preserves the current small-memory, close-after-each-request transport and leaves batching, interpretation, and richer synchronization on the server. Do not add an ink abstraction or queue until the Newton APIs and payload format have been verified on-device.

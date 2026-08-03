@@ -358,6 +358,18 @@ The deterministic local archive is 4,583,379 bytes with SHA-256
 The raw data and archive stay ignored because they contain personal Newton
 data; do not force-add them to Git.
 
+A second physical run on 2026-08-03 backed up a different card without a
+resume. The hardware was described as a 32 MB CF card in a PC Card adapter
+using the ATA driver; Newton reported the mounted store as **16 MB**, kind
+`ATA Store`. Preserve both facts rather than inferring the usable capacity.
+That store had 5 soups and 49 entries: 1 OutBox entry, 48 Packages entries, and
+empty Character:NewtHack, Dungeon:NewtHack, and Notes soups. Including Internal,
+the ignored `mp2000-cf32-20260803-docktcp-a1` export has 2 stores, 40 soups, and
+417 complete raw entries. Its tree digest is
+`e7bab0732e39d936c6d3092aabacc7c6fcafa0de423e228628d02b829f1a6a13`.
+The 5,056,544-byte deterministic local archive has SHA-256
+`5409b5ef0171bb80d97d0ebf16b878e848dcaa926e5b91d28e26a329a9e0ba1b`.
+
 ### Serial bootstrap (works with no Newton-side loader)
 
 Use the ROM's built-in Dock application when HTTP installation is unavailable.
