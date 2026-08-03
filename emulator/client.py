@@ -57,6 +57,24 @@ def request(
         raise SystemExit(f"could not reach the control service: {exc.reason}") from exc
 
 
+def request_text(base_url: str, path: str, body: str) -> bytes:
+    """POST a raw text body (used by /install and /newtonscript, which are
+    not JSON endpoints)."""
+    req = urllib.request.Request(
+        base_url.rstrip("/") + path,
+        data=body.encode("utf-8"),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        raise SystemExit(f"control service returned {exc.code}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"could not reach the control service: {exc.reason}") from exc
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -81,11 +99,25 @@ def main() -> None:
         tap.add_argument("x", type=int)
         tap.add_argument("y", type=int)
 
+    drag = subparsers.add_parser("drag")
+    drag.add_argument("start_x", type=int)
+    drag.add_argument("start_y", type=int)
+    drag.add_argument("end_x", type=int)
+    drag.add_argument("end_y", type=int)
+    drag.add_argument("--duration", type=float, default=0.5)
+    drag.add_argument("--steps", type=int, default=20)
+
     text = subparsers.add_parser("text")
     text.add_argument("value")
 
     key = subparsers.add_parser("key")
     key.add_argument("value")
+
+    install = subparsers.add_parser("install")
+    install.add_argument("path", help="package path as seen by the emulator, e.g. /packages/hello/hello.pkg")
+
+    newtonscript = subparsers.add_parser("newtonscript")
+    newtonscript.add_argument("source")
 
     args = parser.parse_args()
     if not args.url:
@@ -104,12 +136,30 @@ def main() -> None:
         path = "/tap" if args.command == "tap" else "/window/tap"
         body, _ = request(args.url, path, payload={"x": args.x, "y": args.y})
         print(body.decode("utf-8"))
+    elif args.command == "drag":
+        body, _ = request(
+            args.url,
+            "/drag",
+            payload={
+                "start_x": args.start_x,
+                "start_y": args.start_y,
+                "end_x": args.end_x,
+                "end_y": args.end_y,
+                "duration": args.duration,
+                "steps": args.steps,
+            },
+        )
+        print(body.decode("utf-8"))
     elif args.command == "text":
         body, _ = request(args.url, "/text", payload={"text": args.value})
         print(body.decode("utf-8"))
     elif args.command == "key":
         body, _ = request(args.url, "/key", payload={"key": args.value})
         print(body.decode("utf-8"))
+    elif args.command == "install":
+        print(request_text(args.url, "/install", args.path).decode("utf-8"))
+    elif args.command == "newtonscript":
+        print(request_text(args.url, "/newtonscript", args.source).decode("utf-8"))
 
 
 if __name__ == "__main__":

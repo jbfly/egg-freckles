@@ -107,8 +107,11 @@ The control service uses Newton screen coordinates: `x=0..319`, `y=0..479`.
 python3 -m emulator.client status
 python3 -m emulator.client screen /tmp/newton-screen.png
 python3 -m emulator.client tap 160 240
+python3 -m emulator.client drag 40 400 280 400 --duration 0.5 --steps 20
 python3 -m emulator.client text "hello world"
 python3 -m emulator.client key Return
+python3 -m emulator.client install /packages/hello/hello.pkg
+python3 -m emulator.client newtonscript 'GetRoot().|HarnessHello:jbfly|:Open();'
 ```
 
 Injected NewtonScript can return text without a screenshot. The TCP callback path is not used: live tests recorded payload timeouts, so Einstein's existing `Print(result)` primitive writes one disposable result file instead. Source must fit on one line.
@@ -147,8 +150,11 @@ The raw HTTP endpoints are:
 | `GET` | `/window.png` | Full Einstein window, including dialogs |
 | `POST` | `/tap` | Tap Newton coordinates with `{"x": 160, "y": 240}` |
 | `POST` | `/window/tap` | Click full-window coordinates |
+| `POST` | `/drag` | Drag from `{"start_x", "start_y", "end_x", "end_y"}`, optional `duration`/`steps` |
 | `POST` | `/text` | Type `{"text": "..."}` into the active Einstein control |
 | `POST` | `/key` | Send a key such as `{"key": "Return"}` |
+| `POST` | `/install` | Install the `.pkg` at the given path (raw text body, not JSON) |
+| `POST` | `/newtonscript` | Run the given NewtonScript source (raw text body, not JSON) |
 
 ## Build Newton packages reproducibly
 
