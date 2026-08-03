@@ -238,7 +238,7 @@ method to return `wifi-install-ok`. It is intentionally not in the normal pytest
 suite because it requires a live emulator, NIE state, host networking, and the
 Newton toolchain.
 
-### TCP Dock bootstrap (current no-cable path)
+### TCP Dock package bootstrap (current no-cable path)
 
 This uses the Newton OS 2.x ROM Dock protocol's old package-loading session,
 so it needs no harness loader. It **does** require the separate Dock TCP
@@ -267,9 +267,10 @@ independently uses the same direction and port: its host starts a server on
    The package is 72,432 bytes; allow about 145 KB free. Install it to internal
    memory, reopen Dock, and confirm that **TCP/IP** appears. ZC40's `Install not
    confirmed` text is not the check.
-2. **Prepare Dock, but do not tap Connect yet.** On the Newton, open **Dock**.
-   Choose **TCP/IP** (the network transport; not Serial and not AppleTalk). If
-   Dock asks for the desktop address, enter **`10.42.0.1`**.
+2. **Prepare Dock, but do not tap Connect yet.** On the Newton, open **Dock**
+   and choose **TCP/IP** (not Serial or AppleTalk). Tap **Pref**, immediately
+   left of Connect; set the desktop address to **`10.42.0.1`** and select the
+   working Mars/WaveLAN Internet Setup in the **Link** popup. Close with X.
 3. **Start the one host command:**
 
    ```sh
@@ -303,9 +304,59 @@ Common TCP Dock failures:
 | Symptom | Fix |
 |---|---|
 | Dock has no **TCP/IP** choice | Install the verified `Dock_TCP-1.2-en.pkg` with ZC40, then reopen Dock. Reinstalling NIE is unnecessary when Internet Setup, NewtScape, or Chat A3 already work. |
+| Newton error `-60037` before the host sees a connection | NIE reports `kInetToolErrNetworkIsInactive`. In Dock's TCP/IP preferences, select the working saved setup in the **Link** popup. If needed, wake that setup with NewtScape or ZC40, then return directly to Dock. |
 | `no Newton connected within 60s` | Confirm Dock is set to **TCP/IP** with desktop `10.42.0.1`. Run `ss -tn | grep 3679` while tapping Connect; no row means the connection never reached the host. |
 | `Address already in use` or `Cannot assign requested address` | For the first, find the unexpected listener with `ss -ltnp | grep 3679` and stop only that process. For the second, the AP address is missing; `ip -brief addr | grep '10.42.0.1/24'` must succeed before retrying. |
 | `Newton rejected package install with Dock error ...` | Keep Dock open and retry once with the staged package. Error `-28019` means the package cannot load: remove an older package with the same identity or free Newton store space, then retry. Other codes should be recorded verbatim rather than resetting the device. |
+
+### Dock-over-TCP read-only backup
+
+`runtime/newton_backup.py` uses the NOS 2.1 Dante setup session: Dock session
+type 1, protocol version 10, desktop/Newton DES challenges, then read-only store
+and soup commands. OpenSSL supplies the DES primitive; no Python crypto package
+is required. An empty Dock password is the default; use `--password` or
+`NEWTON_DOCK_PASSWORD` only when the Newton has one configured.
+
+First inventory without writing backup files:
+
+```sh
+python3 runtime/newton_backup.py --timeout 600
+```
+
+For a full export, use a new ignored destination and run Python unbuffered so
+the hardware log identifies the current soup:
+
+```sh
+python3 -u runtime/newton_backup.py --timeout 600 \
+  --dump runtime/backups/mp2000-YYYYMMDD-docktcp-a1
+```
+
+If the fragile Wi-Fi/Dock connection drops, preserve that directory. Restart
+with the exact same path and explicit resume mode; sequential `.nsof` files are
+verified and skipped, never replaced:
+
+```sh
+python3 -u runtime/newton_backup.py --timeout 600 --resume \
+  --dump runtime/backups/mp2000-YYYYMMDD-docktcp-a1
+```
+
+The 2026-08-03 MP2000 run physically proved this path. The original code sent
+session type 2 before Dante negotiation and was rejected with Dock error
+`-28011`, “incompatible protocol.” After the protocol-10 handshake fix, the
+read-only inventory found 2 stores and 72 soups. Long `snds` streaming dropped
+inside the internal `Packages` soup, so the exporter now gets the ID list and
+requests each entry with `rete`. One per-entry run still dropped after record
+68; `--resume` completed the same destination on the next connection.
+
+The complete ignored backup is
+`runtime/backups/mp2000-20260803-docktcp-a3`: 716 expected entries, 716 raw
+`.nsof` files, and every manifest count complete. Its directory tree digest
+(SHA-256 of the sorted per-file SHA-256 list) is
+`8203cc2de461b51b3b62380804b011b4c1b35df51dd32393f98f8a250265ebc2`.
+The deterministic local archive is 4,583,379 bytes with SHA-256
+`b60de3710e89ea99bd202f24bf75c38b7d6071afe9a7aceab732a51d2de9fc7c`.
+The raw data and archive stay ignored because they contain personal Newton
+data; do not force-add them to Git.
 
 ### Serial bootstrap (works with no Newton-side loader)
 

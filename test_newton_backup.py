@@ -29,6 +29,61 @@ def test_packet_and_nsof_round_trip():
     assert backup.nsof_decode(encoded) == (value, len(encoded))
 
 
+def test_dante_session_setup_uses_protocol_10_and_authenticates(monkeypatch):
+    client, newton = socket.socketpair()
+    desktop_challenge = bytes.fromhex("0123456789abcdef")
+    newton_challenge = bytes.fromhex("fedcba9876543210")
+    key = bytes.fromhex("f207bf4f851b167d")
+    commands = []
+    monkeypatch.setattr(backup.os, "urandom", lambda length: desktop_challenge)
+
+    def fake_newton():
+        try:
+            newton.sendall(backup.packet(b"rtdk", struct.pack(">I", 9)))
+            command, data = backup.receive(newton)
+            commands.append(command)
+            assert data == struct.pack(">I", 1)
+            newton.sendall(backup.packet(b"name", b"Newton"))
+
+            command, data = backup.receive(newton)
+            commands.append(command)
+            assert struct.unpack(">IIIIII", data[:24]) == (
+                10, 1, 0x01234567, 0x89ABCDEF, 1, 1
+            )
+            apps, _ = backup.nsof_decode(data, 24)
+            assert apps[0]["name"] == "Newton Harness"
+            newton.sendall(backup.packet(
+                b"ninf", struct.pack(">I", 10) + newton_challenge
+            ))
+
+            command, data = backup.receive(newton)
+            commands.append(command)
+            assert data == struct.pack(">I", 1)
+            newton.sendall(backup.packet(b"dres", struct.pack(">i", 0)))
+
+            command, data = backup.receive(newton)
+            commands.append(command)
+            assert data == struct.pack(">I", 90)
+            newton.sendall(backup.packet(
+                b"pass", backup.newton_encrypt(key, desktop_challenge)
+            ))
+            command, data = backup.receive(newton)
+            commands.append(command)
+            assert data == backup.newton_encrypt(key, newton_challenge)
+        finally:
+            newton.close()
+
+    thread = threading.Thread(target=fake_newton)
+    thread.start()
+    backup.setup_session(client, 90)
+    client.close()
+    thread.join()
+
+    assert backup.newton_password_key() == key
+    assert backup.newton_encrypt(key, desktop_challenge).hex() == "7cbe6fb757f31ac1"
+    assert commands == [b"dock", b"dinf", b"wicn", b"stim", b"pass"]
+
+
 def test_synthetic_read_only_enumeration_sends_no_dump(tmp_path):
     client, newton = socket.socketpair()
     commands = []
@@ -90,12 +145,12 @@ def test_synthetic_dump_preserves_raw_entry(tmp_path):
                 b"ssou": (b"dres", struct.pack(">i", 0)),
                 b"gids": (b"sids", struct.pack(">II", 1, 42)),
             }
-            for expected in (b"gsto", b"ssto", b"gets", b"ssou", b"gids", b"snds"):
-                command, _ = backup.receive(newton)
+            for expected in (b"gsto", b"ssto", b"gets", b"ssou", b"gids", b"rete"):
+                command, data = backup.receive(newton)
                 assert command == expected
-                if command == b"snds":
+                if command == b"rete":
+                    assert data == struct.pack(">I", 42)
                     newton.sendall(backup.packet(b"entr", entry))
-                    newton.sendall(backup.packet(b"bsdn"))
                 else:
                     reply, data = replies[command]
                     newton.sendall(backup.packet(reply, data))
@@ -122,3 +177,46 @@ def test_dump_refuses_existing_directory(tmp_path):
     finally:
         left.close()
         right.close()
+
+
+def test_dump_resume_skips_sequential_entries(tmp_path):
+    client, newton = socket.socketpair()
+    output = tmp_path / "partial"
+    directory = output / "01-Internal" / "01-Notes"
+    directory.mkdir(parents=True)
+    first = backup.nsof_root({"_uniqueID": 41})
+    second = backup.nsof_root({"_uniqueID": 42})
+    (directory / "000001.nsof").write_bytes(first)
+
+    def fake_newton():
+        try:
+            replies = {
+                b"gsto": (b"stor", backup.nsof_root([
+                    {"name": "Internal", "kind": "store", "signature": 1}
+                ])),
+                b"ssto": (b"dres", struct.pack(">i", 0)),
+                b"gets": (b"soup", backup.nsof_root(["Notes"]) + backup.nsof_root([7])),
+                b"ssou": (b"dres", struct.pack(">i", 0)),
+                b"gids": (b"sids", struct.pack(">III", 2, 41, 42)),
+            }
+            for expected in (b"gsto", b"ssto", b"gets", b"ssou", b"gids", b"rete"):
+                command, data = backup.receive(newton)
+                assert command == expected
+                if command == b"rete":
+                    assert data == struct.pack(">I", 42)
+                    newton.sendall(backup.packet(b"entr", second))
+                else:
+                    reply, body = replies[command]
+                    newton.sendall(backup.packet(reply, body))
+        finally:
+            newton.close()
+
+    thread = threading.Thread(target=fake_newton)
+    thread.start()
+    backup.enumerate_and_dump(client, output, resume=True)
+    client.close()
+    thread.join()
+
+    assert (directory / "000001.nsof").read_bytes() == first
+    assert (directory / "000002.nsof").read_bytes() == second
+    assert (output / "manifest.json").is_file()

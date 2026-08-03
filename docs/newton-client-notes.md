@@ -121,6 +121,32 @@ the larger field worked much better. The app then opened a live TCP connection
 from `10.42.0.114` to Mars port 6801. Preserve A1 as fallback; A2 was an
 emulator-only layout iteration and was never staged as the final package.
 
+## Physical Dock-over-TCP backup
+
+Dock TCP 1.2 is installed on the physical MP2000 and adds **TCP/IP** to the
+ROM Dock application's connection popup. Its one-time preferences are desktop
+`10.42.0.1` plus the working Mars/WaveLAN Internet Setup in the **Link** popup.
+Newton error `-60037` means that selected NIE network is inactive; it is not a
+host listener or Dante-handshake failure.
+
+The first physical general-session attempt exposed a real host bug:
+`runtime/newton_backup.py` sent synchronize session type 2 directly and the
+Newton rejected it with `-28011`, “incompatible protocol.” The fixed client
+uses setup session type 1, Dante protocol 10, the `dinf`/`ninf` capability
+exchange, and the Newton-compatible DES password challenge before issuing any
+store command. The empty-password vector is covered by the known result
+`7cbe6fb757f31ac1`.
+
+On 2026-08-03, read-only physical inventory succeeded for both **Internal** and
+**Ultimate Newton**: 72 soups total. The final resumable export contains all
+716 manifest entries as raw `.nsof` files, including `DEMO.BAS:NSBASIC`,
+`SCRATCH.BAS:NSBASIC`, and `TEMPHTML:NewtsCape`. Long soup streaming was too
+fragile on this Wi-Fi path, so dumps now request entries individually with
+`rete`; `--resume` skips existing sequential files without overwriting them.
+The complete ignored directory exists on both Mars and the local workspace at
+`runtime/backups/mp2000-20260803-docktcp-a3`, with matching tree digest
+`8203cc2de461b51b3b62380804b011b4c1b35df51dd32393f98f8a250265ebc2`.
+
 ## Path toward ink and notes (not implemented in v1)
 
 Keep the current view as the connection/status shell. A later version can add one Newton-native drawing/ink view and serialize completed strokes or selected Notes data into a bounded request body. Send one item at a time to a harness endpoint, wait for an explicit server acknowledgement, and retain the local item until acknowledged. That preserves the current small-memory, close-after-each-request transport and leaves batching, interpretation, and richer synchronization on the server. Do not add an ink abstraction or queue until the Newton APIs and payload format have been verified on-device.
