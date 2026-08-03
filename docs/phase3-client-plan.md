@@ -167,6 +167,8 @@ Milestone 1 operations:
 | Server → client | `PROMPT` | No payload; the turn is complete |
 
 A single prompt longer than one `MSG` frame is deferred. Start with a visible input cap that fits one frame after framing overhead. Add `MSG_BEGIN/MSG_PART/MSG_END` only when users actually need longer prompts.
+(Shipped 2026-08-03 as a single op instead — `MSGP KK NN <chunk>`, Track F1;
+see `docs/phase3-protocol.md`, "Extension: `MSGP`".)
 
 The host should add a native-mode branch to the existing 6801 listener, leaving PT100 behavior unchanged unless the exact handshake is received. Adapt model100's `v2_frame_line`, checksum parser, duplicate ACK handling, and stop-and-wait sender; do not copy its BASIC, file-width, run-repair, or emulator-specific code.
 

@@ -181,8 +181,10 @@ stable package rebuild silently regresses to package version 1.
 
 - **Out of scope by instruction, not attempted:** ink, Notes soup, file
   browsing, GET/PUT/PATCH/RUN, rich text, Unicode, streaming, multiple
-  conversations, settings screens. Long prompts are capped to one frame
-  (240 bytes) rather than split via MSG_BEGIN/PART/END.
+  conversations, settings screens. Long prompts were capped to one frame
+  (240 bytes) rather than split — **no longer true since Track F1**
+  (2026-08-03): `Chat A4` splits anything over 227 characters into `MSGP`
+  parts (`docs/phase3-protocol.md`, "Extension: `MSGP`").
 - **Transcript is bottom-anchored by tail-trimming, not scrolled.** You cannot
   scroll back past the 6 KiB window. Adequate, not elegant.
 - **Cosmetics deliberately left:** the gap between the buttons and the status

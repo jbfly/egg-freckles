@@ -79,11 +79,11 @@ one is part of your task** (see `CLAUDE.md`).
 Every command below was executed in this repo on 2026-07-31 and produced the
 stated result. Run from the repo root.
 
-**Tests** — 45 pass (37 + the 8 Track D1 MCP tests, 2026-08-03). `pytest` is
-not in the system python, so use `uv`:
+**Tests** — 55 pass (45 + the 10 Track F1 `MSGP` and client-source tests,
+2026-08-03). `pytest` is not in the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 45 passed
+uv run --with pytest pytest -q          # 55 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -167,6 +167,12 @@ adds a four-line handwriting field, compact controls, a distinct **Chat A3**
 Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
+
+Since 2026-08-03 the *source* client is `HarnessClientA4:jbfly` ("Chat A4",
+v2.4-a4): it splits a prompt over 227 characters into `MSGP` frames that the
+host reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension:
+`MSGP`"). A4 is emulator-proven only — **the physical MP2000 still runs A3**,
+so hardware docs and inventories that say A3 are correct.
 
 Human gates and preserved recovery state:
 

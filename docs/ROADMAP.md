@@ -7,6 +7,25 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-03 — Track F1 done (proven on the emulator).** The 240-byte
+  single-frame prompt cap is lifted. New client → host op
+  `:SS MSGP KK NN <chunk>*HH` (two-digit part/total, 220-character chunks,
+  8 KiB assembled cap) documented as an extension in `docs/phase3-protocol.md`;
+  `MSG` and every other op are byte-for-byte unchanged and an old client keeps
+  working. `Chat A4` (`HarnessClientA4:jbfly`, v2.4-a4) splits anything over
+  227 characters and sends the parts stop-and-wait on the existing ACK
+  machinery. Live on isolated instance `f1round`: a 378-character typed prompt
+  → `MSGP part 1/2 220B` + `part 2/2 158B` → `assembled 2 parts into 378B
+  prompt` → 453-character reply rendered on the Newton
+  (`runtime/evidence/f1round-round.txt`, `f1round-12-reply.png`); a short
+  prompt straight after it logged no `MSGP` at all. 55 tests.
+  The round also found a **pre-existing A3 bug**: `StrPos(text, Chr(13), 0)`
+  raises `-48802` on this ROM, so the transcript froze the moment it passed 640
+  characters. Fixed with a hand-rolled `FindBreak`; see
+  `docs/newton-dev-notes.md` Track F1 round and the footgun table in
+  `docs/newton-networking-lessons.md` §2. The note bridge still sends a single
+  `MSG` — moving it onto `MSGP` is part of F2.
+
 - **2026-08-03 — Track A done.** A3/A5 `3ca0b94` (spikes deleted, old staged
   loaders untracked; true test count was 40 not the documented 30 — now 37);
   A4/A6 `923ae43` (untracked debris archived to
@@ -172,10 +191,11 @@ lower-level development (games, richer UIs) on the same rails.
 
 Hardware-proven and current:
 
-- **Chat**: `examples/harness-client` (`HarnessClientA3:jbfly`, "Chat A3") ↔
-  `server.py:6801`, framed ASCII protocol, codex backend via
-  `codex exec` subprocess (`server.py:227-260`). Text only, 240-byte prompt
-  cap, one turn in flight.
+- **Chat**: `examples/harness-client` (`HarnessClientA4:jbfly`, "Chat A4"; the
+  physical MP2000 still runs A3) ↔ `server.py:6801`, framed ASCII protocol,
+  codex backend via `codex exec` subprocess. Text only, one turn in flight;
+  since Track F1 a prompt over 227 characters goes as `MSGP` parts and the host
+  reassembles up to 8 KiB.
 - **Install path**: `examples/harness-loader` (`-HarnessLoaderZC40:jbfly`) pulls
   any staged `.pkg` over WiFi from `runtime/dual_send.py` on 18081. ZC39 is the
   installed fallback. NS Basic bootstrap (`bootstrap/`) is the bare-metal
@@ -387,13 +407,12 @@ switches to Claude, the same MCP server plugs in. Steps:
 
 Evolve the chat client toward the panel-over-Notes dream, incrementally:
 
-- **F1. Multi-frame prompts.** Today a prompt must fit one 240-byte frame —
-  this is what visibly breaks the note bridge (`No answer: LENGTH`,
-  `docs/notes-bridge.md:246-256`). The wire format in
-  `docs/phase3-protocol.md` is pinned but extensible: add a *new* op (e.g.
-  `MSGP k/n <chunk>`) rather than touching `MSG`. Server reassembles;
-  old clients unaffected. Update protocol doc + tests both sides.
-- **F2. Chat A4 = A3 + "Note" button** (fold in `note-export`'s read/create
+- **F1. Multi-frame prompts — DONE 2026-08-03.** `MSGP KK NN <chunk>` shipped
+  in `Chat A4`; grammar and host state machine in `docs/phase3-protocol.md`,
+  "Extension: `MSGP`"; status log entry above. Still open: the note bridge
+  sends a single `MSG` (so `No answer: LENGTH` survives until F2 folds it in),
+  and A4 is emulator-proven only — the physical MP2000 still runs A3.
+- **F2. Chat A5 = A4 + "Note" button** (fold in `note-export`'s read/create
   code: send newest note as the prompt, replies can land as a native note)
   **+ "Ink" button** (fold in `ink-capture`'s canvas as an overlay view).
   One app, one identity bump via `scripts/newton-round.sh`. This retires

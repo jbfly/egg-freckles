@@ -246,6 +246,7 @@ The traps that cost real time.
 | **Case-insensitive symbol collision** | A slot `transcriptTail` made `:TranscriptTail()` call a number (`-48200`). | Slots are `capBytes` / `tailBytes`. | same |
 | **tntk rewrites package version 1** | Newton rejects any same-name reinstall as "already installed"; the identity string isn't the real replace trap — `tntk` hardcodes version 1. | Use uniquely-named builds per round (`scripts/newton-round.sh`); `SafeRemovePackage` did not clear it. | `~/newton-dev/tntk/package.cpp:161`, per `newton-dev-notes.md` |
 | **NIE link wedge** | Open apps holding NIE links accumulate until every connect returns `-16013`. | Restart the emulator container to clear. | `docs/newton-dev-notes.md` operational note |
+| **`StrPos` with a `Chr(13)` needle** | The chat transcript threw `-48802` and froze the client the first time it passed 640 characters — one Track F1 round, mistaken at first for a multi-frame bug. | Scan by hand: `for index := from to StrLen(text) - 1 do if Ord(text[index]) = 13 then return index`. `StrPos` with a *printable* needle is fine on the same string. | `docs/newton-dev-notes.md` Track F1 round; `runtime/evidence/f1round-round.txt` (each probe preceded by a `2+2` sanity eval); `examples/harness-client/Main.newt` (`FindBreak`) |
 
 ---
 

@@ -246,10 +246,13 @@ undefined-symbol-free build are `runtime/evidence/n15-delete-main.newt` and
 - The model-answer write-back is proven on MAIN for one plain-text model answer.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
-- Validation still permits 8 KiB of note text, but the reused chat protocol
-  deliberately accepts only one 240-byte frame. A longer valid note therefore
-  gets a visible `No answer: LENGTH` response; multipart prompts are a later
-  protocol rung, not part of this change.
+- Validation still permits 8 KiB of note text, but this bridge sends one
+  240-byte frame, so a longer valid note gets a visible `No answer: LENGTH`.
+  **The protocol rung now exists**: Track F1 added the `MSGP KK NN <chunk>` op
+  (`docs/phase3-protocol.md`, "Extension: `MSGP`"), the host reassembles up to
+  8192 bytes — the same cap this bridge validates against — and `Chat A4`
+  splits long prompts automatically. The note bridge itself has **not** been
+  moved onto it and still sends a single `MSG`; folding it in is Track F2.
 - The returned display line is ASCII-cleaned and capped at 200 characters for
   the Newton status view. There is no polling, queue, or bridge-owned history;
   every export resets the shared chat before its one model turn.

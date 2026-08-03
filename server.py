@@ -29,7 +29,11 @@ PORT = int(os.environ.get("NEWTON_PORT", "6801"))
 CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "120"))
 FAKE = os.environ.get("NEWTON_FAKE_BACKEND") == "1"
 NATIVE_HANDSHAKE = b"~NEWTONCLI 1"
-MAX_FRAME = 240  # ponytail: one-frame prompts; add MSG parts only when needed
+MAX_FRAME = 240
+# MSGP reassembly: a prompt too long for one frame arrives as parts. The cap
+# matches the note bridge's 8 KiB note limit (docs/notes-bridge.md).
+MAX_PROMPT = 8192
+PART_RE = re.compile(r"(\d{2}) (\d{2})(?: ([ -~]*))?")
 FRAME_TIMEOUT = 1.0
 FRAME_RETRIES = 3
 
@@ -357,9 +361,23 @@ def text_parts(text: str, seq: int) -> list[str]:
     return parts
 
 
+def parse_part(payload: str) -> tuple[int, int, str] | None:
+    """`MSGP KK NN <chunk>` -> (k, n, chunk); None if the payload is malformed."""
+    match = PART_RE.fullmatch(payload)
+    if not match:
+        return None
+    k, n = int(match.group(1)), int(match.group(2))
+    if not 1 <= k <= n:
+        return None
+    return k, n, match.group(3) or ""
+
+
 async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                       session: Session, backend) -> None:
-    state = {"last_rx": None, "tx_seq": 0, "hello": False}
+    # parts/parts_total hold one in-progress MSGP prompt; part 1 always restarts
+    # it and any plain MSG drops it, so the state machine has no other resets.
+    state = {"last_rx": None, "tx_seq": 0, "hello": False,
+             "parts": [], "parts_total": None}
     while True:
         raw = await read_wire_line(reader)
         if not raw:
@@ -377,9 +395,20 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
             writer.write(f"ACK {seq:02d}\r\n".encode("ascii"))
             await writer.drain()
             continue
+        part = None
         if op == "HELLO" and not state["hello"] and (payload == "NEWTON1" or payload.startswith("NEWTON1 ")):
             state["hello"] = True
-        elif op != "MSG" or not state["hello"]:
+        elif op == "MSG" and state["hello"]:
+            pass
+        elif op == "MSGP" and state["hello"]:
+            part = parse_part(payload)
+            pending = state["parts"]
+            if part is None or (part[0] != 1 and (part[0] != len(pending) + 1
+                                                  or part[1] != state["parts_total"])):
+                writer.write(f"NAK {seq:02d} PART\r\n".encode("ascii"))
+                await writer.drain()
+                continue
+        else:
             writer.write(f"NAK {seq:02d} OP\r\n".encode("ascii"))
             await writer.drain()
             continue
@@ -389,6 +418,27 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         if op == "HELLO":
             await send_frame(reader, writer, state, "STAT", "READY")
             continue
+        if op == "MSGP":
+            k, total, chunk = part
+            if k == 1:
+                state["parts"] = []
+                state["parts_total"] = total
+            state["parts"].append(chunk)
+            size = sum(len(item) for item in state["parts"])
+            log(f"MSGP part {k}/{total} {len(chunk)}B total={size}B")
+            if size > MAX_PROMPT:
+                state["parts"], state["parts_total"] = [], None
+                await send_frame(reader, writer, state, "STAT",
+                                 f"ERROR prompt over {MAX_PROMPT} bytes")
+                await send_frame(reader, writer, state, "PROMPT")
+                continue
+            if k < total:
+                continue
+            payload = "".join(state["parts"])
+            state["parts"], state["parts_total"] = [], None
+            log(f"MSGP assembled {total} parts into {len(payload)}B prompt")
+        else:
+            state["parts"], state["parts_total"] = [], None
         text = payload.strip()
         if text.lower() == "/new":
             session.reset()

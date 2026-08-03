@@ -55,6 +55,17 @@ class FrameTest(unittest.TestCase):
         with self.assertRaisesRegex(server.FrameError, "LENGTH"):
             server.frame_line(0, "MSG", "x" * 240)
 
+    def test_part_payload_grammar(self) -> None:
+        self.assertEqual(server.parse_part("01 03 hello there"), (1, 3, "hello there"))
+        self.assertEqual(server.parse_part("02 02"), (2, 2, ""))
+        self.assertEqual(server.parse_part("02 02 "), (2, 2, ""))
+        for bad in ("1 3 x", "00 03 x", "04 03 x", "01 x", "", "01 03x"):
+            self.assertIsNone(server.parse_part(bad), bad)
+
+    def test_a_full_part_frame_fits_the_wire_limit(self) -> None:
+        encoded = server.frame_line(99, "MSGP", "99 99 " + "x" * 220)
+        self.assertEqual(len(encoded), server.MAX_FRAME)
+
 
 class ServerSocketTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -188,6 +199,71 @@ class ServerSocketTest(unittest.TestCase):
             received = self.finish_turn(sock)
         self.assertIn(("TEXT", "New session."), received)
         self.assertEqual(self.history, [])
+
+    def part(self, seq: int, k: int, n: int, chunk: str) -> bytes:
+        return server.frame_line(seq, "MSGP", f"{k:02d} {n:02d} {chunk}")
+
+    def test_message_parts_assemble_into_one_prompt(self) -> None:
+        chunks = ["a" * 220, "b" * 220, "tail"]
+        with self.native_socket() as sock:
+            for index, chunk in enumerate(chunks):
+                sock.sendall(self.part(index + 1, index + 1, len(chunks), chunk))
+                self.assertEqual(socket_line(sock), f"ACK {index + 1:02d}\r\n".encode())
+            received = self.finish_turn(sock)
+        self.assertIn(("STAT", "THINKING"), received)
+        reply = "".join(text for op, text in received if op == "TEXT")
+        self.assertIn("FAKE REPLY TO: " + "a" * 220, reply)
+        self.assertEqual([item["content"] for item in self.history if item["role"] == "user"],
+                         ["".join(chunks)])
+
+    def test_out_of_order_part_is_naked_and_nothing_is_applied(self) -> None:
+        with self.native_socket() as sock:
+            sock.sendall(self.part(1, 1, 3, "first "))
+            self.assertEqual(socket_line(sock), b"ACK 01\r\n")
+            sock.sendall(self.part(2, 3, 3, "third"))
+            self.assertEqual(socket_line(sock), b"NAK 02 PART\r\n")
+            sock.sendall(server.frame_line(3, "MSGP", "2 3 bad digits"))
+            self.assertEqual(socket_line(sock), b"NAK 03 PART\r\n")
+            # The buffer survives the rejects: the real part 2 still completes.
+            sock.sendall(self.part(4, 2, 3, "second "))
+            self.assertEqual(socket_line(sock), b"ACK 04\r\n")
+            sock.sendall(self.part(5, 3, 3, "third"))
+            self.assertEqual(socket_line(sock), b"ACK 05\r\n")
+            self.finish_turn(sock)
+        self.assertEqual([item["content"] for item in self.history if item["role"] == "user"],
+                         ["first second third"])
+
+    def test_plain_message_resets_a_partial_part_buffer(self) -> None:
+        with self.native_socket() as sock:
+            sock.sendall(self.part(1, 1, 2, "dropped half "))
+            self.assertEqual(socket_line(sock), b"ACK 01\r\n")
+            sock.sendall(server.frame_line(2, "MSG", "plain wins"))
+            self.assertEqual(socket_line(sock), b"ACK 02\r\n")
+            self.finish_turn(sock)
+            # Part 2 of the abandoned prompt is now out of order.
+            sock.sendall(self.part(3, 2, 2, "orphan"))
+            self.assertEqual(socket_line(sock), b"NAK 03 PART\r\n")
+        self.assertEqual([item["content"] for item in self.history if item["role"] == "user"],
+                         ["plain wins"])
+
+    def test_assembled_prompt_over_the_cap_is_refused(self) -> None:
+        chunk = "z" * 220
+        parts = server.MAX_PROMPT // len(chunk) + 1
+        with self.native_socket() as sock:
+            for index in range(parts):
+                seq = index + 1
+                sock.sendall(self.part(seq, seq, 99, chunk))
+                self.assertEqual(socket_line(sock), f"ACK {seq:02d}\r\n".encode())
+            received = self.finish_turn(sock)
+        self.assertEqual(received[0],
+                         ("STAT", f"ERROR prompt over {server.MAX_PROMPT} bytes"))
+        self.assertEqual(self.history, [])
+
+    def test_parts_before_hello_are_refused(self) -> None:
+        with socket.create_connection(("127.0.0.1", self.port), timeout=2) as sock:
+            sock.sendall(server.NATIVE_HANDSHAKE + b"\r\n")
+            sock.sendall(self.part(1, 1, 2, "no hello yet"))
+            self.assertEqual(socket_line(sock), b"NAK 01 OP\r\n")
 
     def test_pt100_session_bytes_are_unchanged(self) -> None:
         with socket.create_connection(("127.0.0.1", self.port), timeout=2) as sock:

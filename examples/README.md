@@ -5,7 +5,7 @@ Six package source dirs. Each holds a NewtonScript project built into a
 
 | dir | identity | status |
 |---|---|---|
-| `harness-client` | `HarnessClientA3:jbfly` ("Chat A3", v2.3-a3) | CURRENT chat client; installed on physical MP2000; built by `make newton-packages` |
+| `harness-client` | `HarnessClientA4:jbfly` ("Chat A4", v2.4-a4) | CURRENT chat client; splits prompts over 227 characters into `MSGP` parts (ROADMAP Track F1); built by `make newton-packages`. `HarnessClientA3` is what is installed on the physical MP2000 — A4 is emulator-proven only |
 | `harness-loader` | `-HarnessLoaderZC40:jbfly` (v2.4) | CURRENT WiFi package loader; installed on physical MP2000 (ZC39 fallback also installed); built by `make newton-packages` |
 | `harness-tools` | `HarnessToolsR10P:jbfly` | fixed-op tools client (ping/front_app/get_note/note_list/note_probe/battery/store_info/pkg_list), all proven over the `POST /tools` link on Einstein, not yet on hardware; ROADMAP Track C |
 | `hello` | `HarnessHello:jbfly` | toolchain smoke test (`make toolchain-hello`) |

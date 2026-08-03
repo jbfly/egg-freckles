@@ -868,3 +868,54 @@ Five things worth carrying forward:
    listening. Tap the close box repeatedly until they are gone, then dismiss
    the card slip; the link came up normally afterwards. Not a fault — do not
    go debugging the driver over it.
+
+## 2026-08-03 — Track F1: multi-frame prompts, and the `StrPos` trap they exposed
+
+A prompt longer than one frame now leaves the Newton as `MSGP` parts, and the
+host reassembles it. On isolated instance `f1round` (flash seeded per
+`docs/parallel-emulators.md`) against `NEWTON_FAKE_BACKEND=1 python3 server.py`
+on `10.42.0.1:6801`, a 378-character prompt typed into `Chat A4 2.4-a4` went out
+as two parts and came back as a rendered 453-character reply:
+
+```
+MSGP part 1/2 220B total=220B
+MSGP part 2/2 158B total=378B
+MSGP assembled 2 parts into 378B prompt
+```
+
+Evidence: `runtime/evidence/f1round-round.txt` (full round record),
+`runtime/evidence/f1round-12-reply.png` (reply on the Newton screen),
+`runtime/evidence/f1round-13-short-msg.png` (a short prompt right after it,
+which logged no `MSGP` line at all — it still goes as a plain `MSG`).
+Grammar and host state machine: `docs/phase3-protocol.md`, "Extension: `MSGP`".
+
+Three things worth carrying forward:
+
+1. **`StrPos(text, Chr(13), 0)` raises `-48802` on this ROM.** The first
+   attempt assembled the prompt correctly, ACKed every host frame including
+   `PROMPT` (proved in the Einstein `TCPDIAG` payloads,
+   `runtime/evidence/f1round-einstein.log`), and then froze under
+   `Sorry, a problem has occurred (-48802)` with the reply invisible. The
+   client's own slots located it: `responseText` was 453 characters and
+   `transcript` 846, but `ready`/`inFlight` were untouched — so it died inside
+   `ShowTranscript` → `TranscriptTail`, whose only remaining call was the
+   newline search. `StrPos` with a *printable* needle works on the same string
+   (`StrPos(transcript, "Agent:", 0)` → 384) and `Ord(transcript[383])` → 13,
+   so the indexing is fine; it is the control-character needle that throws.
+   `Chr(10)` throws too. Every probe ran with a `2+2` → `4` sanity eval
+   immediately before it, because a stray modal alert makes `ns_eval` time out
+   and look like the same failure. Fix: `FindBreak(text, from)` scans with
+   `Ord`. This was a **pre-existing A3 bug** — A3 simply never had a transcript
+   over the 640-character tail threshold.
+2. **`-48802` is not in the interpreter-error table.**
+   `refs/NewtonProgrammerRef20.txt:74796-74840` lists `-48800`, `-48803`,
+   `-48804`, `-48806`…`-48811` and skips `-48801`/`-48802`. Do not spend time
+   looking it up; treat it as "the interpreter threw" and bisect.
+3. **The wire is not the app.** Everything the host logs can be perfect while
+   the Newton shows nothing. When that happens, read the running view's slots
+   through `ns_eval` (`GetRoot().|HarnessClientA4:jbfly|.responseText`) — the
+   partially-updated state names the statement that threw.
+
+`scripts/newton-round.sh` now also bumps an optional `kAppLabel`, and its
+`kAppTitle` pattern finally matches this package (A3's title carried no tag, so
+the script could not have bumped the chat client at all).

@@ -1,13 +1,21 @@
-kAppSymbol := '|HarnessClientA3:jbfly|;
-kVersion := "2.3-a3";
-kAppTitle := "Newton Chat " & kVersion;
-kAppLabel := "Chat A3";
+kAppSymbol := '|HarnessClientA4:jbfly|;
+kVersion := "2.4-a4";
+kAppTitle := "Newton Chat A4 " & kVersion;
+kAppLabel := "Chat A4";
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
 kTranscriptCap := 6144;
 // ponytail: the paragraph view shows the tail of that string; no scroller.
 kTranscriptTail := 640;
+
+// A frame is ":" & body & "*HH" & CRLF, so 240 bytes leaves 234 for the body.
+// A plain MSG body is "SS MSG " & text: 234 - 7 = 227 characters of prompt fit.
+// A part body is "SS MSGP KK NN " & chunk: 234 - 14 = 220. Longer prompts go
+// out as MSGP parts; 8 KiB total is the host's cap (server.py MAX_PROMPT).
+kFrameBytes := 227;
+kPartBytes := 220;
+kMaxPrompt := 8192;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -22,6 +30,9 @@ mainView := {
     // name: NewtonScript symbols are case-insensitive.
     capBytes: kTranscriptCap,
     tailBytes: kTranscriptTail,
+    frameBytes: kFrameBytes,
+    partBytes: kPartBytes,
+    maxPrompt: kMaxPrompt,
     // ponytail: a Newton paragraph breaks lines on CR (0x0D); NewtonScript's
     // "\n" is 0x0A, which draws as an empty box and breaks nothing. tntk
     // silently emits "" for a \u000D\u literal, so set it at setup time.
@@ -37,6 +48,9 @@ mainView := {
     inFlight: nil,
     draftSeq: nil,
     stopping: nil,
+    // MSGP parts still waiting for their ACK, and how many have gone out.
+    pendingParts: nil,
+    partIndex: 0,
     // The physical build always uses Mars. An emulator round may override this
     // slot through ns_eval without rebuilding or changing the package identity.
     serverAddress: [10, 42, 0, 1],
@@ -95,13 +109,24 @@ mainView := {
         return self.promptView;
     end,
 
+    // StrPos with a Chr(13) needle raises interpreter error -48802 on this ROM,
+    // although the same call with a printable needle works. Scan by hand.
+    // Evidence: docs/newton-dev-notes.md, the Track F1 round.
+    FindBreak: func(text, from)
+    begin
+        local size := StrLen(text);
+        for index := from to size - 1 do
+            if Ord(text[index]) = 13 then return index;
+        return nil;
+    end,
+
     AppendLine: func(line)
     begin
         self.transcript := self.transcript & line & self.newline;
         local cut := 0;
         while (StrLen(self.transcript) > self.capBytes) and (cut <> nil) do
         begin
-            cut := StrPos(self.transcript, self.newline, 0);
+            cut := :FindBreak(self.transcript, 0);
             if cut <> nil then
                 self.transcript := SubStr(self.transcript, cut + 1,
                     StrLen(self.transcript) - cut - 1);
@@ -114,8 +139,8 @@ mainView := {
         local size := StrLen(self.transcript);
         if size <= self.tailBytes then return self.transcript;
         local start := size - self.tailBytes;
-        local cut := StrPos(SubStr(self.transcript, start, self.tailBytes), self.newline, 0);
-        if cut <> nil then start := start + cut + 1;
+        local cut := :FindBreak(self.transcript, start);
+        if (cut <> nil) and (cut + 1 < size) then start := cut + 1;
         return SubStr(self.transcript, start, size - start);
     end,
 
@@ -141,7 +166,7 @@ mainView := {
         self.transcript := "";
         for index := 1 to 400 do :AppendLine("" & index & " " & filler);
         local size := StrLen(self.transcript);
-        local firstBreak := StrPos(self.transcript, self.newline, 0);
+        local firstBreak := :FindBreak(self.transcript, 0);
         local first := SubStr(self.transcript, 0, firstBreak);
         local ok := (size <= self.capBytes) and (size > 5000)
             and (StrPos(self.transcript, "400 " & filler, 0) <> nil)
@@ -185,6 +210,8 @@ mainView := {
         self.ready := nil;
         self.inFlight := nil;
         self.draftSeq := nil;
+        self.pendingParts := nil;
+        self.partIndex := 0;
     end,
 
     Released: func(id, state, error) nil,
@@ -327,12 +354,26 @@ mainView := {
         begin
             if (self.draftSeq <> nil) and BeginsWith(line, "ACK " & :SeqText(self.draftSeq)) then
             begin
+                self.draftSeq := nil;
+                // Stop-and-wait: the ACK for part k is what releases part k+1.
+                if (self.pendingParts <> nil) and (self.partIndex < Length(self.pendingParts)) then
+                    return :SendPart();
+                self.pendingParts := nil;
                 local field := :PromptField();
                 if field then
                     try SetValue(field, 'text, "") onexception |evt.ex| do nil;
-                self.draftSeq := nil;
             end;
             return nil;
+        end;
+        // A NAK aborts the turn visibly instead of leaving it hung in flight.
+        if BeginsWith(line, "NAK ") then
+        begin
+            self.draftSeq := nil;
+            self.pendingParts := nil;
+            self.partIndex := 0;
+            self.inFlight := nil;
+            self.ready := true;
+            return :SetStatus(line);
         end;
         if (StrLen(line) < 9) or not BeginsWith(line, ":") then return nil;
         local star := StrPos(line, "*", 0);
@@ -374,16 +415,11 @@ mainView := {
         return nil;
     end,
 
-    Send: func(text)
+    // One frame out, sequence number claimed, draft held until its ACK.
+    SendBody: func(tail)
     begin
-        local body := :SeqText(self.txSeq) & " MSG " & text;
-        local encoded := :EncodeBody(body);
-        if StrLen(encoded) > 240 then return :SetStatus("Prompt too long");
-        self.ready := nil;
-        self.inFlight := true;
+        local encoded := :EncodeBody(:SeqText(self.txSeq) & tail);
         self.draftSeq := self.txSeq;
-        self.responseText := "";
-        :SetStatus("Thinking");
         try self.endpoint:output(encoded, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
@@ -392,6 +428,44 @@ mainView := {
         onexception |evt.ex.comm| do return :Failed("Send exception");
         self.txSeq := (self.txSeq + 1) mod 100;
         return nil;
+    end,
+
+    SendPart: func()
+    begin
+        local total := Length(self.pendingParts);
+        local chunk := self.pendingParts[self.partIndex];
+        self.partIndex := self.partIndex + 1;
+        :SetStatus("Sending " & self.partIndex & "/" & total);
+        return :SendBody(" MSGP " & :SeqText(self.partIndex) & " "
+            & :SeqText(total) & " " & chunk);
+    end,
+
+    Send: func(text)
+    begin
+        if StrLen(text) > self.maxPrompt then return :SetStatus("Prompt too long");
+        self.ready := nil;
+        self.inFlight := true;
+        self.responseText := "";
+        self.pendingParts := nil;
+        self.partIndex := 0;
+        if StrLen(text) <= self.frameBytes then
+        begin
+            :SetStatus("Thinking");
+            return :SendBody(" MSG " & text);
+        end;
+        // Too long for one frame: MSGP parts, one in flight at a time.
+        local parts := [];
+        local index := 0;
+        while index < StrLen(text) do
+        begin
+            // ponytail: do not rely on SubStr clamping a short tail.
+            local take := StrLen(text) - index;
+            if take > self.partBytes then take := self.partBytes;
+            AddArraySlot(parts, SubStr(text, index, take));
+            index := index + take;
+        end;
+        self.pendingParts := parts;
+        return :SendPart();
     end,
 
     SendPrompt: func()

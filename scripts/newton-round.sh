@@ -27,13 +27,15 @@ old_upper = old.upper()
 new_upper = tag.upper()
 
 patterns = [
-    (r"^kAppSymbol := '\|([^\n]*?)" + re.escape(old_upper) + r"(:[^|\n]+)\|;$", r"kAppSymbol := '|\g<1>" + new_upper + r"\g<2>|;"),
-    (r'^kVersion := "' + re.escape(base) + r'-' + re.escape(old) + r'";$', f'kVersion := "{base}-{tag}";'),
-    (r'^kAppTitle := "([^"\n]*?)' + re.escape(old_upper) + r'([^"\n]*)" & kVersion;$', r'kAppTitle := "\g<1>' + new_upper + r'\g<2>" & kVersion;'),
+    (r"^kAppSymbol := '\|([^\n]*?)" + re.escape(old_upper) + r"(:[^|\n]+)\|;$", r"kAppSymbol := '|\g<1>" + new_upper + r"\g<2>|;", 1),
+    (r'^kVersion := "' + re.escape(base) + r'-' + re.escape(old) + r'";$', f'kVersion := "{base}-{tag}";', 1),
+    (r'^kAppTitle := "([^"\n]*?)' + re.escape(old_upper) + r'([^"\n]*)" & kVersion;$', r'kAppTitle := "\g<1>' + new_upper + r'\g<2>" & kVersion;', 1),
+    # The Extras label is optional: only the chat client carries one.
+    (r'^kAppLabel := "([^"\n]*?)' + re.escape(old_upper) + r'([^"\n]*)";$', r'kAppLabel := "\g<1>' + new_upper + r'\g<2>";', False),
 ]
-for pattern, replacement in patterns:
+for pattern, replacement, required in patterns:
     text, count = re.subn(pattern, replacement, text, flags=re.M)
-    if count != 1:
+    if count > 1 or (required and count != 1):
         raise SystemExit(f"newton-round: ERROR: identity pattern matched {count} times in {main}")
 
 proj, count = re.subn(
@@ -57,6 +59,7 @@ self_check() {
 kAppSymbol := '|-HarnessLoaderZC1:jbfly|;
 kVersion := "1.1-zc1";
 kAppTitle := "- ZC1 Loader " & kVersion;
+kAppLabel := "Load ZC1";
 EOF
     cat > "$tmp/test.nprj" <<'EOF'
 {
@@ -67,6 +70,7 @@ EOF
     grep -Fx "kAppSymbol := '|-HarnessLoaderR15A:jbfly|;" "$tmp/Main.newt" >/dev/null
     grep -Fx 'kVersion := "1.1-r15a";' "$tmp/Main.newt" >/dev/null
     grep -Fx 'kAppTitle := "- R15A Loader " & kVersion;' "$tmp/Main.newt" >/dev/null
+    grep -Fx 'kAppLabel := "Load R15A";' "$tmp/Main.newt" >/dev/null
     grep -Fx '    name: "-HarnessLoaderR15A:jbfly",' "$tmp/test.nprj" >/dev/null
     if bump_identity "$tmp/Main.newt" "$tmp/test.nprj" r15a 2>/dev/null; then
         fail "self-check accepted an already-used tag"

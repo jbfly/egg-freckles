@@ -3,7 +3,7 @@
 ## Current source state
 
 - `examples/harness-loader/Main.newt` is the NewtonOS 2.1 package installer. The user enters a staged `.pkg` filename; it opens an NIE link, connects to `10.42.0.1:18081`, downloads that name with HTTP/1.0, validates a `Content-Length` from 1 to 524,288 bytes, stores the exact body in a VBO, and installs it with `SuckPackageFromBinary`.
-- `examples/harness-client/Main.newt` is Newton Chat 2.3-a3 with the fresh package identity `HarnessClientA3:jbfly`. It holds one framed TCP session to port 6801, sends bounded ASCII prompts, and renders the model response in a 6 KiB transcript. A1 remains the installed, physically proven fallback.
+- `examples/harness-client/Main.newt` is Newton Chat 2.4-a4 with the fresh package identity `HarnessClientA4:jbfly`. It holds one framed TCP session to port 6801, sends ASCII prompts — one `MSG` frame up to 227 characters, `MSGP` parts above that up to 8 KiB (ROADMAP Track F1) — and renders the model response in a 6 KiB transcript. A4 is emulator-proven only; A3 is what is installed on the physical MP2000, with A1 as the older fallback.
 - `pkg_publisher.py` is the source-level reference server for `/harness-client.pkg` and `/status`. The separate live raw server is operational runtime state, not part of this build path.
 - Each app has a `.nprj` file and a small Makefile that invokes tntk against the Newton 2.1 platform file.
 
@@ -104,7 +104,13 @@ error followed by `PROMPT`, and A1 rendered a blank `Agent:` line. Tapping
 **New** reset the host thread and made the next turn succeed without reconnecting
 or reinstalling.
 
-Newton Chat 2.3-a3 is current. It removes `protoInputLine`'s default
+Newton Chat 2.4-a4 is current in source; the section below describes A3, which
+A4 keeps unchanged apart from the Track F1 additions: `MSGP` splitting for long
+prompts, a visible `NAK` status instead of a hung turn, and `FindBreak` in place
+of `StrPos(text, Chr(13), 0)`, which raises `-48802` on this ROM and froze the
+transcript at 640 characters (`docs/newton-dev-notes.md`, Track F1 round).
+
+Newton Chat 2.3-a3 removes `protoInputLine`'s default
 `oneLineOnly` justification and provides a 276-by-118-pixel prompt with four
 visible 24-pixel handwriting lines. The transcript gives up 66 vertical pixels;
 the status, New, and Send controls share one compact row. Its Extras label is
