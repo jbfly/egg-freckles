@@ -11,6 +11,10 @@ identities. The Storage view lists soups and application data, not installed
 packages. Line-wrapped labels are joined below; a question mark marks text that
 the photograph does not resolve confidently.
 
+The later Dock backups supersede this photo transcription for exact identities
+and sizes. See [Installed package inventory](installed-package-inventory.md),
+which includes Internal, the Ultimate Newton 4 MB card, and the 16 MB ATA card.
+
 ## Operationally important state
 
 | Item | Photographic evidence | Meaning |

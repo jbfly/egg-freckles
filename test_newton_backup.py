@@ -28,6 +28,13 @@ def test_packet_and_nsof_round_trip():
     encoded = backup.nsof_root(value)
     assert backup.nsof_decode(encoded) == (value, len(encoded))
 
+    large = b"\x02\x0c\x07\x03pkg\x00" + struct.pack(">IIII", 8, 0, 0, 0) + b"package0"
+    decoded, offset = backup.nsof_decode(large)
+    assert decoded["$large_binary"] == {
+        "compressed": False, "size": 8, "compander": "", "params": "",
+    }
+    assert offset == len(large)
+
 
 def test_dante_session_setup_uses_protocol_10_and_authenticates(monkeypatch):
     client, newton = socket.socketpair()

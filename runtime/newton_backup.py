@@ -241,6 +241,17 @@ class NSOFDecoder:
         elif tag == 3:
             length = self.xlong()
             value = {"$class": self.object(), "$binary": self.take(length).hex()}
+        elif tag == 12:
+            cls = self.object()
+            compressed = bool(self.take(1)[0])
+            length, name_length, params_length, _ = struct.unpack(">IIII", self.take(16))
+            compander = self.take(name_length).decode("ascii")
+            params = self.take(params_length).hex()
+            self.take(length)
+            value = {"$class": cls, "$large_binary": {
+                "compressed": compressed, "size": length, "compander": compander,
+                "params": params,
+            }}
         else:
             raise ValueError(f"unsupported NSOF tag {tag}")
         self.precedents[precedent] = value
