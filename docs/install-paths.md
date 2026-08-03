@@ -7,9 +7,24 @@ each situation. It does not rewrite any of them.
 
 | Situation | Path | Command |
 |---|---|---|
-| Emulator install | `scripts/newton-round.sh` for a full round (identity bump, build, install, launch, screenshot); `POST /install` on the instance's control port for a bare install | `scripts/newton-round.sh examples/harness-loader r16a` **or** `curl -F pkg=@dir/app.pkg http://127.0.0.1:<control-port>/install` (control port from `make emulator-instance-up INSTANCE=<name>`, `docs/parallel-emulators.md`) |
+| Emulator install | `scripts/newton-round.sh` for a full round (identity bump, build, install, launch, screenshot); `scripts/install-and-launch.sh` against the instance's control port for a bare install | `scripts/newton-round.sh examples/harness-loader r16a` **or** `NEWTON_CONTROL_URL=http://127.0.0.1:<control-port> scripts/install-and-launch.sh /packages/<dir>/app.pkg 'AppSymbol:jbfly'` (control port from `make emulator-instance-up INSTANCE=<name>`, `docs/parallel-emulators.md`) |
 | Physical Newton, normal operation | `runtime/dual_send.py` on Mars (`10.42.0.1:18081`) + the ZC40 loader on the device: human types the `.pkg` filename, taps Install | `python3 runtime/dual_send.py` (host), then on the Newton: open **ZC40 Loader**, type the filename, tap **Install** |
 | Physical Newton, bare-metal recovery | NS Basic DEMO bootstrap → reinstall the loader → then the normal path above | Type `bootstrap/nsbasic-bootstrap.bas` into the NS Basic demo slot (see `docs/install-lifeline-plan.md` §7); alternatives Newt's Cape and Dock TCP are preserved in `downloads/recovery/` |
+
+## Row 1 in detail — what `POST /install` actually takes
+
+`POST /install` is **not** a multipart upload. The handler reads the raw request
+body as a UTF-8 string and forwards it to the Einstein control socket as
+`install <body>` (`emulator/control.py:343-353`), so the body must be a **path
+inside the container**, 1 to 8184 bytes. The Einstein side rejects anything
+that is not under `/packages/` or that contains `..`
+(`containers/patches/einstein-control-socket.patch:119-124`), and `/packages`
+is the read-only mount of the repo's `examples/` directory
+(`compose.yaml:40`). A `curl -F pkg=@…` form upload returns HTTP 400; an
+earlier version of this table showed that form and it never worked.
+
+`scripts/install-and-launch.sh` is the blessed two-liner: it POSTs the path to
+`/install`, then POSTs `GetRoot().|<symbol>|:Open();` to `/newtonscript`.
 
 ## Row 2 in detail — which listener, and why
 

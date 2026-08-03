@@ -7,7 +7,7 @@ Six package source dirs. Each holds a NewtonScript project built into a
 |---|---|---|
 | `harness-client` | `HarnessClientA3:jbfly` ("Chat A3", v2.3-a3) | CURRENT chat client; installed on physical MP2000; built by `make newton-packages` |
 | `harness-loader` | `-HarnessLoaderZC40:jbfly` (v2.4) | CURRENT WiFi package loader; installed on physical MP2000 (ZC39 fallback also installed); built by `make newton-packages` |
-| `harness-tools` | `HarnessToolsR10L:jbfly` | fixed-op tools client (ping/front_app/get_note/note_probe), emulator-proven only; seed for ROADMAP Track C |
+| `harness-tools` | `HarnessToolsR10M:jbfly` | fixed-op tools client (ping/front_app/get_note/note_probe/battery/store_info/pkg_list), emulator-proven only; ROADMAP Track C |
 | `hello` | `HarnessHello:jbfly` | toolchain smoke test (`make toolchain-hello`) |
 | `ink-capture` | `InkPad:jbfly` | ink capture → `/ink` → vision model, emulator-proven only; seed for ROADMAP Track E |
 | `note-export` | `NoteExportN13:jbfly` | newest-note → `/note` → reply-as-native-note, proven on emulator and physical MAIN store; folds into Chat A4 (ROADMAP Track F2) |

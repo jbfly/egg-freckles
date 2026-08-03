@@ -21,8 +21,24 @@ agent can complete one task and verify it.
 - **Open decisions resolved 2026-08-03:** superseded sources deleted (git
   history retains); archive location is `~/newton-archive/newton-harness/`;
   Track D stays codex + MCP.
-- **Next up:** Track C1–C3 (Newton-side ops; see revised C6 note — no host
-  refactor needed first), then D1.
+- **2026-08-03 — Track C1–C3 partial (code done, live proof pending).**
+  `examples/harness-tools` bumped `R10L`→`R10M` and gained `battery`,
+  `store_info`, `pkg_list` on the existing `StrEqual` dispatch; builds clean
+  with `make -C examples/harness-tools`; no host-side change was needed
+  (generic `POST /tools` pass-through, C6 note below). API choices verified
+  against `refs/` before coding — `BatteryLevel` is documented-obsolete,
+  `BatteryStatus`/`GetStores` sizes/`GetPackages` are the real calls; details
+  and citations in `docs/newtonscript-eval.md` thirteenth finding. **The three
+  ops are `[verify]`**: the acceptance round could not run because
+  `10.42.0.1/24` was never added to `lo` (needs `sudo ap/emulator-only.sh`,
+  outside the agent sudoers rules). Two mechanics learned in the attempt and
+  now documented: `POST /install` takes a raw `/packages/…` path, not a
+  `curl -F` upload (`docs/install-paths.md` row 1), and a fresh
+  `make emulator-instance-up` Newton is *not* network-ready (first-run tour
+  suppresses the float window; the whole `runtime/nie2/` stack is missing and
+  `newtdev.pkg` must precede `NE2K.pkg`).
+- **Next up:** rerun the C1–C3 acceptance round once `10.42.0.1` is on `lo`,
+  then C4, then D1.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -52,10 +68,13 @@ Hardware-proven and current:
 
 Emulator-proven, **not yet on hardware**:
 
-- **Tools channel**: `examples/harness-tools` (`HarnessToolsR10L`) long-polls
-  `pkg_publisher.py`'s `ToolBroker` on 18081; ops today are `ping`,
-  `front_app`, `get_note`, `note_probe`. Host API: `POST /tools`
-  (`pkg_publisher.py:354-385`). Median 0.3–0.8 s per call on the warm link.
+- **Tools channel**: `examples/harness-tools` (`HarnessToolsR10M`) long-polls
+  `pkg_publisher.py`'s `ToolBroker` on 18081; emulator-proven ops are `ping`,
+  `front_app`, `get_note`, `note_probe`, and R10M adds `battery`,
+  `store_info`, `pkg_list` — those three are **written and compiling but
+  `[verify]`**, see `docs/newtonscript-eval.md` thirteenth finding. Host API:
+  `POST /tools` (`pkg_publisher.py:354-385`). Median 0.3–0.8 s per call on the
+  warm link.
 - **Ink**: contrary to `docs/START-HERE.md`'s stale claim, this is built
   end-to-end: `examples/ink-capture` (`InkPad`) captures strokes with
   `GetPointsArray`, encodes NSI1, POSTs to `/ink`; host renders a PNG
@@ -156,7 +175,7 @@ not by rewriting servers:
 
 ## Track C — tools channel v2: device management ops (2–3 sessions)
 
-Grow `examples/harness-tools` (R10L lineage) into the device-management
+Grow `examples/harness-tools` (R10M lineage) into the device-management
 surface the agent needs. Fixed-op dispatch stays (arbitrary eval is a proven
 dead end — `docs/newtonscript-eval.md`; four investigations reverted). New
 ops, each one session-sized with its emulator acceptance test:

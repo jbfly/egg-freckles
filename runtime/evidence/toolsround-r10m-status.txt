@@ -1,0 +1,73 @@
+Track C1-C3 acceptance round for HarnessToolsR10M:jbfly -- 2026-08-03
+=====================================================================
+
+RESULT: build + install proven on an isolated emulator instance; the three new
+ops (battery, store_info, pkg_list) are NOT yet exercised on a live link and
+remain [verify]. The blocker is host-side and human-gated.
+
+What was done
+-------------
+1. Bumped identity R10L -> R10M in examples/harness-tools/Main.newt:1-2 and
+   examples/harness-tools/harness-tools.nprj:8.
+2. Built:  make -C examples/harness-tools
+     "Compiling Main.newt / Encoding Part 0 8e54a11... / Package
+      harness-tools.pkg created."  -- compiled clean, no tntk errors.
+3. Isolated instance (never touched the shared emulator or alpha/beta/zc39/mpclone):
+     make emulator-instance-up INSTANCE=c1round
+       instance   c1round
+       container  newton-harness-c1round_emulator_1
+       control    http://127.0.0.1:55225
+4. Installed and launched:
+     NEWTON_CONTROL_URL=http://127.0.0.1:55225 scripts/install-and-launch.sh \
+       /packages/harness-tools/harness-tools.pkg 'HarnessToolsR10M:jbfly'
+     -> "queued" / "queued"; a second attempt returned the Newton notification
+        'The package "HarnessToolsR10M:jbfly" was not installed because a package
+         by the same name is already installed on the store "Internal"',
+        which confirms the first install succeeded.
+     -> runtime/evidence/toolsround-r10m-screen.png shows "Harness Tools R10M"
+        in the Extras drawer of instance c1round.
+5. Confirmed the app object exists and opens:
+     runtime/ns_eval.py --instance c1round 'ClassOf(GetRoot().|HarnessToolsR10M:jbfly|)'
+       -> 'frame
+     runtime/ns_eval.py --instance c1round 'GetRoot().|HarnessToolsR10M:jbfly|:Open()'
+       -> TRUE
+
+Why the ops were not exercised
+------------------------------
+a) HOST ADDRESS MISSING (the hard blocker).
+   examples/harness-tools/Main.newt:72 hardcodes the broker at 10.42.0.1:18081
+   with no runtime override, and runtime/raw_pkg_server.py binds that literal
+   address. `ip addr show lo | grep 10.42.0.1` returned nothing for the entire
+   session. Adding it requires `sudo ap/emulator-only.sh`; the installed sudoers
+   rules cover only apply.sh and teardown.sh, so an agent cannot bring it up.
+   Polled every 30 s for 20 minutes -- never appeared.
+
+b) A FRESH INSTANCE IS NOT NETWORK-READY (a second, independent blocker found
+   during the attempt; previously undocumented).
+   - The blank flash boots into the first-run Welcome tour. While the tour is
+     running the protoFloatNGo window does not appear even though :Open()
+     returns TRUE. The tour was clicked through (name/country/address/phones/
+     date/time/handwriting/signature/Done) to reach the Notepad.
+   - None of the NIE stack in runtime/nie2/ is installed on a fresh flash, so
+     there is no Ethernet driver and no saved Internet Setup for InetGrabLink
+     to use. (InetGrabLink itself IS in the 717006 ROM:
+       runtime/ns_eval.py --instance c1round "if GetGlobalFn('InetGrabLink) then \"yes\" else \"no\""
+       -> "yes")
+   - POST /install rejects any path outside /packages/ with HTTP 400
+     (containers/patches/einstein-control-socket.patch:119-124), so the nie2
+     packages had to be staged into examples/ first.
+   - newtdev.pkg (Newton Device Drivers) MUST be installed before NE2K.pkg.
+     Installing NE2K first produced the Newton error
+       "Unable to activate NE2K since Newton Device Drivers are not in the system"
+     and after a container restart, boot error (-48807).
+
+To finish this round
+--------------------
+1. Human runs: sudo ap/emulator-only.sh   (adds 10.42.0.1/24 to lo)
+2. python3 runtime/raw_pkg_server.py      (background, capture stdout)
+3. Complete an Internet Setup on the instance (Ethernet / PCMCIA Ethernet), or
+   run against an emulator whose flash already has one.
+4. Wait for "Newton tools connected" in the broker log, then:
+     curl -X POST 'http://10.42.0.1:18081/tools?timeout=20' \
+       -H 'Content-Type: application/json' -d '{"op":"battery","args":{}}'
+     ... likewise store_info, pkg_list (no id / id=1 / id out of range).

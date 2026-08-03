@@ -478,3 +478,96 @@ limited to 1 through 64 so an arbitrarily large request cannot restore unbounded
 synchronous cursor work; out-of-range values return `status: "error"` with
 `note ordinal must be 1..64`. This keeps the existing `/tools` JSON envelope and
 wire format unchanged while removing the all-stores soup scan.
+
+## Thirteenth finding: three device-management ops (Track C1–C3)
+
+`HarnessToolsR10M:jbfly` adds `battery`, `store_info`, and `pkg_list` to the
+fixed-op dispatch. Nothing about the wire protocol changed: the host `POST
+/tools` route is a generic pass-through that forwards any `TOOL_OP`-matching
+name and validates only that `args.id` is an integer if present
+(`pkg_publisher.py:354-386`), so these three ops needed **only** Newton-side
+code. The reply still travels as the 3-line escaped `id / status / value`
+frame (`examples/harness-tools/Main.newt` `Reply`).
+
+| op | args | reply shape | status |
+|---|---|---|---|
+| `battery` | none | `count=N cap=NN% charge=<state> ac=<yes/no> type=<t>` | **[verify]** — compiles; not yet exercised on a live link |
+| `store_info` | none | one line per store, `<name> total=N used=N free=N ro=<y/n>`, newline-separated (the reply escaper turns them into `\n`) | **[verify]** — compiles; not yet exercised on a live link |
+| `pkg_list` | optional `id` (1-based ordinal) | no `id` or `id=0` → `count=N`; valid `id` → `i/N <title>\|<size>\|<storeName>`; out of range → `status: "error"`, `package ordinal must be 1..N` | **[verify]** — compiles; not yet exercised on a live link |
+
+### Which system calls these use, and which are traps
+
+Checked against `refs/NewtonProgrammerRef20.txt` before any code was written,
+per the repo's `[verify]`-first convention:
+
+- **`BatteryLevel` is documented-obsolete** — the Newton Programmer's Guide says
+  so outright at `refs/NewtonProgrammerGuide20.txt:37895-37896`. Do not use it.
+  `PowerStatus`, `GetPowerStatus`, `BatteryRawStatus`, and Gestalt battery
+  selectors have **zero hits** anywhere in `refs/`; they do not exist.
+- The verified pair is **`BatteryCount()`** and **`BatteryStatus(which)`**
+  (`refs/NewtonProgrammerRef20.txt:41816-41919`; Guide `39015-39024`,
+  `39166-39167`), where `which` is 0 for the primary pack and 1 for the backup.
+  The status frame carries `batteryCapacity` (integer percent — this, not any
+  `BatteryLevel`, is the level field), `chargeState` and `acPower` and
+  `batteryType` (symbols, *or* integers if the driver returned something else),
+  and `batteryVoltage` / `acVoltage` / `chargeCurrent` / temperatures as
+  **reals**. The reference states plainly that **any slot may be `nil`** when
+  "the underlying hardware cannot supply this information". The op therefore
+  nil-guards every slot and prints `?` for a missing one, renders symbols with
+  the proven `"" & sym` idiom, and emits no reals — `NumStr` floors a non-integer
+  rather than spilling a long decimal onto the wire.
+- **`store_info`** uses `GetStores()` (`refs/NewtonProgrammerRef20.txt:32710-32720`;
+  element 0 is always the internal store), `store:GetName()` (`:32664-32669`),
+  and `store:TotalSize()` / `store:UsedSize()` (`:32834-32846`). There is **no
+  `FreeSize` method** — free is computed as total minus used. `store:IsReadOnly()`
+  is the store method; do not confuse it with the unrelated global
+  `IsReadOnly(obj)` (`:64323-64336`). `GetStores`/`GetName` were already proven
+  on this ROM (`examples/harness-tools/Main.newt` `NoteProbeSteps`/`GetNote`);
+  `TotalSize`/`UsedSize`/`IsReadOnly` are documented-2.0 and remain `[verify]`.
+- **`pkg_list`** uses `GetPackages()` (`refs/NewtonProgrammerRef20.txt:31996-32039`),
+  which returns an array of frames with `{id, size, title, store, version,
+  timeStamp, copyProtection}`. Two traps: its `size` is **uncompressed** bytes,
+  so it will *not* match the compressed Dock byte counts in
+  `docs/installed-package-inventory.md`; and the physical MP2000 holds 83
+  packages, so dumping the array in one reply would violate the small-ASCII-reply
+  constraint and risk the event-loop starvation of the twelfth finding above.
+  The op is therefore paged with the same 1-based-ordinal shape `get_note` uses,
+  and `store` is a store reference that must be rendered via `pkg.store:GetName()`.
+  `GetPackages` cannot be called from an `InstallScript`/`RemoveScript` — the
+  installer is not reentrant — which does not affect the tools client but is
+  worth recording for Track C5.
+
+### A fresh emulator instance is not network-ready
+
+Discovered while trying to run the acceptance round in an isolated instance, and
+not previously written down anywhere: `make emulator-instance-up INSTANCE=<name>`
+gives you a **blank Newton flash**, which means
+
+1. the ROM boots into the first-run Welcome tour, which suppresses the tools
+   client's `protoFloatNGo` window even though `GetRoot().|HarnessToolsR10M:jbfly|`
+   exists and `:Open()` returns `TRUE` — the tour has to be clicked through
+   (name, country, address, phones, date, time, handwriting, signature, Done)
+   before the float will appear;
+2. none of the NIE stack in `runtime/nie2/` is installed, so there is no
+   Ethernet driver and no saved Internet Setup for `InetGrabLink` to use.
+   (`InetGrabLink` itself *is* in the 717006 ROM — `GetGlobalFn('InetGrabLink)`
+   returns non-nil on a blank flash.) The working long-lived emulator has
+   `Untitled Ethernet Setup` / `PCMCIA Ethernet` configured
+   (`docs/newton-dev-notes.md:450`); a fresh instance does not.
+
+Two mechanics matter when installing that stack: `POST /install` only accepts
+paths under `/packages/`, i.e. the repo's `examples/` mount
+(`containers/patches/einstein-control-socket.patch:119-124`), so the packages in
+`runtime/nie2/` must be staged into `examples/` first; and **`newtdev.pkg`
+(Newton Device Drivers) must be installed before `NE2K.pkg`**, otherwise the
+driver installs but refuses to activate with `Unable to activate NE2K since
+Newton Device Drivers are not in the system`.
+
+### What still blocks the live round
+
+`examples/harness-tools/Main.newt:72` hardcodes the broker at `10.42.0.1:18081`
+with no runtime override, and `runtime/raw_pkg_server.py` binds that literal
+address, so the host must have `10.42.0.1/24` on `lo` before any of this can be
+exercised. Adding it needs `sudo ap/emulator-only.sh`, which the installed
+sudoers rules do not cover — an agent cannot bring it up. Until a human runs it,
+all three ops stay `[verify]`.
