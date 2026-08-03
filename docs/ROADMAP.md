@@ -83,6 +83,23 @@ agent can complete one task and verify it.
   Still unverified: whether `codex exec` auto-approves MCP tool calls
   non-interactively, and whether the MCP subprocess inherits
   `--sandbox read-only`.
+- **2026-08-03 — Track E1 done (visible ink).** `examples/ink-capture` is now
+  `InkPad2:jbfly` v2: one `MakePolygon` retained per stroke, painted in a
+  `ViewDrawScript` on the capture view, with `Dirty()` + `RefreshViews()` at
+  capture / `Undo` / `Clear` and a new `Undo` button. The Stage 4 `[verify]`
+  is settled in both directions — `MakePolygon` *does* take the flat array
+  (`ClassOf(...)` → `'polygon`), but as **x,y** pairs while `GetPointsArray`
+  returns **y,x** global coordinates, proved by
+  `ShapeBounds(MakePolygon([0,0,100,10,0,20]))` → `0/0/101/21` and by a drag
+  from screen `60,100` retaining `y0=100 x0=60`. No `MakeLine` loop, no manual
+  binary, and the figure is not auto-closed (a hand-injected bent stroke drew
+  as an open "L"). Proven on isolated instance `e1ink` (flash-seeded, no
+  network, no `/ink` POST): three `/drag` strokes stayed visible after pen-up,
+  `Undo` removed only the last, `Clear` wiped all — `runtime/evidence/e1ink-*`
+  and `docs/ink-client-design.md` "Stage 5 result". The round also found a
+  defect it did not fix: `Encode()` adds the ink view's origin to points that
+  are already global, so the host's render is shifted +16,+54 — folded into
+  **E2**, which stays open along with hardware install.
 - **Next up:** the D1/D3 live demo (broker + polling Newton + one chat turn
   that calls `front_app`, then `store_info`/`pkg_list`), then C4. Get a
   network-ready instance in ~90 s with the flash-seeding recipe in
@@ -128,9 +145,11 @@ Emulator-proven, **not yet on hardware**:
   end-to-end: `examples/ink-capture` (`InkPad`) captures strokes with
   `GetPointsArray`, encodes NSI1, POSTs to `/ink`; host renders a PNG
   (stdlib Bresenham, `pkg_publisher.py:241-278`) and calls a vision model.
-  Four staged results appended to `docs/ink-client-design.md:224-408`.
-  One known defect: ink is invisible on the canvas after pen-up
-  (`ink-client-design.md:380-401`).
+  Five staged results appended to `docs/ink-client-design.md`. The pen-up
+  defect is fixed (Stage 5, `InkPad2`): retained polygons painted in a
+  `ViewDrawScript`, plus an `Undo` button. Newly found and still open:
+  `Encode()` double-counts the ink view's origin, so the host render is
+  shifted +16,+54 (Stage 5 section, "The one trap").
 - **Notes**: `examples/note-export` (`NoteExportN13`) reads the newest note,
   POSTs `/note`, and creates a native reply note via the proven two-step
   `MakeTextNote(answer, nil)` + `NewNote` path.
@@ -290,14 +309,15 @@ switches to Claude, the same MCP server plugs in. Steps:
 
 ## Track E — finish ink and the HWR-assist loop (2 sessions)
 
-- **E1. Visible ink.** The one named defect: strokes vanish at pen-up.
-  Retain per-stroke shapes and paint them in `ViewDrawScript`; the open
-  `[verify]` is whether `MakePolygon` takes the flat Y/X array or needs
-  per-segment lines (`docs/ink-client-design.md:380-401`). Verify against
-  `refs/` first, then emulator (`/drag` draws test strokes; Stage 1 already
-  drew a 94-point stroke that way).
-- **E2. Install InkPad on hardware** via Track B path; first real stylus
-  drawing → vision model round trip.
+- **E1. Visible ink — DONE 2026-08-03.** `InkPad2:jbfly` retains one
+  `MakePolygon` per stroke and paints them in a `ViewDrawScript`, and gained
+  the `Undo` button. `MakePolygon` takes the flat array but as **x,y** pairs,
+  so `GetPointsArray`'s y,x order is swapped and the ink view's origin
+  subtracted; no per-segment `MakeLine`. See `docs/ink-client-design.md`
+  "Stage 5 result" and `runtime/evidence/e1ink-*`.
+- **E2. Install InkPad2 on hardware** via Track B path; first real stylus
+  drawing → vision model round trip. Fix `Encode()`'s doubled origin (found
+  in E1) as part of this, since it needs the wire to prove.
 - **E3. HWR assist.** New flow: send a note's *ink* to the agent, get clean
   text back as a new note. Needs the multi-part `/ink` POST that was
   designed and deferred (`pkg_publisher.py:313` caps at 16 KiB; `?part=k&of=n`

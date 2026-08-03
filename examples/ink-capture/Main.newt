@@ -1,6 +1,6 @@
-kAppSymbol := '|InkPad:jbfly|;
-kAppTitle := "Ink Pad";
-kVersion := "1.0";
+kAppSymbol := '|InkPad2:jbfly|;
+kAppTitle := "Ink Pad 2";
+kVersion := "2.0";
 
 mainView := {
     _proto: protoFloatNGo,
@@ -9,6 +9,7 @@ mainView := {
     appSymbol: kAppSymbol,
     strokeCount: 0,
     strokes: [],
+    shapes: [],
     inkLeft: 0,
     inkTop: 0,
     pending: nil,
@@ -23,7 +24,11 @@ mainView := {
     ViewSetupDoneScript: func()
     begin
         inherited:?ViewSetupDoneScript();
+        // ponytail: template literals live in the read-only package, so both
+        // retained arrays have to be re-made in the heap before anything grows
+        // them.
         self.strokes := [];
+        self.shapes := [];
         AddDelayedCall(func(view) view:Wire(), [self], 300);
     end,
 
@@ -55,28 +60,78 @@ mainView := {
     StrokeText: func()
         if self.strokeCount = 1 then "1 stroke" else self.strokeCount & " strokes",
 
+    // ponytail: MakePolygon wants x,y pairs and GetPointsArray hands back y,x,
+    // so swapping the pair is the whole conversion — no per-segment MakeLine,
+    // no manual binary.
+    // GetPointsArray hands back screen-global coordinates (measured: a drag
+    // starting at screen 60,100 retained y0=100 x0=60), and DrawShape draws in
+    // view-local ones, so the view's own origin comes off here.
+    StrokeShape: func(points, originLeft, originTop)
+    begin
+        local count := Length(points);
+        if count < 2 then return nil;
+        local coords := Array(count, 0);
+        local index := 0;
+        while index < count do
+        begin
+            coords[index] := points[index + 1] - originLeft;
+            coords[index + 1] := points[index] - originTop;
+            index := index + 2;
+        end;
+        // A one-point stroke is a dot: MakePolygon needs two vertices for it.
+        if count = 2 then coords := [coords[0], coords[1], coords[0], coords[1]];
+        return MakePolygon(coords);
+    end,
+
+    Repaint: func()
+    begin
+        if self.inkView = nil then :Wire();
+        if self.inkView then
+        begin
+            self.inkView:Dirty();
+            RefreshViews();
+        end;
+        return nil;
+    end,
+
     CountStroke: func(points, originLeft, originTop)
     begin
-        // ponytail: the ink view reports its own screen origin, so the encoder
-        // never carries a hardcoded offset that silently rots when I move a view.
+        // The ink view reports its own screen origin so nothing here carries a
+        // hardcoded offset. KNOWN DEFECT (E1, unfixed because the Send path was
+        // out of scope): Encode() *adds* this origin to points that are already
+        // screen-global, so the host's render is shifted +16,+54. See
+        // docs/ink-client-design.md "Stage 5 result", "The one trap".
+        local shape := :StrokeShape(points, originLeft, originTop);
+        if shape = nil then return nil;
         self.inkLeft := originLeft;
         self.inkTop := originTop;
         AddArraySlot(self.strokes, points);
+        AddArraySlot(self.shapes, shape);
         self.strokeCount := self.strokeCount + 1;
+        :Repaint();
         :SetStatus(:StrokeText());
         return nil;
+    end,
+
+    Undo: func()
+    begin
+        if self.busy then return :SetStatus("Wait for the reply");
+        if self.strokeCount = 0 then return :SetStatus("Ready");
+        self.strokeCount := self.strokeCount - 1;
+        SetLength(self.strokes, self.strokeCount);
+        SetLength(self.shapes, self.strokeCount);
+        :Repaint();
+        if self.strokeCount = 0 then return :SetStatus("Ready");
+        return :SetStatus(:StrokeText());
     end,
 
     Clear: func()
     begin
         if self.busy then return :SetStatus("Wait for the reply");
         self.strokes := [];
+        self.shapes := [];
         self.strokeCount := 0;
-        if self.inkView then
-        begin
-            self.inkView:Dirty();
-            RefreshViews();
-        end;
+        :Repaint();
         return :SetStatus("Ready");
     end,
 
@@ -277,6 +332,16 @@ mainView := {
                 self:Parent():CountStroke(GetPointsArray(unit), box.left, box.top);
                 return nil;
             end,
+
+            // ponytail: the system erases the transient stroke once
+            // ViewStrokeScript consumes it, so the retained polygons are the
+            // only ink that survives pen-up.
+            ViewDrawScript: func()
+            begin
+                local shapes := self:Parent().shapes;
+                if shapes and (Length(shapes) > 0) then :DrawShape(shapes, nil);
+                return nil;
+            end,
         },
         {
             _proto: protoDivider,
@@ -294,6 +359,12 @@ mainView := {
             viewBounds: {left: 8, top: 358, right: 80, bottom: 390},
             text: "Clear",
             buttonClickScript: func() self:Parent():Clear(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 100, top: 358, right: 172, bottom: 390},
+            text: "Undo",
+            buttonClickScript: func() self:Parent():Undo(),
         },
         {
             _proto: protoTextButton,

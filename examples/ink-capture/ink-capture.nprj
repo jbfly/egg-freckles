@@ -5,7 +5,7 @@
             files: [],
         }
     ],
-    name: "InkPad:jbfly",
-    version: 1,
+    name: "InkPad2:jbfly",
+    version: 2,
     platform: "Newton 2.1"
 }

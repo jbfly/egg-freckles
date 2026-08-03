@@ -1,12 +1,12 @@
 # Ink client design — Newton as an AI input surface
 
-> **Status (2026-08-03 audit): largely implemented.** The design below reads
-> as a proposal, but Stages 1–4 have been built and proven end to end on the
-> emulator — see the "Stage 1 result" through "Stage 4 result" sections
-> appended at `:224-408`. Remaining gaps: ink is invisible on canvas after
-> pen-up (`:380-401`), nothing here is installed on physical hardware yet,
-> and the multi-part `/ink` POST is still unbuilt. See `docs/ROADMAP.md`
-> Track E for what remains.
+> **Status (2026-08-03): largely implemented.** The design below reads
+> as a proposal, but Stages 1–5 have been built and proven on the
+> emulator — see the "Stage 1 result" through "Stage 5 result" sections
+> appended below. The pen-up defect is **RESOLVED** (Stage 5). Remaining
+> gaps: nothing here is installed on physical hardware yet, the multi-part
+> `/ink` POST is still unbuilt, and `Encode()` double-counts the ink view's
+> origin (found in Stage 5, not fixed). See `docs/ROADMAP.md` Track E.
 
 Scope: a future `harness-client` that captures stylus ink on a NewtonOS 2.1
 device (MP2100-class, or Einstein), ships it to the host over the existing
@@ -385,7 +385,11 @@ The encoder no longer carries the hardcoded `+16 / +58` screen offset Stage 3
 used. `ViewStrokeScript` runs on the ink view, so it reports its own
 `GlobalBox()` origin upward and the offset cannot rot when a view moves.
 
-### Known imperfection
+### Known imperfection — RESOLVED in Stage 5 (see below)
+
+> Fixed on 2026-08-03 by `InkPad2:jbfly`: retained polygons drawn in a
+> `ViewDrawScript`. Read the Stage 5 section for the API answer and the
+> screenshots. The paragraph below is kept as the record of the defect.
 
 **The ink is not visible.** NewtonOS hands a bare `clView` with
 `vStrokesAllowed` a transient stroke and erases it once `ViewStrokeScript`
@@ -406,11 +410,132 @@ in a `ViewDrawScript` on the capture view. It is the one thing standing
 between this and a sketch app someone would actually use, and it needs one
 unverified symbol confirmed first — whether `MakePolygon` accepts the flat
 Y/X array `GetPointsArray` returns, or whether per-segment `MakeLine` is
-required.
+required. **Done in Stage 5; the answer is one `MakePolygon` per stroke with
+the pair order swapped.**
 
-Evidence: `runtime/evidence/s4-open.png`, `runtime/evidence/s4-drawn.png`,
+Evidence (Stage 4): `runtime/evidence/s4-open.png`, `runtime/evidence/s4-drawn.png`,
 `runtime/evidence/s4-sending.png`, `runtime/evidence/s4-reply.png`,
 `runtime/evidence/s4-reply-settled.png`, `runtime/evidence/s4-cleared.png`,
 `runtime/evidence/s4-render.png`, `runtime/evidence/s4-emulator.log`,
 `runtime/evidence/s4-main-restored.png`, and
 `runtime/evidence/s4-result.txt`.
+
+---
+
+## Stage 5 result — visible ink — 2026-08-03
+
+The pen-up defect is fixed. `InkPad2:jbfly` (version 2) keeps one polygon
+shape per stroke and paints them in a `ViewDrawScript` on the capture view,
+and it grows the third button the original design asked for: `Clear`,
+**`Undo`**, `Send`. Three `/drag` strokes stayed on the canvas after pen-up,
+`Undo` removed only the last one, and `Clear` wiped all of them — screenshots
+below. Nothing on the network path changed: the encoder, the 16 KiB cap and
+the whole `Send` flow are byte-for-byte the Stage 4 code, and this round used
+no host, no server and no `/ink` POST at all.
+
+### The API answer (the Stage 4 `[verify]`, settled)
+
+`MakePolygon` is the right call and it needs **no** per-segment `MakeLine`,
+but it does not take `GetPointsArray`'s array as-is — the pair order is
+reversed:
+
+- `MakePolygon(pointArray)` — *"An array of x and y coordinate pairs
+  specifying the vertices of the polygon."*
+  (`refs/NewtonProgrammerRef20.txt:36929-36934`; same wording in the Guide,
+  `refs/NewtonProgrammerGuide20.txt:32928-32931`.)
+- `GetPointsArray(unit)` — *"The first element contains the Y coordinate of
+  the first point, the second element contains the X coordinate, and so on.
+  (Note that this is the reverse of the usual way that coordinate pairs are
+  written.) Coordinates are global; that is, they are relative to the
+  upper-left corner (0, 0) of the screen."*
+  (`refs/NewtonProgrammerRef20.txt:29883-29887`.)
+
+Both claims were then checked on the device with `runtime/ns_eval.py`, because
+the docs alone do not prove what this ROM does:
+
+| Probe | Result | What it settles |
+|---|---|---|
+| `ClassOf(MakePolygon([10,10,50,50,90,10]))` | `'polygon` | a flat numeric array is accepted; no `MakeLine` loop, no hand-built binary |
+| `ShapeBounds(MakePolygon([0,0,100,10,0,20]))` → `left/top/right/bottom` | `0/0/101/21` | read as **x,y** pairs. Y,X would have given `0/0/21/101` |
+| drag `60,100 → 200,160`, then read `strokes[0]` | `y0=100 x0=60 n=128` | `GetPointsArray` really is **screen-global**, exactly as the ref says |
+| `:CountStroke([280,60,280,140,210,140], 16, 54)` (a bent stroke injected by hand) | canvas shows an open "L" | `MakePolygon` does **not** close the figure — safe for handwriting |
+
+So the whole conversion is a pair swap plus the view origin:
+
+```newtonscript
+coords[index]     := points[index + 1] - originLeft;   // x
+coords[index + 1] := points[index]     - originTop;    // y
+```
+
+and the draw is one call with the default style frame — `penSize` 1,
+`penPattern` `vfBlack`, `fillPattern` `vfNone`
+(`refs/NewtonProgrammerRef20.txt:35382-35420`), so an unclosed polygon draws
+as a hairline polyline and nothing is filled:
+
+```newtonscript
+ViewDrawScript: func()
+begin
+    local shapes := self:Parent().shapes;
+    if shapes and (Length(shapes) > 0) then :DrawShape(shapes, nil);
+    return nil;
+end,
+```
+
+`DrawShape` takes the whole array in one call
+(`refs/NewtonProgrammerRef20.txt:37299-37308`), so N strokes cost one message.
+Retaining the *original* stroke unit was never an option and the refs say so
+outright: *"This object is valid only while the various recognition-related
+ViewXxxScript methods are being called. Do not attempt to save units for later
+use."* (`refs/NewtonProgrammerRef20.txt:29243-29245`). A shape per stroke is
+the cheapest thing that survives pen-up.
+
+### The one trap
+
+The probe build drew the polygons straight from `GetPointsArray`, and the ink
+landed **+16,+54** down-right of where the mouse drew it
+(`runtime/evidence/e1ink-0-probe-offset.png`) — precisely the ink view's
+`GlobalBox` origin (app view `left 8/top 24` + ink child `left 8/top 30`).
+`DrawShape` draws in view-local coordinates and the points arrive global, so
+the origin has to come off. One rebuild fixed it and the strokes then landed
+exactly under the drag.
+
+That measurement also exposes a defect in code this round deliberately did not
+touch: **`Encode()` adds the same origin** (`examples/ink-capture/Main.newt`,
+`local x := points[1] + self.inkLeft`). The points are already global, so the
+`NSI1` body the host renders is shifted by the same +16,+54 and ink near the
+bottom-right of the canvas can fall outside the 320×480 render. Stage 3's
+hardcoded `+16 / +58` was the same mistake with a constant. The Send path was
+out of scope here (no host, no network), so it is left for Track E2/E3, where
+it can be re-proven over the wire.
+
+### Repaint points
+
+`Dirty()` + `RefreshViews()` is wrapped in one `Repaint` method and called
+from exactly three places: the end of stroke capture, `Undo`, and `Clear`.
+`Undo` is `SetLength(self.strokes, n-1)` on both retained arrays — the
+point arrays and the shapes are grown and shrunk together, so the encoder and
+the canvas can never disagree. Both arrays are re-made in
+`ViewSetupDoneScript`, because the template's literal `[]` lives in the
+read-only package.
+
+### The round
+
+Isolated instance `e1ink`, flash seeded from
+`internal-before-round9-loader-20260725-195622.flash` per
+`docs/parallel-emulators.md` — which skipped the first-run tour entirely and
+cost about 90 s. Install and open via `scripts/install-and-launch.sh` with
+`NEWTON_CONTROL_URL` pointed at the instance. No alert appeared at any point.
+
+| Screenshot | What it shows |
+|---|---|
+| `runtime/evidence/e1ink-1-open.png` | opens clean, canvas blank, `Ready` |
+| `runtime/evidence/e1ink-2-three-strokes.png` | **the gate** — three strokes still on the canvas after pen-up, each where it was dragged, `3 strokes` |
+| `runtime/evidence/e1ink-3-undo.png` | `Undo` dropped only the last stroke, the other two remain, `2 strokes` |
+| `runtime/evidence/e1ink-4-polyline.png` | injected bent stroke draws as an open "L" — no closing chord |
+| `runtime/evidence/e1ink-5-clear.png` | `Clear` wiped everything, `Ready` |
+| `runtime/evidence/e1ink-6-redraw.png` | capture and repaint still work after a `Clear` |
+| `runtime/evidence/e1ink-7-final-build.png` | the exact committed build, removed/reinstalled and re-proven |
+| `runtime/evidence/e1ink-0-probe-open.png`, `runtime/evidence/e1ink-0-probe-offset.png` | the probe build and its +16,+54 offset |
+
+Full transcript with every `ns_eval` probe and its answer:
+`runtime/evidence/e1ink-result.txt`.

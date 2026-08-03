@@ -1,0 +1,107 @@
+Track E1 — visible ink — 2026-08-03
+===================================
+
+Goal: strokes must stay on the InkPad canvas after pen-up.
+Package: InkPad2:jbfly version 2 (was InkPad:jbfly version 1).
+Emulator: isolated instance e1ink (container newton-harness-e1ink_emulator_1,
+control http://127.0.0.1:51799), flash seeded from
+~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash
+so it boots past the first-run tour. No network used: no /ink POST, no host
+server, nothing on port 18081.
+
+API verification (against refs/, then on-device)
+------------------------------------------------
+refs/NewtonProgrammerRef20.txt:36929  MakePolygon(pointArray) — "An array of x
+                                      and y coordinate pairs specifying the
+                                      vertices of the polygon."
+refs/NewtonProgrammerRef20.txt:29883  GetPointsArray — "The first element
+                                      contains the Y coordinate of the first
+                                      point, the second element contains the X
+                                      coordinate ... Coordinates are global."
+refs/NewtonProgrammerRef20.txt:35382  style frame defaults: penSize 1,
+                                      penPattern vfBlack, fillPattern vfNone.
+
+On-device probes (runtime/ns_eval.py --instance e1ink):
+
+  ClassOf(MakePolygon([10,10,50,50,90,10]))
+    -> 'polygon
+       (MakePolygon accepts a flat numeric array — no per-segment MakeLine.)
+
+  begin local b := ShapeBounds(MakePolygon([0,0,100,10,0,20]));
+        b.left & "/" & b.top & "/" & b.right & "/" & b.bottom end
+    -> "0/0/101/21"
+       (Read as x,y pairs: (0,0) (100,10) (0,20). Read as y,x it would have
+       been 0/0/21/101. So MakePolygon takes X,Y — the reverse of
+       GetPointsArray's Y,X. The swap is the whole conversion.)
+
+  Coordinate space, measured with the probe build installed:
+  drag 60 100 -> 200 160, then
+  begin local a := GetRoot().|InkPad2:jbfly|.strokes[0];
+        "y0=" & a[0] & " x0=" & a[1] & " n=" & Length(a) end
+    -> "y0=100 x0=60 n=128"
+       GetPointsArray really is screen-global, as the ref says. The probe build
+       drew the retained polygon without subtracting the ink view's origin and
+       the ink landed exactly +16,+54 down-right of the drag
+       (e1ink-0-probe-offset.png) — that offset is the ink view's GlobalBox
+       origin (app view left 8/top 24 + ink child left 8/top 30). Shipped code
+       subtracts originLeft/originTop in StrokeShape.
+
+  Open vs closed polygon, measured by injecting a bent stroke:
+  GetRoot().|InkPad2:jbfly|:CountStroke([280,60,280,140,210,140], 16, 54)
+    -> the canvas shows an open "L" (e1ink-4-polyline.png). No closing chord
+       from the last vertex back to the first, so MakePolygon is safe for
+       handwriting.
+
+Round transcript
+----------------
+1. make emulator-instance-up INSTANCE=e1ink          -> control 127.0.0.1:51799
+2. podman cp <seed>.flash ...:/state/internal.flash  -> boots to Notepad
+3. dismissed the -8007 alert and the PCMCIA Ethernet slip (seed flash carries
+   HarnessLoader, which reaches for a link on boot; harmless here)
+4. install /packages/ink-capture/ink-capture.pkg + Open()  -> e1ink-1-open.png
+   status "Ready", canvas blank
+5. drag  60 100 -> 200 100
+   drag 210 120 -> 210 240
+   drag  60 260 -> 190 190
+   screenshot e1ink-2-three-strokes.png: ALL THREE STROKES VISIBLE after
+   pen-up, each drawn where it was dragged; status "3 strokes";
+   ns_eval -> "strokes=3 shapes=3"
+6. tap Undo (151,397) -> e1ink-3-undo.png: the diagonal is gone, the other two
+   remain; status "2 strokes"; ns_eval -> "strokes=2 shapes=2"
+7. injected bent stroke (closure probe) -> e1ink-4-polyline.png, "3 strokes"
+8. tap Clear (61,397) -> e1ink-5-clear.png: canvas blank, status "Ready";
+   ns_eval -> "strokes=0 shapes=0"
+9. drag 80 150 -> 240 250 -> e1ink-6-redraw.png: capture and repaint still work
+   after a Clear; status "1 stroke"
+
+10. one comment was added to Main.newt after step 9, so the exact committed
+    build was rebuilt, removed/reinstalled and re-proven:
+    drag 70 120 -> 230 120 and drag 70 200 -> 160 280
+    -> e1ink-7-final-build.png, both strokes visible, status "2 strokes"
+
+No alert appeared at any point after the install; the probe build was removed
+with the documented store-specific sequence before the final build went on:
+  GetRoot().|InkPad2:jbfly|:Close();
+  local p := GetPkgRef("InkPad2:jbfly", GetDefaultStore()); if p then SafeRemovePackage(p);
+  -> "removed"
+
+Still open (found here, not fixed here)
+---------------------------------------
+Encode() adds the ink view's origin to every point (examples/ink-capture/Main.newt,
+"local x := points[1] + self.inkLeft"). The points are already screen-global —
+measured above — so the NSI1 body the host renders is shifted +16,+54 and ink
+near the bottom-right of the canvas can fall outside the 320x480 render. The
+Send path was out of scope this session (no host, no network), so the encoder
+was left untouched; fix it with E2/E3 when the POST path is exercised again.
+
+Evidence files
+--------------
+runtime/evidence/e1ink-0-probe-open.png     probe build, blank canvas
+runtime/evidence/e1ink-0-probe-offset.png   probe build, ink offset by +16,+54
+runtime/evidence/e1ink-1-open.png           shipped build, blank canvas
+runtime/evidence/e1ink-2-three-strokes.png  THE GATE: 3 strokes visible
+runtime/evidence/e1ink-3-undo.png           Undo drops only the last stroke
+runtime/evidence/e1ink-4-polyline.png       open polyline, no closing chord
+runtime/evidence/e1ink-5-clear.png          Clear wipes everything
+runtime/evidence/e1ink-6-redraw.png         drawing works again after Clear
+runtime/evidence/e1ink-7-final-build.png    the exact committed build, re-proven

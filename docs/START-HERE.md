@@ -45,7 +45,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/newton-client-notes.md` | Package build/toolchain overrides. |
 | `docs/agent-tools.md` | You touch `newton_mcp.py` — the MCP server that gives the chat agent tools (ROADMAP Track D). Also the place the container→host networking limits are measured. |
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
-| `docs/ink-client-design.md` | Ink. Stages 1–4 built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended at `docs/ink-client-design.md:224-408`. Not installed on physical hardware; ink is invisible on canvas after pen-up (`:380-401`); multi-part POST still unbuilt. See `docs/ROADMAP.md` Track E. |
+| `docs/ink-client-design.md` | Ink. Stages 1–5 built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended after the design. Ink now stays visible after pen-up (`InkPad2:jbfly`, "Stage 5 result"). Still open: not installed on physical hardware, multi-part POST unbuilt, and `Encode()` double-counts the ink view's origin. See `docs/ROADMAP.md` Track E. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc
@@ -68,8 +68,8 @@ treat as current state:
   `docs/newton-networking-lessons.md` §4.1–4.9.
 - `docs/install-lifeline-plan.md` — proposal.
 - `docs/ink-client-design.md` — mostly a proposal document, but its Stage
-  1–4 result sections (`:224-408`) are verified findings, not plan; trust
-  those the same as the four docs above.
+  1–5 result sections (everything after the "Reuse map" table) are verified
+  findings, not plan; trust those the same as the four docs above.
 
 When the two classes disagree, the verified doc wins, and **fixing the stale
 one is part of your task** (see `CLAUDE.md`).
