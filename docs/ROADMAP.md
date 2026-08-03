@@ -619,6 +619,76 @@ is glue + a runbook:
 - Reboot-persistent host services (`dual-send` unit exists; server/emulator
   units don't — `docs/dev-harness.md`, "Verification status").
 
+## Track I — image generation on the Newton (designed 2026-08-03, not started)
+
+Requested by the human 2026-08-03; also the original `PLAN.md` phase 4 item
+("image gen, Newton-optimized dithered grayscale, 320x480 portrait"). Ask for
+an image in chat, get a Newton-friendly version back — as a bitmap on screen,
+or ideally as a native note.
+
+- **I1. Host pipeline.** Prompt → image API (the codex CLI does vision *in*,
+  not generation *out* — pick and wire an image-generation backend; the
+  OpenAI images API off the same account is the obvious candidate, decision
+  open) → downscale to 320×480 portrait → grayscale → dither. Use Atkinson
+  dithering (the period-correct Apple algorithm) to the MP2000's 4-bit
+  (16-level) panel; 1-bit fallback. Pure-stdlib PNG handling already exists
+  (`pkg_publisher.py` writes PNGs with zlib/struct); reading/dithering can
+  stay stdlib the same way.
+- **I2. Bitmap delivery.** Do NOT push 76 KB through the 240-byte chat
+  frames (~350 frames). Reuse the proven bulk path: the client fetches bytes
+  over HTTP from 18081 into a VBO, exactly like the ZC40 loader pulls
+  packages (proven to 512 KB). Chat flow: `/image <prompt>` (server-side
+  command like F4's) → reply `TEXT image ready: <name>` → client (A8+) adds
+  a viewer that GETs the payload and draws it. `[verify]` the NewtonScript
+  bitmap APIs against `refs/` before coding: candidate path is a raw
+  bitmap frame for `DrawShape` (`MakeBitmap`/`SetPixel` family — names
+  unverified; grep the Ref before believing any of them).
+- **I3. Vector-into-a-note (the ideal).** Notes' sketch stationery stores
+  strokes natively, and Track E proved stroke geometry round-trips
+  (`GetPointsArray`, `MakePolygon`, the x,y/y,x swap — sixteenth-finding
+  territory). Invert it: host converts the generated image to polylines
+  (edge-trace, or ask the model for SVG and flatten paths to polylines),
+  ships them over `/tools` or the bulk HTTP path, and the client writes a
+  **sketch note** the Newton renders natively and the human can edit with
+  the stylus. `[verify]` how sketch-note entries store strokes
+  (`viewStationery` and slot shape — probe with `note_probe`/ns_eval on a
+  hand-drawn sketch note first; nobody has looked yet). Cap complexity
+  (points per note) — the twelfth-finding event-loop lessons apply to soup
+  writes too.
+- Sizing: I1 one session (host-only, testable without a Newton); I2 one
+  session (client round); I3 one to two (probe round, then write round).
+
+## Track J — web interface for the modern side (designed 2026-08-03, not started)
+
+Requested by the human 2026-08-03: see all Newton notes in a modern browser
+(phone or desktop), browse device data, installed packages, battery — the
+Newton's data made useful in the modern age.
+
+- **J1. Sync layer first, UI second.** The web view must not depend on the
+  Newton being awake. A host sync job walks `note_list`/`get_note` (and
+  `pkg_list`/`store_info`/`battery`) over the proven `/tools` channel and
+  writes a local store — plain JSON files or sqlite under a new
+  `state/sync/` (decision open; JSON matches the repo's stdlib habit). Each
+  sync is incremental and respects the wire lessons (paged ordinals, ~0.8 s
+  per call — a 40-note sync is ~35 s, fine for a background job). The Dock
+  backup path (`runtime/newton_backup.py`) stays the deep-backup tool; this
+  is the light continuous one.
+- **J2. Web server.** One stdlib `http.server` file (the repo pattern),
+  serving: notes list + note view (rendered text; later sketch-note strokes
+  as inline SVG — the same geometry knowledge from Track E/I3), package
+  inventory, store/battery status, and a "sync now" button that fires the
+  tools calls live when the Newton is connected. Bind LAN, not localhost,
+  so a phone can reach it; NO auth beyond the isolated-subnet assumption at
+  first — say so on the page — revisit if it ever leaves the bench network.
+  New port (e.g. 8090); do not overload 18081 (the POLL hijack makes that
+  server special — C6 note).
+- **J3. Later**: write-back (edit a note in the browser → new note on the
+  Newton via the sanctioned two-step create), and serving the ink PNGs the
+  `/ink` path already renders.
+- Sizing: J1 one session (host + live emulator round), J2 one session, J3
+  later. J1's store is also what a future mobile/RSS/export anything would
+  read — keep it dumb and documented.
+
 ## Sequencing
 
 A → B → (C6, D1) → C1–C3 → D2–D3 → E1–E2 → F1 → F2 → G → C5/E3/F3 → H.
