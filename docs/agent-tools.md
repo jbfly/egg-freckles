@@ -9,9 +9,12 @@ only relays chat; the *agent* behind that chat (`codex exec`,
 emulated Newton made the agent call `newton_tool` three times and answer with
 the device's real numbers, on screen, in 19 seconds. The transcript, the three
 tool calls and the screenshot are at the bottom of this page under "The live
-demo (D3)". `emulator_screen/tap/text/key/newtonscript/install` and `stage_hw`
-are still only exercised by tests; `build_pkg` ran for real (it is what settled
-the sandbox question below).
+demo (D3)". Since Track G2 the same is true of the build-and-test surface:
+`build_pkg`, `emulator_install`, `emulator_newtonscript`, `emulator_screen` and
+`emulator_tap` were driven by an agent to build a new app and prove it works on
+screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). Only
+`emulator_text`, `emulator_key` and `stage_hw` are still exercised by tests
+alone.
 
 `newton_mcp.py` is one stdlib-only file at the repo root. It speaks MCP over
 stdio as newline-delimited JSON-RPC 2.0 and implements exactly `initialize`,

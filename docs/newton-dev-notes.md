@@ -919,3 +919,61 @@ Three things worth carrying forward:
 `scripts/newton-round.sh` now also bumps an optional `kAppLabel`, and its
 `kAppTitle` pattern finally matches this package (A3's title carried no tag, so
 the script could not have bumped the chat client at all).
+
+## 2026-08-03 — Track G: an agent built a Newton app from scratch, first try
+
+The dev loop is written down (`docs/agent-dev-loop.md`, G1) and an agent has
+now run it (G2). Instance `gloop`, isolated and flash-seeded per
+`docs/parallel-emulators.md`; no broker, no `server.py`, no NIE — this loop is
+`build_pkg` plus the emulator control API and nothing else.
+
+One `codex exec` invocation (codex-cli 0.146.0, host, `--sandbox
+workspace-write`, MCP server `newton` with `default_tools_approval_mode =
+"approve"`) was told to build "NewtonDice": identity `Dice1:jbfly`, a floating
+window with a **Roll** button that shows a random 1–6, scaffolded into a new
+`examples/dice`, on instance `gloop`, using the MCP tools. It read
+`docs/agent-dev-loop.md` first, then did steps 3–8 with **six MCP calls, zero
+failures and zero interventions**: `build_pkg` → `emulator_install` →
+`emulator_newtonscript` → `emulator_screen` → `emulator_tap(220,218)` →
+`emulator_screen`. First build compiled. Full call log and codex's own report:
+`runtime/evidence/gloop-codex-transcript.txt`; its two screenshots (decoded from
+the run's JSONL) are `gloop-02-codex-launched.png` (`-` and a **Roll** button)
+and `gloop-03-codex-after-tap.png` (`1`).
+
+The app is 38 lines (`examples/dice/Main.newt`). The one piece of NewtonScript
+worth stealing is how it keeps a handle on the view it updates:
+
+```newtonscript
+ViewSetupDoneScript: func()
+begin
+    inherited:?ViewSetupDoneScript();
+    self:Parent().valueView := self;
+end,
+...
+Roll: func() SetValue(self.valueView, 'text, "" & Random(1, 6)),
+```
+
+Two findings from verifying it:
+
+1. **A `protoFloatNGo`'s rendered x position does not follow its `viewBounds`.**
+   Declared `left: 60`, rendered at `x=112` — right edge 8 px inside the 320-px
+   screen. The *vertical* numbers matched exactly (button declared at absolute
+   y 200–236, measured 198–237). Pixel scan and method in
+   `runtime/evidence/gloop-verify-rolls.txt`. So: take tap coordinates off a
+   screenshot, never off the source. codex did that on its own — it screenshot
+   first and only then chose (220, 218), which is the button's true centre.
+2. **Two screenshots are not proof of a die.** The supervising session tapped
+   Roll six more times with plain `curl` against the control port: `1 3 2 3 3 1`
+   — inside 1–6 and changing, so `Random(1, 6)` really runs per tap
+   (`gloop-verify-roll1..6.png`).
+
+Operational notes. The `hello` scaffold ships a built `hello.pkg`; `cp -r` drags
+it along and it must be removed — the runbook's step 3 says so, and codex still
+listed it as the one thing that surprised it, which is a fair sign the scaffold
+should probably not carry a built artifact at all.
+`scripts/newton-round.sh` is **not** usable for a new app on an
+isolated instance: it drives the shared container `newton-harness_emulator_1`
+(`scripts/newton-round.sh`, `container=newton-harness_emulator_1`) and its
+bumper needs a `kVersion :=
+"<base>-<tag>";` shape the `hello` scaffold does not have — for a new app, edit
+`Main.newt` and the `.nprj` by hand and repeat the loop.

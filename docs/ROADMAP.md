@@ -7,6 +7,35 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-03 — Track G done: an agent built a Newton app end to end, first
+  build.** G1 is `docs/agent-dev-loop.md` — ten numbered steps from
+  `cp -r examples/hello` to teardown, with the identity rule, the `tntk` patch
+  caveat, the raw `/packages/` install path and a footgun table. G2 proved it:
+  one `codex exec` run (host, MCP `newton`, `approve` mode) was told to build
+  **NewtonDice** (`Dice1:jbfly`, a floating window whose **Roll** button shows a
+  random 1–6) into a new `examples/dice` on isolated instance `gloop`. It read
+  the runbook, then ran the loop in **six MCP calls with no failures and no
+  intervention**: `build_pkg` (compiled first try) → `emulator_install
+  /packages/dice/dice.pkg` → `emulator_newtonscript
+  GetRoot().|Dice1:jbfly|:Open()` → `emulator_screen` (window + `Roll` button)
+  → `emulator_tap(220,218)` → `emulator_screen` (`-` had become `1`). This is
+  also the first time any `emulator_*` tool has been driven by an agent rather
+  than by tests, which closes one of the two gaps the previous "Next up" named.
+  Independently re-verified with six more `curl` taps: `1 3 2 3 3 1`. Evidence
+  `runtime/evidence/gloop-codex-transcript.txt`, `gloop-02-codex-launched.png`,
+  `gloop-03-codex-after-tap.png`, `gloop-verify-rolls.txt`,
+  `gloop-verify-roll1..6.png`; the app is committed as `examples/dice`. One new
+  finding: **a `protoFloatNGo` does not render at its declared `viewBounds` x**
+  (declared `left: 60`, rendered `x=112`, right edge 8 px inside the screen)
+  while its y matched exactly — so tap coordinates come off a screenshot, never
+  off the source (`docs/newton-dev-notes.md` Track G round). G2's optional
+  hardware half (install `Dice1` on the MP2000 via ZC40 after a `store_info`
+  check) was **not** done — it needs the human, and it is the same gate as E2.
+  55 tests, measured in a detached worktree holding HEAD plus exactly this
+  track's files: the shared working tree showed 53 passed / 2 failed at the
+  time, both from another session's in-flight Chat **A5** edit to
+  `examples/harness-client` (Track F2), not from Track G.
+
 - **2026-08-03 — Track F1 done (proven on the emulator).** The 240-byte
   single-frame prompt cap is lifted. New client → host op
   `:SS MSGP KK NN <chunk>*HH` (two-digit part/total, 220-character chunks,
@@ -169,12 +198,15 @@ agent can complete one task and verify it.
   `evt.ex.fr.intrp;type.ref.frame` and you must use the literal (`"Notes"`).
   Also confirmed: the three Notepad entries inside the seed flash are the
   `data=nil` failed writes `docs/notes-bridge.md` diagnosed in N2/N3.
-- **Next up:** E2, then F1, F2, G per Sequencing. Two things still open: none
-  of the `emulator_*` tools or `stage_hw` has been driven by an agent yet (only
-  by tests), and the whole tools channel has still never run on the **physical**
-  MessagePad. (`newton_mcp.py`'s `newton_tool` forwards `op` generically, so
-  `note_list` is callable from a chat turn already; only its listed-ops
-  description needed updating.)
+- **Next up (2026-08-03, after G):** the remaining work splits cleanly.
+  **Needs the human and the bench:** E2 (InkPad2 on hardware + the doubled
+  `Encode()` origin), and every other hardware deploy — Chat A4, the tools
+  client, `Dice1` — since the whole tools channel has still never run on the
+  **physical** MessagePad and there is no tool that installs there by design.
+  **Agent-sized and unblocked:** C5 (`pkg_install`/`pkg_remove` ops, still
+  human-gated at the device), F3 (true Notes integration, genuinely
+  unexplored), then the Track H backlog. `stage_hw` is the one MCP tool no
+  agent has driven yet; G exercised all six `emulator_*` calls it needed.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -233,9 +265,12 @@ separate host surfaces that a *human* curled, and nothing let the agent behind
 the chat session call them. **Closed 2026-08-03** by Track D: `newton_mcp.py`
 exposes them as MCP tools (`docs/agent-tools.md`), and on 2026-08-03 a prompt
 typed into Chat on an emulated Newton drove three of them and answered with the
-device's own numbers (D3 entry above). What is left is breadth, not shape — the
-`emulator_*` tools and `stage_hw` have not been driven by an agent yet, and
-none of it has run against the physical MessagePad.
+device's own numbers (D3 entry above). Track G then closed the other half: on
+the same day an agent drove `build_pkg`, `emulator_install`,
+`emulator_newtonscript`, `emulator_screen` and `emulator_tap` to build a new
+app and show it running (G2 entry above). What is left is breadth, not shape —
+`stage_hw` has still only been run by tests, and none of it has run against the
+physical MessagePad.
 
 ## Track A — repo cleanup and doc truth (first; one cheap-agent session)
 
@@ -427,17 +462,22 @@ Evolve the chat client toward the panel-over-Notes dream, incrementally:
 The "ask for an app, watch it appear" loop. All the parts exist; this track
 is glue + a runbook:
 
-- **G1.** `docs/agent-dev-loop.md` — the recipe an agent follows: scaffold
-  from `examples/hello`, build (`tntk` + vendored patch — without it every
-  rebuild silently regresses to version 1), spin an isolated emulator
-  (`make emulator-instance-up NAME=...`, `docs/parallel-emulators.md`),
-  install via `POST /install`, launch, screenshot-verify, iterate. Identity
-  bumping via `scripts/newton-round.sh` is mandatory (`-10402` replacement
-  rule, `docs/phase3-chat-round.md`).
-- **G2.** Prove it: one session where the agent (with Track D tools) builds
-  a trivial new app end-to-end in an isolated instance and shows a
-  screenshot, then the human installs it on hardware via ZC40 after a C2
-  free-space check.
+- **G1. Done 2026-08-03.** `docs/agent-dev-loop.md` — ten numbered steps:
+  scaffold from `examples/hello`, fresh identity (`-10402` rule), build with
+  `build_pkg` (`tntk` + vendored patch — without it every rebuild silently
+  regresses to version 1), isolated + flash-seeded emulator, install with the
+  raw `/packages/` path, launch, screenshot, tap, iterate, tear down. It also
+  records that `scripts/newton-round.sh` does **not** fit a new app on an
+  isolated instance (it drives the shared container and needs a `kVersion` tag
+  the scaffold lacks), so a new app bumps its identity by hand.
+- **G2. Done 2026-08-03 — gate passed.** codex built `Dice1:jbfly`
+  ("NewtonDice") into `examples/dice` on isolated instance `gloop` in six MCP
+  calls with no intervention and no failed build, and the screenshots show the
+  app working. Status log entry above; `docs/agent-dev-loop.md`
+  "Proven 2026-08-03"; `runtime/evidence/gloop-*`.
+  **Still open:** the hardware half — the human installing it on the MP2000 via
+  ZC40 after a `store_info` free-space check. `stage_hw` makes that one command
+  away, but the install itself is gated (`docs/agent-tools.md` rail 3).
 
 ## Track H — backlog (not scheduled)
 

@@ -1,0 +1,105 @@
+Track G2 -- codex exec transcript (excerpt), 2026-08-03
+command: codex exec --json --sandbox workspace-write -C /home/jbfly/git/newton-harness <prompt>
+codex-cli 0.146.0, MCP server 'newton' registered with default_tools_approval_mode = "approve"
+instance: gloop (isolated, flash-seeded).  Full JSONL kept out of the repo; every MCP call is reproduced verbatim below.
+==============================================================================
+
+AGENT: I’m using the Ponytail coding skill to keep the app to the smallest proven change, then I’ll follow the repository runbook exactly and verify both required screenshots on `gloop`.
+
+SHELL: /usr/bin/bash -lc 'cat /home/jbfly/.codex/plugins/cache/ponytail/ponytail/4.8.4/skills/ponytail/SKILL.md'
+SHELL: /usr/bin/bash -lc 'cat docs/agent-dev-loop.md'
+SHELL: /usr/bin/bash -lc "rg --files examples/hello && rg -n \"Random\\(|proto.*Button|buttonClickScript|protoStaticText|protoFloatNGo\" examples --glob '*.newt' | head -160"
+SHELL: /usr/bin/bash -lc "sed -n '1,160p' examples/hello/Main.newt && sed -n '1,120p' examples/hello/hello.nprj && sed -n '1,120p' examples/hello/Makefile && sed -n '220,250p' examples/note-export/Main.newt 
+AGENT: The scaffold is only three files, and the existing apps use `protoTextButton` plus `SetValue(..., 'text, ...)`. I’m checking the smallest reliable way to retain the value view before copying and editing the scaffold.
+
+SHELL: /usr/bin/bash -lc "rg -n \"SetValue\\(.*'text|valueView|statusView|viewFrontKey|ChildViewFrames|viewSetupFormScript|ViewSetupDoneScript\" examples --glob '*.newt' | head -220"
+SHELL: /usr/bin/bash -lc "sed -n '1,80p' examples/harness-loader/Main.newt && sed -n '330,370p' examples/harness-loader/Main.newt && sed -n '1,48p' examples/note-export/Main.newt && sed -n '1,125p' examples/
+SHELL: /usr/bin/bash -lc "rg -n \"NumberToString|Random\\(\" . --glob '*.newt' --glob '*.md' | head -160"
+SHELL: /usr/bin/bash -lc "rg -n '\"["'^"'"\\n]*\" *& *[A-Za-z_][A-Za-z0-9_.]*(?"'!'"\\()|\"["'^"'"\\n]*\" *& *\\(' examples --glob '*.newt' | head -120"
+SHELL: /usr/bin/bash -lc "rg -n '\" *& *(self\\.|error\\.|result\\.|[a-zA-Z][a-zA-Z0-9_]*[;,\\)])' examples --glob '*.newt' | head -120"
+SHELL: /usr/bin/bash -lc "rg -n \"ROM_fontSystem[0-9]+\" examples --glob '*.newt' | sort -u"
+SHELL: /usr/bin/bash -lc "rg -n \"vjCenter|vjParentCenter|viewJustify\" examples docs --glob '*.newt' --glob '*.md' | head -120"
+SHELL: /usr/bin/bash -lc "if [ -e examples/dice ]; then find examples/dice -maxdepth 2 -type f -print; else echo 'examples/dice does not exist'; fi && git status --short"
+SHELL: /usr/bin/bash -lc 'cp -r examples/hello examples/dice && mv examples/dice/hello.nprj examples/dice/dice.nprj'
+FILE:  update /home/jbfly/git/newton-harness/examples/dice/Main.newt
+FILE:  update /home/jbfly/git/newton-harness/examples/dice/Makefile
+FILE:  update /home/jbfly/git/newton-harness/examples/dice/dice.nprj
+SHELL: /usr/bin/bash -lc "find examples/dice -maxdepth 1 -type f -printf '%f\\n' | sort && sed -n '1,180p' examples/dice/Main.newt && sed -n '1,80p' examples/dice/dice.nprj && sed -n '1,80p' examples/dice/Ma
+AGENT: The copy included `hello.pkg`, so I’m removing that generated smoke-test artifact; the source now has only the requested `Dice1:jbfly` app, with the live value view bound during setup and one native `Random(1, 6)` handler. Next is the first MCP build.
+
+SHELL: /usr/bin/bash -lc 'rm examples/dice/hello.pkg'
+MCP:   newton.build_pkg {"dir": "examples/dice"}
+       -> /home/jbfly/git/newton-harness/examples/dice/dice.pkg
+       status=completed error=None
+
+MCP:   newton.emulator_install {"pkg_path": "/packages/dice/dice.pkg", "instance": "gloop"}
+       -> queued
+       status=completed error=None
+
+MCP:   newton.emulator_newtonscript {"source": "GetRoot().|Dice1:jbfly|:Open();", "instance": "gloop"}
+       -> queued
+       status=completed error=None
+
+AGENT: The first build succeeded and produced `/home/jbfly/git/newton-harness/examples/dice/dice.pkg`. Installation and explicit launch were both queued on `gloop`; I’m taking the first acceptance screenshot now and will inspect it before choosing the tap coordinates.
+
+MCP:   newton.emulator_screen {"instance": "gloop"}
+       -> 320x480 Newton screen from the http://127.0.0.1:47153
+       -> <image, 4932 base64 bytes>
+       status=completed error=None
+
+MCP:   newton.emulator_tap {"x": 220, "y": 218, "instance": "gloop"}
+       -> {"ok":true}
+       status=completed error=None
+
+MCP:   newton.emulator_screen {"instance": "gloop"}
+       -> 320x480 Newton screen from the http://127.0.0.1:47153
+       -> <image, 4944 base64 bytes>
+       status=completed error=None
+
+AGENT: I inspected both images: the first shows the floating Dice window with `-` and a visible `Roll` button; after tapping the button’s center at `(220, 218)`, the second shows `1` in the value area. The behavior gate has passed, and I’m doing one final source/package check without touching the emulator again.
+
+SHELL: /usr/bin/bash -lc "rg -n \"Dice1:jbfly|Newton Dice|Random\\(1, 6\\)|dice\\.pkg|dice\\.nprj\" examples/dice && stat -c '%n %s bytes' examples/dice/dice.pkg && git status --short -- examples/hello examp
+AGENT: ## Bottom line
+
+NewtonDice is built and visibly working on `gloop`.
+
+## Details
+
+| Item | Result |
+|---|---|
+| Identity | `Dice1:jbfly` |
+| Package | [dice.pkg](/home/jbfly/git/newton-harness/examples/dice/dice.pkg) |
+| Build attempts | 1 |
+| Initial screenshot | Floating window with `-` and visible **Roll** button |
+| After tap | Value changed to **1** |
+
+## What changed
+
+Created [examples/dice](/home/jbfly/git/newton-harness/examples/dice) from the hello scaffold; `examples/hello` remains unchanged.
+
+Surprise: the scaffold contained a generated `hello.pkg`, which I removed before building.
+
+
+==============================================================================
+FINAL REPORT FROM CODEX
+==============================================================================
+
+## Bottom line
+
+NewtonDice is built and visibly working on `gloop`.
+
+## Details
+
+| Item | Result |
+|---|---|
+| Identity | `Dice1:jbfly` |
+| Package | [dice.pkg](/home/jbfly/git/newton-harness/examples/dice/dice.pkg) |
+| Build attempts | 1 |
+| Initial screenshot | Floating window with `-` and visible **Roll** button |
+| After tap | Value changed to **1** |
+
+## What changed
+
+Created [examples/dice](/home/jbfly/git/newton-harness/examples/dice) from the hello scaffold; `examples/hello` remains unchanged.
+
+Surprise: the scaffold contained a generated `hello.pkg`, which I removed before building.

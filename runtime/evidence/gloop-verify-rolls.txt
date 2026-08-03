@@ -1,0 +1,44 @@
+Track G2 -- independent verification of NewtonDice (Dice1:jbfly), 2026-08-03
+Verifier: the supervising session, NOT codex. Direct control-API calls only, no MCP.
+
+Instance   gloop (isolated), control http://127.0.0.1:47153
+Package    examples/dice/dice.pkg, identity Dice1:jbfly, built by codex via build_pkg
+State      installed and launched by codex (emulator_install + emulator_newtonscript);
+           codex's own two screenshots are gloop-02-codex-launched.png ("-") and
+           gloop-03-codex-after-tap.png ("1").
+
+Six further taps on the Roll button, each followed by a screenshot:
+
+  for i in 1 2 3 4 5 6; do
+    curl -fsS -X POST http://127.0.0.1:47153/tap -H 'Content-Type: application/json' \
+         -d '{"x":220,"y":218}'
+    sleep 1
+    curl -fsS http://127.0.0.1:47153/screen.png -o runtime/evidence/gloop-verify-roll$i.png
+  done
+
+Value read back from each screenshot (crop 120x40+150+130, tesseract --psm 7,
+digits only; gloop-verify-roll3.png also read by eye and confirmed as "2"):
+
+  gloop-verify-roll1.png  1
+  gloop-verify-roll2.png  3
+  gloop-verify-roll3.png  2
+  gloop-verify-roll4.png  3
+  gloop-verify-roll5.png  3
+  gloop-verify-roll6.png  1
+
+All six are inside 1..6 and the value changes across taps, so Random(1, 6) is
+running on the Newton on every tap -- not a one-shot render.
+
+Rendered geometry, measured from gloop-verify-roll3.png pixels (dark-pixel scan):
+
+  window frame   left x=112..113, top y=112..113, bottom y=286..287
+  Roll button    x=168..271, y=198..237  (tap 220,218 is its centre)
+
+Declared viewBounds in examples/dice/Main.newt are window {left 60, top 120,
+right 260, bottom 280} and button {left 50, top 80, right 150, bottom 116}.
+The VERTICAL numbers match (button absolute 200..236 vs rendered 198..237);
+the HORIZONTAL ones do not -- the floater rendered ~52 px to the right of its
+declared left, with its right edge 8 px inside the 320-px screen edge. Take tap
+coordinates off a screenshot, never off the source. codex did exactly that: its
+transcript says "after tapping the button's center at (220, 218)" only after it
+had inspected the first screenshot.

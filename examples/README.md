@@ -1,10 +1,11 @@
 # examples/ — Newton-side packages
 
-Six package source dirs. Each holds a NewtonScript project built into a
+Seven package source dirs. Each holds a NewtonScript project built into a
 `.pkg` checked into the same directory.
 
 | dir | identity | status |
 |---|---|---|
+| `dice` | `Dice1:jbfly` ("Newton Dice") | Track G2 proof artifact: the first app an **agent** built end to end (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). Roll button → `Random(1, 6)`; emulator-proven on instance `gloop`, never on hardware. Also the smallest working example of a button + a live-updated text view |
 | `harness-client` | `HarnessClientA4:jbfly` ("Chat A4", v2.4-a4) | CURRENT chat client; splits prompts over 227 characters into `MSGP` parts (ROADMAP Track F1); built by `make newton-packages`. `HarnessClientA3` is what is installed on the physical MP2000 — A4 is emulator-proven only |
 | `harness-loader` | `-HarnessLoaderZC40:jbfly` (v2.4) | CURRENT WiFi package loader; installed on physical MP2000 (ZC39 fallback also installed); built by `make newton-packages` |
 | `harness-tools` | `HarnessToolsR10P:jbfly` | fixed-op tools client (ping/front_app/get_note/note_list/note_probe/battery/store_info/pkg_list), all proven over the `POST /tools` link on Einstein, not yet on hardware; ROADMAP Track C |

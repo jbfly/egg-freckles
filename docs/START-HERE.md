@@ -44,6 +44,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/einstein-automation.md` | You need Einstein internals, serial ports, or the control socket. |
 | `docs/newton-client-notes.md` | Package build/toolchain overrides. |
 | `docs/agent-tools.md` | You touch `newton_mcp.py` — the MCP server that gives the chat agent tools (ROADMAP Track D). Also the place the container→host networking limits are measured. |
+| `docs/agent-dev-loop.md` | You are building a **new** Newton app. Ten numbered steps from `cp -r examples/hello` to teardown, with the identity rule and the UI footguns. An agent ran it end to end on 2026-08-03 (ROADMAP Track G, "Proven 2026-08-03"). |
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
 | `docs/ink-client-design.md` | Ink. Stages 1–5 built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended after the design. Ink now stays visible after pen-up (`InkPad2:jbfly`, "Stage 5 result"). Still open: not installed on physical hardware, multi-part POST unbuilt, and `Encode()` double-counts the ink view's origin. See `docs/ROADMAP.md` Track E. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |

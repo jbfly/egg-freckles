@@ -1,0 +1,10 @@
+{
+    parts: [
+        {
+            main: "Main.newt",
+            files: [],
+        }
+    ],
+    name: "Dice1:jbfly",
+    platform: "Newton 2.1"
+}

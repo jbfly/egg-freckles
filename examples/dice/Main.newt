@@ -1,0 +1,41 @@
+kAppSymbol := '|Dice1:jbfly|;
+kAppTitle := "Newton Dice";
+kVersion := "0.1";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 60, top: 120, right: 260, bottom: 280},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    valueView: nil,
+
+    Roll: func()
+        SetValue(self.valueView, 'text, "" & Random(1, 6)),
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            ViewSetupDoneScript: func()
+            begin
+                inherited:?ViewSetupDoneScript();
+                self:Parent().valueView := self;
+            end,
+            viewBounds: {left: 75, top: 24, right: 125, bottom: 56},
+            text: "-",
+            viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 50, top: 80, right: 150, bottom: 116},
+            text: "Roll",
+            viewFont: ROM_fontSystem12Bold,
+            buttonClickScript: func() self:Parent():Roll(),
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}
