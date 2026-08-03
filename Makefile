@@ -3,10 +3,11 @@ COMPOSE ?= podman-compose
 NEWTON_SOURCE_DATE_EPOCH ?= 1767225600
 NEWTON_PACKAGE_DIRS := examples/harness-loader examples/harness-client
 NEWTON_STAGING_DIR := runtime/staging
+NEWTON_HW_STAGING_DIR := runtime/staging/hardware
 
 .PHONY: check-rootless images server-login server-up server-test emulator-up \
 	emulator-stop emulator-instance-up emulator-instance-down emulator-instances \
-	toolchain-hello newton-packages status down test
+	toolchain-hello newton-packages stage-hw status down test
 
 check-rootless:
 	@command -v "$(PODMAN)" >/dev/null || { \
@@ -61,6 +62,28 @@ newton-packages:
 	done; \
 	cd "$(NEWTON_STAGING_DIR)"; \
 	sha256sum harness-loader.pkg harness-client.pkg > SHA256SUMS
+
+# Builds one example dir the same way newton-packages does (forced rebuild,
+# same reproducible-build header stamp) and stages it for the ZC40 loader.
+# docs/install-paths.md is the row-2 write-up; keep this in sync with it.
+# Needs ~/newton-dev/prefix/bin/tntk built with tools/tntk-project-version.patch
+# applied out-of-tree -- that is a one-time host setup step, not done here
+# (docs/START-HERE.md:96-98: without it every rebuild silently regresses to
+# package version 1).
+stage-hw:
+	@set -eu; \
+	test -n "$(PKG)" || { echo "Usage: make stage-hw PKG=examples/<name>"; exit 1; }; \
+	dir="$(PKG)"; \
+	test -d "$$dir" || { echo "stage-hw: no such directory: $$dir"; exit 1; }; \
+	name=$$(basename "$$dir"); \
+	pkg="$$dir/$$name.pkg"; \
+	$(MAKE) -B -C "$$dir"; \
+	test -s "$$pkg" || { echo "stage-hw: build did not produce $$pkg"; exit 1; }; \
+	python3 -c 'import pathlib, struct, sys; p=pathlib.Path(sys.argv[1]); d=bytearray(p.read_bytes()); assert len(d) >= 36 and d[:8] == b"package0", "not a Newton package"; d[32:36]=struct.pack(">I", int(sys.argv[2]) + 2082844800); p.write_bytes(d)' "$$pkg" "$(NEWTON_SOURCE_DATE_EPOCH)"; \
+	mkdir -p "$(NEWTON_HW_STAGING_DIR)"; \
+	cp "$$pkg" "$(NEWTON_HW_STAGING_DIR)/$$name.pkg"; \
+	python3 -c 'import hashlib, pathlib, sys; staging = pathlib.Path(sys.argv[1]); name = sys.argv[2]; digest = hashlib.sha256((staging / name).read_bytes()).hexdigest(); sums = staging / "SHA256SUMS"; lines = [l for l in sums.read_text().splitlines() if l.split()[-1] != name] if sums.exists() else []; lines.append(digest + "  " + name); lines.sort(key=lambda l: l.split()[-1]); sums.write_text("\n".join(lines) + "\n")' "$(NEWTON_HW_STAGING_DIR)" "$$name.pkg"; \
+	echo "Staged $(NEWTON_HW_STAGING_DIR)/$$name.pkg -- type '$$name.pkg' into the ZC40 loader"
 
 status: check-rootless
 	$(COMPOSE) --profile emulator --profile tools ps
