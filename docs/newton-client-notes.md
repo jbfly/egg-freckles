@@ -148,12 +148,13 @@ The complete ignored directory exists on both Mars and the local workspace at
 `8203cc2de461b51b3b62380804b011b4c1b35df51dd32393f98f8a250265ebc2`.
 
 The same path then backed up a second physical card in one uninterrupted
-connection. The user identified it as a 32 MB CF card in a PC Card ATA adapter;
-Newton identified its mounted store as **16 MB**, kind `ATA Store`. The store
-contained 5 soups and 49 entries: 1 OutBox entry, 48 Packages entries, and 3
-empty soups. The complete Internal-plus-card export has 40 soups and 417 raw
-entries at `runtime/backups/mp2000-cf32-20260803-docktcp-a1` on both Mars and
-the local workspace. Its matching tree digest is
+connection: a 16 MB CF card in a PC Card ATA adapter. Newton identified its
+mounted store as **16 MB**, kind `ATA Store`. The store contained 5 soups and
+49 entries: 1 OutBox entry, 48 Packages entries, and 3 empty soups. The complete
+Internal-plus-card export has 40 soups and 417 raw entries at
+`runtime/backups/mp2000-cf32-20260803-docktcp-a1` on both Mars and the local
+workspace. The `cf32` text is a historical filename created before the physical
+capacity was corrected; the card is 16 MB. Its matching tree digest is
 `e7bab0732e39d936c6d3092aabacc7c6fcafa0de423e228628d02b829f1a6a13`;
 the ignored 5,056,544-byte local archive has SHA-256
 `5409b5ef0171bb80d97d0ebf16b878e848dcaa926e5b91d28e26a329a9e0ba1b`.
