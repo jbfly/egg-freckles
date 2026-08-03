@@ -1,0 +1,4 @@
+capture_command=podman logs --since 0s -f newton-harness-f2round_emulator_1
+capture_initial_bytes=0
+server_log=runtime/logs/raw-pkg-server.log
+server_baseline_bytes=0

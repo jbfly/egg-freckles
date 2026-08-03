@@ -795,3 +795,47 @@ becomes an array index must be `Floor`ed") now holds at every dispatch site
 whether or not the current implementation happens to index with it. The cursor
 walk itself is unchanged R10J code, lifted into a shared `NoteAt(ordinal)` that
 both ops call, so `note_list` cannot drift away from what `get_note` reads.
+
+## Sixteenth finding: `ResetToEnd` lands *on* the last entry (Track F2)
+
+The idiom `examples/note-export` used to find the newest note —
+
+```newtonscript
+cursor:ResetToEnd();
+local entry := cursor:Prev();
+```
+
+— reads the **second** newest entry on this ROM. `ResetToEnd` positions the
+cursor on the last entry *and returns it*; `Prev` then steps back one. Measured
+on instance `f2round` against a Notepad soup holding four entries
+(`0/64461125/nil 1/64462106/nil 2/64464021/nil 3/64477232/1`, the three
+`data=nil` seed notes plus one real one):
+
+```text
+local c := GetUnionSoupAlways("Notes"):Query({indexPath: 'timeStamp});
+local a := c:ResetToEnd(); local b := c:Entry();
+"reset=" & EntryUniqueID(a) & " entry=" & EntryUniqueID(b)
+=> "reset=3 entry=3"
+
+... while the same cursor's c:Prev() answered with entry 2.
+```
+
+Use `local entry := cursor:ResetToEnd();`. The two symptoms this produced are
+worth recognising because neither looks like a cursor bug: reading the newest
+note returned a `data=nil` seed entry and the client said "Newest note has no
+text" (`runtime/evidence/f2round-03-asknote.png`), and a create-then-read-back
+reported `Saved note id=3` for an entry that was really `id=4`
+(`runtime/evidence/f2round-08-savenote.png`). After the one-line fix the
+on-screen id matched an independent `ns_eval` read of the soup twice, at id 6
+and id 8.
+
+`examples/harness-tools` is **not** affected: `NoteAt(ordinal)` starts from
+`cursor:Entry()` and merges forward with `Next()` across stores
+(`examples/harness-tools/Main.newt:630-660`), and never calls `ResetToEnd` or
+`Prev` at all. The affected code was `NoteExportN13`'s `ReadOne` and `Create`,
+which Track F2 replaced.
+
+Related, and the reason this took a rebuild to find rather than an `ns_eval`
+probe: the probe that would have caught it needs the *literal* `"Notes"` soup
+name, since `ROM_paperRollSoupName` is an NTK compile-time symbol that `ns_eval`
+cannot see (fifteenth finding).

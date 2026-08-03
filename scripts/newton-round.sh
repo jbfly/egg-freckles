@@ -115,7 +115,21 @@ screenshot=$evidence/$tag-ready.png
 ocr=$evidence/$tag-ready.txt
 pidfile=$evidence/$tag-capture.pid
 server_log=runtime/logs/raw-pkg-server.log
+# The shared emulator is the default, but a round on an isolated instance is
+# the normal case now (docs/parallel-emulators.md). NEWTON_INSTANCE picks it,
+# and every tool below follows: emulator.client reads the same variable, and
+# install-and-launch.sh reads NEWTON_CONTROL_URL.
 container=newton-harness_emulator_1
+if [ -n "${NEWTON_INSTANCE:-}" ]; then
+    container=newton-harness-${NEWTON_INSTANCE}_emulator_1
+    if [ -z "${NEWTON_CONTROL_URL:-}" ]; then
+        published=$(podman port "$container" 8080 2>/dev/null | head -n 1) \
+            || fail "instance $NEWTON_INSTANCE is not running"
+        [ -n "$published" ] || fail "instance $NEWTON_INSTANCE publishes no control port"
+        NEWTON_CONTROL_URL=http://127.0.0.1:${published##*:}
+        export NEWTON_CONTROL_URL
+    fi
+fi
 current_tag=$(sed -n 's/^kVersion := "[^"]*-\([a-z][a-z0-9]*\)";$/\1/p' "$main")
 [ "$current_tag" != "$tag" ] || fail "tag $tag is already used by current source"
 mkdir -p "$evidence"

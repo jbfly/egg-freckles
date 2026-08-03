@@ -1,12 +1,15 @@
 # Ink client design — Newton as an AI input surface
 
-> **Status (2026-08-03): largely implemented.** The design below reads
-> as a proposal, but Stages 1–5 have been built and proven on the
-> emulator — see the "Stage 1 result" through "Stage 5 result" sections
-> appended below. The pen-up defect is **RESOLVED** (Stage 5). Remaining
-> gaps: nothing here is installed on physical hardware yet, the multi-part
-> `/ink` POST is still unbuilt, and `Encode()` double-counts the ink view's
-> origin (found in Stage 5, not fixed). See `docs/ROADMAP.md` Track E.
+> **Status (2026-08-03): implemented, and no longer a separate app.** The
+> design below reads as a proposal, but Stages 1–5 were built and proven on
+> the emulator — see the "Stage 1 result" through "Stage 5 result" sections
+> appended below — and **Track F2 folded the whole thing into the chat
+> client** as a hideable overlay, deleting `examples/ink-capture`. The pen-up
+> defect is **RESOLVED** (Stage 5) and the doubled `Encode()` origin is
+> **RESOLVED and measured on the wire** ("Track F2 result", the last section).
+> Remaining gaps: nothing here is installed on physical hardware yet, and the
+> multi-part `/ink` POST is still unbuilt. See `docs/ROADMAP.md` Tracks E and
+> F2.
 
 Scope: a future `harness-client` that captures stylus ink on a NewtonOS 2.1
 device (MP2100-class, or Einstein), ships it to the host over the existing
@@ -539,3 +542,92 @@ cost about 90 s. Install and open via `scripts/install-and-launch.sh` with
 
 Full transcript with every `ns_eval` probe and its answer:
 `runtime/evidence/e1ink-result.txt`.
+
+---
+
+## Track F2 result — the origin fix, and ink inside the chat app — 2026-08-03
+
+The Stage 5 section closes with a defect it deliberately did not fix: `Encode()`
+added the canvas origin to points that `GetPointsArray` already hands back in
+**screen-global** coordinates, so every host render was shifted +16,+54 and ink
+near the bottom-right could fall outside the 320×480 page. Track E2 owned it
+"because it needs the wire to prove". This round had the wire.
+
+### The fix
+
+Two lines, and the origin now exists in exactly one place:
+
+```newtonscript
+// Encode (host render, global coordinates) — was `points[1] + self.inkLeft`
+local x := points[1];
+local y := points[0];
+
+// StrokeShape (on-screen repaint, view-local coordinates) — unchanged
+coords[index]     := points[index + 1] - originLeft;
+coords[index + 1] := points[index]     - originTop;
+```
+
+The `inkLeft`/`inkTop` slots are gone rather than left unused, so there is no
+origin for the encoder to reach for. `test_newton_client_source.py` pins both
+halves.
+
+### The measurement
+
+Two drags on the canvas, at screen coordinates `60,110 → 60,280` and
+`60,280 → 220,280` — an "L". They stayed on the canvas after pen-up
+(`runtime/evidence/f2round-13-ink-drawn.png`, status `2 strokes`). One `Send`:
+
+```text
+10.42.0.1 - - [03/Aug/2026 21:43:56] "POST /ink HTTP/1.0" 200 -
+```
+
+The PNG the host wrote (`runtime/evidence/f2round-15-ink-host-render.png`, kept
+byte-for-byte from `runtime/evidence/ink-latest.png`) contains 664 black pixels
+spanning:
+
+| | drawn | rendered | with the old bug |
+|---|---|---|---|
+| x | 60 … 220 | **60 … 221** | 76 … 237 |
+| y | 110 … 280 | **110 … 281** | 164 … 335 |
+
+The extra pixel on each maximum is the host's 2×2 dot brush
+(`pkg_publisher.py:244-247`). Nothing is shifted.
+
+The vision call was the real one — `codex exec -i`, no stub — and answered:
+
+```text
+An L-shaped right angle.
+```
+
+which the client appends to the **chat transcript** as `Ink: An L-shaped right
+angle.` rather than showing it on a private status line, then hides the overlay
+so the answer is where every other answer is
+(`runtime/evidence/f2round-16-ink-reply.png`).
+
+### What the overlay is
+
+A `clView` child of the chat window, `viewFormat: vfFillWhite` (that is what
+makes it opaque), holding the hint line, the capture canvas, the stroke-count
+line and `Clear` / `Undo` / `Send` / `Chat`. Three mechanics are worth carrying
+forward:
+
+- **`Show()` only works on a view that was opened and then hidden**
+  (`refs/NewtonProgrammerRef20.txt:4650-4652`), so the panel ships with
+  `vVisible` set and a 150 ms delayed call hides it at launch. There is no way
+  to declare it hidden and message it later.
+- **`vfFrameBlack` on its own draws nothing** — the frame pen width is zero
+  without `vfPen` — so the canvas box was invisible for two builds. Two
+  `protoDivider` rules mark the writing area, exactly as `InkPad2` did.
+- **The ink POST rides the NIE link the chat already holds.** The first build
+  called `:Stop()` to drop the chat link and re-grabbed one; `connect` then
+  failed with `-16009`, *"Phone connection was cut off, or invalid call when not
+  connected"* (`refs/NewtonProgrammerRef20.txt:73102`). One link, two endpoints,
+  and the chat session is never interrupted by drawing.
+
+The POST itself was rewritten from `InkPad2`'s synchronous form (`async: nil`
+plus a blocking `Input()`, which would have frozen the app for the whole vision
+call) onto the chat client's asynchronous machinery: `async: true` Bind,
+connect and output, and a `SetInputSpec` whose `InputScript` looks for the
+`INK ` prefix.
+
+Full round record: `runtime/evidence/f2round-round.txt`.

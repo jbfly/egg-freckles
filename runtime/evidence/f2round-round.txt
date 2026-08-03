@@ -1,0 +1,156 @@
+Track F2 round — the harness panel (note + ink folded into chat), 2026-08-03
+============================================================================
+
+Instance:   f2round (newton-harness-f2round_emulator_1), seeded from
+            ~/newton-archive/newton-harness/flash-backups/
+            internal-before-round9-loader-20260725-195622.flash
+Hosts:      NEWTON_FAKE_BACKEND=1 python3 server.py on 0.0.0.0:6801
+            python3 pkg_publisher.py on 10.42.0.1:18081 (real /ink vision call)
+Shipped:    HarnessClientA7:jbfly, kVersion 2.4-a7, Extras label "Chat A7"
+            examples/harness-client/harness-client.pkg
+            sha256 1a01c698b20b2153fd89478d622fc5bfdeea3246c2a254d0cb617b021114e642
+            (a5 and a6 were built and installed in the same round and are
+            superseded; each one died of a defect listed below.)
+
+What A7 is
+----------
+Chat A4 plus three buttons in a second control row and one hideable overlay:
+
+    Ask Note   newest stock note -> the prompt, on the normal chat path
+    Save Note  the last agent reply -> a new native note (MakeTextNote+NewNote)
+    Ink        shows the capture canvas over the chat; Clear/Undo/Send/Chat
+
+Two plain buttons instead of a toggle: nothing to remember, nothing to read
+back off a 1997 screen, and both directions are one tap. `Save Note` writes
+whatever the last reply was, so it also saves an ink reading.
+
+The note bridge no longer speaks HTTP. `Ask Note` reads the soup and calls the
+same Send() a typed prompt calls, so a note over 227 characters splits into
+MSGP parts. That is the death of `No answer: LENGTH` (docs/notes-bridge.md).
+
+Proof 1 — a 266-character note goes out as MSGP and comes back  (A7, 20:44)
+--------------------------------------------------------------------------
+Note created with ns_eval using the "Notes" literal (NTK platform constants are
+invisible to ns_eval — fifteenth finding), 266 characters. One "Ask Note" tap:
+
+    MSGP part 1/2 220B total=220B
+    MSGP part 2/2 46B total=266B
+    MSGP assembled 2 parts into 266B prompt
+
+Screen: runtime/evidence/f2round-17-a7-asknote.png — "Note: A7 harness panel
+note..." then "Agent: FAKE REPLY TO: A7 harness panel note...".
+The same round on a6 with a 292-character note: parts 220B + 72B -> 292B
+(runtime/evidence/f2round-10-asknote-reply.png).
+
+Proof 2 — the reply lands as a native note  (A7, 20:44)
+-------------------------------------------------------
+"Save Note" tap -> status "Saved note id=8". Independent ns_eval read of the
+newest soup entry:
+
+    newest id=8 len=341 head=FAKE REPLY TO: A7 harness panel note. This one is
+
+Screen: runtime/evidence/f2round-18-a7-savenote.png. Stock Notepad rendering
+both the source note and the created reply note (a6 pair):
+runtime/evidence/f2round-12-notepad.png.
+
+Proof 3 — ink, with the origin fix  (A7, 21:43)
+-----------------------------------------------
+Two drags on the canvas at screen coordinates 60,110 -> 60,280 and
+60,280 -> 220,280 (an "L"), retained and visible after pen-up
+(runtime/evidence/f2round-13-ink-drawn.png, "2 strokes"). One "Send":
+
+    10.42.0.1 - - [03/Aug/2026 21:43:56] "POST /ink HTTP/1.0" 200 -
+
+The host render runtime/evidence/f2round-15-ink-host-render.png has 664 black
+pixels spanning **x 60..221, y 110..281** — the drawn coordinates, +1 from the
+host's 2x2 dot brush. With the E1 defect (`points[1] + self.inkLeft`) the same
+strokes would have rendered at x 76..237, y 164..335. The +16,+54 shift is
+gone; Encode adds nothing to GetPointsArray's already-global coordinates.
+
+The real vision call (`codex exec -i`, not a stub) answered
+**"An L-shaped right angle."** and the line appears in the chat transcript as
+"Ink: An L-shaped right angle." with the overlay closed behind it
+(runtime/evidence/f2round-16-ink-reply.png).
+
+Proof 4 — regression
+--------------------
+"short prompt regression" typed into the field, sent: reply rendered and the
+host log recorded **no MSGP line at all** for that turn — it still goes as a
+plain MSG (runtime/evidence/f2round-19-short-prompt.png).
+
+Three defects this round found, all of them in code that was called "proven"
+----------------------------------------------------------------------------
+1. **`cursor:ResetToEnd()` lands ON the last entry and returns it.** The
+   note-export idiom `ResetToEnd(); Prev()` therefore reads the **second**
+   newest note. Measured directly:
+
+       local a := c:ResetToEnd(); local b := c:Entry();
+       => "reset=3 entry=3"          while c:Prev() gave 2
+
+   Soup at the time: `0/64461125/nil 1/64462106/nil 2/64464021/nil 3/64477232/1`
+   — the a5 build read entry 2 (a data=nil seed note) and said "Newest note has
+   no text" (runtime/evidence/f2round-03-asknote.png), and its Save Note
+   readback reported `id=3` for an entry that was really `id=4`
+   (runtime/evidence/f2round-08-savenote.png). Fix: use ResetToEnd's return
+   value. This is a real bug in the shipped NoteExportN13 create/read paths.
+
+2. **Two NIE links at once is not the way.** The a5 build dropped the chat link
+   (`:Stop()`) and immediately re-grabbed one for the ink POST; `connect` then
+   failed with **-16009** — "Phone connection was cut off, or invalid call when
+   not connected" (refs/NewtonProgrammerRef20.txt:73102). Screen:
+   runtime/evidence/f2round-06-ink-sending.png. Fix: the ink endpoint rides the
+   NIE link the chat already holds — one link, two connections, and the chat
+   session is never interrupted.
+
+3. **A slot named `inkOpen` shadowed the method `InkOpen`** — symbols are
+   case-insensitive, so every ink Send threw **-48200** before it reached the
+   wire (runtime/evidence/f2round-14-ink-thinking.png, a6 build). Exactly the
+   trap the A2 round hit with `transcriptTail`. The slot was write-only; it was
+   deleted rather than renamed.
+
+Two smaller things
+------------------
+- `vfFrameBlack` alone draws no frame (the frame pen width is zero without
+  `vfPen`), so the canvas box was invisible on a5/a6. Two `protoDivider` rules
+  mark the writing area instead — the same thing InkPad2 did.
+- `vfFillWhite` on the overlay is what makes it opaque; that part works.
+- Overlay mechanics: `Show()` only works on a view that was opened and then
+  hidden, so the panel ships `vVisible` and is hidden by a 150 ms delayed call.
+- A stray `-48601` (Syntax error) and `-8007` (Exception not handled) alert each
+  appeared over the app during the round; both followed a bad `ns_eval`
+  expression or a closed view's pending delayed call, not a defect in A7. Run a
+  `2+2` sanity eval before believing anything, per the F1 round.
+
+Tooling
+-------
+`scripts/newton-round.sh` now honours `NEWTON_INSTANCE`: it derives the
+container name and the control URL, so a round can run against an isolated
+instance instead of the shared emulator. All three builds this round used it
+(`NEWTON_INSTANCE=f2round scripts/newton-round.sh examples/harness-client a7`),
+and `--self-check` still passes.
+
+Evidence index
+--------------
+f2round-00-boot.png / -01-ready.png    seeded instance, card slip dismissed
+f2round-02-a5-open.png                 a5 open, Ready, the three new buttons
+f2round-03-asknote.png                 defect 1 on screen
+f2round-04-ink-open.png                a5 overlay open
+f2round-05-ink-strokes.png             a5 two strokes retained
+f2round-06-ink-sending.png             defect 2 on screen (-16009)
+f2round-07-typed.png                   a5 typed prompt round trip
+f2round-08-savenote.png                defect 1 on screen (id=3 vs real id=4)
+f2round-09-a6-open.png                 a6 open
+f2round-10-asknote-reply.png           a6 292B note -> MSGP -> reply
+f2round-11-savenote.png                a6 Saved note id=6 (matches the soup)
+f2round-12-notepad.png                 stock Notepad: source note + reply note
+f2round-13-ink-drawn.png               a7 L drawn, dividers visible
+f2round-14-ink-thinking.png            defect 3 on screen (-48200, a6)
+f2round-15-ink-host-render.png         the host PNG — origin-fix measurement
+f2round-16-ink-reply.png               "Ink: An L-shaped right angle."
+f2round-17-a7-asknote.png              a7 note -> MSGP -> reply
+f2round-18-a7-savenote.png             a7 Saved note id=8 (matches the soup)
+f2round-19-short-prompt.png            a7 short prompt, no MSGP logged
+a5/a6/a7-ready.png, -ready.txt, -baseline.txt   the three newton-round.sh
+                                       builds; the matching
+                                       *-emulator-capture.log files were round
+                                       scratch and are not kept

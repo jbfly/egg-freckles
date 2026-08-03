@@ -46,7 +46,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/agent-tools.md` | You touch `newton_mcp.py` — the MCP server that gives the chat agent tools (ROADMAP Track D). Also the place the container→host networking limits are measured. |
 | `docs/agent-dev-loop.md` | You are building a **new** Newton app. Ten numbered steps from `cp -r examples/hello` to teardown, with the identity rule and the UI footguns. An agent ran it end to end on 2026-08-03 (ROADMAP Track G, "Proven 2026-08-03"). |
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
-| `docs/ink-client-design.md` | Ink. Stages 1–5 built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended after the design. Ink now stays visible after pen-up (`InkPad2:jbfly`, "Stage 5 result"). Still open: not installed on physical hardware, multi-part POST unbuilt, and `Encode()` double-counts the ink view's origin. See `docs/ROADMAP.md` Track E. |
+| `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended after the design. Ink stays visible after pen-up ("Stage 5 result") and since Track F2 it lives **inside the chat client** as an overlay, with the `Encode()` origin bug fixed and measured ("Track F2 result"). Still open: not installed on physical hardware, multi-part POST unbuilt. See `docs/ROADMAP.md` Tracks E and F. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc
@@ -80,11 +80,12 @@ one is part of your task** (see `CLAUDE.md`).
 Every command below was executed in this repo on 2026-07-31 and produced the
 stated result. Run from the repo root.
 
-**Tests** — 55 pass (45 + the 10 Track F1 `MSGP` and client-source tests,
-2026-08-03). `pytest` is not in the system python, so use `uv`:
+**Tests** — 60 pass (45 + the 15 client-source tests that pin the `MSGP` split,
+the note path and the ink encoder, 2026-08-03). `pytest` is not in the system
+python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 55 passed
+uv run --with pytest pytest -q          # 60 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -169,11 +170,19 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-Since 2026-08-03 the *source* client is `HarnessClientA4:jbfly` ("Chat A4",
-v2.4-a4): it splits a prompt over 227 characters into `MSGP` frames that the
-host reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension:
-`MSGP`"). A4 is emulator-proven only — **the physical MP2000 still runs A3**,
-so hardware docs and inventories that say A3 are correct.
+Since 2026-08-03 the *source* client is `HarnessClientA7:jbfly` ("Chat A7",
+v2.4-a7), and it is the **harness panel**, not just a chat window:
+
+- it splits a prompt over 227 characters into `MSGP` frames that the host
+  reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension: `MSGP`");
+- `Ask Note` sends the newest stock note down that same path and `Save Note`
+  writes a reply back as a native note (Track F2 — this replaced
+  `examples/note-export`, which is deleted);
+- `Ink` opens a capture canvas over the chat whose reading joins the transcript
+  (Track F2 — this replaced `examples/ink-capture`, also deleted).
+
+Everything after A3 is emulator-proven only — **the physical MP2000 still runs
+A3**, so hardware docs and inventories that say A3 are correct.
 
 Human gates and preserved recovery state:
 

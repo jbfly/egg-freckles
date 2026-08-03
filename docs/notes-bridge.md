@@ -8,10 +8,24 @@ NewtonOS 2.1 stores stock Notes entries in the union soup named by
 `{viewStationery: 'para, text: <rich string>, ...}`. Decoding that rich string
 and posting one bounded JSON document over the proven NIE/HTTP path worked.
 
-The exporter is `examples/note-export`. Its export path reads only the newest
-entry through the documented `timeStamp` index. N13's single Ask button sends
-that note to the model, creates one native note from the returned answer, and
-immediately reads the new entry back.
+**Current state (Track F2, 2026-08-03): the bridge is the chat client.**
+`examples/note-export` is deleted; `examples/harness-client`
+(`HarnessClientA7:jbfly`) carries the read and create paths as `Ask Note` and
+`Save Note`, and the note travels the **ordinary chat transport** — one `MSG`
+frame under 227 characters, `MSGP` parts above it — instead of `POST /note`.
+That is what retires the `No answer: LENGTH` failure described under "Honest
+limits" below. `POST /note` still exists in `pkg_publisher.py` and still works;
+nothing on the Newton calls it any more, so treat it as the historical host API
+this page documents, not as a live path.
+
+Everything below is the N1–N13 investigation that produced those paths, and it
+is still the authority on the soup schema and on what does *not* work. Two
+corrections from F2 are folded in where they apply.
+
+The original exporter was `examples/note-export`. Its export path reads only the
+newest entry through the documented `timeStamp` index. N13's single Ask button
+sends that note to the model, creates one native note from the returned answer,
+and immediately reads the new entry back.
 
 Destructive operations require an explicit human confirmation gate on real
 hardware. Disposable emulators are exempt from that confirmation requirement.
@@ -241,18 +255,52 @@ Failed-write garbage entry ID `4` was deleted. Fresh diagnostic identity
 undefined-symbol-free build are `runtime/evidence/n15-delete-main.newt` and
 `runtime/evidence/n15-delete-build.log`.
 
+## Correction (F2): `ResetToEnd` lands *on* the last entry
+
+`ReadOne` and `Create` both walked the `timeStamp` index with
+
+```newtonscript
+cursor:ResetToEnd();
+local entry := cursor:Prev();
+```
+
+which reads the **second** newest entry, not the newest. Measured directly on
+the emulator during Track F2, on a soup holding entries `0 1 2 3`:
+
+```text
+local a := c:ResetToEnd(); local b := c:Entry();
+=> "reset=3 entry=3"                 while c:Prev() gave 2
+```
+
+`ResetToEnd` positions on the last entry *and returns it*. Consequences seen on
+screen: the first F2 build read a `data=nil` seed note and reported
+`Newest note has no text` (`runtime/evidence/f2round-03-asknote.png`), and its
+create readback said `Saved note id=3` for an entry that was really `id=4`
+(`runtime/evidence/f2round-08-savenote.png`). The fix is one line —
+`local entry := cursor:ResetToEnd();` — and after it the on-screen id matched an
+independent `ns_eval` read of the soup twice
+(`f2round-11-savenote.png` id=6, `f2round-18-a7-savenote.png` id=8).
+
+This is a real defect in the shipped `NoteExportN13`, so the N13 gate below
+proved the *create* call, not the readback's choice of entry. The two-step
+`MakeTextNote(answer, nil)` + `NewNote(note, nil, nil)` itself is unaffected and
+is still the sanctioned write path.
+
 ## Honest limits
 
 - The model-answer write-back is proven on MAIN for one plain-text model answer.
 - It reads only the newest plain stock note; ink, pictures, outlines, and
   checklists remain unsupported.
-- Validation still permits 8 KiB of note text, but this bridge sends one
-  240-byte frame, so a longer valid note gets a visible `No answer: LENGTH`.
-  **The protocol rung now exists**: Track F1 added the `MSGP KK NN <chunk>` op
-  (`docs/phase3-protocol.md`, "Extension: `MSGP`"), the host reassembles up to
-  8192 bytes — the same cap this bridge validates against — and `Chat A4`
-  splits long prompts automatically. The note bridge itself has **not** been
-  moved onto it and still sends a single `MSG`; folding it in is Track F2.
+- The 240-byte `No answer: LENGTH` limit is **gone as of Track F2**. `Ask Note`
+  calls the client's own `Send()`, so a note over 227 characters splits into
+  `MSGP` parts and the host reassembles up to 8192 bytes
+  (`docs/phase3-protocol.md`, "Extension: `MSGP`"). Proven with a 266-character
+  note: `MSGP part 1/2 220B` + `part 2/2 46B` → `assembled 2 parts into 266B
+  prompt` (`runtime/evidence/f2round-round.txt`). The client caps the note it
+  sends at 2048 characters — not a protocol limit but a CPU one, because the
+  ASCII/control-character clean-up rebuilds the string one character at a time.
+- `POST /note`'s own validation (five keys, 512-byte title, 8 KiB text, 9 KiB
+  request) is unchanged, but no Newton package calls that endpoint now.
 - The returned display line is ASCII-cleaned and capped at 200 characters for
   the Newton status view. There is no polling, queue, or bridge-owned history;
   every export resets the shared chat before its one model turn.

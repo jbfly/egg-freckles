@@ -7,6 +7,40 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-03 — Track F2 done: the harness panel is one app.**
+  `HarnessClientA7:jbfly` ("Chat A7", v2.4-a7) is Chat A4 plus a second control
+  row — **`Ask Note`**, **`Save Note`**, **`Ink`** — and a hideable ink overlay.
+  Two plain buttons rather than a toggle: `Ask Note` sends the newest stock note
+  as the prompt **through the normal chat path**, so a long note splits into
+  `MSGP` parts and the `No answer: LENGTH` failure is dead; `Save Note` writes
+  the last reply (chat *or* ink) back as a native note with the proven
+  `MakeTextNote` + `NewNote` two-step. `examples/note-export` and
+  `examples/ink-capture` are deleted — their code lives in the client now.
+  Proven live on isolated instance `f2round` against `NEWTON_FAKE_BACKEND=1
+  server.py:6801` + `pkg_publisher.py:18081`: a 266-character note →
+  `MSGP part 1/2 220B` + `2/2 46B` → `assembled 2 parts into 266B prompt` →
+  reply in the transcript; `Save Note` → status `Saved note id=8` matching an
+  independent `ns_eval` read of the soup; a short typed prompt right after
+  logged **no** `MSGP` at all. **The E2/E3 encoder blocker is fixed**: `Encode`
+  no longer adds the canvas origin to points `GetPointsArray` already hands back
+  global, and the host render of an "L" drawn at screen `60,110→60,280→220,280`
+  measures **x 60..221, y 110..281** instead of the old +16,+54 shift; the real
+  vision call answered *"An L-shaped right angle."* and that line lands in the
+  chat transcript. 60 tests. Full record `runtime/evidence/f2round-round.txt`,
+  screens `runtime/evidence/f2round-*.png`.
+  Three defects found in code three docs called proven, each costing one
+  rebuild: (1) **`cursor:ResetToEnd()` lands *on* the last entry and returns
+  it**, so note-export's `ResetToEnd(); Prev()` read the **second** newest note
+  (measured: `reset=3 entry=3`, `Prev()` → 2) — a real bug in shipped
+  `NoteExportN13`; (2) dropping the chat's NIE link to re-grab one for the ink
+  POST fails `connect` with **-16009**, so the ink endpoint now rides the link
+  the chat already holds; (3) a slot named `inkOpen` shadowed the method
+  `InkOpen` (**-48200**), the `transcriptTail` trap again. Also: `vfFrameBlack`
+  draws no frame without a pen width, and `scripts/newton-round.sh` now honours
+  `NEWTON_INSTANCE` so a round can run off the shared emulator.
+  Still open: hardware is **still on A3**, and F3 (a true Notes panel that grabs
+  the *currently open* note) is untouched.
+
 - **2026-08-03 — Track G done: an agent built a Newton app end to end, first
   build.** G1 is `docs/agent-dev-loop.md` — ten numbered steps from
   `cp -r examples/hello` to teardown, with the identity rule, the `tntk` patch
@@ -199,13 +233,14 @@ agent can complete one task and verify it.
   Also confirmed: the three Notepad entries inside the seed flash are the
   `data=nil` failed writes `docs/notes-bridge.md` diagnosed in N2/N3.
 - **Next up (2026-08-03, after G):** the remaining work splits cleanly.
-  **Needs the human and the bench:** E2 (InkPad2 on hardware + the doubled
-  `Encode()` origin), and every other hardware deploy — Chat A4, the tools
+  **Needs the human and the bench:** E2 (the ink client on hardware — its
+  doubled `Encode()` origin is **fixed and wire-proven** as of F2, so only the
+  hardware half is left), and every other hardware deploy — Chat A7, the tools
   client, `Dice1` — since the whole tools channel has still never run on the
   **physical** MessagePad and there is no tool that installs there by design.
   **Agent-sized and unblocked:** C5 (`pkg_install`/`pkg_remove` ops, still
-  human-gated at the device), F3 (true Notes integration, genuinely
-  unexplored), then the Track H backlog. `stage_hw` is the one MCP tool no
+  human-gated at the device), E3 (multi-part `/ink` POST), F3 (true Notes
+  integration, genuinely unexplored), then the Track H backlog. `stage_hw` is the one MCP tool no
   agent has driven yet; G exercised all six `emulator_*` calls it needed.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
@@ -223,11 +258,14 @@ lower-level development (games, richer UIs) on the same rails.
 
 Hardware-proven and current:
 
-- **Chat**: `examples/harness-client` (`HarnessClientA4:jbfly`, "Chat A4"; the
+- **Chat**: `examples/harness-client` (`HarnessClientA7:jbfly`, "Chat A7"; the
   physical MP2000 still runs A3) ↔ `server.py:6801`, framed ASCII protocol,
-  codex backend via `codex exec` subprocess. Text only, one turn in flight;
-  since Track F1 a prompt over 227 characters goes as `MSGP` parts and the host
-  reassembles up to 8 KiB.
+  codex backend via `codex exec` subprocess. One turn in flight; since Track F1
+  a prompt over 227 characters goes as `MSGP` parts and the host reassembles up
+  to 8 KiB. Since Track F2 it is the **harness panel**: `Ask Note` sends the
+  newest note down that same path, `Save Note` writes a reply back as a native
+  note, and `Ink` opens the capture canvas whose reading joins the transcript
+  (`POST /ink` on 18081). Emulator-proven.
 - **Install path**: `examples/harness-loader` (`-HarnessLoaderZC40:jbfly`) pulls
   any staged `.pkg` over WiFi from `runtime/dual_send.py` on 18081. ZC39 is the
   installed fallback. NS Basic bootstrap (`bootstrap/`) is the bare-metal
@@ -246,18 +284,18 @@ Emulator-proven, **not yet on hardware**:
   (`runtime/evidence/c4round-*.txt`, fifteenth finding). Host API:
   `POST /tools` (`pkg_publisher.py:354-385`).
   Median 0.3–0.8 s per call on the warm link.
-- **Ink**: contrary to `docs/START-HERE.md`'s stale claim, this is built
-  end-to-end: `examples/ink-capture` (`InkPad`) captures strokes with
-  `GetPointsArray`, encodes NSI1, POSTs to `/ink`; host renders a PNG
-  (stdlib Bresenham, `pkg_publisher.py:241-278`) and calls a vision model.
-  Five staged results appended to `docs/ink-client-design.md`. The pen-up
-  defect is fixed (Stage 5, `InkPad2`): retained polygons painted in a
-  `ViewDrawScript`, plus an `Undo` button. Newly found and still open:
-  `Encode()` double-counts the ink view's origin, so the host render is
-  shifted +16,+54 (Stage 5 section, "The one trap").
-- **Notes**: `examples/note-export` (`NoteExportN13`) reads the newest note,
-  POSTs `/note`, and creates a native reply note via the proven two-step
-  `MakeTextNote(answer, nil)` + `NewNote` path.
+- **Ink**: built end to end and now **inside the chat client** (Track F2; the
+  separate `examples/ink-capture` is deleted). The canvas captures strokes with
+  `GetPointsArray`, retains one `MakePolygon` per stroke in a `ViewDrawScript`
+  (Stage 5), encodes NSI1 and POSTs `/ink`; the host renders a PNG (stdlib
+  Bresenham, `pkg_publisher.py:241-278`) and calls a vision model whose one
+  sentence lands in the chat transcript. Six staged results in
+  `docs/ink-client-design.md`; the `Encode()` doubled-origin defect is **fixed
+  and measured on the wire** ("Track F2 result").
+- **Notes**: also inside the chat client (`examples/note-export` deleted).
+  `Ask Note` reads the newest note and sends it as an ordinary prompt — no
+  `/note` request — and `Save Note` creates a native note via the proven
+  two-step `MakeTextNote(answer, nil)` + `NewNote` path.
 
 The critical architectural gap was: **the agent has no tools.** `/tools`,
 `/ink`, the emulator control API, and the build toolchain all existed as
@@ -430,29 +468,35 @@ switches to Claude, the same MCP server plugs in. Steps:
   so `GetPointsArray`'s y,x order is swapped and the ink view's origin
   subtracted; no per-segment `MakeLine`. See `docs/ink-client-design.md`
   "Stage 5 result" and `runtime/evidence/e1ink-*`.
-- **E2. Install InkPad2 on hardware** via Track B path; first real stylus
-  drawing → vision model round trip. Fix `Encode()`'s doubled origin (found
-  in E1) as part of this, since it needs the wire to prove.
+- **E2. Install the ink client on hardware** via the Track B path; first real
+  stylus drawing → vision model round trip. **Half done 2026-08-03**: the
+  `Encode()` doubled origin is fixed and proven over the wire in Track F2 (host
+  render of an "L" drawn at `60,110→60,280→220,280` measures x 60..221,
+  y 110..281), and the ink client is now the chat client, so the hardware step
+  is one ZC40 install of `HarnessClientA7` — which is the same human gate as
+  every other hardware deploy.
 - **E3. HWR assist.** New flow: send a note's *ink* to the agent, get clean
   text back as a new note. Needs the multi-part `/ink` POST that was
   designed and deferred (`pkg_publisher.py:313` caps at 16 KiB; `?part=k&of=n`
   reassembly is specified in `docs/ink-client-design.md` but unwritten).
 
-## Track F — the harness panel (Chat A4/A5; 2–3 sessions)
+## Track F — the harness panel (Chat A4/A7; 2–3 sessions)
 
 Evolve the chat client toward the panel-over-Notes dream, incrementally:
 
 - **F1. Multi-frame prompts — DONE 2026-08-03.** `MSGP KK NN <chunk>` shipped
   in `Chat A4`; grammar and host state machine in `docs/phase3-protocol.md`,
-  "Extension: `MSGP`"; status log entry above. Still open: the note bridge
-  sends a single `MSG` (so `No answer: LENGTH` survives until F2 folds it in),
-  and A4 is emulator-proven only — the physical MP2000 still runs A3.
-- **F2. Chat A5 = A4 + "Note" button** (fold in `note-export`'s read/create
-  code: send newest note as the prompt, replies can land as a native note)
-  **+ "Ink" button** (fold in `ink-capture`'s canvas as an overlay view).
-  One app, one identity bump via `scripts/newton-round.sh`. This retires
-  `note-export` and `ink-capture` as separate packages (delete their dirs
-  when A4 ships, per Track A rationale).
+  "Extension: `MSGP`"; status log entry above. The note bridge was folded onto
+  it by F2, so `No answer: LENGTH` is gone. Everything since A3 is
+  emulator-proven only — the physical MP2000 still runs A3.
+- **F2. The harness panel — DONE 2026-08-03**, shipped as `Chat A7`
+  (`HarnessClientA7:jbfly`, v2.4-a7) rather than A5: three identity bumps were
+  spent inside the round, one per defect found (see the status log). `Ask Note`
+  + `Save Note` + an `Ink` overlay, all in one app; the note path rides the
+  normal chat `MSG`/`MSGP` transport instead of `POST /note`; the ink encoder's
+  doubled origin is fixed. `examples/note-export` and `examples/ink-capture` are
+  deleted, per the Track A rationale. Status log entry above; round record
+  `runtime/evidence/f2round-round.txt`.
 - **F3. True Notes integration** (later): a floating `protoFloatNGo` panel
   or a Notes auxButton that grabs the *currently open* note rather than the
   newest. API surface `[verify]` — this is genuinely unexplored.

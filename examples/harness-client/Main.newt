@@ -1,7 +1,7 @@
-kAppSymbol := '|HarnessClientA4:jbfly|;
-kVersion := "2.4-a4";
-kAppTitle := "Newton Chat A4 " & kVersion;
-kAppLabel := "Chat A4";
+kAppSymbol := '|HarnessClientA7:jbfly|;
+kVersion := "2.4-a7";
+kAppTitle := "Newton Chat A7 " & kVersion;
+kAppLabel := "Chat A7";
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -16,10 +16,15 @@ kTranscriptTail := 640;
 kFrameBytes := 227;
 kPartBytes := 220;
 kMaxPrompt := 8192;
+// ponytail: a note goes through the same MSGP path as a typed prompt, but
+// Clean() rebuilds it one character at a time, and that is O(n^2) on this CPU.
+// 2048 characters is ten MSGP parts and still a second of work; the host would
+// accept 8192.
+kNoteBytes := 2048;
 
 mainView := {
     _proto: protoFloatNGo,
-    viewBounds: {left: 8, top: 24, right: 312, bottom: 428},
+    viewBounds: {left: 8, top: 24, right: 312, bottom: 452},
     title: kAppTitle,
     appSymbol: kAppSymbol,
     endpointClass: {_proto: protoBasicEndpoint},
@@ -33,9 +38,10 @@ mainView := {
     frameBytes: kFrameBytes,
     partBytes: kPartBytes,
     maxPrompt: kMaxPrompt,
+    noteBytes: kNoteBytes,
     // ponytail: a Newton paragraph breaks lines on CR (0x0D); NewtonScript's
     // "\n" is 0x0A, which draws as an empty box and breaks nothing. tntk
-    // silently emits "" for a \u000D\u literal, so set it at setup time.
+    // silently emits "" for a CR escape literal, so set it at setup time.
     newline: nil,
     version: kVersion,
     transcript: "",
@@ -43,6 +49,8 @@ mainView := {
     promptView: nil,
     statusView: nil,
     responseText: "",
+    // The last completed agent answer, so "Save Note" can write it to Notes.
+    lastReply: "",
     txSeq: 1,
     ready: nil,
     inFlight: nil,
@@ -51,6 +59,21 @@ mainView := {
     // MSGP parts still waiting for their ACK, and how many have gone out.
     pendingParts: nil,
     partIndex: 0,
+    // The ink overlay: one hideable panel holding the capture canvas.
+    inkPanel: nil,
+    inkCanvas: nil,
+    inkStatusView: nil,
+    // There is deliberately no `inkOpen` slot: NewtonScript symbols are
+    // case-insensitive, so it shadowed the InkOpen method and every ink Send
+    // threw -48200 (the same trap as capBytes/TranscriptTail in A2).
+    strokeCount: 0,
+    strokes: [],
+    shapes: [],
+    inkBody: nil,
+    inkBusy: nil,
+    inkGotReply: nil,
+    inkEndpoint: nil,
+    inkPort: 18081,
     // The physical build always uses Mars. An emulator round may override this
     // slot through ns_eval without rebuilding or changing the package identity.
     serverAddress: [10, 42, 0, 1],
@@ -60,6 +83,15 @@ mainView := {
     begin
         inherited:?ViewSetupDoneScript();
         self.newline := Chr(13);
+        // ponytail: template literals live in the read-only package, so both
+        // retained ink arrays have to be re-made in the heap before anything
+        // grows them.
+        self.strokes := [];
+        self.shapes := [];
+        // ponytail: Show() only works on a view that was opened and then
+        // hidden, so the overlay ships visible and is hidden as soon as the
+        // child list exists. That is a brief flash at launch, not a bug.
+        AddDelayedCall(func(view) view:HideInk(), [self], 150);
         // ponytail: the child list is not reachable until the view is fully open.
         AddDelayedCall(func(view) view:Boot(), [self], 800);
     end,
@@ -74,6 +106,7 @@ mainView := {
     Boot: func()
     begin
         :Wire();
+        :HideInk();
         :ShowTranscript();
         :Connect();
     end,
@@ -89,9 +122,21 @@ mainView := {
         foreach child in kids do
         begin
             local top := child:GlobalBox().top - rootTop;
-            if top = 32 then self.transcriptView := child
+            if top = 28 then self.inkPanel := child
+            else if top = 32 then self.transcriptView := child
             else if top = 236 then self.promptView := child
             else if top = 364 then self.statusView := child;
+        end;
+        if self.inkPanel then
+        begin
+            local panelKids := self.inkPanel:ChildViewFrames();
+            local panelTop := self.inkPanel:GlobalBox().top;
+            if panelKids then foreach child in panelKids do
+            begin
+                local top := child:GlobalBox().top - panelTop;
+                if top = 24 then self.inkCanvas := child
+                else if top = 292 then self.inkStatusView := child;
+            end;
         end;
         return nil;
     end,
@@ -201,6 +246,14 @@ mainView := {
             try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
             try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.endpoint := nil;
+        end;
+        if self.inkEndpoint then
+        begin
+            try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.inkEndpoint := nil;
         end;
         if self.linkID then
         begin
@@ -407,6 +460,8 @@ mainView := {
             :AppendLine("Agent: " & self.responseText);
             :AppendLine("");
             :ShowTranscript();
+            // Held for "Save Note"; the reply is written to Notes only on tap.
+            self.lastReply := self.responseText;
             self.responseText := "";
             self.ready := true;
             self.inFlight := nil;
@@ -500,6 +555,394 @@ mainView := {
         return :Send("/new");
     end,
 
+    // ---- Notes bridge (folded in from the retired note-export package) ----
+
+    // One wire line, ASCII only: every control character and every high
+    // character becomes a space, so a note can never break the frame grammar.
+    Clean: func(text)
+    begin
+        local size := StrLen(text);
+        if size > self.noteBytes then size := self.noteBytes;
+        local out := "";
+        for index := 0 to size - 1 do
+        begin
+            local code := Ord(text[index]);
+            if (code < 32) or (code > 126) then out := out & " "
+            else out := out & SubStr(text, index, 1);
+        end;
+        return out;
+    end,
+
+    // The newest stock note, read through the documented timeStamp index.
+    // Returns nil when the soup is empty and "" when the newest entry carries
+    // no paragraph text (the data=nil failed writes docs/notes-bridge.md
+    // diagnosed in N2/N3 read back this way).
+    // ResetToEnd lands *on* the last entry and returns it, so the note-export
+    // idiom `ResetToEnd(); Prev()` read the second-newest note. Measured on
+    // this ROM: reset=3 entry=3 while Prev() gave 2.
+    ReadNote: func()
+    begin
+        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+        local entry := cursor:ResetToEnd();
+        if entry = nil then return nil;
+        local data := GetSysEntryData(entry, 'data);
+        if not IsArray(data) then return "";
+        local text := "";
+        foreach item in data do
+            if item.viewStationery = 'para then
+            begin
+                if StrLen(text) > 0 then text := text & " ";
+                if IsString(item.text) then text := text & item.text
+                else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+            end;
+        return :Clean(text);
+    end,
+
+    // "Ask Note": the newest note becomes the prompt on the normal chat path,
+    // so anything over 227 characters splits into MSGP parts like any other
+    // long prompt. There is no /note HTTP request any more.
+    AskNote: func()
+    begin
+        if self.inFlight then return :SetStatus("Turn in flight");
+        if not self.ready then return :Connect();
+        local note := :ReadNote();
+        if note = nil then return :SetStatus("No note found");
+        if StrLen(note) = 0 then return :SetStatus("Newest note has no text");
+        :AppendLine("Note: " & note);
+        :ShowTranscript();
+        return :Send(note);
+    end,
+
+    // "Save Note": the two-step create proven in note-export N12/N13. The
+    // readback resolves a same-minute tie by highest entry ID so the status
+    // line names the entry that was actually written.
+    SaveNote: func()
+    begin
+        if StrLen(self.lastReply) = 0 then return :SetStatus("No reply to save");
+        local paperroll := GetRoot().paperroll;
+        local note := paperroll:MakeTextNote(self.lastReply, nil);
+        paperroll:NewNote(note, nil, nil);
+        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+        local entry := cursor:ResetToEnd();
+        if entry = nil then return :SetStatus("Saved, but no entry read back");
+        local stamp := GetSysEntryData(entry, 'timeStamp);
+        local candidate := cursor:Prev();
+        while candidate and (GetSysEntryData(candidate, 'timeStamp) = stamp) do
+        begin
+            if EntryUniqueID(candidate) > EntryUniqueID(entry) then entry := candidate;
+            candidate := cursor:Prev();
+        end;
+        return :SetStatus("Saved note id=" & EntryUniqueID(entry));
+    end,
+
+    // ---- Ink overlay (folded in from the retired ink-capture package) ----
+
+    ShowInk: func()
+    begin
+        if self.inkPanel = nil then :Wire();
+        if self.inkPanel = nil then return :SetStatus("Ink panel missing");
+        self.inkPanel:Show();
+        return :InkStatus(:StrokeText());
+    end,
+
+    HideInk: func()
+    begin
+        if self.inkPanel = nil then :Wire();
+        if self.inkPanel then self.inkPanel:Hide();
+        return nil;
+    end,
+
+    InkStatus: func(message)
+    begin
+        if self.inkStatusView = nil then :Wire();
+        if self.inkStatusView then SetValue(self.inkStatusView, 'text, message);
+        return nil;
+    end,
+
+    StrokeText: func()
+        if self.strokeCount = 1 then "1 stroke"
+        else if self.strokeCount = 0 then "Draw here, then tap Send"
+        else self.strokeCount & " strokes",
+
+    // ponytail: MakePolygon wants x,y pairs and GetPointsArray hands back y,x,
+    // so swapping the pair is the whole conversion — no per-segment MakeLine,
+    // no manual binary.
+    // GetPointsArray hands back screen-global coordinates (measured: a drag
+    // starting at screen 60,100 retained y0=100 x0=60), and DrawShape draws in
+    // view-local ones, so the canvas origin comes off here — and only here.
+    StrokeShape: func(points, originLeft, originTop)
+    begin
+        local count := Length(points);
+        if count < 2 then return nil;
+        local coords := Array(count, 0);
+        local index := 0;
+        while index < count do
+        begin
+            coords[index] := points[index + 1] - originLeft;
+            coords[index + 1] := points[index] - originTop;
+            index := index + 2;
+        end;
+        // A one-point stroke is a dot: MakePolygon needs two vertices for it.
+        if count = 2 then coords := [coords[0], coords[1], coords[0], coords[1]];
+        return MakePolygon(coords);
+    end,
+
+    Repaint: func()
+    begin
+        if self.inkCanvas = nil then :Wire();
+        if self.inkCanvas then
+        begin
+            self.inkCanvas:Dirty();
+            RefreshViews();
+        end;
+        return nil;
+    end,
+
+    CountStroke: func(points, originLeft, originTop)
+    begin
+        local shape := :StrokeShape(points, originLeft, originTop);
+        if shape = nil then return nil;
+        AddArraySlot(self.strokes, points);
+        AddArraySlot(self.shapes, shape);
+        self.strokeCount := self.strokeCount + 1;
+        :Repaint();
+        :InkStatus(:StrokeText());
+        return nil;
+    end,
+
+    InkUndo: func()
+    begin
+        if self.inkBusy then return :InkStatus("Wait for the reply");
+        if self.strokeCount = 0 then return :InkStatus(:StrokeText());
+        self.strokeCount := self.strokeCount - 1;
+        SetLength(self.strokes, self.strokeCount);
+        SetLength(self.shapes, self.strokeCount);
+        :Repaint();
+        return :InkStatus(:StrokeText());
+    end,
+
+    InkClear: func()
+    begin
+        if self.inkBusy then return :InkStatus("Wait for the reply");
+        self.strokes := [];
+        self.shapes := [];
+        self.strokeCount := 0;
+        :Repaint();
+        return :InkStatus(:StrokeText());
+    end,
+
+    // NSI1: one header line, then one "S <count> <x> <y> <dx> <dy>..." line per
+    // stroke. GetPointsArray already hands back screen-global coordinates, so
+    // nothing is added to them here. Adding the canvas origin was the E1 defect
+    // that shifted every host render by +16,+54
+    // (docs/ink-client-design.md, "Stage 5 result").
+    InkEncode: func()
+    begin
+        local body := "NSI1 320 480 " & self.strokeCount & "\r\n";
+        foreach points in self.strokes do
+        begin
+            local count := Length(points) div 2;
+            local line := "S " & count;
+            if count > 0 then
+            begin
+                local x := points[1];
+                local y := points[0];
+                line := line & " " & x & " " & y;
+                local index := 2;
+                while index < Length(points) do
+                begin
+                    local nextX := points[index + 1];
+                    local nextY := points[index];
+                    line := line & " " & (nextX - x) & " " & (nextY - y);
+                    x := nextX;
+                    y := nextY;
+                    index := index + 2;
+                end;
+            end;
+            body := body & line & "\r\n";
+            // ponytail: one HTTP request only; multipart belongs to a later stage.
+            if StrLen(body) > 16384 then return nil;
+        end;
+        return body;
+    end,
+
+    // ponytail: the ink POST is a second endpoint on the NIE link the chat
+    // already holds — one link, two connections. Dropping the chat link first
+    // and re-grabbing it cost a round: `connect` then failed with -16009,
+    // "invalid call when not connected".
+    InkSend: func()
+    begin
+        if self.inkBusy then return nil;
+        if self.strokeCount = 0 then return :InkStatus("Draw something first");
+        local body := :InkEncode();
+        if body = nil then return :InkStatus("Too much ink to send");
+        self.inkBody := body;
+        self.inkBusy := true;
+        self.inkGotReply := nil;
+        :InkStatus("Sending...");
+        AddDelayedCall(func(view) view:InkExpired(), [self], 150000);
+        if self.linkID then return :InkOpen();
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
+        return nil;
+    end,
+
+    InkExpired: func()
+    begin
+        if not self.inkBusy then return nil;
+        self.inkBusy := nil;
+        :InkStatus("The host did not answer. Your ink is still here.");
+        return :InkDone();
+    end,
+
+    InkGrabbed: func(id, state, error)
+    begin
+        if self.inkEndpoint then return nil;
+        if error then return :InkFailed("No network link");
+        self.linkID := id;
+        if state.linkStatus <> 'connected then return nil;
+        return :InkOpen();
+    end,
+
+    InkOpen: func()
+    begin
+        if self.inkEndpoint then return nil;
+        self.inkEndpoint := {_proto: self.endpointClass, _parent: self};
+        try
+        begin
+            self.inkEndpoint:Instantiate(self.inkEndpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {
+                    label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {arglist: [self.linkID], typeList: ['struct, 'ulong]},
+                },
+                {
+                    label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {arglist: [1], typeList: ['struct, 'ulong]},
+                },
+            ]);
+            self.inkEndpoint:Bind(nil, {
+                async: true, reqTimeout: 10000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:InkFailed("Ink bind error " & result)
+                    else self._parent:InkBound(),
+            });
+        end
+        onexception |evt.ex| do :InkFailed("Could not reach the host");
+        return nil;
+    end,
+
+    InkBound: func()
+    begin
+        local address := self.serverAddress;
+        try
+            self.inkEndpoint:connect([
+                {
+                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {
+                        arglist: [address[0], address[1], address[2], address[3], self.inkPort],
+                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                    },
+                },
+            ], {
+                async: true, reqTimeout: 45000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:InkFailed("Ink connect error " & result)
+                    else self._parent:InkPost(),
+            })
+        onexception |evt.ex.comm| do :InkFailed("Ink connect exception");
+        return nil;
+    end,
+
+    InkPost: func()
+    begin
+        local body := self.inkBody;
+        self.inkBody := nil;
+        if body = nil then return nil;
+        try
+        self.inkEndpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 256,
+            // ponytail: the vision call measures ~9 s; the input spec waits for
+            // it asynchronously, so the app stays live the whole time.
+            reqTimeout: 150000,
+            InputScript: func(endpoint, data, terminator, options)
+                self._parent:HandleInkLine(data),
+            CompletionScript: func(endpoint, options, result)
+                self._parent:InkDropped(),
+        })
+        onexception |evt.ex.comm| do return :InkFailed("Ink input exception");
+        local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
+            & "Content-Type: application/x-newton-strokes\r\nContent-Length: "
+            & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
+        try self.inkEndpoint:output(request, nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:InkFailed("Ink send error " & result),
+        })
+        onexception |evt.ex.comm| do return :InkFailed("Ink send exception");
+        :InkStatus("Thinking...");
+        return nil;
+    end,
+
+    // The reading joins the conversation instead of living on its own status
+    // line, so the transcript is the one place answers appear.
+    HandleInkLine: func(line)
+    begin
+        if not BeginsWith(line, "INK ") then return nil;
+        self.inkGotReply := true;
+        local reading := SubStr(line, 4, StrLen(line) - 6);
+        :AppendLine("Ink: " & reading);
+        :AppendLine("");
+        :ShowTranscript();
+        self.lastReply := reading;
+        :InkStatus(:StrokeText());
+        :HideInk();
+        :SetStatus("Ready");
+        return nil;
+    end,
+
+    InkDropped: func()
+    begin
+        self.inkBusy := nil;
+        if not self.inkGotReply then :InkStatus("The host sent no reading");
+        return :InkDone();
+    end,
+
+    InkFailed: func(message)
+    begin
+        self.inkBusy := nil;
+        self.inkBody := nil;
+        :InkStatus(message);
+        return :InkDone();
+    end,
+
+    // ponytail: disposing the endpoint inside its own callback raised -48200 in
+    // the ink Stage 3 round; let the close settle first. Only the ink endpoint
+    // goes away — the NIE link belongs to the chat session.
+    InkDone: func()
+    begin
+        AddDelayedCall(func(view) view:InkStop(), [self], 1000);
+        return nil;
+    end,
+
+    InkStop: func()
+    begin
+        if self.inkEndpoint then
+        begin
+            try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.inkEndpoint := nil;
+        end;
+        return nil;
+    end,
+
     Dropped: func()
     begin
         if self.stopping then return nil;
@@ -575,6 +1018,111 @@ mainView := {
             viewBounds: {left: 238, top: 360, right: 290, bottom: 382},
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 14, top: 388, right: 96, bottom: 410},
+            text: "Ask Note",
+            buttonClickScript: func() self:Parent():AskNote(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 104, top: 388, right: 196, bottom: 410},
+            text: "Save Note",
+            buttonClickScript: func() self:Parent():SaveNote(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 238, top: 388, right: 290, bottom: 410},
+            text: "Ink",
+            buttonClickScript: func() self:Parent():ShowInk(),
+        },
+        // The ink overlay is the last child so it draws in front of the chat,
+        // and it is opaque so nothing behind it shows through. Hidden at boot.
+        {
+            viewClass: clView,
+            viewBounds: {left: 0, top: 28, right: 304, bottom: 414},
+            viewFlags: vVisible + vClickable,
+            // vfFillWhite is what makes it an overlay: the chat behind it does
+            // not show through.
+            viewFormat: vfFillWhite,
+            stepChildren: [
+                {
+                    _proto: protoStaticText,
+                    viewBounds: {left: 8, top: 4, right: 288, bottom: 20},
+                    viewFont: ROM_fontSystem9,
+                    text: "Draw, then tap Send. The reading joins the chat.",
+                },
+                // ponytail: two plain rules mark out the writing area.
+                // vfFrameBlack on its own drew nothing (the frame pen width is
+                // zero without vfPen), and stock rules beat debugging that.
+                // protoDivider inherits the app's `title` slot unless it is
+                // cleared, which is why each one names its own empty title.
+                {
+                    _proto: protoDivider,
+                    viewBounds: {left: 0, top: 22, right: 304, bottom: 24},
+                    title: "",
+                },
+                {
+                    viewClass: clView,
+                    viewBounds: {left: 8, top: 24, right: 296, bottom: 286},
+                    viewFlags: vVisible + vClickable + vStrokesAllowed,
+                    viewFormat: vfFillWhite,
+
+                    ViewStrokeScript: func(unit)
+                    begin
+                        local box := self:GlobalBox();
+                        self:Parent():Parent():CountStroke(GetPointsArray(unit),
+                            box.left, box.top);
+                        return nil;
+                    end,
+
+                    // ponytail: the system erases the transient stroke once
+                    // ViewStrokeScript consumes it, so the retained polygons are
+                    // the only ink that survives pen-up.
+                    ViewDrawScript: func()
+                    begin
+                        local shapes := self:Parent():Parent().shapes;
+                        if shapes and (Length(shapes) > 0) then :DrawShape(shapes, nil);
+                        return nil;
+                    end,
+                },
+                {
+                    _proto: protoDivider,
+                    viewBounds: {left: 0, top: 286, right: 304, bottom: 288},
+                    title: "",
+                },
+                {
+                    _proto: protoStaticText,
+                    viewBounds: {left: 8, top: 292, right: 288, bottom: 326},
+                    viewFont: ROM_fontSystem10,
+                    text: "Draw here, then tap Send",
+                },
+                {
+                    _proto: protoTextButton,
+                    viewBounds: {left: 6, top: 334, right: 72, bottom: 358},
+                    text: "Clear",
+                    buttonClickScript: func() self:Parent():Parent():InkClear(),
+                },
+                {
+                    _proto: protoTextButton,
+                    viewBounds: {left: 78, top: 334, right: 144, bottom: 358},
+                    text: "Undo",
+                    buttonClickScript: func() self:Parent():Parent():InkUndo(),
+                },
+                {
+                    _proto: protoTextButton,
+                    viewBounds: {left: 150, top: 334, right: 216, bottom: 358},
+                    text: "Send",
+                    buttonClickScript: func() self:Parent():Parent():InkSend(),
+                },
+                {
+                    _proto: protoTextButton,
+                    viewBounds: {left: 226, top: 334, right: 292, bottom: 358},
+                    text: "Chat",
+                    buttonClickScript: func() self:Parent():Parent():HideInk(),
+                },
+            ],
         },
     ],
 };

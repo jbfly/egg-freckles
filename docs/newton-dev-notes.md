@@ -971,9 +971,80 @@ Operational notes. The `hello` scaffold ships a built `hello.pkg`; `cp -r` drags
 it along and it must be removed — the runbook's step 3 says so, and codex still
 listed it as the one thing that surprised it, which is a fair sign the scaffold
 should probably not carry a built artifact at all.
-`scripts/newton-round.sh` is **not** usable for a new app on an
-isolated instance: it drives the shared container `newton-harness_emulator_1`
-(`scripts/newton-round.sh`, `container=newton-harness_emulator_1`) and its
-bumper needs a `kVersion :=
-"<base>-<tag>";` shape the `hello` scaffold does not have — for a new app, edit
-`Main.newt` and the `.nprj` by hand and repeat the loop.
+`scripts/newton-round.sh` was **not** usable for a new app on an
+isolated instance: it drove the shared container `newton-harness_emulator_1`,
+and its bumper needs a `kVersion := "<base>-<tag>";` shape the `hello` scaffold
+does not have. **Half of that is fixed as of Track F2**: the script now reads
+`NEWTON_INSTANCE`, derives the container name and the control URL from it, and
+runs entirely against an isolated instance. The `kVersion` shape requirement
+stands, so for a *new* app you still edit `Main.newt` and the `.nprj` by hand
+and repeat the loop.
+
+---
+
+## 2026-08-03 — Track F2: the harness panel, and three "proven" bugs
+
+`Ask Note`, `Save Note` and an `Ink` overlay folded into the chat client, which
+retires `examples/note-export` and `examples/ink-capture`. The shipped package
+is `HarnessClientA7:jbfly` ("Chat A7", v2.4-a7) and not A5, because the round
+spent one identity per defect. Full record and evidence index:
+`runtime/evidence/f2round-round.txt`; instance `f2round`, seeded flash,
+`NEWTON_FAKE_BACKEND=1 server.py` on 6801 and `pkg_publisher.py` on 18081.
+
+What works, with its evidence:
+
+```
+MSGP part 1/2 220B total=220B          266-character note, one "Ask Note" tap
+MSGP part 2/2 46B total=266B
+MSGP assembled 2 parts into 266B prompt
+```
+
+`f2round-17-a7-asknote.png` (reply in the transcript), `f2round-18-a7-savenote.png`
+(`Saved note id=8`, matching an independent `ns_eval` read of the soup),
+`f2round-12-notepad.png` (source note and created reply note in stock Notepad),
+`f2round-16-ink-reply.png` (`Ink: An L-shaped right angle.` from the real
+vision call), `f2round-19-short-prompt.png` (short prompt, and the host logged
+no `MSGP` line at all for that turn).
+
+Three defects, each in code an earlier round called proven, each costing a
+rebuild:
+
+1. **`cursor:ResetToEnd()` lands *on* the last entry and returns it.** So
+   `note-export`'s `ResetToEnd(); Prev()` reads the **second** newest note.
+   Measured on a soup holding `0 1 2 3`:
+   `local a := c:ResetToEnd(); local b := c:Entry();` → `"reset=3 entry=3"`,
+   while `c:Prev()` gave `2`. On screen it looked like two unrelated bugs — the
+   note reader said `Newest note has no text` (it had read a `data=nil` seed
+   entry) and the create readback said `Saved note id=3` for an entry that was
+   really `id=4`. Fix: `local entry := cursor:ResetToEnd();`. Written up in
+   `docs/notes-bridge.md`, "Correction (F2)".
+2. **Do not drop the NIE link to make a second connection.** The first build
+   called `:Stop()` before the ink POST and grabbed a fresh link; `connect` then
+   failed with `-16009` — *"Phone connection was cut off, or invalid call when
+   not connected"* (`refs/NewtonProgrammerRef20.txt:73102`). Two endpoints on
+   the one link the chat already holds works, and the chat session survives the
+   drawing.
+3. **A slot named `inkOpen` shadowed the method `InkOpen`** → `-48200` on every
+   ink Send, before anything reached the wire. This is the `transcriptTail`
+   trap from the A2 round, second occurrence; symbols are case-insensitive and
+   the compiler says nothing. The slot was write-only, so it was deleted.
+
+Three view mechanics worth keeping:
+
+- **`Show()` only works on a view that was opened and then hidden**
+  (`refs/NewtonProgrammerRef20.txt:4650-4652`). A `stepChildren` overlay
+  therefore ships `vVisible` and is hidden by a delayed call at launch; there is
+  no way to declare it hidden and message it later.
+- **`vfFillWhite` is what makes an overlay opaque**, and **`vfFrameBlack` alone
+  draws no frame** — the frame pen width is zero without `vfPen`. Two
+  `protoDivider` rules are the cheap way to outline a writing area.
+- Grandchild views reach the app through `self:Parent():Parent()`, and the
+  panel's own children are wired by geometry relative to the panel's
+  `GlobalBox()`, the same trick `Wire()` uses one level up.
+
+And one process note, twice over: a stray `-48601` (Syntax error) and `-8007`
+(Exception not handled) alert each appeared over the running app during the
+round, both from a malformed `ns_eval` or a closed view's pending delayed call
+rather than from the app under test — and each one sat exactly where the next
+tap was going. Screenshot before every tap sequence, and run a `2+2` sanity eval
+before believing an `ns_eval` timeout, per the F1 round.
