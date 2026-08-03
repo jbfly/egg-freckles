@@ -35,17 +35,21 @@ the Newton:
 Installed packages: 39"* — three tool calls inside one turn, 0.13 s, 0.81 s and
 0.80 s on the wire. The model is the slow part, not the Newton.
 
-**Ink goes to a vision model.** Newton handwriting recognition was the joke;
-this skips it. Draw on the canvas, tap Send, and the strokes are encoded,
-rendered host-side and read by a vision model whose answer joins the transcript.
+**Draw in Notes, tap Ask.** Newton handwriting recognition was the joke; this
+skips it. Sketch on a stock Notes page with its own drawing tools, tap **Ask**,
+and the strokes are read out of the soup, encoded, rendered host-side and read
+by a vision model whose answer joins the transcript.
 
-| Drawn on the Newton | Read back into the chat |
+| Drawn in stock Notes | Read back into the chat |
 |---|---|
-| ![Ink capture canvas with two strokes](runtime/evidence/f2round-13-ink-drawn.png) | ![The vision model's reading in the transcript](runtime/evidence/f2round-16-ink-reply.png) |
+| ![A triangle sketched on a note that says "the cat"](runtime/evidence/a9ask-07-mixed-drawn.png) | ![The vision model's reading in the transcript](runtime/evidence/a9ask-08-mixed-reply.png) |
 
-**Notes in, notes out.** `Ask Note` sends the current note as the prompt —
-splitting it across protocol frames if it is long — and `Save Note` writes the
-reply back as a real NewtonOS note you can find in the Notepad.
+**One button, whatever you wrote.** `Ask` sends the newest note as the prompt
+*whatever kind it is* — typed text goes down the chat path, splitting across
+protocol frames if it is long; a drawing goes to the vision model; a page with
+both goes as one request carrying both, which is why the bare triangle above
+came back as *"a simple outline of a cat's head."* `Save Note` writes the reply
+back as a real NewtonOS note you can find in the Notepad.
 
 **The agent builds Newton apps.** Told to build a dice roller, an agent ran the
 whole loop in six tool calls with no intervention and no failed build: compile,
@@ -63,7 +67,7 @@ screenshots live in `runtime/evidence/`.
 ```text
   ┌──────────────────────────┐
   │  MessagePad 2000 / 2100  │   NewtonOS 2.1, native NewtonScript client
-  │  or Einstein emulator    │   chat · Ask Note · Save Note · Ink canvas
+  │  or Einstein emulator    │   chat · Ask (text or ink) · Save Note 
   └────────────┬─────────────┘
                │  WiFi (Lucent WaveLAN card) — or emulated NE2000
                │  framed ASCII, 240-byte frames, stop-and-wait, checksummed
@@ -135,7 +139,7 @@ to start with. You do not need a Newton to see it work — you need a Newton
 8. `make newton-packages` — build the client and the loader into
    `runtime/staging/`. (`make toolchain-hello` is the smaller smoke test.)
 9. `scripts/install-and-launch.sh /packages/harness-client/harness-client.pkg
-   'HarnessClientA8:jbfly'` — install the client into the running emulator and
+   'HarnessClientA9:jbfly'` — install the client into the running emulator and
    open it.
 10. `make test` — the suite, via `uv run --with pytest pytest -q`.
 

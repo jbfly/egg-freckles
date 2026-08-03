@@ -8,15 +8,34 @@ NewtonOS 2.1 stores stock Notes entries in the union soup named by
 `{viewStationery: 'para, text: <rich string>, ...}`. Decoding that rich string
 and posting one bounded JSON document over the proven NIE/HTTP path worked.
 
-**Current state (Track F2, 2026-08-03): the bridge is the chat client.**
-`examples/note-export` is deleted; `examples/harness-client`
-(`HarnessClientA8:jbfly`) carries the read and create paths as `Ask Note` and
-`Save Note`, and the note travels the **ordinary chat transport** — one `MSG`
-frame under 227 characters, `MSGP` parts above it — instead of `POST /note`.
-That is what retires the `No answer: LENGTH` failure described under "Honest
-limits" below. `POST /note` still exists in `pkg_publisher.py` and still works;
-nothing on the Newton calls it any more, so treat it as the historical host API
-this page documents, not as a live path.
+**Current state (Track A9, 2026-08-04): the bridge is the chat client, and
+the read path is one button.** `examples/note-export` is deleted;
+`examples/harness-client` (`HarnessClientA9:jbfly`) carries the read and create
+paths as **Ask** and `Save Note`. `POST /note` still exists in
+`pkg_publisher.py` and still works; nothing on the Newton calls it any more, so
+treat it as the historical host API this page documents, not as a live path.
+
+**The Ask flow.** One tap means *send the newest note, whatever kind it is* —
+never a second "Ask Sketch" button to choose between, and never a silent skip.
+`FindNewest` walks the `timeStamp` cursor back over at most 16 entries and takes
+the highest `EntryModTime`, because `timeStamp` is creation time and drawing on
+an existing page only moves the modification stamp (`:41-42` below; there is no
+`_modTime` index to order by — that query raises `evt.ex.fr.store`). It then
+classifies the entry's `data` array in the order `'para` → `'poly` → `'pict` →
+`ClassOf(item.ink) = 'ink2`, which is load-bearing: testing `points` first
+resolves through every ink item's `_proto` and reports an empty shape. A
+paragraph's `text` has the Ink Text placeholder **63233 (0xF701)** stripped, and
+its `'inkWord` styles are expanded into strokes like anything else. Then:
+
+| Newest note holds | Route |
+|---|---|
+| text only | the **ordinary chat transport** — one `MSG` frame under 227 characters, `MSGP` parts above it, which is what retires the `No answer: LENGTH` failure under "Honest limits" below |
+| any strokes | **one** `POST /ink` — `NSI1` `S` lines, plus one optional `H <text>` line carrying the page's text so a mixed note is one request and one reply |
+
+The reading joins the transcript as `Ink: …`. Full design and proof:
+`docs/ink-client-design.md`, "Sketch-note pivot" and "A9 result"; the soup
+shapes are `docs/newtonscript-eval.md` seventeenth finding, the `EntryModTime`
+limits its nineteenth.
 
 Everything below is the N1–N13 investigation that produced those paths, and it
 is still the authority on the soup schema and on what does *not* work. Two
@@ -296,10 +315,12 @@ is still the sanctioned write path.
 ## Honest limits
 
 - The model-answer write-back is proven on MAIN for one plain-text model answer.
-- It reads only the newest plain stock note; ink, pictures, outlines, and
-  checklists remain unsupported.
-- The 240-byte `No answer: LENGTH` limit is **gone as of Track F2**. `Ask Note`
-  calls the client's own `Send()`, so a note over 227 characters splits into
+- **Ink is supported as of Track A9** — sketches (`'ink2`), recognised shapes
+  (`'poly`) and ink text (`'inkWord`) all extract and go out to `/ink`. Pictures
+  (`'pict`), outlines and checklists remain unsupported, and a note older than
+  the 16-entry `EntryModTime` window is still not reachable.
+- The 240-byte `No answer: LENGTH` limit is **gone as of Track F2**. `Ask`
+  calls the client's own `Send()` for a text-only note, so a note over 227 characters splits into
   `MSGP` parts and the host reassembles up to 8192 bytes
   (`docs/phase3-protocol.md`, "Extension: `MSGP`"). Proven with a 266-character
   note: `MSGP part 1/2 220B` + `part 2/2 46B` → `assembled 2 parts into 266B

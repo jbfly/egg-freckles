@@ -133,6 +133,40 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
+    def test_ink_hint_line_is_optional_and_reaches_the_prompt(self) -> None:
+        """A mixed note is ONE request: S lines for the strokes, one H line for the text."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with pkg_publisher.make_server("127.0.0.1", 0, ink_path=Path(tmp) / "ink.png") as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                try:
+                    mixed = b"NSI1 320 480 1\r\nH feed the cat\r\nS 2 10 20 20 30\r\n"
+                    with mock.patch.object(pkg_publisher, "interpret",
+                                           return_value="A cat.") as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", mixed)
+                    self.assertEqual((status, response), (200, b"INK A cat.\r\n"))
+                    self.assertEqual(vision.call_args.args[1], "feed the cat")
+
+                    # No H line is still valid: the physical MP2000 runs an
+                    # older client that has never sent one.
+                    with mock.patch.object(pkg_publisher, "interpret",
+                                           return_value="A line.") as vision:
+                        self.fetch(port, "/ink", "POST", b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\n")
+                    self.assertEqual(vision.call_args.args[1], "")
+
+                    for bad in (
+                        b"NSI1 320 480 1\r\nH \r\nS 2 10 20 20 30\r\n",            # empty hint
+                        b"NSI1 320 480 1\r\nH " + b"x" * 201 + b"\r\nS 2 10 20 20 30\r\n",
+                        b"NSI1 320 480 1\r\nH one\r\nH two\r\nS 2 10 20 20 30\r\n",  # two H lines
+                        b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\nH trailing\r\n",     # H after S
+                    ):
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", bad)
+                        self.assertEqual((status, response), (400, b"invalid ink\n"), bad)
+                finally:
+                    server.shutdown()
+                    thread.join()
+
     def test_ink_render(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ink_path = Path(tmp) / "ink.png"
@@ -166,6 +200,13 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(argv[:2], ["codex", "exec"])
         self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.INK_PROMPT])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
+
+        # The H line's text is appended to the same prompt, in the same argv slot.
+        with mock.patch.object(subprocess, "run", return_value=done) as run:
+            pkg_publisher.interpret(Path("/tmp/ink.png"), "feed the cat")
+        self.assertEqual(run.call_args.args[0][-1],
+                         pkg_publisher.INK_PROMPT
+                         + pkg_publisher.INK_HINT_PROMPT + "feed the cat")
 
         failed = subprocess.CompletedProcess([], 1, stdout=b"", stderr=b"boom")
         with mock.patch.object(subprocess, "run", return_value=failed):

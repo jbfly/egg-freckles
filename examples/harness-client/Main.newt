@@ -1,7 +1,7 @@
-kAppSymbol := '|HarnessClientA8:jbfly|;
-kVersion := "2.4-a8";
-kAppTitle := "Newton Chat A8 " & kVersion;
-kAppLabel := "Chat A8";
+kAppSymbol := '|HarnessClientA9:jbfly|;
+kVersion := "2.4-a9";
+kAppTitle := "Newton Chat A9 " & kVersion;
+kAppLabel := "Chat A9";
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -30,6 +30,25 @@ kMaxPrompt := 8192;
 // 2048 characters is ten MSGP parts and still a second of work; the host would
 // accept 8192.
 kNoteBytes := 2048;
+
+// ---- "Ask" budgets ----
+// There is no modification-time index on the Notes soup on this ROM
+// (Query({indexPath: '_modTime}) raises evt.ex.fr.store), so the most recently
+// *touched* note is found by comparing EntryModTime by hand. That has to be
+// bounded or it starves the event loop, so the scan walks back at most this
+// many entries from the end of the timeStamp cursor.
+kScanLimit := 16;
+// The probe note held 9 drawn items and 279 points, ~1.1 KB of NSI1 against the
+// host's 16 KiB single-body cap, so these caps only ever fire on something far
+// larger than a page of drawing. Truncating loudly beats building an unbounded
+// string on a 162 MHz ARM.
+kMaxPoints := 400;
+kMaxItems := 64;
+// The note's own text rides one optional NSI1 "H" line into the vision prompt.
+kHintBytes := 200;
+// Ink Text leaves this placeholder character (0xF701) in a paragraph's `text`,
+// once per ink word, and the word itself is in `styles` as an 'inkWord binary.
+kInkPlaceholder := 63233;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -73,16 +92,24 @@ mainView := {
     // MSGP parts still waiting for their ACK, and how many have gone out.
     pendingParts: nil,
     partIndex: 0,
-    // The ink overlay: one hideable panel holding the capture canvas.
-    inkPanel: nil,
-    inkCanvas: nil,
-    inkStatusView: nil,
+    // ---- "Ask" state ----
     // There is deliberately no `inkOpen` slot: NewtonScript symbols are
     // case-insensitive, so it shadowed the InkOpen method and every ink Send
     // threw -48200 (the same trap as capBytes/TranscriptTail in A2).
-    strokeCount: 0,
-    strokes: [],
-    shapes: [],
+    scanLimit: kScanLimit,
+    maxPoints: kMaxPoints,
+    maxItems: kMaxItems,
+    hintBytes: kHintBytes,
+    placeholder: kInkPlaceholder,
+    // What the last Ask read out of the newest note: its paragraph text, its
+    // strokes as flat x,y arrays in the note's own space, and the top-left of
+    // the drawn items' bounding box, which is the origin the encoder removes.
+    askText: "",
+    askStrokes: nil,
+    askPoints: 0,
+    askLeft: nil,
+    askTop: nil,
+    askTruncated: nil,
     inkBody: nil,
     inkBusy: nil,
     inkGotReply: nil,
@@ -97,15 +124,10 @@ mainView := {
     begin
         inherited:?ViewSetupDoneScript();
         self.newline := Chr(13);
-        // ponytail: template literals live in the read-only package, so both
-        // retained ink arrays have to be re-made in the heap before anything
-        // grows them.
-        self.strokes := [];
-        self.shapes := [];
-        // ponytail: Show() only works on a view that was opened and then
-        // hidden, so the overlay ships visible and is hidden as soon as the
-        // child list exists. That is a brief flash at launch, not a bug.
-        AddDelayedCall(func(view) view:HideInk(), [self], 150);
+        // ponytail: template literals live in the read-only package, so the
+        // retained stroke array has to be re-made in the heap before anything
+        // grows it.
+        self.askStrokes := [];
         // ponytail: the child list is not reachable until the view is fully open.
         AddDelayedCall(func(view) view:Boot(), [self], 800);
     end,
@@ -127,7 +149,6 @@ mainView := {
     Boot: func()
     begin
         :Wire();
-        :HideInk();
         :ShowTranscript();
         :Connect();
     end,
@@ -143,21 +164,9 @@ mainView := {
         foreach child in kids do
         begin
             local top := child:GlobalBox().top - rootTop;
-            if top = 28 then self.inkPanel := child
-            else if top = 32 then self.transcriptView := child
+            if top = 32 then self.transcriptView := child
             else if top = 236 then self.promptView := child
             else if top = 364 then self.statusView := child;
-        end;
-        if self.inkPanel then
-        begin
-            local panelKids := self.inkPanel:ChildViewFrames();
-            local panelTop := self.inkPanel:GlobalBox().top;
-            if panelKids then foreach child in panelKids do
-            begin
-                local top := child:GlobalBox().top - panelTop;
-                if top = 24 then self.inkCanvas := child
-                else if top = 292 then self.inkStatusView := child;
-            end;
         end;
         return nil;
     end,
@@ -659,50 +668,319 @@ mainView := {
         for index := 0 to size - 1 do
         begin
             local code := Ord(text[index]);
-            if (code < 32) or (code > 126) then out := out & " "
+            // The Ink Text placeholder is dropped rather than spaced: the word
+            // it stands for is not missing, it goes out as strokes from the
+            // paragraph's `styles`. A7 put the raw 63233 into the prompt.
+            if code = self.placeholder then nil
+            else if (code < 32) or (code > 126) then out := out & " "
             else out := out & SubStr(text, index, 1);
         end;
         return out;
     end,
 
-    // The newest stock note, read through the documented timeStamp index.
-    // Returns nil when the soup is empty and "" when the newest entry carries
-    // no paragraph text (the data=nil failed writes docs/notes-bridge.md
-    // diagnosed in N2/N3 read back this way).
+    // The most recently *modified* note, not the most recently created one.
+    // timeStamp is creation time and never moves; drawing on an existing page
+    // updates EntryModTime alone (measured nine minutes apart on the probe note,
+    // ts=64477370 mod=64477379), which is why A7's timeStamp cursor answered a
+    // drawing with an older text note on hardware. There is no _modTime index to
+    // order by instead — Query({indexPath: '_modTime}) raises evt.ex.fr.store on
+    // this ROM — so the comparison is done by hand, bounded at scanLimit entries.
     // ResetToEnd lands *on* the last entry and returns it, so the note-export
     // idiom `ResetToEnd(); Prev()` read the second-newest note. Measured on
     // this ROM: reset=3 entry=3 while Prev() gave 2.
-    ReadNote: func()
+    // Honest limit: a drawing added to a note older than that window still
+    // loses. The real fix for that case is reading the *open* note (Track F3).
+    FindNewest: func()
     begin
         local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
         local entry := cursor:ResetToEnd();
         if entry = nil then return nil;
-        local data := GetSysEntryData(entry, 'data);
-        if not IsArray(data) then return "";
-        local text := "";
-        foreach item in data do
-            if item.viewStationery = 'para then
+        local best := entry;
+        local bestMod := EntryModTime(entry);
+        local scanned := 1;
+        while (entry <> nil) and (scanned < self.scanLimit) do
+        begin
+            entry := cursor:Prev();
+            if entry <> nil then
             begin
-                if StrLen(text) > 0 then text := text & " ";
-                if IsString(item.text) then text := text & item.text
-                else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+                // ponytail: not `mod` — that is the modulo operator, and tntk
+                // reports it as a syntax error twelve lines later.
+                local stamp := EntryModTime(entry);
+                if (stamp <> nil) and ((bestMod = nil) or (stamp > bestMod)) then
+                begin
+                    best := entry;
+                    bestMod := stamp;
+                end;
             end;
-        return :Clean(text);
+            scanned := scanned + 1;
+        end;
+        return best;
     end,
 
-    // "Ask Note": the newest note becomes the prompt on the normal chat path,
-    // so anything over 227 characters splits into MSGP parts like any other
-    // long prompt. There is no /note HTTP request any more.
-    AskNote: func()
+    // The classification order is load-bearing. Every sketch item's _proto is a
+    // clPolygonView template carrying its own empty `points` binary, so a test on
+    // `points` before `viewStationery` reports every freehand stroke as an empty
+    // shape (docs/newtonscript-eval.md, "Seventeenth finding", the _proto trap).
+    // Test 'para, then 'poly, then 'pict, then ClassOf(item.ink) = 'ink2.
+    CollectNote: func(data)
+    begin
+        self.askText := "";
+        self.askStrokes := [];
+        self.askPoints := 0;
+        self.askLeft := nil;
+        self.askTop := nil;
+        self.askTruncated := nil;
+        local items := 0;
+        foreach item in data do
+        begin
+            items := items + 1;
+            if items > self.maxItems then self.askTruncated := true
+            else if item.viewStationery = 'para then :CollectPara(item)
+            else if item.viewStationery = 'poly then :CollectPoly(item)
+            else if item.viewStationery = 'pict then nil
+            else if ClassOf(item.ink) = 'ink2 then :CollectInk(item);
+        end;
+        return nil;
+    end,
+
+    // A paragraph is text plus, invisibly, any ink words written over it.
+    CollectPara: func(item)
+    begin
+        local text := "";
+        if IsString(item.text) then text := item.text
+        else if item.text then text := DecodeRichString(item.text, ROM_fontSystem10).text;
+        if (text <> nil) and (StrLen(text) > 0) then
+        begin
+            if StrLen(self.askText) > 0 then self.askText := self.askText & " ";
+            self.askText := self.askText & text;
+        end;
+        return :CollectInkWords(item);
+    end,
+
+    // 'poly (Shapes mode): PointsToArray gives [shapeType, nPoints, x1, y1, ...]
+    // whose pairs are RELATIVE to the item's viewBounds and ordered x,y.
+    CollectPoly: func(item)
+    begin
+        local box := item.viewBounds;
+        if box = nil then return nil;
+        local array := PointsToArray(item.points);
+        if not IsArray(array) then return nil;
+        local points := [];
+        local index := 2;
+        while (index + 1) < Length(array) do
+        begin
+            AddArraySlot(points, array[index] + box.left);
+            AddArraySlot(points, array[index + 1] + box.top);
+            index := index + 2;
+        end;
+        return :AddStroke(points, box);
+    end,
+
+    // 'ink2 (Sketches mode): ExpandInk takes the raw soup frame — no live view
+    // and no frontmost Notes — and GetStrokePointsArray hands back a flat array
+    // ABSOLUTE in the note's space and ordered y,x. The two kinds disagree on
+    // both origin and pair order, and getting either backwards yields geometry
+    // that looks plausible and is wrong.
+    CollectInk: func(item)
+    begin
+        local bundle := ExpandInk(item, 0);
+        if bundle = nil then return nil;
+        local strokes := CountStrokes(bundle);
+        if (strokes = nil) or (strokes < 1) then return nil;
+        for index := 0 to strokes - 1 do
+        begin
+            local flat := GetStrokePointsArray(GetStroke(bundle, index), 0);
+            if IsArray(flat) then :AddStroke(:SwapPairs(flat), item.viewBounds);
+        end;
+        return nil;
+    end,
+
+    // 'inkWord (Ink Text mode) adds no data item: the words live in the
+    // paragraph's `styles` array with placeholder 63233 standing in for each one
+    // in `text`. InkConvert bridges a word to 'ink2 and GetInkWordInfo supplies
+    // the bounds ExpandInk needs. Those points are local to the word's own box —
+    // the ROM does not record where on the line it sat — so the words are laid
+    // out along the paragraph's top edge at a running advance.
+    CollectInkWords: func(item)
+    begin
+        local styles := item.styles;
+        if not IsArray(styles) then return nil;
+        local box := item.viewBounds;
+        if box = nil then return nil;
+        local advance := 0;
+        foreach style in styles do
+            if ClassOf(style) = 'inkWord then
+            begin
+                local info := GetInkWordInfo(style);
+                local width := 32;
+                local height := 16;
+                if info then
+                begin
+                    if info.origWidth then width := info.origWidth;
+                    if (info.origAscent <> nil) and (info.origDescent <> nil) then
+                        height := info.origAscent + info.origDescent + 1;
+                end;
+                local converted := InkConvert(style, 'ink2);
+                if converted then
+                begin
+                    local bundle := ExpandInk({ink: converted, viewBounds:
+                        {left: 0, top: 0, right: width, bottom: height}}, 0);
+                    local strokes := 0;
+                    if bundle then strokes := CountStrokes(bundle);
+                    if strokes then for index := 0 to strokes - 1 do
+                    begin
+                        local flat := GetStrokePointsArray(GetStroke(bundle, index), 0);
+                        if IsArray(flat) then
+                            :AddStroke(:OffsetPairs(:SwapPairs(flat),
+                                box.left + advance, box.top), box);
+                    end;
+                end;
+                advance := advance + width + 8;
+            end;
+        return nil;
+    end,
+
+    // y,x -> x,y. Both point-array producers on this ROM (GetPointsArray and
+    // GetStrokePointsArray) are y-then-x; everything downstream of here is x,y.
+    SwapPairs: func(flat)
+    begin
+        local count := Length(flat);
+        local points := Array(count, 0);
+        local index := 0;
+        while (index + 1) < count do
+        begin
+            points[index] := flat[index + 1];
+            points[index + 1] := flat[index];
+            index := index + 2;
+        end;
+        return points;
+    end,
+
+    OffsetPairs: func(points, dx, dy)
+    begin
+        local index := 0;
+        while (index + 1) < Length(points) do
+        begin
+            points[index] := points[index] + dx;
+            points[index + 1] := points[index + 1] + dy;
+            index := index + 2;
+        end;
+        return points;
+    end,
+
+    // One stroke, x,y pairs in the note's own space. The drawn items' bounding
+    // box top-left is accumulated here because it is the origin EncodeInk
+    // removes: sketch points are absolute in the paper roll's space, which for
+    // the probe note meant a uniform 0,-36 against where the pen actually went.
+    AddStroke: func(points, box)
+    begin
+        local count := Length(points) div 2;
+        if count < 1 then return nil;
+        if (self.askPoints + count) > self.maxPoints then
+        begin
+            self.askTruncated := true;
+            return nil;
+        end;
+        if box then
+        begin
+            if (self.askLeft = nil) or (box.left < self.askLeft) then
+                self.askLeft := box.left;
+            if (self.askTop = nil) or (box.top < self.askTop) then
+                self.askTop := box.top;
+        end;
+        AddArraySlot(self.askStrokes, points);
+        self.askPoints := self.askPoints + count;
+        return nil;
+    end,
+
+    // NSI1 exactly as the host has always parsed it, plus one optional line:
+    //
+    //   NSI1 <width> <height> <strokeCount>
+    //   H <text>                                  (optional, at most one)
+    //   S <count> <x> <y> <dx> <dy> ...           (one per stroke)
+    //
+    // The H line carries the note's own paragraph text into the vision prompt,
+    // so a mixed page is ONE request with one reply instead of two model calls
+    // racing for a transcript that has one column. The header's four fields do
+    // not change and H is optional, so a host that grew this still parses the
+    // bodies the older client on the physical MP2000 sends.
+    EncodeInk: func(hint)
+    begin
+        local originLeft := self.askLeft;
+        local originTop := self.askTop;
+        if originLeft = nil then originLeft := 0;
+        if originTop = nil then originTop := 0;
+        local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";
+        if (hint <> nil) and (StrLen(hint) > 0) then body := body & "H " & hint & "\r\n";
+        foreach points in self.askStrokes do
+        begin
+            local line := "S " & (Length(points) div 2);
+            local x := 0;
+            local y := 0;
+            local index := 0;
+            while (index + 1) < Length(points) do
+            begin
+                local nextX := :ClampAt(points[index] - originLeft, 319);
+                local nextY := :ClampAt(points[index + 1] - originTop, 479);
+                if index = 0 then line := line & " " & nextX & " " & nextY
+                else line := line & " " & (nextX - x) & " " & (nextY - y);
+                x := nextX;
+                y := nextY;
+                index := index + 2;
+            end;
+            body := body & line & "\r\n";
+            // ponytail: one HTTP request only; multipart belongs to a later
+            // stage, and 279 points is ~1.1 KB against this 16 KiB cap.
+            if StrLen(body) > 16384 then return nil;
+        end;
+        return body;
+    end,
+
+    ClampAt: func(value, limit)
+    begin
+        local at := Floor(value);
+        if at < 0 then at := 0;
+        if at > limit then at := limit;
+        return at;
+    end,
+
+    // "Ask": one button whose meaning is "send the newest note, whatever kind it
+    // is". Text only goes down the chat path exactly as before, so a long note
+    // still splits into MSGP parts; anything drawn goes out as one /ink POST,
+    // carrying the page's text on the H line when it has both. There is
+    // deliberately no second "Ask Sketch" to choose between and no silent skip:
+    // on hardware 2026-08-03 the human drew a cat, tapped "Ask Note", and got an
+    // answer about an older text note.
+    Ask: func()
     begin
         if self.inFlight then return :SetStatus("Turn in flight");
-        if not self.ready then return :Connect();
-        local note := :ReadNote();
-        if note = nil then return :SetStatus("No note found");
-        if StrLen(note) = 0 then return :SetStatus("Newest note has no text");
-        :AppendLine("Note: " & note);
+        if self.inkBusy then return :SetStatus("Ask in flight");
+        local entry := :FindNewest();
+        if entry = nil then return :SetStatus("No note found");
+        local data := GetSysEntryData(entry, 'data);
+        if not IsArray(data) then return :SetStatus("Newest note is empty");
+        :CollectNote(data);
+        local text := :Clean(self.askText);
+        local strokes := Length(self.askStrokes);
+        if strokes = 0 then
+        begin
+            if StrLen(text) = 0 then return :SetStatus("Newest note is empty");
+            if not self.ready then return :Connect();
+            :AppendLine("Note: " & text);
+            :ShowTranscript();
+            return :Send(text);
+        end;
+        local hint := text;
+        if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
+        local body := :EncodeInk(hint);
+        if body = nil then return :SetStatus("Too much ink to send");
+        if StrLen(text) > 0 then :AppendLine("Note: " & text)
+        else :AppendLine("Note: " & strokes & " strokes");
+        // The status line is overwritten by "Thinking..." a moment later, so a
+        // truncation notice only survives in the transcript.
+        if self.askTruncated then :AppendLine("Note: too big, sent the first part");
         :ShowTranscript();
-        return :Send(note);
+        return :SendInk(body, strokes);
     end,
 
     // "Save Note": the two-step create proven in note-export N12/N13. The
@@ -727,151 +1005,18 @@ mainView := {
         return :SetStatus("Saved note id=" & EntryUniqueID(entry));
     end,
 
-    // ---- Ink overlay (folded in from the retired ink-capture package) ----
-
-    ShowInk: func()
-    begin
-        if self.inkPanel = nil then :Wire();
-        if self.inkPanel = nil then return :SetStatus("Ink panel missing");
-        self.inkPanel:Show();
-        return :InkStatus(:StrokeText());
-    end,
-
-    HideInk: func()
-    begin
-        if self.inkPanel = nil then :Wire();
-        if self.inkPanel then self.inkPanel:Hide();
-        return nil;
-    end,
-
-    InkStatus: func(message)
-    begin
-        if self.inkStatusView = nil then :Wire();
-        if self.inkStatusView then SetValue(self.inkStatusView, 'text, message);
-        return nil;
-    end,
-
-    StrokeText: func()
-        if self.strokeCount = 1 then "1 stroke"
-        else if self.strokeCount = 0 then "Draw here, then tap Send"
-        else self.strokeCount & " strokes",
-
-    // ponytail: MakePolygon wants x,y pairs and GetPointsArray hands back y,x,
-    // so swapping the pair is the whole conversion — no per-segment MakeLine,
-    // no manual binary.
-    // GetPointsArray hands back screen-global coordinates (measured: a drag
-    // starting at screen 60,100 retained y0=100 x0=60), and DrawShape draws in
-    // view-local ones, so the canvas origin comes off here — and only here.
-    StrokeShape: func(points, originLeft, originTop)
-    begin
-        local count := Length(points);
-        if count < 2 then return nil;
-        local coords := Array(count, 0);
-        local index := 0;
-        while index < count do
-        begin
-            coords[index] := points[index + 1] - originLeft;
-            coords[index + 1] := points[index] - originTop;
-            index := index + 2;
-        end;
-        // A one-point stroke is a dot: MakePolygon needs two vertices for it.
-        if count = 2 then coords := [coords[0], coords[1], coords[0], coords[1]];
-        return MakePolygon(coords);
-    end,
-
-    Repaint: func()
-    begin
-        if self.inkCanvas = nil then :Wire();
-        if self.inkCanvas then
-        begin
-            self.inkCanvas:Dirty();
-            RefreshViews();
-        end;
-        return nil;
-    end,
-
-    CountStroke: func(points, originLeft, originTop)
-    begin
-        local shape := :StrokeShape(points, originLeft, originTop);
-        if shape = nil then return nil;
-        AddArraySlot(self.strokes, points);
-        AddArraySlot(self.shapes, shape);
-        self.strokeCount := self.strokeCount + 1;
-        :Repaint();
-        :InkStatus(:StrokeText());
-        return nil;
-    end,
-
-    InkUndo: func()
-    begin
-        if self.inkBusy then return :InkStatus("Wait for the reply");
-        if self.strokeCount = 0 then return :InkStatus(:StrokeText());
-        self.strokeCount := self.strokeCount - 1;
-        SetLength(self.strokes, self.strokeCount);
-        SetLength(self.shapes, self.strokeCount);
-        :Repaint();
-        return :InkStatus(:StrokeText());
-    end,
-
-    InkClear: func()
-    begin
-        if self.inkBusy then return :InkStatus("Wait for the reply");
-        self.strokes := [];
-        self.shapes := [];
-        self.strokeCount := 0;
-        :Repaint();
-        return :InkStatus(:StrokeText());
-    end,
-
-    // NSI1: one header line, then one "S <count> <x> <y> <dx> <dy>..." line per
-    // stroke. GetPointsArray already hands back screen-global coordinates, so
-    // nothing is added to them here. Adding the canvas origin was the E1 defect
-    // that shifted every host render by +16,+54
-    // (docs/ink-client-design.md, "Stage 5 result").
-    InkEncode: func()
-    begin
-        local body := "NSI1 320 480 " & self.strokeCount & "\r\n";
-        foreach points in self.strokes do
-        begin
-            local count := Length(points) div 2;
-            local line := "S " & count;
-            if count > 0 then
-            begin
-                local x := points[1];
-                local y := points[0];
-                line := line & " " & x & " " & y;
-                local index := 2;
-                while index < Length(points) do
-                begin
-                    local nextX := points[index + 1];
-                    local nextY := points[index];
-                    line := line & " " & (nextX - x) & " " & (nextY - y);
-                    x := nextX;
-                    y := nextY;
-                    index := index + 2;
-                end;
-            end;
-            body := body & line & "\r\n";
-            // ponytail: one HTTP request only; multipart belongs to a later stage.
-            if StrLen(body) > 16384 then return nil;
-        end;
-        return body;
-    end,
+    // ---- The /ink transport (kept from the retired capture overlay) ----
 
     // ponytail: the ink POST is a second endpoint on the NIE link the chat
     // already holds — one link, two connections. Dropping the chat link first
     // and re-grabbing it cost a round: `connect` then failed with -16009,
     // "invalid call when not connected".
-    InkSend: func()
+    SendInk: func(body, strokes)
     begin
-        if self.inkBusy then return nil;
-        if self.strokeCount = 0 then return :InkStatus("Draw something first");
-        local body := :InkEncode();
-        if body = nil then return :InkStatus("Too much ink to send");
         self.inkBody := body;
         self.inkBusy := true;
         self.inkGotReply := nil;
-        :InkStatus("Sending...");
+        :SetStatus("Sending " & strokes & " strokes");
         AddDelayedCall(func(view) view:InkExpired(), [self], 150000);
         if self.linkID then return :InkOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
@@ -882,7 +1027,7 @@ mainView := {
     begin
         if not self.inkBusy then return nil;
         self.inkBusy := nil;
-        :InkStatus("The host did not answer. Your ink is still here.");
+        :SetStatus("The host did not answer");
         return :InkDone();
     end,
 
@@ -977,7 +1122,7 @@ mainView := {
                 if result then self._parent:InkFailed("Ink send error " & result),
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink send exception");
-        :InkStatus("Thinking...");
+        :SetStatus("Thinking...");
         return nil;
     end,
 
@@ -992,8 +1137,6 @@ mainView := {
         :AppendLine("");
         :ShowTranscript();
         self.lastReply := reading;
-        :InkStatus(:StrokeText());
-        :HideInk();
         :SetStatus("Ready");
         return nil;
     end,
@@ -1001,7 +1144,7 @@ mainView := {
     InkDropped: func()
     begin
         self.inkBusy := nil;
-        if not self.inkGotReply then :InkStatus("The host sent no reading");
+        if not self.inkGotReply then :SetStatus("The host sent no reading");
         return :InkDone();
     end,
 
@@ -1009,7 +1152,7 @@ mainView := {
     begin
         self.inkBusy := nil;
         self.inkBody := nil;
-        :InkStatus(message);
+        :SetStatus(message);
         return :InkDone();
     end,
 
@@ -1129,110 +1272,21 @@ mainView := {
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
         },
+        // "Ask" is one button with one meaning: send the newest note,
+        // whatever kind it is. The capture canvas that used to sit behind an
+        // "Ink" button here is deleted, multi-stroke defect and all — stock
+        // Notes keeps every stroke and this reads them.
         {
             _proto: protoTextButton,
             viewBounds: {left: 14, top: 388, right: 96, bottom: 410},
-            text: "Ask Note",
-            buttonClickScript: func() self:Parent():AskNote(),
+            text: "Ask",
+            buttonClickScript: func() self:Parent():Ask(),
         },
         {
             _proto: protoTextButton,
             viewBounds: {left: 104, top: 388, right: 196, bottom: 410},
             text: "Save Note",
             buttonClickScript: func() self:Parent():SaveNote(),
-        },
-        {
-            _proto: protoTextButton,
-            viewBounds: {left: 238, top: 388, right: 290, bottom: 410},
-            text: "Ink",
-            buttonClickScript: func() self:Parent():ShowInk(),
-        },
-        // The ink overlay is the last child so it draws in front of the chat,
-        // and it is opaque so nothing behind it shows through. Hidden at boot.
-        {
-            viewClass: clView,
-            viewBounds: {left: 0, top: 28, right: 304, bottom: 414},
-            viewFlags: vVisible + vClickable,
-            // vfFillWhite is what makes it an overlay: the chat behind it does
-            // not show through.
-            viewFormat: vfFillWhite,
-            stepChildren: [
-                {
-                    _proto: protoStaticText,
-                    viewBounds: {left: 8, top: 4, right: 288, bottom: 20},
-                    viewFont: ROM_fontSystem9,
-                    text: "Draw, then tap Send. The reading joins the chat.",
-                },
-                // ponytail: two plain rules mark out the writing area.
-                // vfFrameBlack on its own drew nothing (the frame pen width is
-                // zero without vfPen), and stock rules beat debugging that.
-                // protoDivider inherits the app's `title` slot unless it is
-                // cleared, which is why each one names its own empty title.
-                {
-                    _proto: protoDivider,
-                    viewBounds: {left: 0, top: 22, right: 304, bottom: 24},
-                    title: "",
-                },
-                {
-                    viewClass: clView,
-                    viewBounds: {left: 8, top: 24, right: 296, bottom: 286},
-                    viewFlags: vVisible + vClickable + vStrokesAllowed,
-                    viewFormat: vfFillWhite,
-
-                    ViewStrokeScript: func(unit)
-                    begin
-                        local box := self:GlobalBox();
-                        self:Parent():Parent():CountStroke(GetPointsArray(unit),
-                            box.left, box.top);
-                        return nil;
-                    end,
-
-                    // ponytail: the system erases the transient stroke once
-                    // ViewStrokeScript consumes it, so the retained polygons are
-                    // the only ink that survives pen-up.
-                    ViewDrawScript: func()
-                    begin
-                        local shapes := self:Parent():Parent().shapes;
-                        if shapes and (Length(shapes) > 0) then :DrawShape(shapes, nil);
-                        return nil;
-                    end,
-                },
-                {
-                    _proto: protoDivider,
-                    viewBounds: {left: 0, top: 286, right: 304, bottom: 288},
-                    title: "",
-                },
-                {
-                    _proto: protoStaticText,
-                    viewBounds: {left: 8, top: 292, right: 288, bottom: 326},
-                    viewFont: ROM_fontSystem10,
-                    text: "Draw here, then tap Send",
-                },
-                {
-                    _proto: protoTextButton,
-                    viewBounds: {left: 6, top: 334, right: 72, bottom: 358},
-                    text: "Clear",
-                    buttonClickScript: func() self:Parent():Parent():InkClear(),
-                },
-                {
-                    _proto: protoTextButton,
-                    viewBounds: {left: 78, top: 334, right: 144, bottom: 358},
-                    text: "Undo",
-                    buttonClickScript: func() self:Parent():Parent():InkUndo(),
-                },
-                {
-                    _proto: protoTextButton,
-                    viewBounds: {left: 150, top: 334, right: 216, bottom: 358},
-                    text: "Send",
-                    buttonClickScript: func() self:Parent():Parent():InkSend(),
-                },
-                {
-                    _proto: protoTextButton,
-                    viewBounds: {left: 226, top: 334, right: 292, bottom: 358},
-                    text: "Chat",
-                    buttonClickScript: func() self:Parent():Parent():HideInk(),
-                },
-            ],
         },
     ],
 };

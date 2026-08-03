@@ -1170,3 +1170,60 @@ What is **not** established: whether adding `vApplication` to the float
 window's `viewFlags` would make the arrows work without breaking `Show`/`Hide`,
 the close box, or `'viewFrontMostApp` resolution. That was not tried, and it is
 the obvious next experiment for anyone who wants zero-tap scrolling.
+
+## Nineteenth finding: `EntryModTime` is coarse, and it lags (Track A9)
+
+The eighteenth finding's neighbour. The seventeenth finding established that
+`EntryModTime` is the only way to find the most recently *touched* note, since
+`Query({indexPath: '_modTime})` raises `evt.ex.fr.store` on this ROM. Building
+Chat A9 on top of that turned up two properties of the stamp itself that bound
+how well "newest note" can ever work. Both measured on isolated instance
+`a9ask`; full transcript [`a9ask-round.txt`](../runtime/evidence/a9ask-round.txt).
+
+### It has one-minute granularity, so ties are ordinary
+
+A note (`id5`) was drawn on in the same minute another note (`id6`) was created.
+Both stamps read the same value:
+
+```text
+id6 ts=64477415 mod=64477415 | id5 ts=64477411 mod=64477415 |
+```
+
+The stamp is minutes since 1904, like `timeStamp` — `Time()` returned
+`64477416` in the same probe, four digits of seconds nowhere in sight. So two
+notes touched inside one minute are **indistinguishable by modification**, and
+a scan that compares with strict `>` walking back from the end of the
+`timeStamp` cursor leaves the later-*created* one winning. Repeating the draw
+after the minute rolled over separated them cleanly (`mod=64477418` against
+`64477415`), which is what the A9 proof used.
+
+Practical reading: the hardware bug this fixes had its two notes nine minutes
+apart, so the fix holds for the case it was built for. A human who creates a
+text note and immediately draws on an older one, inside the same minute, still
+gets the older behaviour.
+
+### It is stale while the note is still on screen
+
+More surprising, and more likely to bite. Immediately after a `/drag` added a
+stroke, the entry's `data` array had **already grown** while its stamp had
+**not** moved:
+
+```text
+(right after the drag)   now=64477418  id5 mod=64477415 n=6
+(after scrolling away)   now=64477418  id5 mod=64477418 n=6
+```
+
+`Length(data)` went 5 → 6 at once; `EntryModTime` only settled once the Notepad
+was scrolled off that page. The Notes app holds the open note's entry dirty and
+flushes the modification stamp when it stops displaying it. Anything that reads
+`EntryModTime` to decide *which* note is newest must therefore run after the
+user has left the page — which the Chat A9 flow does by construction, because
+opening the chat window is itself leaving it. A `/tools` op polled while the
+note is still on screen would read the stale value.
+
+### One tntk trap on the way
+
+`local mod := EntryModTime(entry)` does not compile: `mod` is the modulo
+operator. tntk reports the syntax error a dozen lines further down, at the
+first line it cannot re-sync on, so the message points nowhere near the cause.
+The A9 client uses `stamp`.

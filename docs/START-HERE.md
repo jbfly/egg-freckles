@@ -48,7 +48,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/agent-dev-loop.md` | You are building a **new** Newton app. Ten numbered steps from `cp -r examples/hello` to teardown, with the identity rule and the UI footguns. An agent ran it end to end on 2026-08-03 (ROADMAP Track G, "Proven 2026-08-03"). |
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
 | `docs/dev-harness.md` | You need the containers, ports, security boundary, or the full emulator control API. This was the old `README.md`; the README is now the public front door. |
-| `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end (stroke capture → `POST /ink` → vision model reading); results appended after the design. Ink stays visible after pen-up ("Stage 5 result") and since Track F2 it lives **inside the chat client** as an overlay, with the `Encode()` origin bug fixed and measured ("Track F2 result"). Still open: not installed on physical hardware, multi-part POST unbuilt. See `docs/ROADMAP.md` Tracks E and F. |
+| `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end; results appended after the design, and **read "A9 result" first — it is the current state**. Track A9 deleted the capture canvas (it dropped all but the first stroke) and moved capture into stock Notes: one **Ask** button reads the newest note's strokes out of the soup and POSTs them, with the page's text on an optional `NSI1` `H` line. Earlier sections ("Stage 5 result", "Track F2 result") describe the canvas that no longer exists. Still open: not installed on physical hardware, multi-part POST unbuilt (and still not needed). See `docs/ROADMAP.md` Tracks E, F and A9. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc
@@ -98,13 +98,15 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 78 pass (45 + 17 client-source tests that pin the `MSGP` split, the
-note path, the ink encoder and the Track A8 transcript row window + 16 for the
-Track F4 slash commands and session registry, 2026-08-04). `pytest` is not in
+**Tests** — 85 pass (2026-08-04), of which **20** are client-source tests
+pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
+the bounded `EntryModTime` scan, the `NSI1` `H` line and the Track A8 transcript
+row window; 16 of the rest cover the Track F4 slash commands and the session
+registry. `pytest` is not in
 the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 78 passed
+uv run --with pytest pytest -q          # 85 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -189,16 +191,19 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-Since 2026-08-04 the *source* client is `HarnessClientA8:jbfly` ("Chat A8",
-v2.4-a8), and it is the **harness panel**, not just a chat window:
+Since 2026-08-04 the *source* client is `HarnessClientA9:jbfly` ("Chat A9",
+v2.4-a9), and it is the **harness panel**, not just a chat window:
 
 - it splits a prompt over 227 characters into `MSGP` frames that the host
   reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension: `MSGP`");
-- `Ask Note` sends the newest stock note down that same path and `Save Note`
-  writes a reply back as a native note (Track F2 — this replaced
-  `examples/note-export`, which is deleted);
-- `Ink` opens a capture canvas over the chat whose reading joins the transcript
-  (Track F2 — this replaced `examples/ink-capture`, also deleted);
+- one **Ask** button sends the newest stock note *whatever kind it is* — text
+  down that same chat path, drawings as `NSI1` strokes to `POST /ink`, a mixed
+  page as one request carrying both — and `Save Note` writes a reply back as a
+  native note (Tracks F2 and A9; this replaced `examples/note-export`, deleted);
+- **the ink capture canvas is gone** (Track A9). Draw in stock Notes with its
+  real drawing tools; the client reads the strokes out of the soup. The canvas
+  dropped all but the first stroke when drawing freely, and it was deleted
+  rather than fixed;
 - **the transcript scrolls** (Track A8): it is wrapped onto a 12-row grid and
   the **Up**/**Dn** buttons page that window over the whole 6 KiB ring. A7 fed
   the pane 640 characters, which is far more rows than it can draw, so long

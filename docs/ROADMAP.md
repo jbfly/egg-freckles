@@ -7,6 +7,46 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track A9 done: one "Ask" button, and the cat/D&D bug is
+  dead.** Ships as `Chat A9` (`HarnessClientA9:jbfly`, v2.4-a9, package version
+  17), building the design the probe entry below wrote. **Ask** means *send the
+  newest note, whatever kind it is* — there is deliberately no second button to
+  choose between and no silent skip. Round record
+  `runtime/evidence/a9ask-round.txt`; results appended to
+  `docs/ink-client-design.md` as "A9 result".
+  - **All three routes measured on isolated instance `a9ask`**, with **real
+    `codex` 0.146.0** answering every vision call. A text-only note takes the
+    chat path (`MSG`, zero `/ink` POSTs). A three-stroke sketch note takes
+    `/ink` and came back `Ink: The letter N is written.` A mixed note went out
+    as **one** `/ink` POST carrying the strokes as `S` lines and the page's text
+    as one new optional `H` line — a bare triangle plus the words "the cat" read
+    back as *"A simple outline of a cat's head."* That is the whole argument for
+    sending both, measured.
+  - **Coordinates landed exactly.** Strokes read back with the same uniform
+    `0,-36` note-origin offset the probe measured; the minimum `viewBounds`
+    across the drawn items comes off in `EncodeInk`, and the host PNG renders
+    the drawing where it was drawn.
+  - **The modification-order fix is proven against a rigged case.** A D&D text
+    note was created *after* a cat note, then the older cat page was drawn on:
+    `id6 ts=64477415 mod=64477415` against `id5 ts=64477411 mod=64477418`. A7
+    would answer from `id6`; A9's bounded 16-entry `EntryModTime` scan picked
+    `id5` and sent its strokes. The render shows two crossing strokes kept
+    separate — the property the deleted canvas never had.
+  - **New ROM finding**, `docs/newtonscript-eval.md` "Nineteenth finding":
+    `EntryModTime` has **one-minute granularity** (two notes touched in the same
+    minute tie, and the later-*created* one still wins) and is **stale until you
+    leave the note** (`Length(data)` grew while the stamp had not; it settled
+    only after scrolling away). The Chat A9 flow dodges the second by
+    construction — opening the chat window is leaving the page — but a `/tools`
+    op would not.
+  - **The InkPad-derived capture canvas is deleted, multi-stroke defect and
+    all**, along with `ReadNote`/`AskNote` and the `Ink` button. The `/ink` POST
+    transport it sat on is untouched and Ask reuses it; the pinned
+    `async: true` count is unchanged from A8, which is what proves that.
+  - 85 tests (78 + 7). **Hardware still runs A7** — the A7/A8/A9 lineage is
+    emulator-only past A7, and **A9 supersedes A8**, so the human should install
+    **A9 directly and skip A8**: A9 contains A8's transcript scrolling plus this.
+
 - **2026-08-04 — sketch-note probe: the ink pivot is GO.** Research and design
   only; no client code shipped. Track I3's long-standing `[verify]` ("nobody
   has looked yet") is answered on isolated instance `sketchprobe`, and it

@@ -39,6 +39,12 @@ INK_PROMPT = (
     "characters saying what is drawn; if it is writing, transcribe it. "
     "No preamble, no markdown."
 )
+# A mixed note — a drawing with typed words on the same page — arrives as one
+# request whose NSI1 body carries the words on an "H" line. A word written under
+# a drawing is the most useful token in a vision prompt, so it goes in as
+# context rather than being dropped or sent as a second model call.
+INK_HINT_PROMPT = " The drawing is accompanied by this note text: "
+INK_HINT_LIMIT = 200
 INK_TIMEOUT = 120
 MODEL_HOST = os.environ.get("NEWTON_MODEL_HOST", "127.0.0.1")
 MODEL_PORT = int(os.environ.get("NEWTON_MODEL_PORT", "6801"))
@@ -210,14 +216,18 @@ def ask_model(prompt: str, host: str = MODEL_HOST, port: int = MODEL_PORT) -> st
         return answer
 
 
-def interpret(png_path: Path) -> str:
+def interpret(png_path: Path, hint: str = "") -> str:
     """Return a real vision reading of the rendered ink, or raise RuntimeError."""
+    prompt = INK_PROMPT + (INK_HINT_PROMPT + hint if hint else "")
+    # The same shape as ask_model's NOTE WIRE lines: the log is where an ops
+    # failure gets diagnosed (the hardware 502 was codex missing from PATH).
+    print(f"INK PROMPT {prompt!r}", flush=True)
     # ponytail: one blocking subprocess, same boring shape as server.py CodexBackend.
     # Measured ~9 s, well inside the client's timeout, so no job queue or polling.
     with tempfile.TemporaryDirectory(prefix="newton-ink-") as tmp:
         proc = subprocess.run(
             ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
-             "--cd", tmp, "--json", "-i", str(png_path), "--", INK_PROMPT],
+             "--cd", tmp, "--json", "-i", str(png_path), "--", prompt],
             cwd=tmp, stdin=subprocess.DEVNULL, capture_output=True,
             timeout=INK_TIMEOUT, check=False,
         )
@@ -317,10 +327,23 @@ class PublisherHandler(BaseHTTPRequestHandler):
             if len(header) != 4 or header[0] != "NSI1":
                 raise ValueError
             canvas_width, canvas_height, stroke_count = map(int, header[1:])
-            if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0 or len(lines) != stroke_count + 1:
+            if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0:
+                raise ValueError
+            # NSI1 grammar: the header line, then AT MOST ONE optional
+            # "H <text>" line, then exactly stroke_count "S ..." lines. The tag
+            # stays NSI1 and the header's four fields do not change, because the
+            # physical MP2000 still runs an older client whose bodies have no H
+            # line and must keep parsing.
+            body_lines, hint = lines[1:], ""
+            if body_lines and body_lines[0].startswith("H "):
+                hint = body_lines[0][2:]
+                if not 0 < len(hint) <= INK_HINT_LIMIT or not hint.isprintable():
+                    raise ValueError
+                body_lines = body_lines[1:]
+            if len(body_lines) != stroke_count:
                 raise ValueError
             strokes = []
-            for line in lines[1:]:
+            for line in body_lines:
                 fields = line.split()
                 count = int(fields[1]) if len(fields) >= 2 and fields[0] == "S" else -1
                 if count < 0 or len(fields) != 2 + count * 2:
@@ -343,7 +366,7 @@ class PublisherHandler(BaseHTTPRequestHandler):
         self.ink_path.parent.mkdir(parents=True, exist_ok=True)
         save_ink_png(self.ink_path, strokes)
         try:
-            reading, status = interpret(self.ink_path), HTTPStatus.OK
+            reading, status = interpret(self.ink_path, hint), HTTPStatus.OK
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
         # ponytail: "INK " prefix is all the client needs to tell the body

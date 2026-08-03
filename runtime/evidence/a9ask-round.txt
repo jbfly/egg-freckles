@@ -1,0 +1,178 @@
+Track A9 — "Ask": one button, the newest note, whatever kind it is
+=================================================================
+Isolated instance a9ask (seeded from
+internal-before-round9-loader-20260725-195622.flash), ROM 717006.
+Host: NEWTON_FAKE_BACKEND=1 server.py on 0.0.0.0:6801, runtime/raw_pkg_server.py
+on 10.42.0.1:18081 (real `codex` 0.146.0 for every vision reading — no stubs).
+Package HarnessClientA9:jbfly v2.4-a9, project version 17,
+sha256 952557e0e03b5c94af4707e9b2c52ea5957c2dcfa7939786711fd73b15f1e754.
+OCR of the running window: "Newton Chat A9 2.4-a9" (a9ask-01-launched.txt).
+
+The committed Main.newt is byte-identical to the source that produced that
+package. The committed .pkg is not: **tntk builds are not reproducible.** Two
+builds four seconds apart from identical source differ in exactly one byte,
+offset 35 (`a1` -> `a5`) — the package creation date. So a .pkg sha identifies a
+build, never a source; compare sources, or compare packages ignoring offset 35.
+
+-----------------------------------------------------------------
+0. What the window looks like now
+-----------------------------------------------------------------
+Second control row is **Ask** and **Save Note**. The "Ink" button, the capture
+canvas, its Clear/Undo/Send/Chat bar and the whole overlay clView are gone.
+Screenshot: a9ask-01-launched.png.
+
+-----------------------------------------------------------------
+1. Text-only note -> the chat path (MSG), no /ink
+-----------------------------------------------------------------
+$ ns_eval: paperroll:NewNote(MakeTextNote("Ravens are corvids and can
+  imitate human speech.")) ; tap Ask
+
+Transcript (a9ask-02-text-note-ask.png):
+  Note: Ravens are corvids and can imitate human speech.
+  Agent: FAKE REPLY TO: Ravens are corvids and can imitate human speech.
+         -- the quick brown fox jumps over the lazy dog 0123456789.
+
+The host recorded it as a chat turn, which only the MSG path produces:
+  state/session.json -> "Ravens are corvids and can imitate human speech."
+  a9ask-server.log   -> connect ('10.42.0.1', 45306)
+`grep -c "POST /ink" a9ask-publisher.log` was **0** at this point.
+
+-----------------------------------------------------------------
+2. Sketch note (3 strokes) -> one /ink POST, no H line
+-----------------------------------------------------------------
++New -> Note, `A` button (30,425) -> Sketches (88,402), three /drag strokes at
+the same screen coordinates the seventeenth-finding probe used.
+
+$ ns_eval, newest entry by timeStamp:
+"n=3 [0] vb=58,82 np=17 first=x60,y84 last=x60,y184
+      [1] vb=98,82 np=17 first=x100,y84 last=x180,y184
+      [2] vb=208,102 np=17 first=x210,y104 last=x280,y104"
+
+  stroke     | dragged (screen)      | stored (note space) | delta
+  -----------|-----------------------|---------------------|-------
+  vertical   | (60,120) -> (60,220)  | (60,84) -> (60,184) | 0,-36
+  diagonal   | (100,120)->(180,220)  | (100,84)->(180,184) | 0,-36
+  horizontal | (210,140)->(280,140)  | (210,104)->(280,104)| 0,-36
+
+The same uniform 0,-36 note-origin offset the probe measured. Minimum
+viewBounds across the drawn items is (58,82), so EncodeInk emits the vertical
+stroke starting at (60-58, 84-82) = (2,2).
+
+Publisher log:
+  INK PROMPT '...No preamble, no markdown.'          <- no H clause
+  10.42.0.1 - - "POST /ink HTTP/1.0" 200 -           <- exactly one
+
+Rendered PNG a9ask-06-sketch-render.png shows all three strokes at the
+translated coordinates: vertical at x=2 y=2..102, diagonal (42,2)->(122,102),
+horizontal y=22 x=152..222.
+
+Transcript (a9ask-05-sketch-reply.png):
+  Note: 3 strokes
+  Ink: The letter N is written.          <- real codex vision call
+
+-----------------------------------------------------------------
+3. Mixed note (text + strokes) -> ONE /ink POST carrying both
+-----------------------------------------------------------------
++New -> Note, Text mode, typed "the cat" (xdotool dropped the leading "feed ",
+the known lossy-typing note), then Sketches mode and a three-stroke triangle
+on the same page.
+
+$ ns_eval: "id5 mod=... n=4 [0]=para vb=60,35 [1]=ink2 vb=78,122
+            [2]=ink2 vb=108,122 [3]=ink2 vb=78,122"
+
+Publisher log — one POST, and the note's text is inside the vision prompt:
+  INK PROMPT '...No preamble, no markdown. The drawing is accompanied by this
+              note text: the cat'
+  10.42.0.1 - - "POST /ink HTTP/1.0" 200 -
+
+Transcript (a9ask-08-mixed-reply.png):
+  Note: the cat
+  Ink: A simple outline of a cat's head.
+
+A bare triangle read as "a cat's head" *because* the H line was in the prompt.
+That is the whole point of sending both.
+
+-----------------------------------------------------------------
+4. The NSI1 body itself, read back off the live app
+-----------------------------------------------------------------
+$ ns_eval: GetRoot().|HarnessClientA9:jbfly|:EncodeInk("the cat")
+  (CR shown as " / ")
+
+"NSI1 320 480 5 / H the cat / S 17 2 2 6 0 6 0 4 0 4 0 3 0 2 0 3 0 2 0 2 0
+ 3 0 2 0 3 0 4 0 4 0 6 0 6 0 / S 51 62 2 -1 1 -1 2 0 1 -1 1 0 0 0 2 0 ...
+ / S 51 32 62 -1 -1 -1 -2 0 -1 ..."
+
+Header, then the single H line, then one S line per stroke. First point (2,2)
+= drag (80,160) -> stored (80,124) minus the origin (78,122).
+
+$ ns_eval: "nstrokes=5 npoints=153 origin=78,122 text=the cat"
+153 points is well under the 400-point client cap and ~0.6 KB against the
+host's 16 KiB body cap, so multi-part /ink stays unbuilt.
+
+-----------------------------------------------------------------
+5. Modification order — the cat/D&D bug, dead
+-----------------------------------------------------------------
+The hardware failure was: draw a cat, tap Ask Note, get an answer about an
+older D&D *text* note, because timeStamp is creation time.
+
+Set up deliberately so creation order and modification order DISAGREE:
+
+  id6 "D and D session four: the party met a lich in the crypt."  <- created LAST
+  id5 "the cat" + triangle                                        <- created before it
+
+Then two more strokes were drawn on id5 (the older page).
+
+$ ns_eval, walking the timeStamp cursor:
+"now=64477418 id6 ts=64477415 mod=64477415 n=1 |
+              id5 ts=64477411 mod=64477418 n=6 |
+              id4 ts=64477407 mod=64477408 n=3 | ..."
+
+id6 is newest by timeStamp. id5 is newest by EntryModTime. A7 answered from
+id6. A9's FindNewest scan picked **id5**:
+
+  INK PROMPT '... The drawing is accompanied by this note text: the cat'
+  10.42.0.1 - - "POST /ink HTTP/1.0" 200 -
+
+Transcript (a9ask-11-modorder-reply.png):
+  Note: the cat
+  Ink: A cat.
+
+Render a9ask-12-modorder-render.png shows the triangle **plus the two crossing
+strokes** as separate strokes — the property the deleted canvas never had.
+
+TWO OPERATIONAL FACTS about EntryModTime, measured here, not previously
+written down:
+
+ (a) **It has one-minute granularity.** The first attempt drew on id5 in the
+     same minute id6 was created, and both read mod=64477415 — a tie. The scan
+     compares with strict `>` starting from the last entry, so on a tie the
+     later-*created* note still wins. Two notes touched inside the same minute
+     are therefore indistinguishable by modification.
+ (b) **It is stale while the note is still on screen.** After the drag,
+     Length(data) had already gone 5 -> 6, but EntryModTime still read the old
+     value; it settled to 64477418 only after scrolling the Notepad away from
+     that page. Leaving the note (switching to the chat app, as the real flow
+     does) is what commits it.
+
+-----------------------------------------------------------------
+6. Regressions
+-----------------------------------------------------------------
+plain chat  a9ask-13-plain-chat.png     You: hello from a9 / Agent: FAKE REPLY
+/help       a9ask-14-help-bottom.png    all seven command lines render whole
+Up          a9ask-15-scrolled-up.png    window pages back over earlier turns
+Dn          a9ask-16-scrolled-down.png  returns to the exact bottom
+Save Note   a9ask-17-save-note.png      status line "Saved note id=7"
+
+-----------------------------------------------------------------
+7. Noise seen, none of it new
+-----------------------------------------------------------------
+- `-48807` then `-48601` modal alerts while typing into the Notepad. Documented
+  seed-flash noise (docs/parallel-emulators.md); tapping the close box a few
+  times cleared them and the strokes afterwards were fine.
+- xdotool typing dropped the leading "feed " of "feed the cat"
+  (docs/newton-dev-notes.md, the MCP round, finding 6).
+- `ROM_paperRollSoupName` does not resolve inside ns_eval (it is a tntk
+  compile-time platform constant); the probes use the literal "Notes".
+- `mod` is the NewtonScript modulo operator and cannot be a local variable
+  name. tntk reports it as a syntax error a dozen lines further down, which is
+  what the first build failure was.

@@ -46,7 +46,7 @@ path — do not start it for an install.
 **`pkg_publisher.py`'s package serving is a different channel.** Its
 `ToolBroker` + HTTP handler (`pkg_publisher.py:62`, `:281`) back `/tools`,
 `/ink`, and `/note` for `examples/harness-tools` and `examples/harness-client`
-(the ink overlay POSTs `/ink`; nothing calls `/note` since Track F2 moved the
+(`Ask` POSTs `/ink` for a drawing; nothing calls `/note` since Track F2 moved the
 note bridge onto the chat transport) — the agent-facing channel, not the ZC40
 loader's install flow. Do not point the loader at it.
 

@@ -861,3 +861,134 @@ building an unbounded string on the Newton.
 | S2 | The 16-entry `EntryModTime` window is wrong for how the human actually files notes | Ask; or ship it and watch |
 | S3 | `ExpandInk` cost on a large sketch holds the event loop | Time a 400-point note on-device before shipping; cap already specified |
 | ~~S4~~ | ~~Ink Text notes fall through the classifier~~ | **Closed by the probe** — Ink Text adds no data item, it embeds `'inkWord` in a `'para`'s `styles` with placeholder 63233 in `text`, and it expands via `InkConvert` → `ExpandInk`. Folded into the routing table above |
+
+---
+
+## A9 result — the pivot shipped — 2026-08-04
+
+**Built and emulator-proven.** The section above is now history: `Chat A9`
+(`HarnessClientA9:jbfly`, v2.4-a9, project version 17) ships one **Ask** button
+that sends the newest note whatever kind it is, and the capture canvas is
+deleted. Full round record with every probe and its verbatim output:
+[`a9ask-round.txt`](../runtime/evidence/a9ask-round.txt). Proven on isolated
+instance `a9ask` (seeded flash) against `NEWTON_FAKE_BACKEND=1 server.py:6801`
+and `runtime/raw_pkg_server.py` on `10.42.0.1:18081`, with **real `codex`
+0.146.0** answering every vision call — no stub readings.
+
+### The three routes, each measured
+
+| Note | What Ask did | Evidence |
+|---|---|---|
+| text only | chat path, `Send(text)` over `MSG` | `a9ask-02-text-note-ask.png`; the turn is in `state/session.json`; `POST /ink` count **0** |
+| 3 sketch strokes | one `/ink` POST, **no** `H` line | `a9ask-05-sketch-reply.png`, render `a9ask-06-sketch-render.png`, reply `Ink: The letter N is written.` |
+| text + 3 strokes | **one** `/ink` POST carrying both | `a9ask-08-mixed-reply.png`, render `a9ask-09-mixed-render.png`, reply `Ink: A simple outline of a cat's head.` |
+
+The mixed case is the one that justifies the design. The drawing was a bare
+triangle; the note said `the cat`; the reading was *"A simple outline of a cat's
+head."* The publisher log shows why:
+
+```
+INK PROMPT '... No preamble, no markdown. The drawing is accompanied by
+            this note text: the cat'
+```
+
+### Coordinates came out exactly as designed
+
+Three `/drag` strokes at the probe's own screen coordinates read back with the
+same uniform `0,-36` note-origin offset, and the minimum `viewBounds` across
+the drawn items was `(58,82)`:
+
+```
+n=3 [0] vb=58,82  np=17 first=x60,y84   last=x60,y184
+    [1] vb=98,82  np=17 first=x100,y84  last=x180,y184
+    [2] vb=208,102 np=17 first=x210,y104 last=x280,y104
+```
+
+`EncodeInk` therefore emitted the vertical stroke starting at `(2,2)`, and the
+host PNG renders it there. The body, read straight off the live app through
+`ns_eval` (CR shown as ` / `):
+
+```
+NSI1 320 480 5 / H the cat / S 17 2 2 6 0 6 0 4 0 ... / S 51 62 2 -1 1 ...
+```
+
+### NSI1 `H` grammar, as shipped
+
+```
+NSI1 <width> <height> <strokeCount>     header, unchanged, four fields
+H <text>                                OPTIONAL, at most one, immediately
+                                        after the header, before any S line
+S <count> <x> <y> <dx> <dy> ...         exactly <strokeCount> of these
+```
+
+`<text>` is 1–200 characters, all printable us-ascii. The client truncates at
+`kHintBytes := 200`; the host rejects an empty hint, an over-long one, a second
+`H` line, and an `H` line that appears after an `S` line
+(`test_pkg_publisher.py::test_ink_hint_line_is_optional_and_reaches_the_prompt`).
+**The tag stays `NSI1` and `H` stays optional** because the physical MP2000 runs
+an older client whose bodies have no `H` line and must keep parsing. The host
+appends the text to `INK_PROMPT` as `INK_HINT_PROMPT`; nothing else changed in
+`/ink`.
+
+### The cat/D&D bug is dead
+
+Set up so creation order and modification order disagree — a D&D text note
+created *after* the cat note, then two more strokes drawn on the older cat page:
+
+```
+now=64477418  id6 ts=64477415 mod=64477415 n=1   <- newest CREATED (D&D text)
+              id5 ts=64477411 mod=64477418 n=6   <- newest MODIFIED (the cat)
+```
+
+A7 answered from `id6`. A9's bounded 16-entry `EntryModTime` scan picked `id5`
+and POSTed its strokes: `Note: the cat` / `Ink: A cat.`
+(`a9ask-11-modorder-reply.png`). The render `a9ask-12-modorder-render.png` shows
+the triangle **plus two crossing strokes kept separate** — the property the
+deleted canvas never had.
+
+Two `EntryModTime` facts fell out that the design did not anticipate, and they
+bound how well this can ever work. They are written up as
+`docs/newtonscript-eval.md`, "Nineteenth finding": the stamp has **one-minute
+granularity** (so two notes touched in the same minute tie, and the scan's
+strict `>` leaves the later-created one winning), and it is **stale until you
+leave the note** (`Length(data)` had already grown while the stamp had not).
+
+### What was deleted
+
+The overlay `clView`, its `ViewStrokeScript`/`ViewDrawScript`, the retained
+`strokes`/`shapes` arrays and `strokeCount`, `MakePolygon`/`StrokeShape`,
+`Repaint`, `CountStroke`, `InkUndo`, `InkClear`, `ShowInk`/`HideInk`/
+`InkStatus`/`StrokeText`, the `Clear`/`Undo`/`Send`/`Chat` button bar, the `Ink`
+button, and `inkPanel`/`inkCanvas`/`inkStatusView`. The multi-stroke defect went
+with it, unfixed. `ReadNote` and `AskNote` are gone too, replaced by
+`FindNewest` + `CollectNote` + `Ask`.
+
+**What survived, untouched:** the `/ink` POST machinery — `InkOpen`, `InkBound`,
+`InkPost`, `HandleInkLine`, `InkDropped`, `InkFailed`, `InkDone`, `InkStop`, all
+three `async: true` calls and the `INK `-prefix `InputScript`. The pinned count
+`SOURCE.count("async: true") == 9` is unchanged from A8, which is the test that
+proves the transport was not disturbed.
+
+### Two deviations from the design above, and why
+
+1. **The transcript prefix stays `Ink: `, not `Sketch: `.** The design proposed
+   renaming it. The prefix is pinned by
+   `test_the_ink_overlay_shares_the_chat_link` and means "this came back from
+   `/ink`", which is still exactly true; renaming it would churn a test for no
+   behaviour.
+2. **The truncation notice goes in the transcript, not on the status line.**
+   The design said status line. `InkPost` overwrites the status with
+   `Thinking...` a moment later, so a status-line notice would be invisible.
+
+### Still open
+
+- **Not on hardware.** The physical MP2000 runs A7. A8 and A9 are both
+  emulator-only; A9 supersedes A8, so install A9 and skip A8.
+- **Risk S1 is still unmeasured.** Every probe stroke is a straight `/drag`
+  (`emulator/control.py:185`), 17–51 points. A real freehand curve may produce
+  far more; the client caps at 400 points and says so, but nobody has drawn a
+  cat by hand yet.
+- **Risk S3 (ExpandInk cost) is untimed.** The largest note measured here was
+  153 points across 5 strokes and felt instant, well short of the 400 cap.
+- A note older than the 16-entry window still loses. Track F3 — read the
+  *currently open* note — remains the real answer and is still unexplored.

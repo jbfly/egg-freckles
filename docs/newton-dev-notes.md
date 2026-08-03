@@ -1159,3 +1159,60 @@ Cap test PASS: size=6120 rows=272 first=265 012345678901234567890123456789012345
 `paged <> bottom` is a clause of that PASS, so the device itself proves paging
 changes what is visible. Regressions clean: short prompt (`a8scroll-08`), the
 `MSGP` long prompt above, New button (`a8scroll-09`). 78 tests.
+
+## 2026-08-04 — Track A9: one Ask button (`HarnessClientA9:jbfly`)
+
+Built the sketch-note pivot `docs/ink-client-design.md` designed the day before.
+`Chat A9`, v2.4-a9, package version 17. Isolated instance `a9ask` (seeded
+flash), `NEWTON_FAKE_BACKEND=1 server.py:6801` and `runtime/raw_pkg_server.py`
+on `10.42.0.1:18081`, **real `codex` 0.146.0** for every vision reading. Round
+record `runtime/evidence/a9ask-round.txt`; results appended to the design doc as
+"A9 result"; status entry in `docs/ROADMAP.md`. 85 tests (78 + 7).
+
+Shipped: `FindNewest` (bounded 16-entry `EntryModTime` scan), `CollectNote` and
+its four collectors, `EncodeInk` with the note-origin subtraction and clamp, and
+one **Ask** button. Deleted: the capture canvas, its `ViewStrokeScript` /
+`ViewDrawScript`, the retained `strokes`/`shapes`, `MakePolygon`/`StrokeShape`/
+`Repaint`/`CountStroke`/`InkUndo`/`InkClear`/`ShowInk`/`HideInk`/`InkStatus`/
+`StrokeText`, the four overlay buttons, the `Ink` button, and `ReadNote` +
+`AskNote`. Kept untouched: every `/ink` POST call, which is why the pinned
+`SOURCE.count("async: true") == 9` did not move.
+
+### What cost time
+
+1. **`local mod := EntryModTime(entry)` does not compile.** `mod` is the modulo
+   operator. tntk emitted its first syntax error a dozen lines *below* the real
+   one, at the first line it could re-sync on, and then a cascade ending in
+   `make: *** Segmentation fault (core dumped)`. One build. Now
+   `docs/newtonscript-eval.md`, nineteenth finding.
+2. **`EntryModTime` did not move when I expected it to.** Two separate reasons,
+   both new, both in the nineteenth finding: the stamp is in **minutes**, so a
+   note drawn on in the same minute another was created reads an exact tie; and
+   it is **stale while the note is still on screen** — `Length(data)` had
+   already gone 5 → 6 while the stamp had not, and it only settled after the
+   Notepad scrolled away from that page. The first cost a 75-second wait to get
+   a clean modification-order proof; the second nearly read as a client bug.
+3. **`ROM_paperRollSoupName` does not resolve inside `ns_eval`.** It is a tntk
+   compile-time platform constant, so it works in the package and times out in a
+   probe. Use the literal `"Notes"` in `ns_eval`.
+4. **tntk builds are not reproducible.** Two builds four seconds apart from
+   identical source differ in exactly one byte, offset 35 — the package creation
+   date. A `.pkg` sha therefore identifies a build, never a source. The A9 proof
+   ran on sha `952557e0…`; the committed `Main.newt` is byte-identical to what
+   produced it, the committed `.pkg` is a later rebuild of the same source.
+
+### The proof, in one line each
+
+- text note → chat path, `POST /ink` count 0, turn recorded in
+  `state/session.json`
+- 3-stroke sketch → one `/ink`, no `H` line, `Ink: The letter N is written.`
+- text + 3 strokes → one `/ink` with `H the cat`, and a bare triangle came back
+  as `Ink: A simple outline of a cat's head.` — the hint did that
+- `id6 ts=64477415 mod=64477415` (D&D text, newest created) vs
+  `id5 ts=64477411 mod=64477418` (the cat, newest modified) → Ask sent **id5**.
+  The cat/D&D hardware bug is dead.
+- regressions clean: plain chat, `/help`, Up, Dn, `Saved note id=7`
+
+Noise, all previously documented: `-48807`/`-48601` modal alerts from the seed
+flash while typing into the Notepad, and xdotool dropping the leading `feed ` of
+`feed the cat`.
