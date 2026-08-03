@@ -74,16 +74,17 @@ one is part of your task** (see `CLAUDE.md`).
 Every command below was executed in this repo on 2026-07-31 and produced the
 stated result. Run from the repo root.
 
-**Tests** — 30 pass. `pytest` is not in the system python, so use `uv`:
+**Tests** — 37 pass. `pytest` is not in the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 30 passed
+uv run --with pytest pytest -q          # 37 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
 `test_server.py` and `test_emulator_control.py` under `unittest` (18 tests),
-silently skipping `test_pkg_publisher.py` and `test_persistent_tools_server.py`
-— if you are on an older checkout, do not trust it.
+silently skipping `test_pkg_publisher.py` — if you are on an older checkout,
+do not trust it. (`test_persistent_tools_server.py` and the spike it tested
+were deleted in Track A3 2026-08-03; see `docs/ROADMAP.md` Track A3.)
 
 **Build packages** — builds on the host with `~/newton-dev/prefix/bin/tntk`,
 no container needed:
