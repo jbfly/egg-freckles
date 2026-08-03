@@ -135,7 +135,7 @@ to start with. You do not need a Newton to see it work — you need a Newton
 8. `make newton-packages` — build the client and the loader into
    `runtime/staging/`. (`make toolchain-hello` is the smaller smoke test.)
 9. `scripts/install-and-launch.sh /packages/harness-client/harness-client.pkg
-   'HarnessClientA7:jbfly'` — install the client into the running emulator and
+   'HarnessClientA8:jbfly'` — install the client into the running emulator and
    open it.
 10. `make test` — the suite, via `uv run --with pytest pytest -q`.
 

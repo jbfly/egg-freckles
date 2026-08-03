@@ -191,7 +191,11 @@ stable package rebuild silently regresses to package version 1.
   (2026-08-03): `Chat A4` splits anything over 227 characters into `MSGP`
   parts (`docs/phase3-protocol.md`, "Extension: `MSGP`").
 - **Transcript is bottom-anchored by tail-trimming, not scrolled.** You cannot
-  scroll back past the 6 KiB window. Adequate, not elegant.
+  scroll back past the 6 KiB window. Adequate, not elegant. — **no longer true
+  since Chat A8** (2026-08-04): the transcript is wrapped onto a 12-row grid and
+  **Up**/**Dn** page the window over the whole 6 KiB ring. The 6 KiB ring itself
+  is still the hard limit; nothing older than that survives. See
+  `docs/ROADMAP.md`, the Track A8 status entry.
 - **Cosmetics deliberately left:** the gap between the buttons and the status
   line is looser than the rest of the vertical rhythm.
 - **`pytest` is not installed in the system python.** All 21 tests run in a

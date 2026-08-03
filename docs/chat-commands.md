@@ -3,7 +3,7 @@
 ROADMAP Track F4, live-proven 2026-08-03. Everything here is **server-side**:
 `server.py` answers these before the backend is called, and the replies are
 ordinary `TEXT` frames. There is no client change and no wire change, so it
-works from **hardware Chat A3 unchanged** and from emulator Chat A7 alike —
+works from **hardware Chat A3 unchanged** and from emulator Chat A8 alike —
 and from the PT100 terminal path, which shares the same code.
 
 ## The command set
@@ -17,7 +17,7 @@ and from the PT100 terminal path, which shares the same code.
 | `/effort` | `Effort: codex default`, then `1. low` … `4. xhigh` |
 | `/effort low` | `Effort: low` |
 | `/sessions` | `3.>demo 0t 2m` / `2. chat 21:13 0t 4m` / `1. use your newton to 1t 1h` |
-| `/new` | `New session.` — **byte-identical to before F4**, which is what Chat A7's New button sends |
+| `/new` | `New session.` — **byte-identical to before F4**, which is what the chat client's New button sends |
 | `/new demo` | `New session 3: demo` |
 | `/resume 1` | `Session 1: use your newton to 1t model gpt-5.6-terra` |
 | `/nope` | `Unknown command /nope. /help for the list.` |
@@ -122,4 +122,4 @@ file, a corrupt registry, a round trip through disk, the bare-`/new` guard, the
 `/help`, `/status`, `/model` by number (asserting the fake backend was handed
 that model), a refused model/effort, `/new <name>` preserving the old session,
 `/resume` switching the thread id, the unknown-command rule, persistence across
-a reconnect, and the PT100 path. Suite total 76.
+a reconnect, and the PT100 path. Suite total 78.

@@ -1097,3 +1097,65 @@ turn, name taken from D3's own prompt
 spot check then resumed that same thread with a model chosen on the Newton, and
 its codex rollout now reads `gpt-5.6-sol/high` for the D3 turn and
 `gpt-5.4-mini/low` for this one.
+
+## 2026-08-04 — Track A8: the transcript scrolls (`HarnessClientA8:jbfly`)
+
+Isolated instance `a8scroll`, flash seeded from
+`internal-before-round9-loader-20260725-195622.flash`,
+`NEWTON_FAKE_BACKEND=1 server.py` on `10.42.0.1:6801`, package sha256
+`123050ac724808a42159a7da065c303455f3e0097dc2e4a5ff9eeffd195d994b`.
+Screens `runtime/evidence/a8scroll-0*.png`. Fixes finding (1) of the first
+full-stack hardware test.
+
+Five things worth carrying forward:
+
+1. **The clip was a unit mismatch, not a missing widget.** A7 handed the
+   paragraph the last **640 characters** (`kTranscriptTail`), but the 276x174 px
+   pane can only draw **twelve rows**. A reply of short lines — `/help`,
+   `/status` — is far more rows than that inside 640 characters, so the
+   paragraph drew from the top and the *newest* text fell off the bottom. Any
+   fix has to count rows. A8 wraps the transcript into a row array itself
+   (`WrapRows`, word-aware at 38 characters) and shows one window of it.
+2. **Fix the line height and a row count becomes a pixel count.**
+   `viewLineSpacing: 14` on the transcript makes twelve rows exactly 168 px
+   inside the 174 px pane. Without it the row budget is a guess.
+3. **The native scroller protos buy nothing here, and the refs say so before
+   you build anything.** `SetOrigin` wants a `vClipping` parent and a child
+   taller than it, in pixels the paragraph will not report
+   (`refs/NewtonProgrammerRef20.txt:6010-6131`); `protoUpDownScroller` inherits
+   `protoHorizontal2DScroller`, whose arrows work only "provided you specify
+   `scrollRect`, `dataRect`, and `viewRect` correctly" (`:19301`,
+   `:19417-19428`); `protoTextList` scrolls itself but each item is one
+   non-wrapping line, so the row conversion is still yours (`:13934-14066`).
+   Once you have the row array the windowing is three lines, so two stock
+   `protoTextButton`s beat all of them.
+4. **The ROM's scroll arrows can never reach this app — measured, not
+   inferred.** They go to "the frontmost view that has [`vApplication`] set"
+   (`refs:3193-3199`, `vApplication` = 4). `ns_eval` on the live window:
+   `GetRoot().|HarnessClientA8:jbfly|.viewFlags` → **576** = `vFloating` +
+   `vClickable`, bit 4 clear. Tapping the arrows changed nothing on screen, so
+   the two `ViewScroll*Script` slots were deleted rather than shipped dead.
+   This is the explanation for the F4 round's note that "the Newton's global
+   scroll arrows do not scroll it". Adding `vApplication` to a `protoFloatNGo`
+   window is **untried** — it may be the zero-tap version of this feature.
+5. **The float window's close box is at screen `306,440`.** A tap there while
+   aiming at the button-bar scroll arrows closes the chat and loses the
+   transcript. The button bar's own arrows are lower, around `307,457`.
+
+Proof, in order: `/help` and `/status` render whole; the window sits at the live
+bottom with the older rows off the top (`a8scroll-02`), one **Up** brings them
+back (`a8scroll-03`). A 256-character prompt went out as `MSGP part 1/2` +
+`2/2`, reassembled host-side to 256B, and its long reply ended visibly at
+`dog 0123456789.` (`a8scroll-04`); **Up** revealed the whole prompt block that
+had run off the top (`a8scroll-05`) and **Dn** returned to the exact bottom
+(`a8scroll-06`). The live conversation measured 35 rows in a 12-row window —
+23 rows A7 could not have shown. The on-device assert now covers scrolling and
+reads, through `ns_eval` on `statusView.text`:
+
+```
+Cap test PASS: size=6120 rows=272 first=265 0123456789012345678901234567890123456789
+```
+
+`paged <> bottom` is a clause of that PASS, so the device itself proves paging
+changes what is visible. Regressions clean: short prompt (`a8scroll-08`), the
+`MSGP` long prompt above, New button (`a8scroll-09`). 78 tests.

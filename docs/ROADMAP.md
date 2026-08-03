@@ -7,10 +7,55 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track A8 done: the transcript scrolls.** Ships as `Chat A8`
+  (`HarnessClientA8:jbfly`, v2.4-a8, package version 16), fixing the blocker
+  finding from the hardware test below. **The root cause was a unit mismatch,
+  not a missing widget**: A7 handed the pane the last 640 *characters*, but the
+  pane can only draw twelve *rows*, so a short-line reply (`/help`, `/status`)
+  overflowed the bottom — including its newest text — with no way to reach it.
+  A8 wraps the whole transcript onto the row grid itself (`WrapRows`, word-aware
+  at `kRowChars := 38`), pins the paragraph to `viewLineSpacing: 14` so twelve
+  rows is a measured 168 px inside the 174 px pane, and shows one window of that
+  array. Two stock `protoTextButton`s, **Up** and **Dn**, page the window by ten
+  rows (a window less two rows of overlap); any new line snaps it back to the
+  live bottom. The `protoDivider` gives up its right half to hold them, so the
+  transcript loses no height.
+  **The native scroller protos were checked first and all bought nothing**:
+  `SetOrigin` needs a `vClipping` parent and a child taller than it, in pixels
+  the paragraph will not report (`refs/NewtonProgrammerRef20.txt:6010-6131`);
+  `protoUpDownScroller` inherits `protoHorizontal2DScroller`, whose arrows work
+  only "provided you specify `scrollRect`, `dataRect`, and `viewRect`
+  correctly" (`:19301`, `:19417-19428`); `protoTextList` does scroll itself, but
+  each item is one non-wrapping line, so the row conversion is still mine
+  (`:13934-14066`). Since every design needs the row array, the row array **is**
+  the fix and the windowing is three lines.
+  **New ROM finding, measured**: the Newton's own scroll arrows can never reach
+  this app. They go to "the frontmost view that has [`vApplication`] set"
+  (`refs:3193-3199`, `vApplication` = 4), and the live float window's
+  `viewFlags` read **576** = `vFloating` + `vClickable` through `ns_eval` —
+  bit 4 clear. Tapping the arrows changed nothing, so the two
+  `ViewScroll*Script` slots were deleted rather than shipped dead.
+  Proven on isolated instance `a8scroll` (seeded flash) with the **committed**
+  bytes (sha256 `123050ac…`) and `NEWTON_FAKE_BACKEND=1 server.py:6801`:
+  `/help` and `/status` render whole; a 256-character prompt split into
+  `MSGP part 1/2` + `2/2` and its long reply ended visibly at
+  `dog 0123456789.`; **Up** then revealed the prompt block that had run off the
+  top, and **Dn** returned to the exact bottom. The live conversation measured
+  35 rows in a 12-row window — 23 rows that A7 could not show. The on-device
+  assert grew a scroll clause and reads
+  `Cap test PASS: size=6120 rows=272 first=265 0123456789…` (read back through
+  `ns_eval` from `statusView.text`), which proves the 6 KiB cap *and* that the
+  visible text after a page up differs from the visible text at the bottom.
+  Regressions clean: short prompt, `MSGP` long prompt, New button.
+  78 tests (76 + 2). Screens `runtime/evidence/a8scroll-0*.png`.
+  **The physical MP2000 still runs A7** until the human installs A8 — nothing
+  about this fix reaches hardware before that install.
+
 - **2026-08-03 — first full-stack hardware test (MP2000, mars).** A7 + R10P
   installed over ZC40; chat, slash commands, agent tool calls, Ask/Save Note
   all worked on real hardware. Findings, triaged: (1) **transcript does not
-  scroll** — `/status` ran off the viewport; blocker, fix in flight (A8).
+  scroll** — `/status` ran off the viewport; blocker, **fixed 2026-08-04 in
+  Chat A8**, see the entry above.
   (2) **Agent refused a battery question until told to use tools** — the
   system prompt never mentioned they exist; fixed `2459a48`. (3) Cosmetic
   `Communications` slip during tool calls — the known two-NIE-client noise
@@ -63,7 +108,8 @@ agent can complete one task and verify it.
   `runtime/evidence/f4round-round.txt`, screens `runtime/evidence/f4round-*.png`.
   Still open: `/model` cannot list what codex would default to (it reports
   `codex default` rather than reading `config.toml`), and the A7 transcript
-  clips long replies with no scroll — a client-side matter for a future round.
+  clips long replies with no scroll — a client-side matter for a future round
+  (**done 2026-08-04 in Chat A8**; see the top of this log).
 
 - **2026-08-03 — publishing prep: the repo is ready to go public as "Egg
   Freckles".** Three things changed, none of them functional. (1) `README.md`
@@ -349,8 +395,8 @@ lower-level development (games, richer UIs) on the same rails.
 
 Hardware-proven and current:
 
-- **Chat**: `examples/harness-client` (`HarnessClientA7:jbfly`, "Chat A7"; the
-  physical MP2000 still runs A3) ↔ `server.py:6801`, framed ASCII protocol,
+- **Chat**: `examples/harness-client` (`HarnessClientA8:jbfly`, "Chat A8"; the
+  physical MP2000 runs A7) ↔ `server.py:6801`, framed ASCII protocol,
   codex backend via `codex exec` subprocess. One turn in flight; since Track F1
   a prompt over 227 characters goes as `MSGP` parts and the host reassembles up
   to 8 KiB. Since Track F2 it is the **harness panel**: `Ask Note` sends the

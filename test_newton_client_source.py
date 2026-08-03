@@ -19,14 +19,14 @@ def test_chat_transport_stays_non_blocking():
     assert "self.inkEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_a7_identity_and_mars_default_match():
-    assert "kAppSymbol := '|HarnessClientA7:jbfly|;" in SOURCE
-    assert 'kVersion := "2.4-a7";' in SOURCE
-    assert 'kAppTitle := "Newton Chat A7 " & kVersion;' in SOURCE
-    assert 'kAppLabel := "Chat A7";' in SOURCE
+def test_a8_identity_and_mars_default_match():
+    assert "kAppSymbol := '|HarnessClientA8:jbfly|;" in SOURCE
+    assert 'kVersion := "2.4-a8";' in SOURCE
+    assert 'kAppTitle := "Newton Chat A8 " & kVersion;' in SOURCE
+    assert 'kAppLabel := "Chat A8";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "HarnessClientA7:jbfly"' in PROJECT
-    assert "version: 15" in PROJECT
+    assert 'name: "HarnessClientA8:jbfly"' in PROJECT
+    assert "version: 16" in PROJECT
     assert "serverAddress: [10, 42, 0, 1]" in SOURCE
     assert "serverPort: 6801" in SOURCE
     assert "inkPort: 18081" in SOURCE
@@ -117,6 +117,45 @@ def test_the_second_control_row_carries_the_panel_buttons():
     ):
         assert f"viewBounds: {bounds}" in SOURCE
         assert f'text: "{text}",' in SOURCE
+
+
+def test_the_transcript_is_windowed_by_rendered_rows_not_characters():
+    # The defect the first hardware test found: A7 fed the pane the last 640
+    # *characters*, but the pane can only draw twelve *rows*, so a short-line
+    # reply (/help, /status) ran off the bottom and was unreachable. A8 wraps
+    # the transcript onto the row grid itself and shows one window of it.
+    assert "kRowChars := 38;" in SOURCE
+    assert "kVisibleRows := 12;" in SOURCE
+    assert "kScrollOverlap := 2;" in SOURCE
+    assert "WrapRows: func()" in SOURCE
+    assert "local text := :VisibleText();" in SOURCE
+    # Fixing the line height is what makes a row count a pixel count.
+    assert "viewLineSpacing: 14," in SOURCE
+    # The character window is gone, name and all.
+    assert "kTranscriptTail" not in SOURCE
+    assert "TranscriptTail: func()" not in SOURCE
+    assert "tailBytes" not in SOURCE
+    # A new line always snaps the window back to the live bottom.
+    assert "self.scrollRow := 0;" in SOURCE
+
+
+def test_the_scroll_buttons_page_the_transcript_window():
+    # The divider gives up its right half so the buttons cost no transcript
+    # height and no new view machinery.
+    assert "viewBounds: {left: 0, top: 214, right: 198, bottom: 232}" in SOURCE
+    for text, bounds in (
+        ("Up", "{left: 206, top: 210, right: 246, bottom: 232}"),
+        ("Dn", "{left: 250, top: 210, right: 290, bottom: 232}"),
+    ):
+        assert f"viewBounds: {bounds}" in SOURCE
+        assert f'text: "{text}",' in SOURCE
+    assert "ScrollUp: func() :ScrollBy(self.visibleRows - self.scrollOverlap)," in SOURCE
+    assert "ScrollDown: func() :ScrollBy(self.scrollOverlap - self.visibleRows)," in SOURCE
+    # The ROM's own scroll arrows reach only a view with vApplication set
+    # (refs/NewtonProgrammerRef20.txt:3193-3199); this float window measured
+    # viewFlags 576 through ns_eval, so wiring them would be dead code.
+    assert "ViewScrollUpScript: func()" not in SOURCE
+    assert "ViewScrollDownScript: func()" not in SOURCE
 
 
 def test_host_errors_remain_visible_in_transcript():

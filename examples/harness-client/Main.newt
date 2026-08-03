@@ -1,13 +1,22 @@
-kAppSymbol := '|HarnessClientA7:jbfly|;
-kVersion := "2.4-a7";
-kAppTitle := "Newton Chat A7 " & kVersion;
-kAppLabel := "Chat A7";
+kAppSymbol := '|HarnessClientA8:jbfly|;
+kVersion := "2.4-a8";
+kAppTitle := "Newton Chat A8 " & kVersion;
+kAppLabel := "Chat A8";
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
 kTranscriptCap := 6144;
-// ponytail: the paragraph view shows the tail of that string; no scroller.
-kTranscriptTail := 640;
+// The pane clips by rendered *rows*, not by characters. A7 showed the last 640
+// characters, which for a short-line reply (/help, /status) is three times what
+// the pane can draw, so the end ran off the bottom unreachably — the defect the
+// first hardware test found. A8 wraps the transcript onto this row grid itself
+// and shows one window of it, so what is on screen is exactly what fits.
+// 38 characters is ~266 px of ROM_fontSystem10 at its widest, inside the 276 px
+// pane; 12 rows at viewLineSpacing 14 is 168 px, inside the 174 px pane.
+kRowChars := 38;
+kVisibleRows := 12;
+// One tap moves a window less two rows, so the eye can join the pages.
+kScrollOverlap := 2;
 
 // A frame is ":" & body & "*HH" & CRLF, so 240 bytes leaves 234 for the body.
 // A plain MSG body is "SS MSG " & text: 234 - 7 = 227 characters of prompt fit.
@@ -34,7 +43,12 @@ mainView := {
     // so the caps live in slots. Slot names must not collide with a method
     // name: NewtonScript symbols are case-insensitive.
     capBytes: kTranscriptCap,
-    tailBytes: kTranscriptTail,
+    rowChars: kRowChars,
+    visibleRows: kVisibleRows,
+    scrollOverlap: kScrollOverlap,
+    // How many rows above the newest the visible window starts. 0 is the live
+    // bottom, and every new line puts it back there.
+    scrollRow: 0,
     frameBytes: kFrameBytes,
     partBytes: kPartBytes,
     maxPrompt: kMaxPrompt,
@@ -95,6 +109,13 @@ mainView := {
         // ponytail: the child list is not reachable until the view is fully open.
         AddDelayedCall(func(view) view:Boot(), [self], 800);
     end,
+
+    // There are deliberately no ViewScrollUpScript / ViewScrollDownScript
+    // slots. The ROM's own scroll arrows go to "the frontmost view that has
+    // [vApplication] set" (refs/NewtonProgrammerRef20.txt:3193-3199), and this
+    // window does not: its live viewFlags measured 576 = vFloating + vClickable
+    // through ns_eval, with bit 4 clear. Tapping the arrows did nothing. That
+    // is why the transcript carries its own Up/Dn buttons.
 
     ViewQuitScript: func()
     begin
@@ -176,25 +197,85 @@ mainView := {
                 self.transcript := SubStr(self.transcript, cut + 1,
                     StrLen(self.transcript) - cut - 1);
         end;
+        // New text always returns the window to the live bottom.
+        self.scrollRow := 0;
         return nil;
     end,
 
-    TranscriptTail: func()
+    // The whole transcript as an array of rows that each fit the pane's width,
+    // so the paragraph never wraps a row itself and a row count is a pixel
+    // count. Words stay whole unless a word is longer than most of a row.
+    WrapRows: func()
     begin
+        local rows := [];
         local size := StrLen(self.transcript);
-        if size <= self.tailBytes then return self.transcript;
-        local start := size - self.tailBytes;
-        local cut := :FindBreak(self.transcript, start);
-        if (cut <> nil) and (cut + 1 < size) then start := cut + 1;
-        return SubStr(self.transcript, start, size - start);
+        local index := 0;
+        while index < size do
+        begin
+            local stop := :FindBreak(self.transcript, index);
+            if stop = nil then stop := size;
+            if stop = index then AddArraySlot(rows, "");
+            local at := index;
+            while at < stop do
+            begin
+                local take := stop - at;
+                if take > self.rowChars then
+                begin
+                    take := self.rowChars;
+                    local scan := take;
+                    while (scan > 12) and (Ord(self.transcript[at + scan - 1]) <> 32) do
+                        scan := scan - 1;
+                    if scan > 12 then take := scan;
+                end;
+                AddArraySlot(rows, SubStr(self.transcript, at, take));
+                at := at + take;
+            end;
+            index := stop + 1;
+        end;
+        return rows;
     end,
+
+    // One window of those rows, ending scrollRow rows above the newest.
+    VisibleText: func()
+    begin
+        local rows := :WrapRows();
+        local total := Length(rows);
+        local first := total - self.visibleRows - self.scrollRow;
+        if first < 0 then first := 0;
+        local last := first + self.visibleRows;
+        if last > total then last := total;
+        local text := "";
+        for index := first to last - 1 do
+        begin
+            if index > first then text := text & self.newline;
+            text := text & rows[index];
+        end;
+        return text;
+    end,
+
+    // Move the window and redraw. Clamped at both ends, so a tap at the top or
+    // the bottom of the conversation is a no-op rather than a lost position.
+    ScrollBy: func(count)
+    begin
+        local limit := Length(:WrapRows()) - self.visibleRows;
+        if limit < 0 then limit := 0;
+        local target := self.scrollRow + count;
+        if target > limit then target := limit;
+        if target < 0 then target := 0;
+        self.scrollRow := target;
+        return :ShowTranscript();
+    end,
+
+    ScrollUp: func() :ScrollBy(self.visibleRows - self.scrollOverlap),
+
+    ScrollDown: func() :ScrollBy(self.scrollOverlap - self.visibleRows),
 
     ShowTranscript: func()
     begin
         if self.transcriptView = nil then :Wire();
         if self.transcriptView then
         begin
-            local text := :TranscriptTail();
+            local text := :VisibleText();
             // ponytail: a live paragraph rejects an empty string, so an empty
             // conversation shows the hint instead.
             if StrLen(text) = 0 then text := "Type a prompt below, then tap Send.";
@@ -203,7 +284,10 @@ mainView := {
         return nil;
     end,
 
-    // ponytail: on-device proof of the 6 KiB cap; the status line is the assert.
+    // ponytail: on-device proof of the 6 KiB cap and of the row window; the
+    // status line is the assert. Scrolling is proven the only way that means
+    // anything — the visible text after a page up is not the visible text at
+    // the bottom.
     SelfTest: func()
     begin
         local saved := self.transcript;
@@ -213,13 +297,20 @@ mainView := {
         local size := StrLen(self.transcript);
         local firstBreak := :FindBreak(self.transcript, 0);
         local first := SubStr(self.transcript, 0, firstBreak);
+        local rows := Length(:WrapRows());
+        local bottom := :VisibleText();
+        :ScrollUp();
+        local paged := :VisibleText();
         local ok := (size <= self.capBytes) and (size > 5000)
             and (StrPos(self.transcript, "400 " & filler, 0) <> nil)
-            and (StrPos(first, filler, 0) <> nil);
+            and (StrPos(first, filler, 0) <> nil)
+            and (rows > self.visibleRows) and (self.scrollRow > 0)
+            and (paged <> bottom);
+        self.scrollRow := 0;
         self.transcript := saved;
         :ShowTranscript();
         :SetStatus("Cap test " & (if ok then "PASS" else "FAIL")
-            & ": size=" & size & " first=" & first);
+            & ": size=" & size & " rows=" & rows & " first=" & first);
         return nil;
     end,
 
@@ -547,6 +638,7 @@ mainView := {
     NewChat: func()
     begin
         self.transcript := "";
+        self.scrollRow := 0;
         :ShowTranscript();
         local field := :PromptField();
         if field then
@@ -972,15 +1064,33 @@ mainView := {
             // ponytail: protoStaticText defaults to vjLeftH + oneLineOnly, which
             // draws the whole transcript on one clipped line. Drop oneLineOnly.
             viewJustify: vjLeftH,
+            // Fixing the line height is what makes the row window exact: 174 px
+            // of pane divided by 14 is the twelve rows kVisibleRows promises.
+            viewLineSpacing: 14,
             // ponytail: a live paragraph rejects an empty string, so it never
             // starts empty; this doubles as the empty-conversation hint.
             text: "Type a prompt below, then tap Send.",
         },
         {
             _proto: protoDivider,
-            viewBounds: {left: 0, top: 214, right: 304, bottom: 232},
+            viewBounds: {left: 0, top: 214, right: 198, bottom: 232},
             viewFont: ROM_fontSystem10Bold,
             title: "Prompt",
+        },
+        // The scroll control. Two stock buttons on the divider row cost no
+        // transcript height and no new view machinery; see the header comment
+        // on kRowChars for why the native scroller protos buy nothing here.
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 206, top: 210, right: 246, bottom: 232},
+            text: "Up",
+            buttonClickScript: func() self:Parent():ScrollUp(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 250, top: 210, right: 290, bottom: 232},
+            text: "Dn",
+            buttonClickScript: func() self:Parent():ScrollDown(),
         },
         {
             _proto: protoInputLine,

@@ -5,7 +5,7 @@
             files: [],
         }
     ],
-    name: "HarnessClientA7:jbfly",
-    version: 15,
+    name: "HarnessClientA8:jbfly",
+    version: 16,
     platform: "Newton 2.1"
 }

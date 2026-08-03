@@ -839,3 +839,34 @@ Related, and the reason this took a rebuild to find rather than an `ns_eval`
 probe: the probe that would have caught it needs the *literal* `"Notes"` soup
 name, since `ROM_paperRollSoupName` is an NTK compile-time symbol that `ns_eval`
 cannot see (fifteenth finding).
+
+## Eighteenth finding: a `protoFloatNGo` app never receives the scroll arrows (Track A8)
+
+The Newton's own scroll arrows — the button-bar pair a user reaches without
+typing — cannot be used by the chat client, and one `ns_eval` line proves it
+rather than inferring it.
+
+`ViewScrollUpScript` / `ViewScrollDownScript` are only ever sent to a view with
+`vApplication` set: "when the user taps the scroll arrows, the system searches
+all views to find the frontmost view that has this bit set, and then sends the
+scroll event to that view" (`refs/NewtonProgrammerRef20.txt:3193-3199`, where
+Table 2-2 also gives `vApplication` = **4**). The requirement is repeated in the
+method descriptions themselves (`:7338`, `:7373`).
+
+Measured on the live Chat A8 window:
+
+```
+runtime/ns_eval.py --instance a8scroll 'GetRoot().|HarnessClientA8:jbfly|.viewFlags'
+-> 576
+```
+
+576 = 512 + 64 = `vClickable` + `vFloating`. Bit 4 is clear, so this window is
+not an application view, and tapping the arrows on screen changed nothing.
+`protoFloatNGo` is the proto every app in this repo uses, so the rule
+generalises: **a floating harness app has to supply its own scroll control.**
+Chat A8 does, with two `protoTextButton`s that page a row window.
+
+What is **not** established: whether adding `vApplication` to the float
+window's `viewFlags` would make the arrows work without breaking `Show`/`Hide`,
+the close box, or `'viewFrontMostApp` resolution. That was not tried, and it is
+the obvious next experiment for anyone who wants zero-tap scrolling.

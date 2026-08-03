@@ -98,12 +98,13 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 76 pass (45 + 15 client-source tests that pin the `MSGP` split, the
-note path and the ink encoder + 16 for the Track F4 slash commands and session
-registry, 2026-08-03). `pytest` is not in the system python, so use `uv`:
+**Tests** — 78 pass (45 + 17 client-source tests that pin the `MSGP` split, the
+note path, the ink encoder and the Track A8 transcript row window + 16 for the
+Track F4 slash commands and session registry, 2026-08-04). `pytest` is not in
+the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 76 passed
+uv run --with pytest pytest -q          # 78 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -188,8 +189,8 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-Since 2026-08-03 the *source* client is `HarnessClientA7:jbfly` ("Chat A7",
-v2.4-a7), and it is the **harness panel**, not just a chat window:
+Since 2026-08-04 the *source* client is `HarnessClientA8:jbfly` ("Chat A8",
+v2.4-a8), and it is the **harness panel**, not just a chat window:
 
 - it splits a prompt over 227 characters into `MSGP` frames that the host
   reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension: `MSGP`");
@@ -197,10 +198,16 @@ v2.4-a7), and it is the **harness panel**, not just a chat window:
   writes a reply back as a native note (Track F2 — this replaced
   `examples/note-export`, which is deleted);
 - `Ink` opens a capture canvas over the chat whose reading joins the transcript
-  (Track F2 — this replaced `examples/ink-capture`, also deleted).
+  (Track F2 — this replaced `examples/ink-capture`, also deleted);
+- **the transcript scrolls** (Track A8): it is wrapped onto a 12-row grid and
+  the **Up**/**Dn** buttons page that window over the whole 6 KiB ring. A7 fed
+  the pane 640 characters, which is far more rows than it can draw, so long
+  replies ran off the bottom unreachably — the blocker the first hardware test
+  found.
 
-Everything after A3 is emulator-proven only — **the physical MP2000 still runs
-A3**, so hardware docs and inventories that say A3 are correct.
+Everything after A7 is emulator-proven only — **the physical MP2000 runs A7**
+(A3 before the 2026-08-03 hardware session), so hardware docs and inventories
+that say A7 are correct.
 
 Human gates and preserved recovery state:
 

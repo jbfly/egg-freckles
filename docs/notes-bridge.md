@@ -10,7 +10,7 @@ and posting one bounded JSON document over the proven NIE/HTTP path worked.
 
 **Current state (Track F2, 2026-08-03): the bridge is the chat client.**
 `examples/note-export` is deleted; `examples/harness-client`
-(`HarnessClientA7:jbfly`) carries the read and create paths as `Ask Note` and
+(`HarnessClientA8:jbfly`) carries the read and create paths as `Ask Note` and
 `Save Note`, and the note travels the **ordinary chat transport** — one `MSG`
 frame under 227 characters, `MSGP` parts above it — instead of `POST /note`.
 That is what retires the `No answer: LENGTH` failure described under "Honest
