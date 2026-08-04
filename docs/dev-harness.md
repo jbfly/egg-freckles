@@ -218,7 +218,10 @@ make newton-packages
 The install candidates and checksums are written to `runtime/staging/`. The
 target pins tntk's embedded package timestamp so repeated builds from unchanged
 source are byte-identical. See `docs/newton-client-notes.md` for toolchain
-overrides, package-format details, and the update flow.
+overrides, package-format details, and the update flow, and
+`docs/host-setup.md` if `~/newton-dev` (cDCL + `tntk` + the NTK platform
+files) does not exist yet on this host — a from-zero recipe, verified to
+reproduce byte-identical `.pkg` output on a second host.
 
 The original smoke-test package remains available through `make toolchain-hello`;
 it writes `examples/hello/hello.pkg`.

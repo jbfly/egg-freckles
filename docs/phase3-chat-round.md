@@ -182,6 +182,16 @@ repo's working tree, alongside a pre-existing unrelated `tntk.cpp` modification
 and an untracked `build-cxx17/`, both preserved. Without this patch every
 stable package rebuild silently regresses to package version 1.
 
+The "pre-existing unrelated `tntk.cpp` modification" mentioned above was
+identified 2026-08-04 (Track L3): it is one `#include <cstring>`, needed
+because recent GCC (16.x) no longer transitively declares `memset` through
+`tntk.cpp`'s existing includes, so `tntk.cpp:195`'s `memset(command, 0,
+FILENAME_MAX)` fails to compile without it. It is now vendored too, as
+**`tools/tntk-gcc16-cstring.patch`**, and reproducing it from a clean `tntk`
+clone on a second host confirmed the exact predicted compile error when the
+patch is omitted. See `docs/host-setup.md` for the full from-zero recipe,
+which applies both patches in sequence.
+
 ## What does not work / out of scope
 
 - **Out of scope by instruction, not attempted:** ink, Notes soup, file

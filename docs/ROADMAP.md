@@ -7,6 +7,50 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track L3 done: mars builds Newton packages, and there is a
+  public from-zero host-setup guide.** `docs/host-setup.md` is the new
+  doc — clone cDCL and `tntk`, apply `tools/tntk-project-version.patch` plus
+  a **second, previously undocumented** patch this round found and vendored,
+  `tools/tntk-gcc16-cstring.patch` (`tntk.cpp` needs `#include <cstring>`;
+  recent GCC no longer pulls `memset`'s declaration in transitively, and
+  `tntk.cpp:195` fails with `'memset' was not declared in this scope`
+  without it — alpha's live `~/newton-dev/tntk` checkout already carried this
+  fix, uncommitted and unexplained anywhere, since the original 2026-07-23
+  bring-up; it is now evidence-backed and reproducible instead of tribal
+  knowledge). Fetch the NTK platform file directly from UNNA
+  (`http://www.unna.org/unna/apple/development/NTK/platformfiles/21PTF.ZIP`,
+  the same URL `tntk`'s own upstream README points at) rather than copying it
+  host-to-host — confirmed byte-identical (sha256
+  `6b68a58a354e59e0454797895dae8969da97d1ff56c8515f23b18d6d4c5e4be0` for the
+  renamed `Newton 2.1` file) to the copy alpha has had since first bring-up,
+  so the URL is a stable, real source, not a private mirror. NEWT/0 is
+  **not** a build-time dependency of the example Makefiles — only `tntk` is
+  invoked — and turns out not to be a manual dependency of `tntk` either:
+  current `tntk` (`f9f3f5d`) fetches its own private copy of NEWT/0's parser
+  via CMake `FetchContent`. A standalone NEWT/0 build is optional and was
+  done anyway for parity with alpha's environment (cheap: clean build, no
+  patches needed).
+  **Reproduced on mars, verified stronger than the size-only gate the track
+  asked for**: mars had zero prior `~/newton-dev` and needed zero `sudo`
+  package installs — `gcc` 16.1.1, `cmake`, `ninja`, `git`, `curl`, `unzip`,
+  `flex`, `bison` were all already present. cDCL (`46aef57`) and `tntk`
+  (`f9f3f5d`, both patches applied) were cloned and built with the exact cmake
+  invocations now in `docs/host-setup.md`; `tntk` came out 309,584 bytes and
+  `libDCL.so` 752,976 bytes, identical to alpha's binaries. Omitting the new
+  patch reproduced the predicted compile error verbatim, confirming it is
+  load-bearing and not a leftover from something unrelated. `make -C
+  examples/hello` built a 1,104-byte `hello.pkg`. `make newton-packages` then
+  produced `harness-loader.pkg` and `harness-client.pkg` whose SHA256 matched
+  a fresh `make newton-packages` run on alpha **exactly** — not just matching
+  size (the documented gate, since `tntk` stamps a build timestamp byte that
+  a naive compare would defeat), but byte-for-byte identical after the
+  existing `NEWTON_SOURCE_DATE_EPOCH` normalization, on independently built
+  toolchains on two different hosts. No system package installs were needed
+  on mars, so there is nothing pending for the human on this track.
+  `docs/START-HERE.md` and `docs/dev-harness.md` now point to
+  `docs/host-setup.md`. 85 tests pass (docs-only change; no test-count
+  effect), `uv run --with pytest pytest -q` run from alpha before commit.
+
 - **2026-08-04 — second hardware test feedback (MP2000, mars) → Track L.**
   The human's verdict after real use, verbatim in spirit: (1) **two packages
   is annoying** — Harness Tools should load with Chat, one install; (2)
@@ -958,11 +1002,12 @@ Direct answers to the second hardware test (status log entry above).
   existence proof). Reply as a new note, ideally filed into an "AI" folder,
   or a small `protoFloatNGo` popup. This eventually supersedes the Ask
   button; the chat app remains as the conversation surface.
-- **L3. Mars self-sufficiency.** Build the Newton toolchain (cDCL + patched
-  tntk, NEWT/0 if cheap) on mars per the alpha recipe, prove
-  `make toolchain-hello`, and document the from-scratch host setup — this
-  doubles as the "how anyone sets this up" guide the public repo needs.
-  Emulator-on-mars deferred until wanted.
+- **L3. Mars self-sufficiency — DONE 2026-08-04.** Built cDCL, patched
+  `tntk`, and NEWT/0 on mars, all user-space under `~/newton-dev`, zero
+  `sudo` (mars already had every prerequisite package: `gcc` 16.1.1, `cmake`,
+  `ninja`, `flex`, `bison`). `docs/host-setup.md` is the from-scratch
+  recipe; see the status log entry below for the proof. Emulator-on-mars
+  stays deferred, unchanged.
 
 ## Sequencing
 

@@ -44,6 +44,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/hardware-bench-runbook.md` | You are about to touch the real MessagePad. |
 | `docs/einstein-automation.md` | You need Einstein internals, serial ports, or the control socket. |
 | `docs/newton-client-notes.md` | Package build/toolchain overrides. |
+| `docs/host-setup.md` | You are setting up the package toolchain (cDCL + `tntk` + platform files) on a **new host** from nothing. The from-zero recipe; verified reproducible byte-for-byte across two hosts 2026-08-04. |
 | `docs/agent-tools.md` | You touch `newton_mcp.py` — the MCP server that gives the chat agent tools (ROADMAP Track D). Also the place the container→host networking limits are measured. |
 | `docs/agent-dev-loop.md` | You are building a **new** Newton app. Ten numbered steps from `cp -r examples/hello` to teardown, with the identity rule and the UI footguns. An agent ran it end to end on 2026-08-03 (ROADMAP Track G, "Proven 2026-08-03"). |
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
@@ -124,7 +125,11 @@ make newton-packages                    # writes runtime/staging/*.pkg + SHA256S
 
 `tntk` needs the patch vendored at `tools/tntk-project-version.patch`; without
 it every rebuild silently regresses to package version 1
-(`docs/phase3-chat-round.md`, "Risk").
+(`docs/phase3-chat-round.md`, "Risk"). Setting up `~/newton-dev` on a host
+that does not have it yet (cDCL, `tntk` with its two vendored patches, the
+NTK platform files) is `docs/host-setup.md`, the from-zero recipe — verified
+reproducible: a second host built from that page alone produced
+byte-identical `.pkg` output to this one.
 
 **Emulator** — it is normally already running and shared. Check before
 starting anything:
