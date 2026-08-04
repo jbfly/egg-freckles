@@ -1,6 +1,12 @@
-kAppSymbol := '|-HarnessLoaderZC40:jbfly|;
-kVersion := "2.4";
-kAppTitle := "ZC40 Loader " & kVersion;
+// Identity convention: "-Loader<n>:jbfly", n incrementing forever, never reused
+// (docs/phase3-chat-round.md "Package identity"). The leading "-" is deliberate:
+// it sorts the loader first in Extras, which is where you want it when you are
+// recovering a device. The old "-HarnessLoaderZC<n>" dev names are retired --
+// ZC39/ZC40 stay installed on hardware until this one is hardware-proven.
+kAppSymbol := '|-Loader1:jbfly|;
+kVersion := "1.0";
+kAppLabel := "Loader";
+kAppTitle := kAppLabel & " " & kVersion;
 
 mainView := {
     _proto: protoFloatNGo,
@@ -8,6 +14,9 @@ mainView := {
     viewBounds: {left: 16, top: 72, right: -16, bottom: -72},
     title: kAppTitle,
     appSymbol: kAppSymbol,
+    // protoKeyboardButton needs this and finds it by inheritance, not in the
+    // button frame: refs/NewtonProgrammerRef20.txt:24477-24480.
+    defaultKeyboard: 'alphaKeyboard,
     endpointClass: {
         _proto: protoBasicEndpoint,
         ExceptionHandler: func(error)
@@ -35,6 +44,23 @@ mainView := {
     attempt: 0,
     stopping: nil,
     installQueued: nil,
+
+    // The on-screen keyboard types into the current *key receiver*, and there is
+    // only ever one ("Using Keyboards", refs/NewtonProgrammerGuide20.txt:20308-20312).
+    // Point it at the filename line so tapping the keyboard button and typing
+    // lands in the field. SetKeyView is documented for exactly this and is
+    // "only guaranteed to work with a clParagraphView"
+    // (refs/NewtonProgrammerRef20.txt:24698-24724) -- protoInputLine is one
+    // ("a simple paragraph view", :23269-23270).
+    FocusField: func()
+    begin
+        local field := self.filenameView;
+        if field = nil then return nil;
+        local caret := 0;
+        if IsString(field.text) then caret := StrLen(field.text);
+        SetKeyView(field, caret);
+        return nil;
+    end,
 
     SetStatus: func(message)
     begin
@@ -335,9 +361,19 @@ mainView := {
         {
             _proto: protoStaticText,
             viewJustify: vjParentFullH + vjParentTopV,
-            viewBounds: {left: 12, top: 14, right: -12, bottom: 82},
-            text: kAppTitle & "\nFile:",
+            viewBounds: {left: 12, top: 8, right: -12, bottom: 30},
+            text: kAppTitle,
             viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            // Two static texts, not one with "\n": a NewtonOS paragraph breaks on
+            // CR, so an embedded LF draws as an empty-box glyph. ZC40 had the same
+            // box and nobody noticed; this header is being rebuilt anyway.
+            _proto: protoStaticText,
+            viewJustify: vjParentFullH + vjParentTopV,
+            viewBounds: {left: 12, top: 32, right: -12, bottom: 52},
+            text: "Package file:",
+            viewFont: ROM_fontSystem10,
         },
         {
             _proto: protoInputLine,
@@ -348,24 +384,57 @@ mainView := {
                 self:Parent().filenameView := self;
             end,
             viewJustify: vjParentFullH + vjParentTopV,
-            viewBounds: {left: 20, top: 90, right: -20, bottom: 116},
+            // Full window width bar the keyboard button, and 42px tall instead of
+            // 26 -- the fifth hardware test said the old line was too small to
+            // write in. viewLineSpacing IS the height of the input line in pixels
+            // (refs/NewtonProgrammerRef20.txt:23311-23314), so it is the slot that
+            // buys writing room; viewFont only sets the recognised text
+            // (:23301-23303). 14 rather than 18 so a ~24-character .pkg name still
+            // fits on the one line this proto allows.
+            viewBounds: {left: 12, top: 56, right: -58, bottom: 98},
+            viewLineSpacing: 38,
             // ponytail: prefill the usual target; a 1997 stylus should not retype this each round.
             text: "install.pkg",
-            viewFont: ROM_fontSystem10,
+            viewFont: ROM_fontSystem14,
+        },
+        {
+            // The stock keyboard affordance: "the same keyboard button shown on
+            // the status bar in the notepad. Tapping the button causes the
+            // on-screen keyboard to appear" (refs/NewtonProgrammerGuide20.txt:20405-20407).
+            // Do NOT give it a ViewClickScript/ButtonClickScript/PickActionScript
+            // -- those are used internally by protoPictureButton
+            // (refs/NewtonProgrammerRef20.txt:24481-24486).
+            _proto: protoKeyboardButton,
+            // vjParentRightH pins the button to the window's right edge (bounds
+            // relative to the parent's right side, refs/NewtonProgrammerRef20.txt:3417-3422);
+            // vjCenterH + vjCenterV is the proto's own default for the picture
+            // inside those bounds (:24474-24475) and is restated because setting
+            // viewJustify replaces the whole default.
+            viewJustify: vjCenterH + vjCenterV + vjParentRightH + vjParentTopV,
+            viewBounds: {left: -46, top: 60, right: -10, bottom: 94},
         },
         {
             _proto: protoTextButton,
             viewJustify: vjParentFullH + vjParentFullV,
-            viewBounds: {left: 20, top: 126, right: -20, bottom: -12},
+            viewBounds: {left: 20, top: 110, right: -20, bottom: -12},
             text: "Install",
             viewFont: ROM_fontSystem12Bold,
             buttonClickScript: func() self:Parent():Install(self),
         },
     ],
+
+    // Deferred, not inline: the caret has to land on a view that is already up.
+    ViewSetupDoneScript: func()
+    begin
+        inherited:?ViewSetupDoneScript();
+        AddDeferredCall(func(view) view:FocusField(), [self]);
+    end,
 };
 
 {
     app: kAppSymbol,
-    text: kAppTitle,
+    // Extras shows this, and it is all it shows: plain "Loader", no version, no
+    // dev serial. The window keeps kAppTitle so a screenshot still says which build.
+    text: kAppLabel,
     theForm: mainView,
 }

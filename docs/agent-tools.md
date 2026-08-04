@@ -61,7 +61,7 @@ enforced in `newton_mcp.py` and covered by tests:
    (`docs/notes-bridge.md:16`).
 3. **There is no physical-install tool at all.** The tool surface has no path
    that puts a package on the MessagePad. `stage_hw` stages and stops; a human
-   opens the ZC40 Loader, types the filename, taps Install
+   opens the Loader, enters the filename, taps Install
    (`docs/install-paths.md` row 2). `build_pkg`/`stage_hw` also refuse any
    `dir` that does not resolve under `examples/`.
 

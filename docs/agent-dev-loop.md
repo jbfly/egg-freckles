@@ -139,7 +139,7 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
 onto the MessagePad, by design (`docs/agent-tools.md`, rail 3). The most an
 agent may do is `stage_hw {"pkg_dir": "examples/<name>"}`, which builds, copies
 into `runtime/staging/hardware/`, refreshes `SHA256SUMS` and prints the short
-filename. A human then opens the ZC40 Loader, types that filename and taps
+filename. A human then opens the Loader, enters that filename and taps
 Install (`docs/install-paths.md` row 2). Check free space first with
 `newton_tool {"op": "store_info"}`.
 

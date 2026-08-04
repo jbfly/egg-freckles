@@ -15,7 +15,7 @@ The safety rails live in this code, not in a prompt (Track D2):
     back the command for the human instead;
   * there is no physical-device install tool here at all. `stage_hw` stages a
     package into `runtime/staging/hardware/`; a human types the filename into
-    the ZC40 loader and taps Install (`docs/install-paths.md` row 2).
+    the Loader and taps Install (`docs/install-paths.md` row 2).
 
 Environment:
   NEWTON_TOOLS_URL     base URL of the pkg_publisher tools broker
@@ -290,7 +290,7 @@ def tool_stage_hw(arguments: dict) -> dict:
     summary = staged[-1] if staged else tail(output, 400)
     return text_result(
         summary + "\n\nStaged only. Nothing was installed: a human opens the "
-        "ZC40 Loader on the Newton, types that filename, and taps Install "
+        "Loader on the Newton, enters that filename, and taps Install "
         "(docs/install-paths.md row 2).")
 
 
@@ -432,7 +432,7 @@ TOOLS: list[dict] = [
             "(`make stage-hw PKG=<dir>`): copies into "
             "runtime/staging/hardware/ and refreshes SHA256SUMS. This does NOT "
             "install anything. It returns the short filename a human then "
-            "types into the ZC40 Loader on the device before tapping Install."),
+            "enters into the Loader on the device before tapping Install."),
         "inputSchema": {
             "type": "object",
             "properties": {

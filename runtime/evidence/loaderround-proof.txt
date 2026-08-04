@@ -1,0 +1,105 @@
+Loader round — rename + big input line + on-screen keyboard
+Instance: loaderround (own Einstein, seeded from
+  ~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash
+  per docs/parallel-emulators.md "Seed an instance from a saved flash")
+Date: 2026-08-04
+Package: examples/harness-loader/harness-loader.pkg, 15624 bytes
+  sha256 93d70d1fda7fae139e0c8a470079f97d8a55070ca32799e5a6b7f6caf29da890
+  (that sha is after the reproducible-build header stamp Makefile applies
+   post-build; the tested binary differed only in those 4 header bytes)
+Identity: -Loader1:jbfly   Extras label: "Loader"   Window title: "Loader 1.0"
+
+--------------------------------------------------------------------------
+1. Installed and launched
+--------------------------------------------------------------------------
+$ NEWTON_CONTROL_URL=http://127.0.0.1:37149 scripts/install-and-launch.sh \
+      /packages/harness-loader/harness-loader.pkg '-Loader1:jbfly'
+queued
+queued
+
+Screenshot: loaderround-window.png
+  Window header reads "Loader 1.0" / "Package file:"; the input line spans the
+  window width with the stock keyboard button at its right; the caret sits at
+  the end of the prefilled "install.pkg" (that caret is SetKeyView working).
+
+--------------------------------------------------------------------------
+2. Keyboard button opens the ROM alphaKeyboard
+--------------------------------------------------------------------------
+$ python3 -m emulator.client tap 276 147      # the keyboard button
+Screenshot: loaderround-keyboard.png
+  The full built-in alphanumeric keyboard floats over the loader window.
+
+--------------------------------------------------------------------------
+3. The keys land in OUR input line
+--------------------------------------------------------------------------
+Host key injection does NOT reach Einstein — `emulator.client key BackSpace`
+and `emulator.client text "Z"` both left the field byte-identical. So the
+keyboard was driven the way the human will: by tapping its keys.
+
+Tapped the keyboard's "del" key 11 times (285,308):
+$ runtime/ns_eval.py --container newton-harness-loaderround_emulator_1 \
+    'begin local v := GetRoot().|-Loader1:jbfly|.filenameView; "text=[" & v.text & "]" end'
+"text=[]"
+
+Then tapped h e l l o . p k g on the on-screen keyboard:
+$ runtime/ns_eval.py --container newton-harness-loaderround_emulator_1 \
+    'begin local v := GetRoot().|-Loader1:jbfly|.filenameView; "text=[" & v.text & "]" end'
+"text=[hello.pkg]"
+
+Screenshot: loaderround-typed.png (field reads "hello.pkg", keyboard up)
+
+That is the whole feature proven: tapping the ROM keyboard's keys edits the
+loader's filename field, with no ink written at all.
+
+--------------------------------------------------------------------------
+4. Real fetch + install of the typed name
+--------------------------------------------------------------------------
+18081 was completely free (curl exit 7, nothing in `ss -ltn`), so this round
+started its own `python3 runtime/raw_pkg_server.py` (PID 3928731) and killed
+only that. examples/hello was built and staged as
+runtime/staging/hardware/hello.pkg (1104 bytes), then removed again.
+
+$ curl -s http://10.42.0.1:18081/status
+Harness server v1.1 OK
+
+Tapped Install. Server log — the HTTP/1.0 line is the Newton
+(the HTTP/1.1 line above it is the host curl check):
+
+  10.42.0.1 - - [04/Aug/2026 21:07:14] "GET /status HTTP/1.1" 200 -
+  10.42.0.1 - - [04/Aug/2026 21:07:14] "GET /hello.pkg HTTP/1.1" 200 -
+  10.42.0.1 - - [04/Aug/2026 21:07:26] "GET /hello.pkg HTTP/1.0" 200 -
+
+Two-argument GetPkgRef, which is the only form that does not fail silently
+(docs/phase3-chat-round.md "Package identity"):
+
+$ runtime/ns_eval.py --container newton-harness-loaderround_emulator_1 \
+    'begin local p := GetPkgRef("HarnessHello:jbfly", GetDefaultStore());
+     if p then "INSTALLED " & GetPkgRefInfo(p).title else "absent" end'
+"INSTALLED HarnessHello:jbfly"
+
+Screenshot: loaderround-extras.png — Extras shows the new package as plain
+"Loader", and "Harness Hello" next to it is the package the loader just
+fetched over the wire.
+
+--------------------------------------------------------------------------
+5. Two things observed, neither introduced by this round
+--------------------------------------------------------------------------
+a) `SuckPackageFromBinary`'s progress callback never fires for a package
+   smaller than its `callbackFrequency: 8192`, so `installedIdentity` stays
+   nil and the status reads "Install not confirmed" even though the install
+   SUCCEEDED — proven above by GetPkgRef. Only bites packages under 8 KiB;
+   every real payload (egg-freckles.pkg is 19 KB) is larger. Left alone
+   deliberately: this round was not to touch the install machinery.
+
+b) A NewtonOS paragraph breaks on CR, not LF, so an embedded "\n" draws as an
+   empty-box glyph. Visible in the status text in loaderround-installed.png
+   ("X[]n=evt.ex.comm[]e=-16009..."). The window header used to have the same
+   box between the title and "File:"; that one is fixed here by using two
+   protoStaticText children instead of one string with "\n". The status
+   strings belong to the install machinery and were left alone.
+
+c) Extras' "All Icons" view sorts by the displayed label, not by package
+   identity: "Loader" appears under L, between "Internet Setup" and
+   "Minico:Scrawl". The leading "-" in the identity is kept as the
+   established convention, but this screenshot is evidence it does not by
+   itself float the icon to the top of that view.

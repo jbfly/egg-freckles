@@ -248,7 +248,11 @@ Human gates and preserved recovery state:
 - **Newt's Cape is preserved and physically installed.** The pinned 296,128-byte
   freeware/unexpiring package is checksum-addressed in `downloads/recovery/`
   and installed/launched in Einstein. ZC40 installed it on the physical MP2000
-  on 2026-08-02; ZC40 is current and ZC39 is the unchanged fallback.
+  on 2026-08-02; ZC40 is what runs on the device and ZC39 is the unchanged
+  fallback. **In source the loader is now `-Loader1:jbfly`, Extras label plain
+  "Loader"** (2026-08-04, ROADMAP Track L4) — bigger filename field, an
+  on-screen-keyboard button, emulator-proven only. Install it using ZC40, prove
+  one real install with it, then delete ZC40; keep ZC39 until then.
 - **The physical Extras and Storage state is photographed and transcribed.**
   See `docs/physical-newton-inventory.md`. It confirms Chat A3, NewtScape,
   ZC39, ZC40, NIE, `Internet Setups`, and `DEMO.BAS:NSBASIC`; Dock TCP was not

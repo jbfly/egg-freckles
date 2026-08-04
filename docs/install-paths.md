@@ -8,7 +8,7 @@ each situation. It does not rewrite any of them.
 | Situation | Path | Command |
 |---|---|---|
 | Emulator install | `scripts/newton-round.sh` for a full round (identity bump, build, install, launch, screenshot); `scripts/install-and-launch.sh` against the instance's control port for a bare install | `scripts/newton-round.sh examples/harness-loader r16a` **or** `NEWTON_CONTROL_URL=http://127.0.0.1:<control-port> scripts/install-and-launch.sh /packages/<dir>/app.pkg 'AppSymbol:jbfly'` (control port from `make emulator-instance-up INSTANCE=<name>`, `docs/parallel-emulators.md`) |
-| Physical Newton, normal operation | `runtime/dual_send.py` on Mars (`10.42.0.1:18081`) + the ZC40 loader on the device: human types the `.pkg` filename, taps Install | `python3 runtime/dual_send.py` (host), then on the Newton: open **ZC40 Loader**, type the filename, tap **Install** |
+| Physical Newton, normal operation | `runtime/dual_send.py` on Mars (`10.42.0.1:18081`) + the loader on the device: human enters the `.pkg` filename, taps Install | `python3 runtime/dual_send.py` (host), then on the Newton: open **Loader** from Extras, enter the filename — tap the keyboard button beside the field and type it, or write it in ink — and tap **Install**. The device still runs **ZC40 Loader 2.4** until the renamed `-Loader1:jbfly` build is installed on it; both behave identically here |
 | Physical Newton, bare-metal recovery | NS Basic DEMO bootstrap → reinstall the loader → then the normal path above | Type `bootstrap/nsbasic-bootstrap.bas` into the NS Basic demo slot (see `docs/install-lifeline-plan.md` §7); alternatives Newt's Cape and Dock TCP are preserved in `downloads/recovery/` |
 
 ## Row 1 in detail — what `POST /install` actually takes
@@ -32,7 +32,7 @@ earlier version of this table showed that form and it never worked.
 §4.9: "Use `dual_send.py` on 18081 from day one (§2 footgun). The
 NS-Basic-bootstrap vs HTTP-Loader port collision cost two hardware cycles
 before the sniff-and-branch server removed it." It protocol-sniffs the first
-bytes of every connection (`runtime/dual_send.py:84-99`): `GET ` is the ZC40
+bytes of every connection (`runtime/dual_send.py:84-99`): `GET ` is the
 loader's HTTP fetch, served from `runtime/staging/hardware/` by filename
 (`:38-52`); a bare `G` is the NS Basic bootstrap's raw socket read, which gets
 exactly 15,000 zero-padded bytes of `harness-loader.pkg` (`:22-35`).
@@ -49,7 +49,7 @@ path — do not start it for an install.
 package is both the chat client and the tools client, and `examples/harness-tools`
 is deleted (`Ask` POSTs `/ink` for a drawing; nothing calls `/note` since Track F2
 moved the note bridge onto the chat transport) — the agent-facing channel, not the
-ZC40 loader's install flow. Do not point the loader at it. It also serves the
+loader's install flow. Do not point the loader at it. It also serves the
 client package itself at `/egg-freckles.pkg`, still answering the old
 `/harness-client.pkg` path as an alias (`pkg_publisher.py:482-487`), so a loader
 with the old filename typed in keeps working.
@@ -80,7 +80,7 @@ stamps the reproducible-build header per `NEWTON_SOURCE_DATE_EPOCH`), copies
 the resulting `.pkg` into `runtime/staging/hardware/`, and refreshes that
 directory's `SHA256SUMS` (only the one entry changes; every other staged
 package's line is left untouched). It prints the exact short filename —
-e.g. `harness-loader.pkg` — to type into the ZC40 loader.
+e.g. `harness-loader.pkg` — to enter into the Loader.
 
 Needs `~/newton-dev/prefix/bin/tntk` built with the vendored
 `tools/tntk-project-version.patch` applied to that out-of-tree checkout;

@@ -154,16 +154,25 @@ sha256sum /absolute/path/to/ANY-PACKAGE.pkg runtime/staging/hardware/install.pkg
 python3 runtime/dual_send.py
 ```
 
-Leave that terminal running. **ZC40 is current** and is hardcoded to the
-dedicated Mars AP at **`[10,42,0,1,18081]`**. Keep the checked-in
-`harness-loader-zc39.pkg` unchanged as the fallback; do not rebuild either
-identity to stage an arbitrary payload.
+Leave that terminal running. **ZC40 is what is on the device**, and it is
+hardcoded to the dedicated Mars AP at **`[10,42,0,1,18081]`**. Keep the
+checked-in `harness-loader-zc39.pkg` unchanged as the fallback; do not rebuild
+either identity to stage an arbitrary payload.
+
+**The source loader has been renamed.** `examples/harness-loader` now builds
+`-Loader1:jbfly`, Extras label plain **Loader**, with a much larger filename
+field and an on-screen-keyboard button (`docs/ROADMAP.md` Track L4). It is
+emulator-proven only. Install it *using ZC40* on the next bench session, do one
+real install with the new Loader to prove it, and only then delete ZC40 — the
+identities are distinct so both can sit in Extras meanwhile. **ZC39 stays as the
+deep fallback until the new Loader is hardware-proven.**
 
 ### Newton: one-time loader upgrade, then two taps per package
 
-1. Open **ZC40 Loader 2.4** from Extras. If ZC40 has been lost but ZC39 remains,
-   use **ZC39 Loader 2.3** only to restore the checked-in
-   `harness-loader-zc40.pkg`; the identities are distinct.
+1. Open the loader from Extras — **Loader** once it is installed, otherwise
+   **ZC40 Loader 2.4**. If ZC40 has been lost but ZC39 remains, use **ZC39
+   Loader 2.3** only to restore the checked-in `harness-loader-zc40.pkg`; the
+   identities are distinct.
 2. Confirm the filename is **`install.pkg`**, join the dedicated Mars network,
    and tap **Install**.
 3. Wait for installation to return, then check Extras. `Install not confirmed`

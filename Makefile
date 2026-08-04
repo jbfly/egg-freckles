@@ -77,7 +77,7 @@ newton-packages:
 	sha256sum harness-loader.pkg egg-freckles.pkg > SHA256SUMS
 
 # Builds one example dir the same way newton-packages does (forced rebuild,
-# same reproducible-build header stamp) and stages it for the ZC40 loader.
+# same reproducible-build header stamp) and stages it for the Loader.
 # docs/install-paths.md is the row-2 write-up; keep this in sync with it.
 # Needs ~/newton-dev/prefix/bin/tntk built with tools/tntk-project-version.patch
 # applied out-of-tree -- that is a one-time host setup step, not done here
@@ -96,7 +96,7 @@ stage-hw:
 	mkdir -p "$(NEWTON_HW_STAGING_DIR)"; \
 	cp "$$pkg" "$(NEWTON_HW_STAGING_DIR)/$$name.pkg"; \
 	python3 -c 'import hashlib, pathlib, sys; staging = pathlib.Path(sys.argv[1]); name = sys.argv[2]; digest = hashlib.sha256((staging / name).read_bytes()).hexdigest(); sums = staging / "SHA256SUMS"; lines = [l for l in sums.read_text().splitlines() if l.split()[-1] != name] if sums.exists() else []; lines.append(digest + "  " + name); lines.sort(key=lambda l: l.split()[-1]); sums.write_text("\n".join(lines) + "\n")' "$(NEWTON_HW_STAGING_DIR)" "$$name.pkg"; \
-	echo "Staged $(NEWTON_HW_STAGING_DIR)/$$name.pkg -- type '$$name.pkg' into the ZC40 loader"
+	echo "Staged $(NEWTON_HW_STAGING_DIR)/$$name.pkg -- enter '$$name.pkg' in the Loader"
 
 status: check-rootless
 	$(COMPOSE) --profile emulator --profile tools ps

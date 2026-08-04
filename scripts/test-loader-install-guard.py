@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require duplicate ZC40 completion callbacks to schedule one install."""
+"""Require duplicate Loader completion callbacks to schedule one install."""
 import os
 import subprocess
 from pathlib import Path
@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER = os.environ.get("NEWTON_CONTAINER", "newton-harness_emulator_1")
-SYMBOL = "|-HarnessLoaderZC40:jbfly|"
+SYMBOL = "|-Loader1:jbfly|"
 
 
 def ns(source):
@@ -19,7 +19,7 @@ def ns(source):
 
 subprocess.run(
     [str(ROOT / "scripts/install-and-launch.sh"),
-     "/packages/harness-loader/harness-loader.pkg", "-HarnessLoaderZC40:jbfly"],
+     "/packages/harness-loader/harness-loader.pkg", "-Loader1:jbfly"],
     check=True,
 )
 output = ns(

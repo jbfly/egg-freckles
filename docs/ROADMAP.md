@@ -7,6 +7,65 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track L4 DONE: the loader is called "Loader", you can write in
+  its field, and you can type into it.** Answers item 3 of the fifth hardware
+  test below. New identity **`-Loader1:jbfly`**, Extras label plain **"Loader"**,
+  window title "Loader 1.0". Package 15,624 bytes.
+  - **Naming.** The convention is now `-Loader<n>:jbfly` with `n` incrementing
+    and never reused (`docs/phase3-chat-round.md`, "Package identity"); the
+    leading `-` carries over from the `-HarnessLoaderZC*` series. The version
+    restarts at **1.0** because the 2.x numbering belonged to the ZC dev series
+    — the same call Egg Freckles made going from "Chat A9 v2.4-a9" to
+    "Egg Freckles 1.0-ef5". Extras shows the label only; the version lives in
+    the window title so a screenshot still identifies the build.
+  - **Input field.** Full window width bar the keyboard button, and **42px tall
+    instead of 26**, font 14 instead of 10. The slot that actually buys writing
+    room is `viewLineSpacing` — "the height of the input line in pixels"
+    (`refs/NewtonProgrammerRef20.txt:23311-23314`) — now 38; `viewFont` only
+    styles the recognised text (`:23301-23303`). 14 not 18 so a ~24-character
+    `.pkg` name still fits the one line `protoInputLine` allows.
+  - **On-screen keyboard.** The stock affordance is **`protoKeyboardButton`**:
+    "the same keyboard button shown on the status bar in the notepad. Tapping
+    the button causes the on-screen keyboard to appear"
+    (`refs/NewtonProgrammerGuide20.txt:20405-20407`). It needs a
+    `defaultKeyboard` symbol which it "is not actually in the button view frame,
+    but is found by inheritance" (`refs/NewtonProgrammerRef20.txt:24477-24480`),
+    so `defaultKeyboard: 'alphaKeyboard` sits on the parent window. Keys go to
+    the one current **key receiver** view (Guide `:20308-20312`), so the app
+    points that at its own field with `SetKeyView`, which is "only guaranteed to
+    work with a clParagraphView" (`Ref:24698-24724`) — `protoInputLine` is one
+    ("a simple paragraph view", `:23269-23270`). Never override the button's
+    `ViewClickScript`/`ButtonClickScript`/`PickActionScript`: `protoPictureButton`
+    uses them internally (`Ref:24481-24486`).
+  - **Proven on instance `loaderround`**, seeded per `docs/parallel-emulators.md`.
+    Tapped the button → the ROM alphaKeyboard opened over the window; tapped its
+    `del` key 11 times → `filenameView.text` read `""`; tapped `h e l l o . p k g`
+    → it read `"hello.pkg"`; tapped Install → the package server logged
+    `GET /hello.pkg HTTP/1.0` and `GetPkgRef("HarnessHello:jbfly", GetDefaultStore())`
+    returned the installed package. Evidence `runtime/evidence/loaderround-*.png`
+    and [`loaderround-proof.txt`](../runtime/evidence/loaderround-proof.txt).
+    Note for future rounds: **host key injection does not reach Einstein** —
+    `emulator.client text` and `key` both left the field byte-identical, so an
+    on-screen keyboard has to be driven by tapping its keys.
+  - **Two things found and deliberately left alone**, both pre-existing and both
+    inside the install machinery this round was not to touch: (a)
+    `SuckPackageFromBinary`'s `callbackFrequency: 8192` never fires for a package
+    smaller than 8 KiB, so the status says "Install not confirmed" on a
+    successful small install — every real payload is larger; (b) a NewtonOS
+    paragraph breaks on CR, so `"\n"` inside a status string draws as an
+    empty-box glyph. The window header had the same box and *is* fixed here, by
+    using two `protoStaticText` children instead of one `"\n"`-joined string.
+  - **Hardware upgrade path** (nothing done on the device this round): install
+    the new Loader **using ZC40**, verify one real install with it, then delete
+    ZC40. **Keep ZC39 as the deep fallback until Loader is hardware-proven.**
+  - **94 tests collected, 91 passed, 3 failed.** No test pins the loader
+    identity; the standalone `scripts/test-loader-install-guard.py` did and was
+    updated to `-Loader1:jbfly`. All three failures are in
+    `test_newton_client_source.py`, which reads only
+    `examples/harness-client/Main.newt` and `egg-freckles.nprj` (`:6-7`) — the
+    parallel EF6 client work that was uncommitted in the tree at commit time.
+    None of them touch `examples/harness-loader`.
+
 - **2026-08-04 — Fifth hardware test (EF5 on the MP2000): the dev loop worked
   end to end — codex wrote a dice program, the human installed it via ZC40,
   and it ran on real hardware.** Remaining findings, triaged:
@@ -214,7 +273,8 @@ agent can complete one task and verify it.
     near-centred *here*, so this is two pixels in the emulator — the point is
     that it is derived, not asserted.
   - 88 tests (85 + 3). **Still open, deliberately**: the loader package keeps
-    its `-HarnessLoaderZC40` name (a separate cheap round), and **the physical
+    its `-HarnessLoaderZC40` name (a separate cheap round — *done 2026-08-04,
+    Track L4: it is `-Loader1:jbfly` / "Loader" now*), and **the physical
     MP2000 still runs A7 + R10P** — this whole lineage remains emulator-proven
     only until the human installs it. When they do, it is now **one** install
     that replaces both.
@@ -820,9 +880,10 @@ Hardware-proven and current:
   newest note down that same path, `Save Note` writes a reply back as a native
   note, and `Ink` opens the capture canvas whose reading joins the transcript
   (`POST /ink` on 18081). Emulator-proven.
-- **Install path**: `examples/harness-loader` (`-HarnessLoaderZC40:jbfly`) pulls
-  any staged `.pkg` over WiFi from `runtime/dual_send.py` on 18081. ZC39 is the
-  installed fallback. NS Basic bootstrap (`bootstrap/`) is the bare-metal
+- **Install path**: `examples/harness-loader` (`-Loader1:jbfly`, Extras label
+  "Loader"; the device still runs `-HarnessLoaderZC40:jbfly` until it is
+  upgraded) pulls any staged `.pkg` over WiFi from `runtime/dual_send.py` on
+  18081. ZC39 is the installed deep fallback. NS Basic bootstrap (`bootstrap/`) is the bare-metal
   lifeline; Newt's Cape and Dock TCP are preserved in `downloads/recovery/`.
 - **Backup/inventory**: `runtime/newton_backup.py` speaks real Dock protocol
   (DES auth, NSOF); produced `docs/installed-package-inventory.md`.
@@ -1257,10 +1318,9 @@ Direct answers to the second hardware test (status log entry above).
   scroll routing by definition — so Up/Dn stay and the eighteenth finding
   is closed. Two modal-alert sources (missing `ExceptionHandler`, delayed
   calls landing on a closed view) were found and fixed on the way.
-  **Still open from L1**: the loader package keeps its `-HarnessLoaderZC40`
-  identity and "Load ZC40" label — retitling it plain **Loader** is a
-  separate cheap round, and it is the last piece of dev cruft the human
-  sees in Extras.
+  **Closed 2026-08-04 by Track L4**: the loader is `-Loader1:jbfly` with the
+  plain **Loader** label, a much larger input field and a `protoKeyboardButton`
+  beside it. See the status-log entry at the top of this file.
 - **L2. Notes Action-menu integration — DESIGNED 2026-08-04, not built.**
   `docs/notes-integration-design.md` is the design, with a four-session build
   plan and every unproven step tagged `[verify]`; the mechanism was measured
