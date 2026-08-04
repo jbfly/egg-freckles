@@ -25,15 +25,15 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef5_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef6_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF5:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef5";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF6:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef6";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF5:jbfly"' in PROJECT
+    assert 'name: "EggFrecklesEF6:jbfly"' in PROJECT
     assert "version: 18" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
@@ -126,6 +126,13 @@ def test_the_tools_client_lives_inside_this_package_now():
     # The watchdog stays above the host's 3 s heartbeat cadence.
     assert "if self.toolMisses > 2 then :ToolRetry();" in SOURCE
     assert "view:ToolWatch() onexception |evt.ex| do nil, [self], 4000);" in SOURCE
+    # EF6: and there is exactly ONE watchdog chain. Starting a fresh one per
+    # connect made toolMisses climb once per chain per 4 s and turned the
+    # channel into a reconnect storm -- 15 reconnects in 60 s, measured against
+    # the host log; 0 with the guard.
+    assert "toolWatching: nil," in SOURCE
+    assert "if not self.toolWatching then" in SOURCE
+    assert "self.toolWatching := nil;" in SOURCE
     # Names are prefixed so nothing collides case-insensitively with the chat
     # side's Stop/Bound/Connected/ArmInput/Grabbed.
     for name in ("ToolStart", "ToolGrabbed", "ToolBound", "ToolConnected",
@@ -136,6 +143,88 @@ def test_the_tools_client_lives_inside_this_package_now():
     assert "if self.endpoint or self.inkEndpoint or self.toolEndpoint then return nil;" in SOURCE
     assert "if self.linkID then return :OpenSession();" in SOURCE
     assert "if self.linkID then return :ToolOpen();" in SOURCE
+
+
+def test_the_tools_poll_belongs_to_the_package_not_the_window():
+    # The fifth hardware test: an agent-driven install failed with "Newton not
+    # responding to pings" because the human had the window closed, and the poll
+    # only ran between Boot and ViewQuitScript. It is owned by the same
+    # install-hook agent as "Send to AI" now.
+    boot = SOURCE.index("Boot: func()")
+    quit_script = SOURCE.index("ViewQuitScript: func()")
+    assert ":ToolStart()" not in SOURCE[boot:SOURCE.index("Wire: func()", boot)]
+    assert ":ToolStop();" not in SOURCE[quit_script:boot]
+    # Started from the hook, on the agent frame, by a delayed call -- and a
+    # delayed call with a FRAME receiver is safe where one with a view receiver
+    # is not (the L1 -48809 trap), because this frame has no view to close.
+    assert "who:ToolStart() onexception |evt.ex| do nil,\n            [agent], 3000);" in SOURCE
+    # Exactly one poll instance: a package replacement retires the old agent's
+    # poll before the new agent starts one.
+    assert "FindAgent: func(paperroll)" in SOURCE
+    assert "local previous := :FindAgent(paperroll);" in SOURCE
+    assert "previous.toolStopping := true;" in SOURCE
+    # The agent owns its own copies of every tools slot, never the template's.
+    for slot in ("toolEndpoint", "toolReady", "toolStopping", "toolMisses",
+                 "toolID", "toolOutcome", "toolValue", "toolWatching",
+                 "toolBindRetried"):
+        assert f"agent.{slot} := " in SOURCE
+    assert "agent.ToolGrabbed := self.ToolGrabbed;" in SOURCE
+    # Removing the package is what stops it now -- the flag first, because it is
+    # a slot write that cannot throw once the package's code is going away.
+    remove = SOURCE.index("RemoveScript: func(frame)")
+    assert "item.agent.toolStopping := true;" in SOURCE[remove:]
+    assert "try item.agent:ToolStop()" in SOURCE[remove:]
+
+
+def test_every_nie_callback_is_armored_against_throwing_into_the_fsm():
+    # The fourth hardware test photographed the MP2000 showing an
+    # `evt.ex.fr.intrp` / -48803 raised inside InetManagerFSM's RemoveLinkClient
+    # event, then `Bind error -60047`. -48803 is "wrong number of arguments ...
+    # when a callback can't be called"; an exception escaping one of OUR
+    # callbacks lands inside NIE's own state machine and reaches the human as a
+    # modal alert. So nothing of ours may throw out of a callback.
+    #
+    # Every CompletionScript, InputScript and ExceptionHandler body opens a try.
+    for kind in ("CompletionScript: func(endpoint, options, result)",
+                 "InputScript: func(endpoint, data, terminator, options)",
+                 "ExceptionHandler: func(error)"):
+        bodies = re.findall(re.escape(kind) + r"\s*\n?\s*try\b", SOURCE)
+        assert len(bodies) == SOURCE.count(kind), kind
+    # The three link callbacks NIE invokes by symbol, likewise.
+    for name in ("Grabbed", "InkGrabbed", "ToolGrabbed"):
+        at = SOURCE.index(f"{name}: func(id, state, error)")
+        assert SOURCE[at:at + 220].count("try") >= 1, name
+    # And InetReleaseLink itself is guarded: RemoveLinkClient is exactly what it
+    # drives, and an exception here would leave via ViewQuitScript.
+    assert ("try call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released)\n"
+            "            onexception |evt.ex| do nil;") in SOURCE
+
+
+def test_a_bind_failure_gets_one_retry_before_it_is_surfaced():
+    # `Bind error -60047` in the fourth hardware test was the next connection
+    # failing against a link that was still half torn down -- the failure a
+    # short wait fixes. One retry, five seconds, then the error is real.
+    for slot in ("bindRetried", "inkBindRetried", "toolBindRetried"):
+        assert f"{slot}: nil," in SOURCE
+    assert "BindFailed: func(message)" in SOURCE
+    assert "if self.bindRetried then return :Failed(message);" in SOURCE
+    assert "InkBindFailed: func(message)" in SOURCE
+    assert "if self.inkBindRetried then return :InkFailed(message);" in SOURCE
+    assert "ToolBindFailed: func()" in SOURCE
+    assert "if self.toolBindRetried then return :ToolRetry();" in SOURCE
+    # Each Bind completion routes to the retry, not straight to the failure.
+    assert 'self._parent:BindFailed("Bind error " & result)' in SOURCE
+    assert 'self._parent:InkBindFailed("Ink bind error " & result)' in SOURCE
+    assert "self._parent:ToolBindFailed()" in SOURCE
+    # Cleared on success, so the retry is per connection attempt and not once
+    # per lifetime.
+    assert "self.bindRetried := nil;" in SOURCE
+    assert "self.inkBindRetried := nil;" in SOURCE
+    assert "self.toolBindRetried := nil;" in SOURCE
+    # The five-second waits themselves.
+    assert "view:Connect() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
+    assert "view:InkRebind() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
+    assert "who:ToolResume() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
 
 
 def test_every_endpoint_catches_its_own_exceptions():
@@ -215,10 +304,39 @@ def test_the_note_origin_comes_off_and_every_point_is_clamped():
     assert ":ClampAt(points[index] - originLeft, 319)" in SOURCE
     assert ":ClampAt(points[index + 1] - originTop, 479)" in SOURCE
     assert "local at := Floor(value);" in SOURCE
-    # Bounded work: an unbounded string is never built on the Newton.
-    assert "kMaxPoints := 400;" in SOURCE
-    assert "kMaxItems := 64;" in SOURCE
-    assert "if (self.askPoints + count) > self.maxPoints then" in SOURCE
+
+
+def test_ink_is_decimated_never_truncated():
+    # The fifth hardware test: a handwritten sentence arrived at the host as its
+    # first three words, because A9's kMaxPoints := 400 was spent by whichever
+    # strokes were read first and :AddStroke then REFUSED every later stroke.
+    # EF6 keeps every stroke and thins the points inside it.
+    #
+    # The budget is arithmetic against the host's 16 KiB /ink body cap
+    # (pkg_publisher.py) at a pessimistic 8 bytes per point; measured on the
+    # wire it is 4.27 (runtime/evidence/ef6round-ink-decimation.txt).
+    assert "kMaxPoints := 1600;" in SOURCE
+    assert "kMaxItems := 256;" in SOURCE
+    assert "kMaxRaw := 12000;" in SOURCE
+    assert "maxRaw: kMaxRaw," in SOURCE
+    # The refusal is gone. Nothing anywhere may drop a stroke for being late.
+    assert "if (self.askPoints + count) > self.maxPoints then" not in CODE
+    assert "askTruncated" not in SOURCE
+    # One linear pass, integer stride, first and last point of every stroke kept.
+    assert "ThinInk: func()" in SOURCE
+    assert "local stride := (total div target) + 1;" in SOURCE
+    assert "local target := self.maxPoints - (2 * count);" in SOURCE
+    assert "if (since >= stride) or (at = size - 1) then" in SOURCE
+    # Every encode thins first, so both callers inherit it.
+    encode = SOURCE.index("EncodeInk: func(hint)")
+    assert SOURCE.index(":ThinInk();", encode) < SOURCE.index("local body :=", encode)
+    # And the human is told, in the transcript and in the reply note.
+    assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
+    assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
+    assert 'self.aiLabel := self.aiLabel & " (ink thinned to fit)";' in SOURCE
+    # The count reported is the true drawn count, not a survivor count.
+    assert "local strokes := Length(self.askStrokes);" in SOURCE
+    assert ':SetStatus("Sending " & strokes & " strokes");' in SOURCE
 
 
 def test_nsi1_grows_one_optional_hint_line_and_keeps_its_tag():
@@ -293,7 +411,12 @@ def test_uninstall_removes_our_entry_and_never_the_whole_array():
     # different package appended after us (design section 1, evidence section 6).
     assert "RemoveSlot(" not in CODE
     assert "RemoveScript: func(frame)" in SOURCE
-    assert "if IsFrame(item) and (item.aiHook = frame.app) then dropped := true" in SOURCE
+    # EF6 turned the one-liner into a block, because removing the package is now
+    # also what stops the package-level tools poll, but the rule is unchanged:
+    # our marked entry is dropped and every other entry is copied through.
+    assert "if IsFrame(item) and (item.aiHook = frame.app) then" in SOURCE
+    assert "dropped := true;" in SOURCE
+    assert "else AddArraySlot(rebuilt, item);" in SOURCE
     assert "if dropped then paperroll.routeScripts := rebuilt;" in SOURCE
     # RemoveScript runs on every deactivation, package replacement included, so
     # it must not delete the user's filed answers along with the folder.

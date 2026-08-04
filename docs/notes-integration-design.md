@@ -642,3 +642,59 @@ bitsLen=72 w=20 h=14"`.
   settle §1's trigger for the record.
 - The checked-overview multi-select case is still unprobed, and the Ask button
   still stays until the human has used "Send to AI" on hardware.
+
+## EF6 — the agent grew a second job: it owns the `/tools` poll
+
+2026-08-04, shipped in `EggFrecklesEF6:jbfly` (v1.0-ef6). This changes the
+ownership section above ("Build result", points 2 and 3), so read it as the
+current state of what the hook creates.
+
+**What changed.** Until EF6 the `/tools` long poll belonged to the Egg Freckles
+*window*: `Boot` called `:ToolStart` and `ViewQuitScript` called `:ToolStop`.
+The fifth hardware test found the consequence — an agent trying to install a
+package to the MP2000 got *"Newton not responding to pings"*, purely because the
+human had the window closed. A device-management channel that requires an app to
+be open is not a device-management channel.
+
+The poll now belongs to **the same heap-frame agent this document describes**.
+`:NotesHook` builds the agent, hangs it off the picker entry as before, and then
+queues `AddDelayedCall(func(who) try who:ToolStart() …, [agent], 3000)`. So:
+
+- `InstallScript` runs on activation **and on every reset** (Guide:5209-5210),
+  which is the same property the menu item relies on — the poll therefore
+  restarts itself after a crash or a battery pull, untouched.
+- The window neither starts nor stops it. `RemoveScript` stops it, and
+  `:NotesHook` retires any previous agent's poll before starting a new one, so
+  exactly one instance exists across a package replacement.
+- A delayed call on a **frame** receiver is safe where one on a view receiver is
+  not (the L1 `-48809` trap: a queued call landing on a closed view). This frame
+  has no view to close, and the shape is already proven — `:InkDone` has queued
+  `agent:InkStop()` this way on every "Send to AI" since EF4.
+
+**Link ownership follows, and point 3 above gets simpler rather than harder.**
+The agent grabs its own link and now *keeps* it, because `:ReleaseLink` refuses
+to release while any endpoint is live and the agent's `toolEndpoint` always is.
+An ink POST from a routed note borrows that held link (`if self.linkID then
+return :InkOpen()`) and hands it back without dropping it — the `-16009` case
+cannot arise. The window still grabs and releases separately; NIE refcounts the
+two clients, which is exactly the documented multi-client flow point 3 cites.
+
+**A defect this exposed.** Making the poll permanent revealed that
+`:ToolConnected` started a fresh self-rescheduling `:ToolWatch` chain on every
+connect and never stopped the old ones, so the channel reconnected **15 times a
+minute**. A `toolWatching` guard takes that to **0**. See the twenty-sixth
+finding in `docs/newtonscript-eval.md`.
+
+**Proven** on instance `ef6round`: after `podman restart`, with Egg Freckles
+never opened, `{"op":"ping"}` → `pong` and `{"op":"front_app"}` → `Notepad
+(paperroll)`; and after opening the window, chatting and closing it again, all
+of `ping`/`front_app`/`note_list`/`battery` still answered. Evidence
+[`ef6round-tools-window-closed.txt`](../runtime/evidence/ef6round-tools-window-closed.txt).
+
+**Also in EF6, on the route path itself.** `:EncodeInk` now thins the ink to fit
+the budget instead of `:AddStroke` refusing whole strokes, so a routed page can
+no longer lose part of its drawing; the reply note's `re:` line carries the true
+stroke count and says `(ink thinned to fit)` when thinning happened. Proven with
+37 strokes drawn, 37 sent, 37 rendered
+([`ef6round-ink-decimation.txt`](../runtime/evidence/ef6round-ink-decimation.txt)).
+Filing is unchanged and was re-checked: source note unfiled, reply in `AI`.

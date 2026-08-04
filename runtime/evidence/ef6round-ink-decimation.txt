@@ -1,0 +1,115 @@
+EF6 — "decimate, don't truncate": the dense-ink proof
+=====================================================
+
+Instance `ef6round` (own container, seeded flash), package
+`EggFrecklesEF6:jbfly` v1.0-ef6, sha256
+7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9.
+Host: `NEWTON_FAKE_BACKEND=1 server.py` on 6801 (chat) and
+`runtime/raw_pkg_server.py` on 18081 (ink + tools). The /ink vision call is
+**real codex**, not the fake backend.
+
+
+1. What was drawn
+-----------------
+
+37 freehand strokes in stock Notes, Sketches mode, on one page: six rows of six
+diagonal drags plus one more at the bottom left. Each drag was
+`(x, y) -> (x+38, y+45)` at `--steps 80`.
+
+Read straight back out of the Notes soup with ExpandInk/CountStrokes/
+GetStrokePointsArray, i.e. independently of the client:
+
+    uid=3 items=6 strokes=37 points=2569 min=58 max=71
+
+Note `items=6`: one 'ink2 data item can hold many strokes, so the item cap is
+not the same thing as the stroke cap. It is raised to 256 anyway, because Ink
+Text puts every *word* in its own item.
+
+
+2. What arrived at the host
+---------------------------
+
+`runtime/logs/ef6round-pkg.log`:
+
+    INK BODY bytes=5585 strokes=37 points=1308 bytes_per_point=4.27
+    INK PROMPT 'The attached PNG is a sketch or handwriting captured from ...'
+    10.42.0.1 - - [04/Aug/2026 21:34:16] "POST /ink HTTP/1.0" 200 -
+
+    strokes drawn:     37
+    strokes sent:      37     <- none dropped
+    strokes rendered:  37     (ef6round-07-host-render.png)
+    points drawn:    2569
+    points sent:     1308     <- thinned, stride 2
+
+The host parser rejects any body whose S-line count disagrees with the header's
+fourth field (`pkg_publisher.py`, `if len(body_lines) != stroke_count: raise
+ValueError`), so a 200 with a reading proves the header said 37 and 37 S-lines
+followed.
+
+**What EF5 would have done with the same page.** `kMaxPoints := 400` and an
+:AddStroke that refused any stroke crossing it: strokes 1-5 fit (5 x ~70 = 350),
+stroke 6 would have reached 420, and from there *every* remaining stroke was
+dropped. 5 of 37 strokes, silently, with "5 strokes" reported to the human as
+though that were the drawing. That is the handwritten sentence arriving as its
+first three words.
+
+
+3. The arithmetic, checked against the wire
+-------------------------------------------
+
+Designed (see kMaxPoints in examples/harness-client/Main.newt):
+
+    host /ink body cap                        16384 bytes
+    - header "NSI1 320 480 NNN\r\n"             -20
+    - optional "H " + kHintBytes + CRLF         -204
+    - "S <count>\r\n" x kMaxItems (8 x 256)    -2048
+                                            --------
+    left for point text                       14112 bytes
+    14112 / 8 bytes-per-point (pessimistic)  = 1764 points  ->  kMaxPoints 1600
+
+Measured on this body: **4.27 bytes per point**, not 8. So the shipped budget of
+1600 points costs about 1600 x 4.27 + 2272 = ~9100 bytes of a 16384-byte cap —
+roughly a 1.8x margin on the measured rate and still inside the cap at the
+pessimistic 8 bytes/point (15072). The budget is safe from both directions.
+
+Thinning maths, confirmed against the output:
+
+    total  = 2569, strokes = 37
+    target = kMaxPoints - 2*strokes = 1600 - 74 = 1526
+    stride = (2569 div 1526) + 1 = 2
+    kept   = 37 strokes x ~35 points = 1308      (logged: points=1308)
+
+
+4. What the human is told
+-------------------------
+
+The reply note, read out of the soup (`labels=AI`, so it is filed):
+
+    uid=4 labels=AI
+    text=[re: 37 strokes (ink thinned to fit)
+          Diagonal lines resembling falling rain.]
+
+The count is the true drawn count (37, not the survivor count), and the thinning
+is stated in the reply-note prefix rather than left silent. The Ask button's
+transcript line carries the same fact with both numbers:
+"Note: ink thinned to fit (2569 points sent as 1308)".
+
+Source note untouched: the full soup listing is
+
+    0:-:  |  1:-:  |  2:-:  |  3:-:  |  4:AI:re: 37 strokes (ink thinned to fit)...
+
+uid=3 is the drawing and is still unfiled; only the reply carries 'AI. The third
+hardware test's filing fix has not regressed.
+
+
+5. The tools poll survived the encode
+-------------------------------------
+
+A `{"op":"ping"}` fired two seconds after the "Send to AI" tap — while the
+Newton was collecting 2569 points, thinning them and building a 5585-byte
+body — answered:
+
+    {"request_id":"4","status":"result","result":"pong"}   in 5.77 s
+
+Slower than idle, because the encode holds the NewtonScript event loop, but well
+inside the timeout and with the channel still up afterwards.

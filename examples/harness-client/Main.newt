@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF5:jbfly|;
-kVersion := "1.0-ef5";
+kAppSymbol := '|EggFrecklesEF6:jbfly|;
+kVersion := "1.0-ef6";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -51,12 +51,48 @@ kNoteBytes := 2048;
 // finding), and EntryUniqueID reads the identifier "without reading the entry
 // into the cache" (refs/NewtonProgrammerRef20.txt:34872), so each step is cheap.
 kScanLimit := 16;
-// The probe note held 9 drawn items and 279 points, ~1.1 KB of NSI1 against the
-// host's 16 KiB single-body cap, so these caps only ever fire on something far
-// larger than a page of drawing. Truncating loudly beats building an unbounded
-// string on a 162 MHz ARM.
-kMaxPoints := 400;
-kMaxItems := 64;
+
+// ---- ink budgets: DECIMATE, DON'T TRUNCATE (the fifth hardware test) ----
+//
+// A9 set kMaxPoints := 400 against straight `/drag` probe strokes (17-89 points
+// each) and made :AddStroke *refuse* a stroke that would cross it. Real
+// handwriting is far denser, so on the physical MP2000 a handwritten "Send a
+// list of ice hotels in Iceland" arrived at the host as its first three words —
+// whole strokes had been dropped, and the client reported the surviving count
+// (17) as if that were what the human drew. An earlier, denser note returned
+// nothing at all. Dropping strokes is the worst possible failure for a vision
+// call: the picture stays plausible and becomes wrong.
+//
+// EF6 keeps every stroke and thins the points inside it (:ThinInk). The budget
+// below is what the host will actually accept, worked out rather than guessed:
+//
+//   host cap on the /ink body      16384 bytes  (pkg_publisher.py:323,
+//                                                `not 0 < length <= 16384`)
+//   - header "NSI1 320 480 NNN\r\n"   -20
+//   - the optional H line, kHintBytes + "H " + CRLF
+//                                     -204
+//   - one "S <count>\r\n" per stroke, 8 bytes x kMaxItems
+//                                   -2048
+//                                  ------
+//   left for point text             14112 bytes
+//
+// A point costs " <dx> <dy>" — measured 4-6 bytes on real thinned handwriting
+// (see the round record), 8 bytes as a pessimistic bound once thinning has
+// multiplied the deltas up. 14112 / 8 = 1764, so 1600 points fits even at the
+// pessimistic rate and leaves ~1.3 KB spare; at the measured rate it uses less
+// than half the cap. That is 4x A9's budget, and the thinning pass means the
+// budget now costs resolution instead of costing strokes.
+kMaxPoints := 1600;
+// Every stroke is one item in the note's `data`, so 64 was itself a stroke cap
+// on long handwriting. 256 is past any page a human can fill and still bounded,
+// which is what the twelfth finding asks for.
+kMaxItems := 256;
+// The ceiling on points read out of the soup *before* thinning, so a pathological
+// note cannot fill the NewtonScript heap while we are still collecting. Past it a
+// stroke is kept as its two endpoints rather than dropped — the shape degrades,
+// the stroke count stays true. 12000 points is ~48 KB of array refs and about
+// four times the densest page measured.
+kMaxRaw := 12000;
 // The note's own text rides one optional NSI1 "H" line into the vision prompt.
 kHintBytes := 200;
 
@@ -196,10 +232,15 @@ noteAgent := {
         // An empty page has nothing to ask about. Say nothing rather than
         // filing a note that says nothing.
         if (strokes = 0) and (StrLen(hint) = 0) then return nil;
-        if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
-        else self.aiLabel := "" & strokes & " strokes";
+        // The body is built first because :EncodeInk is what thins the ink, and
+        // the label has to be able to say so. `strokes` is the true drawn count
+        // either way — EF6 drops no strokes.
         local body := :EncodeInk(hint);
         if body = nil then return nil;
+        if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
+        else self.aiLabel := "" & strokes & " strokes";
+        if self.askThinned then
+            self.aiLabel := self.aiLabel & " (ink thinned to fit)";
         // Everything from here is the Ask button's asynchronous POST, unchanged:
         // the route script returns nil now and the answer lands in InputScript
         // ~9 s later. A synchronous wait would freeze Notes for that whole time
@@ -344,6 +385,13 @@ mainView := {
     inFlight: nil,
     draftSeq: nil,
     stopping: nil,
+    // EF6: one retry per connection attempt before a bind failure is shown to
+    // the human. The fourth hardware test's `Bind error -60047` came straight
+    // after the NIE link had been torn down badly, and a link that is still
+    // settling binds on the second try. Cleared on every success.
+    bindRetried: nil,
+    inkBindRetried: nil,
+    toolBindRetried: nil,
     // MSGP parts still waiting for their ACK, and how many have gone out.
     pendingParts: nil,
     partIndex: 0,
@@ -354,6 +402,7 @@ mainView := {
     scanLimit: kScanLimit,
     maxPoints: kMaxPoints,
     maxItems: kMaxItems,
+    maxRaw: kMaxRaw,
     hintBytes: kHintBytes,
     placeholder: kInkPlaceholder,
     // What the last Ask read out of the newest note: its paragraph text, its
@@ -361,10 +410,14 @@ mainView := {
     // the drawn items' bounding box, which is the origin the encoder removes.
     askText: "",
     askStrokes: nil,
+    // askRaw is what the pen actually drew; askPoints is what is left after
+    // :ThinInk. They differ exactly when askThinned is true, and the difference
+    // is what the transcript and the reply note report.
     askPoints: 0,
+    askRaw: 0,
     askLeft: nil,
     askTop: nil,
-    askTruncated: nil,
+    askThinned: nil,
     inkBody: nil,
     inkBusy: nil,
     // Which send the 150 s watchdog belongs to; see SendInk.
@@ -380,6 +433,10 @@ mainView := {
     toolReady: nil,
     toolMisses: 0,
     toolStopping: nil,
+    // EF6: exactly one watchdog chain may be alive. See :ToolWatch — measured
+    // this round, a second chain is what turned the tools channel into a
+    // reconnect storm.
+    toolWatching: nil,
     toolID: nil,
     toolOutcome: nil,
     toolValue: nil,
@@ -454,24 +511,28 @@ mainView := {
         try form:NotesHook(0, 'window) onexception |evt.ex| do nil;
     end,
 
+    // EF6: the window no longer stops the tools poll, because it no longer owns
+    // it. Closing Egg Freckles tears down the chat endpoint and releases the
+    // chat's own NIE link; the package-level agent's poll is untouched.
     ViewQuitScript: func()
     begin
         self.stopping := true;
-        self.toolStopping := true;
-        :ToolStop();
         :Stop();
         inherited:?ViewQuitScript();
     end,
 
+    // EF6: no ToolStart here either. The fifth hardware test's agent-driven
+    // install failed with "Newton not responding to pings" for one reason: the
+    // human had the Egg Freckles window closed, and the tools long poll only
+    // ever ran between Boot and ViewQuitScript. A device-management channel that
+    // requires an app to be open is not a device-management channel. It is owned
+    // by the install-hook agent now (see :NotesHook), started at boot by
+    // InstallScript, and it survives every open and close of this window.
     Boot: func()
     begin
         :Wire();
         :ShowTranscript();
         :Connect();
-        // The tools long poll opens after the chat link, so it finds a held
-        // NIE link and never grabs a second one. If chat is still connecting,
-        // ToolStart grabs its own and the two share whichever arrives first.
-        AddDelayedCall(func(view) try view:ToolStart() onexception |evt.ex| do nil, [self], 2500);
     end,
 
     // ponytail: custom template slots do not survive instantiation and a child's
@@ -689,12 +750,26 @@ mainView := {
     // raised the -48803 overlays in the loader rounds
     // (docs/newton-networking-lessons.md §1.5), and dropping it to open a
     // second connection cost the Track F2 round a -16009.
+    // EF6 armor. The fourth hardware test photographed the MP2000 showing
+    // "the following exception occurred in event (RemoveLinkClient) of state
+    // (connected) of finite state machine (InetManagerFSM): {name:
+    // 'evt.ex.fr.intrp, error: -48803}" followed by "Bind error -60047" — an
+    // interpreter exception raised inside NIE's own state machine, i.e. from a
+    // callback of ours, followed by the next connection failing to bind against
+    // the half-torn-down link. -48803 is "wrong number of arguments … when a
+    // callback can't be called" (Ref:74810, :57308), and RemoveLinkClient is
+    // exactly what InetReleaseLink drives. The call is therefore guarded: an
+    // exception thrown out of here would otherwise leave via ViewQuitScript and
+    // reach the human as a modal alert, and linkID would stay set forever.
+    // The link is forgotten either way, because a failed release is not a
+    // reason to keep believing we hold one.
     ReleaseLink: func()
     begin
         if self.endpoint or self.inkEndpoint or self.toolEndpoint then return nil;
         if self.linkID then
         begin
-            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            try call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released)
+            onexception |evt.ex| do nil;
             self.linkID := nil;
         end;
         return nil;
@@ -715,22 +790,37 @@ mainView := {
         return nil;
     end,
 
+    // NIE invokes this by symbol from inside InetManagerFSM. Nothing of ours may
+    // throw out of it (see :ReleaseLink for what that looked like on hardware),
+    // so the whole body is guarded and the failure goes to the status line.
     Grabbed: func(id, state, error)
     begin
-        if self.stopping then return nil;
-        if self.endpoint then return nil;
-        if error then return :Failed("Network error " & error);
-        self.linkID := id;
-        if state.linkStatus <> 'connected then return nil;
-        :OpenSession();
+        try
+        begin
+            if self.stopping then return nil;
+            if self.endpoint then return nil;
+            if error then return :Failed("Network error " & error);
+            self.linkID := id;
+            if state.linkStatus <> 'connected then return nil;
+            :OpenSession();
+        end
+        onexception |evt.ex| do
+            try :SetStatus("Link callback failed") onexception |evt.ex| do nil;
+        return nil;
     end,
 
     OpenSession: func()
     begin
         local address := self.serverAddress;
         local callName := "Instantiate";
+        // EF6 armor: every one of the callback bodies below is invoked *by the
+        // NIE/endpoint machinery*, so an exception escaping one of them lands
+        // inside InetManagerFSM and surfaces to the human as the modal
+        // `evt.ex.fr.intrp` alert the fourth hardware test photographed. They
+        // therefore catch everything and never rethrow.
         self.endpoint := {_proto: self.endpointClass, _parent: self,
-            ExceptionHandler: func(error) self._parent:Dropped()};
+            ExceptionHandler: func(error)
+                try self._parent:Dropped() onexception |evt.ex| do nil};
         try
         begin
             self.endpoint:Instantiate(self.endpoint, [
@@ -750,8 +840,12 @@ mainView := {
             self.endpoint:Bind(nil, {
                 async: true, reqTimeout: 10000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:Failed("Bind error " & result)
-                    else self._parent:Bound(),
+                    try
+                    begin
+                        if result then self._parent:BindFailed("Bind error " & result)
+                        else self._parent:Bound();
+                    end
+                    onexception |evt.ex| do nil,
             });
         end
         onexception |evt.ex| do
@@ -762,9 +856,27 @@ mainView := {
         end;
     end,
 
+    // EF6: a bind failure buys exactly one silent retry, five seconds later,
+    // before it reaches the status line. The fourth hardware test showed
+    // `Bind error -60047` immediately after the NIE link-lifecycle fault — the
+    // next connection failing against a link that was still half torn down —
+    // and that is precisely the failure a short wait fixes. Two in a row is a
+    // real problem and is reported as one.
+    BindFailed: func(message)
+    begin
+        if self.stopping then return nil;
+        if self.bindRetried then return :Failed(message);
+        self.bindRetried := true;
+        :SetStatus("Bind retry");
+        AddDelayedCall(func(view) try view:Connect() onexception |evt.ex| do nil,
+            [self], 5000);
+        return nil;
+    end,
+
     Bound: func()
     begin
         if self.stopping then return nil;
+        self.bindRetried := nil;
         local address := self.serverAddress;
         try
             self.endpoint:connect([
@@ -779,8 +891,12 @@ mainView := {
             ], {
                 async: true, reqTimeout: 45000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:Failed("Connect error " & result)
-                    else self._parent:Connected(),
+                    try
+                    begin
+                        if result then self._parent:Failed("Connect error " & result)
+                        else self._parent:Connected();
+                    end
+                    onexception |evt.ex| do nil,
             })
         onexception |evt.ex.comm| do :Failed("Connect exception");
         return nil;
@@ -802,8 +918,12 @@ mainView := {
         try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:Failed("Handshake error " & result)
-                else self._parent:HelloMarkerSent(),
+                try
+                begin
+                    if result then self._parent:Failed("Handshake error " & result)
+                    else self._parent:HelloMarkerSent();
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :Failed("Handshake exception");
         return nil;
@@ -820,9 +940,9 @@ mainView := {
             termination: {endSequence: "\r\n"},
             discardAfter: 240,
             InputScript: func(endpoint, data, terminator, options)
-                self._parent:HandleLine(data),
+                try self._parent:HandleLine(data) onexception |evt.ex| do nil,
             CompletionScript: func(endpoint, options, result)
-                self._parent:Dropped(),
+                try self._parent:Dropped() onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :Failed("Input exception");
         return nil;
@@ -834,7 +954,11 @@ mainView := {
         try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:Failed("Hello error " & result),
+                try
+                begin
+                    if result then self._parent:Failed("Hello error " & result);
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :Failed("Hello exception");
         return nil;
@@ -874,7 +998,11 @@ mainView := {
         try self.endpoint:output("ACK " & seqText & "\r\n", nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:Failed("ACK error " & result),
+                try
+                begin
+                    if result then self._parent:Failed("ACK error " & result);
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :Failed("ACK exception");
         if BeginsWith(line, ":" & seqText & " STAT READY*") then
@@ -917,7 +1045,11 @@ mainView := {
         try self.endpoint:output(encoded, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:Failed("Send error " & result),
+                try
+                begin
+                    if result then self._parent:Failed("Send error " & result);
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :Failed("Send exception");
         self.txSeq := (self.txSeq + 1) mod 100;
@@ -1111,14 +1243,15 @@ mainView := {
         self.askText := "";
         self.askStrokes := [];
         self.askPoints := 0;
+        self.askRaw := 0;
         self.askLeft := nil;
         self.askTop := nil;
-        self.askTruncated := nil;
+        self.askThinned := nil;
         local items := 0;
         foreach item in data do
         begin
             items := items + 1;
-            if items > self.maxItems then self.askTruncated := true
+            if items > self.maxItems then self.askThinned := true
             else if item.viewStationery = 'para then :CollectPara(item)
             else if item.viewStationery = 'poly then :CollectPoly(item)
             else if item.viewStationery = 'pict then nil
@@ -1263,15 +1396,20 @@ mainView := {
     // box top-left is accumulated here because it is the origin EncodeInk
     // removes: sketch points are absolute in the paper roll's space, which for
     // the probe note meant a uniform 0,-36 against where the pen actually went.
+    // EF6: this no longer refuses a stroke. A9's `if askPoints + count >
+    // maxPoints then return nil` is what turned a handwritten sentence into its
+    // first three words on the physical MP2000 — the budget was spent by the
+    // strokes that happened to be read first and every later one vanished
+    // silently. Fitting the budget is :ThinInk's job now, and it thins points
+    // rather than losing strokes.
+    //
+    // The one place a point is still lost before thinning is the raw ceiling,
+    // and even there the stroke is kept as its endpoints so the count the human
+    // is told stays true.
     AddStroke: func(points, box)
     begin
         local count := Length(points) div 2;
         if count < 1 then return nil;
-        if (self.askPoints + count) > self.maxPoints then
-        begin
-            self.askTruncated := true;
-            return nil;
-        end;
         if box then
         begin
             if (self.askLeft = nil) or (box.left < self.askLeft) then
@@ -1279,8 +1417,77 @@ mainView := {
             if (self.askTop = nil) or (box.top < self.askTop) then
                 self.askTop := box.top;
         end;
+        self.askRaw := self.askRaw + count;
+        if self.askRaw > self.maxRaw then
+        begin
+            local ends := [points[0], points[1]];
+            if count > 1 then
+            begin
+                AddArraySlot(ends, points[(count - 1) * 2]);
+                AddArraySlot(ends, points[(count - 1) * 2 + 1]);
+            end;
+            AddArraySlot(self.askStrokes, ends);
+            self.askPoints := self.askPoints + (Length(ends) div 2);
+            self.askThinned := true;
+            return nil;
+        end;
         AddArraySlot(self.askStrokes, points);
         self.askPoints := self.askPoints + count;
+        return nil;
+    end,
+
+    // Fit the point budget by thinning every stroke, never by dropping one.
+    //
+    // One pass, integer stride, no curve maths: keep the first point, then every
+    // stride'th point, and always the last point so the stroke still ends where
+    // the pen lifted. Cost is O(points) — each point is looked at once and
+    // copied at most once — which is what keeps a 3 s host heartbeat alive
+    // through a big note (twelfth finding).
+    //
+    // Why the target is not simply maxPoints: a stroke keeps at most
+    // floor((size-1)/stride) + 1 strided points plus, at worst, one more for the
+    // forced last point, i.e. under size/stride + 2. Summed over `count`
+    // strokes that is under total/stride + 2*count, and stride is chosen strictly
+    // greater than total/target, so the result is under target + 2*count. Taking
+    // target := maxPoints - 2*count therefore puts the sum under maxPoints, which
+    // is the bound the byte arithmetic on kMaxPoints was computed against.
+    ThinInk: func()
+    begin
+        local total := self.askPoints;
+        if total <= self.maxPoints then return nil;
+        local count := Length(self.askStrokes);
+        local target := self.maxPoints - (2 * count);
+        // A note with so many strokes that the headroom eats the whole budget
+        // still gets a sane stride rather than a division by zero.
+        if target < count then target := count;
+        local stride := (total div target) + 1;
+        local kept := 0;
+        local index := 0;
+        while index < count do
+        begin
+            local points := self.askStrokes[index];
+            local size := Length(points) div 2;
+            local out := [];
+            local at := 0;
+            // Seeded at stride so the very first point is always kept.
+            local since := stride;
+            while at < size do
+            begin
+                if (since >= stride) or (at = size - 1) then
+                begin
+                    AddArraySlot(out, points[at * 2]);
+                    AddArraySlot(out, points[at * 2 + 1]);
+                    since := 1;
+                end
+                else since := since + 1;
+                at := at + 1;
+            end;
+            self.askStrokes[index] := out;
+            kept := kept + (Length(out) div 2);
+            index := index + 1;
+        end;
+        self.askPoints := kept;
+        self.askThinned := true;
         return nil;
     end,
 
@@ -1295,8 +1502,12 @@ mainView := {
     // racing for a transcript that has one column. The header's four fields do
     // not change and H is optional, so a host that grew this still parses the
     // bodies the older client on the physical MP2000 sends.
+    // Both callers (the Ask button and the "Send to AI" route) get the thinning
+    // for free by it living here, and they read askThinned/askPoints afterwards
+    // to tell the human what happened.
     EncodeInk: func(hint)
     begin
+        :ThinInk();
         local originLeft := self.askLeft;
         local originTop := self.askTop;
         if originLeft = nil then originLeft := 0;
@@ -1321,7 +1532,10 @@ mainView := {
             end;
             body := body & line & "\r\n";
             // ponytail: one HTTP request only; multipart belongs to a later
-            // stage, and 279 points is ~1.1 KB against this 16 KiB cap.
+            // stage. :ThinInk has already put the point count under kMaxPoints,
+            // whose arithmetic (see the constant) leaves this unreachable at any
+            // plausible bytes-per-point; it stays as the last-resort guard so a
+            // pathological body is refused rather than rejected by the host.
             if StrLen(body) > 16384 then return nil;
         end;
         return body;
@@ -1365,11 +1579,16 @@ mainView := {
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
         local body := :EncodeInk(hint);
         if body = nil then return :SetStatus("Too much ink to send");
+        // `strokes` is the count the pen actually drew: EF6 never drops a
+        // stroke, so Length(askStrokes) is the truth and not a survivor count.
         if StrLen(text) > 0 then :AppendLine("Note: " & text)
         else :AppendLine("Note: " & strokes & " strokes");
-        // The status line is overwritten by "Thinking..." a moment later, so a
-        // truncation notice only survives in the transcript.
-        if self.askTruncated then :AppendLine("Note: too big, sent the first part");
+        // The status line is overwritten by "Thinking..." a moment later, so the
+        // thinning notice only survives in the transcript. Say it plainly and
+        // with both numbers: the human asked to be told when the device is not
+        // sending everything it read.
+        if self.askThinned then :AppendLine("Note: ink thinned to fit ("
+            & self.askRaw & " points sent as " & self.askPoints & ")");
         :ShowTranscript();
         return :SendInk(body, strokes);
     end,
@@ -1425,6 +1644,18 @@ mainView := {
             return nil;
         end;
         if :NotesHooked(paperroll) and (via <> 'install) then return nil;
+        // EF6: exactly one tools poll may exist. InstallScript runs on every
+        // reset AND on every activation, so a package replacement can land here
+        // while a previous agent is still polling. Stop that one before the new
+        // one starts — the flag first, because it is a plain slot write that
+        // cannot throw, and it is what stops the retry loop even if the method
+        // call below cannot be made.
+        local previous := :FindAgent(paperroll);
+        if previous then
+        begin
+            previous.toolStopping := true;
+            try previous:ToolStop() onexception |evt.ex| do nil;
+        end;
         // The agent is a heap frame whose proto is this template, so it
         // inherits every method the Ask button uses. Its own copies of the
         // mutable network slots are what keep it from reading a live window's
@@ -1436,11 +1667,22 @@ mainView := {
         // rather than betting on proto lookup inside the ROM.
         agent.InkGrabbed := self.InkGrabbed;
         agent.Released := self.Released;
+        agent.ToolGrabbed := self.ToolGrabbed;
         agent.linkID := nil;
         agent.endpoint := nil;
         agent.inkEndpoint := nil;
-        agent.toolEndpoint := nil;
         agent.inkBusy := nil;
+        // The tools channel's mutable state, as own slots, for the same reason:
+        // nothing here may be read or written through the read-only template.
+        agent.toolEndpoint := nil;
+        agent.toolReady := nil;
+        agent.toolStopping := nil;
+        agent.toolBindRetried := nil;
+        agent.toolWatching := nil;
+        agent.toolMisses := 0;
+        agent.toolID := nil;
+        agent.toolOutcome := nil;
+        agent.toolValue := nil;
         // ponytail: template literals live in the read-only package, so the
         // stroke array has to be re-made in the heap before anything grows it.
         agent.askStrokes := [];
@@ -1462,6 +1704,34 @@ mainView := {
             RouteScript: self.NotesRoute,
         };
         paperroll.routeScripts := :NotesRebuild(paperroll, entry);
+        // EF6: and this is where the tools long poll now starts. The agent is
+        // the only thing in this package that exists at boot without a view, so
+        // it is the only correct owner of a channel whose whole point is
+        // answering while nobody is looking at the Newton.
+        //
+        // A delayed call rather than a straight :ToolStart() because
+        // InstallScript must stay short ("keep [it] as small as possible",
+        // Ref:2818-2826) and because at reset the NIE stack is still coming up.
+        // AddDelayedCall with a *frame* receiver is safe where one with a view
+        // receiver is not: the L1 -48809 trap was a delayed call landing on a
+        // closed view, and this frame has no view to close. The same shape is
+        // already proven on hardware — :InkDone has queued
+        // `agent:InkStop()` this way through every "Send to AI" since EF4.
+        AddDelayedCall(func(who) try who:ToolStart() onexception |evt.ex| do nil,
+            [agent], 3000);
+        return nil;
+    end,
+
+    // The live agent hanging off the picker entry, or nil. One walk, used by
+    // :NotesHook to retire a previous poll and by :NotesRoute to find where to
+    // send a tapped note.
+    FindAgent: func(paperroll)
+    begin
+        local list := paperroll.routeScripts;
+        if not IsArray(list) then return nil;
+        foreach item in list do
+            if IsFrame(item) and (item.aiHook = self.appSymbol)
+                and IsFrame(item.agent) then return item.agent;
         return nil;
     end,
 
@@ -1537,6 +1807,7 @@ mainView := {
         self.inkBody := body;
         self.inkBusy := true;
         self.inkGotReply := nil;
+        self.inkBindRetried := nil;
         self.inkSeq := self.inkSeq + 1;
         :SetStatus("Sending " & strokes & " strokes");
         AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
@@ -1557,18 +1828,25 @@ mainView := {
 
     InkGrabbed: func(id, state, error)
     begin
-        if self.inkEndpoint then return nil;
-        if error then return :InkFailed("No network link");
-        self.linkID := id;
-        if state.linkStatus <> 'connected then return nil;
-        return :InkOpen();
+        try
+        begin
+            if self.inkEndpoint then return nil;
+            if error then return :InkFailed("No network link");
+            self.linkID := id;
+            if state.linkStatus <> 'connected then return nil;
+            return :InkOpen();
+        end
+        onexception |evt.ex| do
+            try :InkFailed("Link callback failed") onexception |evt.ex| do nil;
+        return nil;
     end,
 
     InkOpen: func()
     begin
         if self.inkEndpoint then return nil;
         self.inkEndpoint := {_proto: self.endpointClass, _parent: self,
-            ExceptionHandler: func(error) self._parent:InkDropped()};
+            ExceptionHandler: func(error)
+                try self._parent:InkDropped() onexception |evt.ex| do nil};
         try
         begin
             self.inkEndpoint:Instantiate(self.inkEndpoint, [
@@ -1587,16 +1865,46 @@ mainView := {
             self.inkEndpoint:Bind(nil, {
                 async: true, reqTimeout: 10000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:InkFailed("Ink bind error " & result)
-                    else self._parent:InkBound(),
+                    try
+                    begin
+                        if result then self._parent:InkBindFailed("Ink bind error " & result)
+                        else self._parent:InkBound();
+                    end
+                    onexception |evt.ex| do nil,
             });
         end
         onexception |evt.ex| do :InkFailed("Could not reach the host");
         return nil;
     end,
 
+    // The ink POST's half of the same rule. Rebinding means throwing the failed
+    // endpoint away and opening a new one; inkBody is still held, because it is
+    // only consumed in :InkPost, which a failed bind never reached.
+    InkBindFailed: func(message)
+    begin
+        if self.inkBindRetried then return :InkFailed(message);
+        self.inkBindRetried := true;
+        :SetStatus("Ink bind retry");
+        AddDelayedCall(func(view) try view:InkRebind() onexception |evt.ex| do nil,
+            [self], 5000);
+        return nil;
+    end,
+
+    InkRebind: func()
+    begin
+        if not self.inkBusy then return nil;
+        if self.inkEndpoint then
+        begin
+            try self.inkEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.inkEndpoint := nil;
+        end;
+        return :InkOpen();
+    end,
+
     InkBound: func()
     begin
+        self.inkBindRetried := nil;
         local address := self.serverAddress;
         try
             self.inkEndpoint:connect([
@@ -1611,8 +1919,12 @@ mainView := {
             ], {
                 async: true, reqTimeout: 45000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:InkFailed("Ink connect error " & result)
-                    else self._parent:InkPost(),
+                    try
+                    begin
+                        if result then self._parent:InkFailed("Ink connect error " & result)
+                        else self._parent:InkPost();
+                    end
+                    onexception |evt.ex| do nil,
             })
         onexception |evt.ex.comm| do :InkFailed("Ink connect exception");
         return nil;
@@ -1633,9 +1945,9 @@ mainView := {
             // it asynchronously, so the app stays live the whole time.
             reqTimeout: 150000,
             InputScript: func(endpoint, data, terminator, options)
-                self._parent:HandleInkLine(data),
+                try self._parent:HandleInkLine(data) onexception |evt.ex| do nil,
             CompletionScript: func(endpoint, options, result)
-                self._parent:InkDropped(),
+                try self._parent:InkDropped() onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink input exception");
         local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
@@ -1644,7 +1956,11 @@ mainView := {
         try self.inkEndpoint:output(request, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:InkFailed("Ink send error " & result),
+                try
+                begin
+                    if result then self._parent:InkFailed("Ink send error " & result);
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink send exception");
         :SetStatus("Thinking...");
@@ -1733,8 +2049,23 @@ mainView := {
     //   2. it never grabs its own NIE link when the chat already holds one, and
     //      never releases a link another connection is still using;
     //   3. its retry loop watches toolStopping, not the chat's stopping slot,
-    //      so a chat reconnect does not silently kill the tools channel and a
-    //      closed window does kill it.
+    //      so a chat reconnect does not silently kill the tools channel.
+    //
+    // EF6 moved the *owner*. Every method below is unchanged, but the frame they
+    // run on is the package-level install-hook agent (:NotesHook), not the
+    // window. The fifth hardware test is the reason: an agent trying to install
+    // a package to the MP2000 got "Newton not responding to pings" purely
+    // because the human had this window closed, and the same window-close cycles
+    // left stale 504s behind them. InstallScript runs at every reset, so the
+    // poll restarts itself after a crash or a battery pull with nobody touching
+    // the device — which is the other half of that cure.
+    //
+    // Link ownership follows the owner. The agent grabs its own NIE link and
+    // holds it for as long as the poll lives; :ReleaseLink on the agent sees a
+    // live toolEndpoint and returns without releasing, so an ink POST from
+    // "Send to AI" borrows the agent's link and hands it back without ever
+    // dropping it. The chat window grabs separately and releases on close.
+    // Two clients, one physical link — which is what InetGrabLink refcounts.
     //
     // Why one package at all: two apps meant two NIE clients fighting over the
     // single broker slot, which is what raised the cosmetic Communications
@@ -1752,13 +2083,18 @@ mainView := {
 
     ToolGrabbed: func(id, state, error)
     begin
-        if self.toolStopping then return nil;
-        if self.toolEndpoint then return nil;
-        if error then return :ToolRetry();
-        self.linkID := id;
-        // NIE progress is not failure: everything before 'connected is ignored.
-        if state.linkStatus <> 'connected then return nil;
-        return :ToolOpen();
+        try
+        begin
+            if self.toolStopping then return nil;
+            if self.toolEndpoint then return nil;
+            if error then return :ToolRetry();
+            self.linkID := id;
+            // NIE progress is not failure: everything before 'connected is ignored.
+            if state.linkStatus <> 'connected then return nil;
+            return :ToolOpen();
+        end
+        onexception |evt.ex| do try :ToolRetry() onexception |evt.ex| do nil;
+        return nil;
     end,
 
     ToolOpen: func()
@@ -1776,7 +2112,8 @@ mainView := {
             // hardware test complained about. Catching it turns a modal alert
             // into a one-second reconnect the human never sees.
             self.toolEndpoint := {_proto: self.endpointClass, _parent: self,
-                ExceptionHandler: func(error) self._parent:ToolRetry()};
+                ExceptionHandler: func(error)
+                    try self._parent:ToolRetry() onexception |evt.ex| do nil};
             self.toolEndpoint:Instantiate(self.toolEndpoint, [
                 {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
                 {label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
@@ -1787,16 +2124,38 @@ mainView := {
             self.toolEndpoint:Bind(nil, {
                 async: true, reqTimeout: 10000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:ToolRetry() else self._parent:ToolBound(),
+                    try
+                    begin
+                        if result then self._parent:ToolBindFailed()
+                        else self._parent:ToolBound();
+                    end
+                    onexception |evt.ex| do nil,
             });
         end
         onexception |evt.ex| do :ToolRetry();
         return nil;
     end,
 
+    // The tools channel already retries forever, so "surfacing the error" is not
+    // what this buys — there is no status line on a headless agent. What it buys
+    // is the *first* retry being a slow one: a bind that failed because the
+    // previous endpoint has not finished going away needs five seconds, not the
+    // ordinary one, and hammering it is how the fourth test's `-60047` repeated.
+    ToolBindFailed: func()
+    begin
+        if self.toolBindRetried then return :ToolRetry();
+        self.toolBindRetried := true;
+        self.toolStopping := true;
+        :ToolStop();
+        AddDelayedCall(func(who) try who:ToolResume() onexception |evt.ex| do nil,
+            [self], 5000);
+        return nil;
+    end,
+
     ToolBound: func()
     begin
         if self.toolStopping then return nil;
+        self.toolBindRetried := nil;
         local address := self.serverAddress;
         try
             self.toolEndpoint:connect([{
@@ -1807,7 +2166,12 @@ mainView := {
             }], {
                 async: true, reqTimeout: 45000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
-                    if result then self._parent:ToolRetry() else self._parent:ToolConnected(),
+                    try
+                    begin
+                        if result then self._parent:ToolRetry()
+                        else self._parent:ToolConnected();
+                    end
+                    onexception |evt.ex| do nil,
             })
         onexception |evt.ex.comm| do :ToolRetry();
         return nil;
@@ -1820,8 +2184,14 @@ mainView := {
         self.toolMisses := 0;
         :ToolPoll();
         // The watchdog only starts once there is something to watch, and it
-        // reschedules itself from here on.
-        AddDelayedCall(func(view) try view:ToolWatch() onexception |evt.ex| do nil, [self], 4000);
+        // reschedules itself from here on — so it must be started ONCE, not once
+        // per connection. See :ToolWatch for what the missing guard cost.
+        if not self.toolWatching then
+        begin
+            self.toolWatching := true;
+            AddDelayedCall(func(view) try view:ToolWatch() onexception |evt.ex| do nil,
+                [self], 4000);
+        end;
         return nil;
     end,
 
@@ -1831,7 +2201,12 @@ mainView := {
         try self.toolEndpoint:Output("POLL\r\n", nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:ToolRetry() else self._parent:ToolArmInput(),
+                try
+                begin
+                    if result then self._parent:ToolRetry()
+                    else self._parent:ToolArmInput();
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :ToolRetry();
         return nil;
@@ -1846,12 +2221,14 @@ mainView := {
             termination: {endSequence: "\r\n"},
             discardAfter: 512,
             InputScript: func(endpoint, data, terminator, options)
-            begin
-                // Any line at all — heartbeat included — proves the link.
-                self._parent.toolMisses := 0;
-                if BeginsWith(data, "TOOLS ") then self._parent:ToolDispatch(data);
-                if self._parent.toolReady then self._parent:ToolArmInput();
-            end,
+                try
+                begin
+                    // Any line at all — heartbeat included — proves the link.
+                    self._parent.toolMisses := 0;
+                    if BeginsWith(data, "TOOLS ") then self._parent:ToolDispatch(data);
+                    if self._parent.toolReady then self._parent:ToolArmInput();
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :ToolRetry();
         return nil;
@@ -1860,9 +2237,32 @@ mainView := {
     // 4 s, deliberately above the host's 3 s heartbeat cadence
     // (pkg_publisher.py:77). A faster watchdog forces false reconnects — one of
     // the measured footguns in docs/newton-networking-lessons.md §2.
+    //
+    // EF6 found the second half of that footgun, and it is worse than a fast
+    // watchdog: **a duplicated one**. This chain reschedules itself, and until
+    // this round :ToolConnected started a fresh chain on every connect, so each
+    // reconnect left the old chain running and added another. N chains means
+    // toolMisses is incremented N times per 4 s, three chains cross the
+    // threshold in one period, and the channel reconnects continuously.
+    // Measured on instance ef6round against the host's own log: **15 reconnects
+    // in 60 seconds** (one every 4 s), every one of them the Newton closing the
+    // socket mid-response ("persistent Newton connection closed mid-response").
+    // With one chain the host's 3 s heartbeat always resets the counter before
+    // the 4 s tick and the connection simply stays up.
+    //
+    // This was always latent; it only became visible when EF6 made the poll
+    // package-wide and it ran for minutes instead of for as long as a window was
+    // open. It is very probably the "stale-poll 504s after window-close cycles"
+    // the fifth hardware test reported.
     ToolWatch: func()
     begin
-        if self.toolStopping then return nil;
+        if self.toolStopping then
+        begin
+            // Let :ToolConnected start a fresh chain; do not leave a dead flag
+            // behind that would suppress the watchdog forever.
+            self.toolWatching := nil;
+            return nil;
+        end;
         if self.toolReady then
         begin
             self.toolMisses := self.toolMisses + 1;
@@ -1880,7 +2280,12 @@ mainView := {
         try self.toolEndpoint:Output(response, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:ToolRetry() else self._parent:ToolReplySent(),
+                try
+                begin
+                    if result then self._parent:ToolRetry()
+                    else self._parent:ToolReplySent();
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :ToolRetry();
         return nil;
@@ -1896,7 +2301,11 @@ mainView := {
         try self.toolEndpoint:Output("POLL\r\n", nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
-                if result then self._parent:ToolRetry(),
+                try
+                begin
+                    if result then self._parent:ToolRetry();
+                end
+                onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :ToolRetry();
         return nil;
@@ -2037,8 +2446,10 @@ mainView := {
 
     ToolResume: func()
     begin
-        // The view may have been closed inside that second; ViewQuitScript's
-        // stopping flag is the one thing that outlives a delayed call.
+        // On the agent this is always nil: it protos to the read-only template,
+        // whose `stopping` no view instance can ever write. Kept as a belt: the
+        // one thing that must stop this loop is toolStopping, which :NotesHook
+        // and RemoveScript both set.
         if self.stopping then return nil;
         self.toolStopping := nil;
         return :ToolStart();
@@ -2690,7 +3101,24 @@ mainView := {
                 local rebuilt := [];
                 local dropped := nil;
                 foreach item in paperroll.routeScripts do
-                    if IsFrame(item) and (item.aiHook = frame.app) then dropped := true
+                    if IsFrame(item) and (item.aiHook = frame.app) then
+                    begin
+                        dropped := true;
+                        // EF6: the tools long poll belongs to this agent now, so
+                        // removing the package is what stops it — closing the
+                        // window no longer does and must not. The flag is set
+                        // first and separately: it is a plain slot write that
+                        // cannot throw, and it stops the 4 s watchdog and the
+                        // retry loop even if the ToolStop message below cannot
+                        // be delivered (the package's code is going away, and
+                        // the agent's methods live in it).
+                        if IsFrame(item.agent) then
+                        begin
+                            item.agent.toolStopping := true;
+                            try item.agent:ToolStop()
+                            onexception |evt.ex| do nil;
+                        end;
+                    end
                     else AddArraySlot(rebuilt, item);
                 if dropped then paperroll.routeScripts := rebuilt;
             end;

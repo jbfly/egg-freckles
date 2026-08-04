@@ -7,6 +7,78 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — EF6: ink is decimated instead of truncated, the tools poll is
+  package-wide, and every NIE callback is armored.** Ships as
+  `EggFrecklesEF6:jbfly` (v1.0-ef6), sha256 `7cce547b…`, still one package and
+  still named "Egg Freckles". Answers findings (1), (2) and (4) of the fifth
+  hardware test and the fourth test's `-48803`. Proven on isolated instance
+  `ef6round` (seeded flash) against `NEWTON_FAKE_BACKEND=1 server.py:6801` and
+  `runtime/raw_pkg_server.py:18081`, with **real** codex for the vision call.
+  Round record `docs/newton-dev-notes.md` "EF6 round"; evidence
+  [`ef6round-ink-decimation.txt`](../runtime/evidence/ef6round-ink-decimation.txt),
+  [`ef6round-tools-window-closed.txt`](../runtime/evidence/ef6round-tools-window-closed.txt),
+  screenshots `runtime/evidence/ef6round-*.png`. 98 tests (94 + 4).
+  - **The headline: `/tools` answers with the app never opened.** After a
+    `podman restart`, with Egg Freckles not launched once,
+    `{"op":"ping"}` → `pong` and `{"op":"front_app"}` → `Notepad (paperroll)`.
+    The poll now belongs to the same package-level install-hook agent as "Send
+    to AI" — created by `InstallScript`, started by a delayed call on a *frame*
+    receiver (no view to be closed under it, so no `-48809`), and stopped only
+    by `RemoveScript`. `Boot` no longer starts it and `ViewQuitScript` no longer
+    stops it. Because `InstallScript` runs on every reset, the poll restarts
+    itself after a crash or a battery pull with nobody touching the device.
+    Window opened → chatted → **closed** → `ping`/`front_app`/`note_list`/
+    `battery` all still answered; reopened and `Ask Note` worked.
+  - **Ink: 37 strokes drawn, 37 sent, 37 rendered.** A dense Sketches page
+    (37 drags, **2569 points** read straight back out of the soup) went through
+    "Send to AI" and arrived as `INK BODY bytes=5585 strokes=37 points=1308
+    bytes_per_point=4.27`. Not one stroke dropped; the points were thinned
+    evenly *within* each stroke at an integer stride of 2. **EF5 would have sent
+    5 of those 37** — `kMaxPoints := 400` was spent by the first five strokes
+    and `:AddStroke` refused every stroke after it, silently, while reporting
+    the survivor count as the drawing. That is the handwritten sentence that
+    came back as its first three words.
+  - **The new budget, and its arithmetic.** `kMaxPoints := 1600`,
+    `kMaxItems := 256`, plus a `kMaxRaw := 12000` pre-thinning ceiling past
+    which a stroke is kept as its two endpoints rather than dropped. 16384-byte
+    host body cap, minus 20 for the header, 204 for the `H` line and 2048 for
+    the per-stroke `S` lines, leaves 14112; at a pessimistic 8 bytes/point that
+    is 1764 points, so 1600 fits with margin. **Measured on the wire: 4.27
+    bytes/point**, so the real margin is about 1.8x. The count reported to the
+    human is the true drawn count, and thinning is stated out loud — the reply
+    note read `re: 37 strokes (ink thinned to fit)` / *"Diagonal lines
+    resembling falling rain."*
+  - **A reconnect storm, found because of the move and fixed.** Making the poll
+    permanent exposed that `:ToolConnected` started a fresh self-rescheduling
+    `:ToolWatch` chain on *every* connect and never stopped the old ones, so
+    `toolMisses` climbed once per chain per 4 s and the channel tore itself
+    down continuously: **15 reconnects in 60 s**, every one of them the Newton
+    hanging up (`persistent Newton connection closed mid-response`). One
+    `toolWatching` guard → **0 reconnects in 60 s**, one connection held across
+    a 12-minute session. Twenty-sixth finding in `docs/newtonscript-eval.md`;
+    this is very probably the fifth test's "stale-poll 504s".
+  - **NIE armor, by construction and unverifiable here.** Every
+    `CompletionScript`, `InputScript` and `ExceptionHandler` body, and
+    `Grabbed`/`InkGrabbed`/`ToolGrabbed`, now open with `try … onexception
+    |evt.ex|` and never rethrow; the `InetReleaseLink` call itself is guarded,
+    which is the one that drives `RemoveLinkClient`. A bind failure buys exactly
+    one 5-second retry before it reaches the status line. **Einstein cannot
+    reproduce the fourth test's fault** — its synthetic link never exercises the
+    real `InetManagerFSM` — so this remains hardware-unverified. What is proven
+    here is only that the armored client still works: chat, ink, tools, filing.
+  - **Regressions all pass**: "Send to AI" on a text note filed the reply to
+    `AI` (`7:AI`) and left the source unfiled (`6:-`), so the third hardware
+    test's filing fix has not regressed; `Save Note` → "Saved note id=5";
+    `/help` → the full command list. One new host line logs the parsed ink
+    geometry (`INK BODY …`) so a future round can check a budget against the
+    wire instead of against arithmetic.
+  - **Also measured**: one `'ink2` item can hold many strokes — 37 strokes
+    arrived in 6 items — which corrects the seventeenth finding's "one item per
+    pen stroke" (twenty-seventh finding). An item cap is not a stroke cap.
+  - **Still open: hardware.** EF6 has not been installed on the MP2000, and the
+    `-48803` armor is the part that most needs to go there. Item (3) of the
+    fifth test, the loader UX, is answered separately by Track L4 below.
+
 - **2026-08-04 — Track L4 DONE: the loader is called "Loader", you can write in
   its field, and you can type into it.** Answers item 3 of the fifth hardware
   test below. New identity **`-Loader1:jbfly`**, Extras label plain **"Loader"**,

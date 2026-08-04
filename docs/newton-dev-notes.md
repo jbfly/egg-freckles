@@ -1405,3 +1405,107 @@ What this round cost, and what is worth remembering:
 - The tools long poll stopped answering (four `504`s) after a session of window
   closes and three ink sends, and came back after a restart — the documented
   stale-client behaviour, not a regression.
+
+## 2026-08-04 — EF6 round: decimate the ink, own the poll, armor the callbacks
+
+Answers findings (1), (2) and (4) of the fifth hardware test and the fourth
+test's photographed `-48803`. `EggFrecklesEF6:jbfly` v1.0-ef6, sha256
+`7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9`. Isolated
+instance `ef6round`, seeded from
+`internal-before-round9-loader-20260725-195622.flash`; host
+`NEWTON_FAKE_BACKEND=1 server.py:6801` and `runtime/raw_pkg_server.py:18081`,
+real codex for the /ink vision call. 98 tests.
+
+### 1. Decimate, don't truncate
+
+A9's `kMaxPoints := 400` was calibrated on straight `/drag` probe strokes and
+enforced by *refusing* a stroke: `if (askPoints + count) > maxPoints then
+askTruncated := true; return nil`. On real handwriting the budget is spent by
+whichever strokes are read first and every later stroke disappears — and the
+count reported to the human is the survivor count, so the failure is invisible
+from the device. That is the "Send a list of ice hotels in Iceland" that came
+back as "Send a list".
+
+EF6 collects every stroke and fits the budget by thinning points inside each
+stroke: `:ThinInk`, one linear pass, integer stride, first and last point of
+every stroke always kept. The stride target leaves two points of headroom per
+stroke so the bound is provable rather than hopeful:
+
+    target = kMaxPoints - 2*strokes ; stride = (total div target) + 1
+
+Proof, on a 37-drag Sketches page:
+
+| | |
+|---|---:|
+| strokes drawn (read from the soup) | 37 |
+| points drawn | 2569 |
+| strokes in the NSI1 body | **37** |
+| points in the NSI1 body | 1308 |
+| body bytes | 5585 |
+| bytes per point | **4.27** |
+| what EF5 would have sent | **5 strokes** |
+
+The budget is `kMaxPoints := 1600`, worked out against the host's 16384-byte
+`/ink` cap at a pessimistic 8 bytes/point and measured at 4.27. `kMaxItems` went
+64 → 256 (it bounds the walk, not the wire) and a new `kMaxRaw := 12000` caps
+pre-thinning collection, past which a stroke is kept as its two endpoints rather
+than dropped. The reply note says so: `re: 37 strokes (ink thinned to fit)`.
+
+### 2. The tools poll is package-wide
+
+Moved off the window and onto the same install-hook agent that owns "Send to
+AI". `Boot` no longer calls `:ToolStart`, `ViewQuitScript` no longer calls
+`:ToolStop`, `:NotesHook` starts it with `AddDelayedCall(func(who) …
+who:ToolStart() …, [agent], 3000)` and `RemoveScript` stops it. A delayed call
+on a frame receiver is safe where one on a view receiver is not (the L1 `-48809`
+trap): this frame has no view to be closed under it, and the same shape has
+shipped in `:InkDone` since EF4.
+
+`ReleaseLink` needed no logic change — it already refuses to release while any
+endpoint lives, and on the agent `toolEndpoint` is always live, so the ink POST
+borrows the agent's link and hands it back without dropping it. The window grabs
+separately and releases on close; NIE refcounts the two clients.
+
+Headline proof: `podman restart`, screenshot showing only the Notepad, then
+`{"op":"ping"}` → `pong`, `{"op":"front_app"}` → `Notepad (paperroll)`, with Egg
+Freckles never opened.
+
+### 3. A defect the move exposed
+
+The first EF6 build answered every op and reconnected **15 times a minute**.
+`:ToolConnected` started a fresh self-rescheduling `:ToolWatch` on every
+connect and never stopped the old ones, so `toolMisses` climbed once per chain
+per 4 s and the retry loop became its own trigger. Instrumenting the host's
+`ToolBroker.serve` return paths for 30 s showed all five failures were
+`ConnectionError: persistent Newton connection closed mid-response` — the Newton
+hanging up, not the host. A `toolWatching` flag → **0 reconnects in 60 s**.
+Twenty-sixth finding. Latent since R10D; only visible once the poll outlived a
+window.
+
+### 4. NIE callback armor
+
+Every `CompletionScript`, `InputScript` and `ExceptionHandler` body, and
+`Grabbed`/`InkGrabbed`/`ToolGrabbed`, opens with `try … onexception |evt.ex|`
+and never rethrows. `ReleaseLink`'s `InetReleaseLink` call is guarded too — it
+is the call that drives `RemoveLinkClient`, the FSM event the fourth test's
+alert named, and an exception there would have left via `ViewQuitScript` and
+reached the human as a modal slip. Bind failures get exactly one 5-second retry
+(`:BindFailed`, `:InkBindFailed`, `:ToolBindFailed`) before being surfaced,
+which is the shape of `-60047` against a link that is still settling.
+
+**This is by construction and cannot be verified here.** Einstein's synthetic
+link never exercises the real `InetManagerFSM`. All that is proven is that the
+armored client still does everything it did.
+
+### Operational notes
+
+- `ns_eval` has no `ROM_paperRollSoupName` binding; the soup is literally
+  `"Notes"` (`GetStores()[0]:HasSoup("Notes")` → `TRUE`). Using the ROM constant
+  raises `-48807` (undefined variable) and leaves a modal alert on screen that
+  swallows subsequent taps.
+- The seeded flash's documented `-48601`/`-48807` startup alerts are not just
+  cosmetic if you are automating: one appeared mid-drawing and ate 16 of 37
+  drags, because a modal slip absorbs taps under it. Screenshot between batches.
+- A same-identity reinstall is still rejected ("already installed"), so
+  iterating on one round tag means re-seeding the instance flash rather than
+  bumping to a throwaway identity.

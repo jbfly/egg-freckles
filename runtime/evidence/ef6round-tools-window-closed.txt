@@ -1,0 +1,98 @@
+EF6 — the tools long poll is package-wide now
+=============================================
+
+Instance `ef6round` (own container, seeded flash), `EggFrecklesEF6:jbfly`
+v1.0-ef6, sha256 7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9.
+Host `runtime/raw_pkg_server.py` on 18081; log `runtime/logs/ef6round-pkg.log`.
+
+The fifth hardware test's second finding: an agent-driven install to the MP2000
+failed with "Newton not responding to pings" because the human had the Egg
+Freckles *window* closed, and the poll only ran between Boot and ViewQuitScript.
+EF6 gives the poll to the package-level install-hook agent — the same frame that
+owns "Send to AI" — so InstallScript starts it at every boot and no view can
+stop it.
+
+
+1. Headline: answers after a cold restart with the window NEVER opened
+----------------------------------------------------------------------
+
+`podman restart newton-harness-ef6round_emulator_1`, wait healthy, take a
+screenshot to prove nothing but the Notepad is on screen
+(`ef6round-01-after-restart-no-window.png` — the PCMCIA card slip over the
+Notepad, no Egg Freckles window), then curl. Egg Freckles had not been opened
+once since the restart.
+
+    === EF6 tools channel: window NEVER opened after podman restart ===
+    2026-08-04T21:30:33+01:00
+
+    --- POST /tools {"op":"ping"} ---
+    {"request_id":"1","status":"result","result":"pong"}
+
+    --- POST /tools {"op":"front_app"} ---
+    {"request_id":"2","status":"result","result":"Notepad (paperroll)"}
+
+    --- POST /tools {"op":"note_list"} ---
+    {"request_id":"3","status":"result","result":"count=3"}
+
+`front_app` answering "Notepad (paperroll)" is itself the proof: the front
+application is the Notepad, not us.
+
+
+2. Window lifecycle: open, chat, close, still answering
+-------------------------------------------------------
+
+Opened Egg Freckles from Extras, ran a chat turn ("You: from ef6" / "Agent:
+FAKE REPLY TO: ..." — `ef6round-10-chat-reply.png`), tapped Save Note
+("Saved note id=5", `ef6round-11-save-note.png`), ran `/help`
+(`ef6round-12-help.png`), then closed the window — verified closed in
+`ef6round-13-window-closed.png`, which shows the bare Notepad.
+
+    === window OPENED, chatted, then CLOSED ===
+    2026-08-04T21:38:55+01:00
+    --- ping ---       {"request_id":"8","status":"result","result":"pong"}
+    --- front_app ---  {"request_id":"9","status":"result","result":"Notepad (paperroll)"}
+    --- note_list ---  {"request_id":"10","status":"result","result":"count=6"}
+    --- battery ---    {"request_id":"11","status":"result",
+                        "result":"count=0 cap=100% charge=discharging ac=no type=nimh"}
+
+Reopened afterwards and tapped Ask Note: it read the newest note and answered
+into the transcript (`ef6round-16-ask-note.png`). Closing and reopening the
+window neither stops the poll nor breaks the chat.
+
+
+3. A reconnect storm, found and fixed because of this move
+----------------------------------------------------------
+
+The first EF6 build answered every op but reconnected constantly. Measured
+against the host's own log:
+
+    reconnects in 60 s, first EF6 build:   15   (one every 4 s)
+
+and every one of them was the Newton hanging up, not the host: instrumenting
+`ToolBroker.serve` temporarily showed all five failures in 30 s were
+`ConnectionError: persistent Newton connection closed mid-response`.
+
+Cause: `:ToolConnected` started a **new** self-rescheduling `:ToolWatch` chain on
+every connect, and old chains never died, so `toolMisses` was incremented once
+per chain per 4 s. Three chains cross the "> 2 misses" threshold inside one
+period, the channel tears itself down, reconnects, and adds a fourth chain.
+
+This was always latent — it only became visible when EF6 made the poll run for
+minutes instead of for as long as a window happened to be open, and it is very
+probably the "stale-poll 504s after window-close cycles" the fifth hardware test
+reported. Fix: a `toolWatching` flag so exactly one chain exists.
+
+    reconnects in 60 s, shipped EF6:        0
+    connects in the whole 12-minute session: 5
+
+With one chain the host's 3 s heartbeat always resets the counter before the 4 s
+tick, and the connection simply stays up.
+
+
+4. The poll survives a big ink encode
+-------------------------------------
+
+A ping fired two seconds after a "Send to AI" on a 37-stroke, 2569-point note —
+while the Newton was collecting, thinning and encoding a 5585-byte body —
+answered `pong` in 5.77 s. Slower than idle, because the encode holds the
+NewtonScript event loop, and well inside the timeout.

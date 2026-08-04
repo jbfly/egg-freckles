@@ -856,6 +856,16 @@ unbuilt until a real drawing exceeds the cap. Cap the client at ~400 points and
 ~64 items, and say so on the status line when it truncates, rather than
 building an unbounded string on the Newton.
 
+> **Superseded by EF6 (2026-08-04).** Risk S1 below landed on real hardware: a
+> handwritten sentence blew past 400 points and the client *dropped whole
+> strokes*, so the host was asked to read a drawing that was missing most of
+> itself. Truncating is the wrong answer for ink. EF6 raises the budget to
+> `kMaxPoints := 1600` / `kMaxItems := 256` (arithmetic against the 16 KiB cap;
+> **measured 4.27 bytes per point** on the wire) and, when a note still exceeds
+> it, thins points *within* each stroke at an integer stride so every stroke
+> survives at lower resolution. See the ROADMAP status log's EF6 entry and
+> `runtime/evidence/ef6round-ink-decimation.txt`.
+
 ### Open risks
 
 | # | Risk | Cheapest experiment |
@@ -993,9 +1003,16 @@ proves the transport was not disturbed.
   (`EggFrecklesEF1:jbfly`) — install that one and skip A8/A9.
 - **Risk S1 is still unmeasured.** Every probe stroke is a straight `/drag`
   (`emulator/control.py:185`), 17–51 points. A real freehand curve may produce
-  far more; the client caps at 400 points and says so, but nobody has drawn a
-  cat by hand yet.
+  far more. **Measured 2026-08-04: it does.** A human's handwritten sentence on
+  the MP2000 exceeded the 400-point cap and lost strokes (fifth hardware test),
+  and 37 emulator drags produced 2569 points where the same count of probe-style
+  strokes would have produced ~630. EF6 replaced the cap-and-truncate with
+  decimation; this risk is closed.
 - **Risk S3 (ExpandInk cost) is untimed.** The largest note measured here was
   153 points across 5 strokes and felt instant, well short of the 400 cap.
+  EF6 measured the other end: collecting 2569 points, thinning them and encoding
+  a 5585-byte body held the NewtonScript event loop long enough that a `/tools`
+  ping issued mid-encode took 5.77 s instead of its usual sub-second, but the
+  channel stayed up and answered. So it is not free, and it is not dangerous.
 - A note older than the 16-entry window still loses. Track F3 — read the
   *currently open* note — remains the real answer and is still unexplored.

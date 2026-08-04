@@ -888,7 +888,11 @@ id=3 class=paperroll slots=viewStationery:symbol class:symbol height:int
  data:Array timestamp:int _version:int _modTime:int _uniqueID:int
 ```
 
-The kinds live in `data`, one item **per pen stroke**. On the mixed probe note
+The kinds live in `data`. On this probe note there was one item per pen stroke —
+but that is **not** a rule, and EF6 measured 37 strokes arriving in 6 items when
+they are drawn in quick succession (twenty-seventh finding). Treat an item as a
+container of one *or more* strokes; `CountStrokes` on the bundle is the count
+that matters. On the mixed probe note
 — five freehand strokes, four shape-recognised strokes, one typed paragraph —
 the ten items classified as:
 
@@ -1654,3 +1658,85 @@ Two ROM icons are reachable from a `routeScripts` hook — the Duplicate and
 Delete entries' — and `entry.icon := list[0].icon` would borrow one in a line.
 Nothing else in the picker is: Print/Fax/Beam belong to transports. Evidence
 [`runtime/evidence/effix-icons.txt`](../runtime/evidence/effix-icons.txt).
+
+## Twenty-sixth finding: a self-rescheduling watchdog must be single-instance (Track L, EF6)
+
+**Rule: a `AddDelayedCall` chain that reschedules itself is a *process*, and
+starting it from a method that can run more than once starts a second one.
+Guard it with a flag, or the retry loop it is supposed to protect becomes the
+thing that needs protecting.**
+
+The `/tools` long poll has carried the same shape since R10D: `:ToolConnected`
+arms a 4-second `:ToolWatch`, and `:ToolWatch` reschedules itself. Input resets
+`toolMisses`; three consecutive misses call `:ToolRetry`. The period is
+deliberately above the host's 3 s heartbeat cadence, which
+`docs/newton-networking-lessons.md` §2 already records as a footgun in the other
+direction ("watchdog period below heartbeat cadence").
+
+What nobody noticed is that `:ToolConnected` runs on **every** connect, and the
+chain it starts is never stopped. So after N reconnects there are N chains, and
+`toolMisses` climbs N times per 4 s period. Three chains cross the threshold
+inside one period; the channel tears itself down, reconnects, and adds a fourth.
+It is self-sustaining, and the retry loop is its own trigger.
+
+Measured on instance `ef6round`, against the host's own log, with the first EF6
+build (which had made the poll package-wide and therefore permanent):
+
+```text
+reconnects in 60 s   15      one every ~4 s
+```
+
+and the failures are the Newton hanging up, not the host. Temporarily
+instrumenting `ToolBroker.serve`'s four return paths showed every one of five
+failures in 30 s was the same:
+
+```text
+TOOLDBG exception: ConnectionError: persistent Newton connection closed mid-response
+```
+
+With a `toolWatching` flag so `:ToolConnected` starts a chain only when none is
+running — and `:ToolWatch` clearing the flag on the path where it declines to
+reschedule, so the chain can be restarted rather than suppressed forever:
+
+```text
+reconnects in 60 s    0
+connects in 12 min    1 + 4 (one per heavy encode / window cycle)
+```
+
+**Why it stayed hidden until now.** Before EF6 the poll lived and died with the
+Egg Freckles window, so the storm only ran while somebody was looking at an open
+app — and a reconnect every 4 s reads as "the network is flaky on this old
+thing". EF6 made the poll package-wide and permanent (ROADMAP Track L), which is
+what turned an intermittent annoyance into a measurable defect. It is very
+probably the "stale-poll 504s after window-close cycles" reported in the fifth
+hardware test: a request submitted into the 1-second gap between teardown and
+reconnect has nothing to answer it.
+
+Evidence
+[`runtime/evidence/ef6round-tools-window-closed.txt`](../runtime/evidence/ef6round-tools-window-closed.txt)
+§3; the guard is `toolWatching` in `examples/harness-client/Main.newt`.
+
+## Twenty-seventh finding: one `'ink2` item can hold many strokes (Track L, EF6)
+
+The seventeenth finding measured a mixed probe note where five freehand strokes
+produced five items each holding exactly one stroke, and recorded the data array
+as holding "one item **per pen stroke**". That is not a rule. Measured on
+`ef6round` with 37 drags on one page, read back through
+`ExpandInk`/`CountStrokes`:
+
+```text
+uid=3 items=6 strokes=37 points=2569 min=58 max=71
+```
+
+Thirty-seven strokes in **six** items. The ROM coalesces strokes drawn close
+together in time and space into one ink object; the probe note's five separated
+strokes simply never got coalesced.
+
+The consequence is practical: **an item cap is not a stroke cap, and neither is a
+substitute for the other.** `kMaxItems` bounds how much of the `data` array the
+client walks (the twelfth finding's bounded-work rule) and can be generous;
+what bounds the wire is the point budget. Ink Text is the case where the two
+converge, because there every *word* is its own item.
+
+Cross-check on the same page, from the host side after the client encoded it:
+`INK BODY bytes=5585 strokes=37 points=1308 bytes_per_point=4.27`.

@@ -370,6 +370,14 @@ class PublisherHandler(BaseHTTPRequestHandler):
         except (IndexError, UnicodeDecodeError, ValueError):
             self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink\n", "text/plain; charset=us-ascii")
             return
+        # What actually arrived, so a round can check the client's ink budget
+        # against the wire instead of against arithmetic. The fifth hardware
+        # test's truncation bug was invisible here precisely because nothing
+        # logged how much geometry a body carried.
+        points = sum(len(stroke) for stroke in strokes)
+        rate = f" bytes_per_point={length / points:.2f}" if points else ""
+        print(f"INK BODY bytes={length} strokes={stroke_count} points={points}{rate}",
+              flush=True)
         if strokes:
             self.ink_path.parent.mkdir(parents=True, exist_ok=True)
             save_ink_png(self.ink_path, strokes)
