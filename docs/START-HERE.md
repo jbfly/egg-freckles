@@ -50,6 +50,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
 | `docs/dev-harness.md` | You need the containers, ports, security boundary, or the full emulator control API. This was the old `README.md`; the README is now the public front door. |
 | `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end; results appended after the design, and **read "A9 result" first — it is the current state**. Track A9 deleted the capture canvas (it dropped all but the first stroke) and moved capture into stock Notes: one **Ask** button reads the newest note's strokes out of the soup and POSTs them, with the page's text on an optional `NSI1` `H` line. Earlier sections ("Stage 5 result", "Track F2 result") describe the canvas that no longer exists. Still open: not installed on physical hardware, multi-part POST unbuilt (and still not needed). See `docs/ROADMAP.md` Tracks E, F and A9. |
+| `docs/notes-integration-design.md` | You are building "Send to AI" into the **stock Notes envelope menu** (ROADMAP Track L2). Designed 2026-08-04, **nothing shipped**; the mechanism was measured on the ROM (evidence `runtime/evidence/l2probe-routescripts.txt`, finding twenty in `docs/newtonscript-eval.md`) and every unproven step in its build plan carries a `[verify]` tag. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc

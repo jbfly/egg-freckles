@@ -7,6 +7,54 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track L2 designed: "Send to AI" really does go in the stock
+  Notes menu, and it kills the wrong-note bug outright.** Research and design
+  only, no client code. Design:
+  [`docs/notes-integration-design.md`](notes-integration-design.md); probe
+  transcript `runtime/evidence/l2probe-routescripts.txt`; new
+  `docs/newtonscript-eval.md` "Twentieth finding". Measured on isolated
+  instance `l2probe`, which was torn down after.
+  - **Runtime menu injection works on the ROM.** `GetRoot().paperroll` has a
+    2-entry `routeScripts` (Duplicate, Delete, both via `GetTitle`); assigning
+    an extended array to that slot shadows the ROM proto, `GetRouteScripts` —
+    the method the picker itself calls
+    (`refs/NewtonProgrammerRef20.txt:52547-52561`) — returns `len=3 |<GetTitle>
+    |<GetTitle> |Send to AI`, and the real envelope menu draws it
+    (`runtime/evidence/l2probe-action-picker.png`). There is **no**
+    `RegNotesRouteScript`: the only documented per-app registry is Names-only
+    (`kRegNamesRouteScriptFunc`, `Ref:43732-43746`), and the bare
+    `RegRouteScript`/`extraRouteScripts` symbols in the 2.1 platform file are
+    documented in neither 2.0 book.
+  - **The target is the note you are looking at.** `RouteScript(target,
+    targetView)` receives the **live soup entry** (`IsSoupEntry`=1,
+    `TargetIsCursor`=0, `EntrySoup(target):GetName()`="Notes"). Firing from the
+    first note's envelope gave `uid=2`; firing from the second note's envelope
+    gave `uid=3`. **Ask's newest-note heuristic is not needed on this path at
+    all** — the cat/D&D class of bug cannot occur, and A9's `ExpandInk`
+    extraction runs on the entry unchanged.
+  - **The reply lands in a folder.** `AddFolder("AI", 'paperroll)` → `'AI`
+    (`Ref:38952-38966`), `entry.labels := tag` + `EntryChangeXmit` files it,
+    and the whole loop ran on the ROM: `replied uid=6 from=3 chars=46
+    folder=AI`, visible under the Notes "AI" tab
+    (`runtime/evidence/l2probe-ai-folder.png`). Folders do not fight back; the
+    popup is demoted to an optional progress panel.
+  - **It is RAM-only and must be re-applied at every boot.** Injected,
+    `podman restart`, re-read: back to `len=2`. `InstallScript` "is executed
+    when an application or auto part is activated on the Newton or whenever the
+    Newton is reset" (`refs/NewtonProgrammerGuide20.txt:5209-5210`), with the
+    mandatory `RemoveScript` reversal (`:5223-5234`). `RemoveSlot` restores the
+    ROM array exactly — which is why uninstall must instead rebuild the array
+    without our frame, so a competing package's entry survives.
+  - **Recommended packaging: fold into Track L1's Egg Freckles package, not a
+    third package** — the route script needs `InetGrabLink`, the shared
+    `linkID` and A9's extractor, all of which already live there, and a second
+    NIE link owner is the `-16009` failure the ink round already paid for.
+    Transport: reuse the existing `POST /ink` verbatim (`NSI1` + `H` line,
+    reply as one `INK …` line), fully async like `SendInk`, no long poll.
+  - **Biggest open `[verify]`: nothing in this repo has ever used
+    `InstallScript`**, so `tntk`'s handling of it is unproven and is step 1 of
+    the build plan; the fallback is hooking from `ViewSetupFormScript`.
+
 - **2026-08-04 — Track L3 done: mars builds Newton packages, and there is a
   public from-zero host-setup guide.** `docs/host-setup.md` is the new
   doc — clone cDCL and `tntk`, apply `tools/tntk-project-version.patch` plus
@@ -996,12 +1044,19 @@ Direct answers to the second hardware test (status log entry above).
   Up/Dn if it misbehaves); make Ask's newest-note ordering robust to a
   wrong clock (`EntryUniqueID` is allocation-ordered; the 2008-clock
   history poisons every time-based index).
-- **L2. Notes Action-menu integration (design first).** "Send to AI" in the
-  stock Notes envelope menu via the routing/action API (`routeScripts` /
-  routing-slip territory — `[verify]` against refs; Avi's Backdrop is the
-  existence proof). Reply as a new note, ideally filed into an "AI" folder,
-  or a small `protoFloatNGo` popup. This eventually supersedes the Ask
-  button; the chat app remains as the conversation surface.
+- **L2. Notes Action-menu integration — DESIGNED 2026-08-04, not built.**
+  `docs/notes-integration-design.md` is the design, with a four-session build
+  plan and every unproven step tagged `[verify]`; the mechanism was measured
+  on the ROM (status log entry above, evidence
+  `runtime/evidence/l2probe-routescripts.txt`). Short version: append a
+  `{title, RouteScript}` frame to `GetRoot().paperroll.routeScripts` from the
+  package's `InstallScript` (re-runs on every reset), the script receives the
+  **live soup entry of the note whose envelope was tapped** — so no
+  newest-note heuristic — POST it over the existing `/ink` transport, and
+  write the answer back as a note filed into an "AI" folder via `AddFolder` +
+  `labels`. Ship it **inside** L1's Egg Freckles package, not as a third
+  package. This eventually supersedes the Ask button; the chat app remains as
+  the conversation surface.
 - **L3. Mars self-sufficiency — DONE 2026-08-04.** Built cDCL, patched
   `tntk`, and NEWT/0 on mars, all user-space under `~/newton-dev`, zero
   `sudo` (mars already had every prerequisite package: `gcc` 16.1.1, `cmake`,

@@ -1,0 +1,236 @@
+Track L2 probe — extending the stock Notes Action (envelope) menu
+=================================================================
+
+Date        2026-08-04
+Instance    l2probe (isolated; `make emulator-instance-up INSTANCE=l2probe`,
+            then seeded with
+            ~/newton-archive/newton-harness/flash-backups/
+            internal-before-round9-loader-20260725-195622.flash, per
+            docs/parallel-emulators.md). Torn down after the round.
+Tooling     runtime/ns_eval.py --instance l2probe (one-line NewtonScript),
+            python3 -m emulator.client tap/screen.
+Nothing was installed. Every change below is a runtime frame edit, and the
+reboot section proves it left no trace.
+
+Screenshots cited by docs/notes-integration-design.md:
+  runtime/evidence/l2probe-action-picker.png  "Send to AI" in the real picker
+  runtime/evidence/l2probe-folder-picker.png  "AI" in the Notes folder tab
+  runtime/evidence/l2probe-ai-folder.png      the reply note inside "AI"
+
+
+1. The stock Notes app has a routeScripts slot, with two entries
+------------------------------------------------------------------
+
+    $ ns_eval 'begin local n:=GetRoot().paperroll; ClassOf(n) & "" end'
+    "frame"
+
+    $ ns_eval 'begin local n:=GetRoot().paperroll;
+               if n.routeScripts then Length(n.routeScripts) else -1 end'
+    2
+
+    $ ns_eval 'begin local n:=GetRoot().paperroll; local s:="";
+               foreach x in n.routeScripts do
+                 s:=s&&(if IsFrame(x) then (if x.title then x.title
+                        else "<GetTitle>") else Clone(x)&""); s end'
+    " <GetTitle> <GetTitle>"
+
+Both stock entries use GetTitle rather than a title slot — they are Duplicate
+and Delete, which is what the picker draws (screenshot 1). This matches
+NewtonProgrammerGuide20.txt:46288-46294 (the shape of a routeScripts frame) and
+:46409-46411 (GetTitle instead of title).
+
+
+2. Walking to the Action button, and what GetTargetInfo hands it
+------------------------------------------------------------------
+
+Breadth-first walk of GetRoot().paperroll:ChildViewFrames() reaches 22 views;
+seven of them answer to PickActionScript (it is inherited down the parent
+chain, so this alone does not identify the button):
+
+    "n=22 act= 5 7 8 9 10 14 16"
+
+Asking each of those for the routing target info frame:
+
+    " [5 bnd=-108,3 ti=noTarget] [7 bnd=6,2 ti=noTarget] [8 bnd=7,0 ti=noTarget]
+      [9 bnd=7,0 ti=noTarget] [10 bnd=7,0 ti=noTarget] [14 bnd=-18,0 ti=list]
+      [16 bnd=0,8 ti=list]"
+
+Index 16 (a view inside the note page) returns a real target. Its target
+information frame carries exactly the three documented slots, and the target is
+a **live soup entry**, not a copy and not a cursor:
+
+    $ ns_eval '... local ti := v:GetTargetInfo('routing); ...'
+    " targetView target targetStore || tclass=list isEntry=1 isCursor=0
+      curEntry=list uid=2 isEntry=1"
+
+`IsSoupEntry(target)` = 1; `TargetIsCursor(target)` = 0 for a single note.
+Slot names match NewtonProgrammerRef20.txt:51446-51450 and
+NewtonProgrammerGuide20.txt:46330-46340.
+
+
+3. Appending a frame to routeScripts at runtime puts it in the real picker
+---------------------------------------------------------------------------
+
+    $ ns_eval 'begin local n := GetRoot().paperroll; local a := [];
+               foreach x in n.routeScripts do AddArraySlot(a, x);
+               AddArraySlot(a, {title: "Send to AI", icon: nil,
+                                RouteScript: func(target, targetView) ...});
+               n.routeScripts := a;
+               ... local btn := q[16];
+               local rs := btn:GetRouteScripts(btn:GetTargetInfo('routing));
+               ... end'
+    "len=3 |<GetTitle> |<GetTitle> |Send to AI"
+
+`GetRouteScripts` is the method the picker itself calls
+(NewtonProgrammerRef20.txt:52547-52561). Tapping the envelope then draws it:
+
+    Print Note  ⌘P
+    Fax
+    Beam
+    ----
+    Duplicate
+    Delete
+    Send to AI          <-- ours
+
+    runtime/evidence/l2probe-action-picker.png
+
+Note the assignment creates an *own* slot on the paperroll view frame that
+shadows the ROM one; see section 6.
+
+
+4. Choosing it calls RouteScript(target, targetView) with the note you are on
+------------------------------------------------------------------------------
+
+The route script writes what it sees into a global, read back over ns_eval.
+
+Firing from the FIRST note's Action button (an empty page, uid 2):
+
+    "fired isEntry=1 cursor=0 cls=list uid=2 stat=paperroll"
+
+Firing from the SECOND note's Action button — the page holding "the cat sat on
+the mat", uid 3 — without scrolling, selecting or otherwise disambiguating:
+
+    "uid=3 isEntry=1 tv=1 soup=Notes nData=1 [frame]"
+
+Different button, different note, correct note both times. There is no
+newest-note heuristic anywhere in this path: the target is the page whose
+envelope was tapped, straight out of the Notes soup ("soup=Notes").
+
+Two smaller facts fall out:
+  - `EntrySoup(target):GetName()` = "Notes", i.e. the union soup entry the A9
+    extractor already reads.
+  - the item inside a note made by `MakeTextNote` has NO class slot — ClassOf
+    is 'frame, and its slots are (text, viewBounds, viewFont, _proto,
+    viewStationery). A reader that keys on `ClassOf(item) = 'para` will skip
+    notes the harness itself wrote:
+
+    $ ns_eval '... foreach sym, v in it do out := out & sym & "," ...'
+    " {uid=0 stat=paperroll n=0} {uid=1 stat=paperroll n=0}
+      {uid=2 stat=paperroll n=0}
+      {uid=3 stat=paperroll n=1 (text,viewBounds,viewFont,_proto,
+       viewStationery,cls=frame)}"
+
+Two exceptions were raised before the probe was made defensive: -48410 and
+-48418, both from `Length(target.data)` on a page whose `data` is nil (the
+seeded blank notes of docs/notes-bridge.md). Guard `data` before touching it.
+
+
+5. The whole delivery, end to end, minus the network
+------------------------------------------------------
+
+A route script that reads the target, creates a reply note, and files it:
+
+    RouteScript: func(target, targetView) begin
+      local txt := "";
+      if target.data then foreach it in target.data do
+        if it.text then txt := txt & it.text;
+      local pr := GetRoot().paperroll;
+      local tag := AddFolder("AI", 'paperroll);
+      pr:NewNote(pr:MakeTextNote("AI: you sent " & Length(txt)
+                                 & " chars -- " & txt, nil), nil, nil);
+      local s := GetUnionSoupAlways("Notes");
+      local c := s:Query({indexPath: 'timeStamp});
+      local last := c:ResetToEnd();
+      last.labels := tag;
+      EntryChangeXmit(last, nil);
+      ...
+    end
+
+Result, read back after tapping Send to AI on the cat note:
+
+    "replied uid=6 from=3 chars=46 folder=AI"
+
+and the folder machinery, probed separately:
+
+    "AddFolder=AI str=AI list=AI,Business,Miscellaneous,personal,
+     newNote=nil lastUid=4 labels=AI folderStr=AI"
+
+  - `AddFolder("AI", 'paperroll)` returns the tag symbol 'AI and is idempotent
+    (NewtonProgrammerRef20.txt:38952-38966).
+  - `GetFolderStr('AI)` = "AI" (:39010-39017).
+  - `GetFolderList('paperroll, nil)` now contains AI (:39046-39055).
+  - The Notes folder tab picker lists it: runtime/evidence/l2probe-folder-picker.png
+  - Switching to it shows exactly the reply note, title bar "◆ AI":
+    runtime/evidence/l2probe-ai-folder.png
+
+`chars=46` for the 22-character string "the cat sat on the mat" is not a bug in
+the note: `Length()` on a NewtonScript string returns its **byte** size, and
+strings are 16-bit with a terminator — (22+1)*2 = 46. Use `StrLen` for
+characters.
+
+`NewNote` returned nil rather than the entry, which is why the reply is found
+by re-querying and taking `ResetToEnd` (the sixteenth finding's rule: it lands
+*on* the last entry).
+
+
+6. It does not survive a reset, and it removes cleanly
+--------------------------------------------------------
+
+Removing our own slot restores the ROM array exactly:
+
+    $ ns_eval 'begin local n := GetRoot().paperroll;
+               RemoveSlot(n, 'routeScripts); ... end'
+    "after-remove len=2 |<GetTitle> |<GetTitle>"
+
+Injected, then `podman restart newton-harness-l2probe_emulator_1`, then:
+
+    === inject before reboot
+    "len=3"
+    === after reboot
+    "len=2 |<GetTitle> |<GetTitle>"
+
+So the patch is pure RAM on the rebuilt view frame. A package must re-apply it
+on every boot, which is exactly what an application part's InstallScript is
+for: "The InstallScript function in a package part is executed when an
+application or auto part is activated on the Newton or whenever the Newton is
+reset" (NewtonProgrammerGuide20.txt:5209-5210), with the matching warning that
+everything InstallScript changes must be undone in RemoveScript (:5223-5234).
+
+
+7. What the platform file says exists on 2.1
+----------------------------------------------
+
+    $ strings -a ~/newton-dev/ntk-platform-files/21PTF/NEWTON21.PTF \
+        | grep -i 'routescript\|RegNames\|paperroll'
+    GetRouteScripts
+    kUnRegNamesRouteScriptFunc
+    kRegNamesRouteScriptFunc
+    ROM_paperRollSoupName
+    ROM_paperRollIndices
+    ROM_paperrollSoupDef
+    UnRegRouteScript
+    devRouteScripts
+    UpdateNamesRouteScript
+    routeScripts
+    extraRouteScripts
+    RegRouteScript
+    routeScript
+    paperroll
+
+`kRegNamesRouteScriptFunc` / `kUnRegNamesRouteScriptFunc` are the documented
+**Names-only** registry (NewtonProgrammerRef20.txt:43732-43746 and
+:43858-43871). The bare `RegRouteScript` / `UnRegRouteScript` /
+`extraRouteScripts` / `devRouteScripts` symbols appear in the platform file
+next to the pager/phone-type Names entries and are documented nowhere in either
+2.0 book — grepping both refs for them returns zero hits. They were NOT probed
+this round; the design uses the slot-append route, which is measured above.

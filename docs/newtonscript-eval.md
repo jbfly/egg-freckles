@@ -1227,3 +1227,111 @@ note is still on screen would read the stale value.
 operator. tntk reports the syntax error a dozen lines further down, at the
 first line it cannot re-sync on, so the message points nowhere near the cause.
 The A9 client uses `stamp`.
+
+## Twentieth finding: the Notes Action menu takes a third-party entry, and it hands you the note (Track L2)
+
+Track L2 asked whether a package can put "Send to AI" in the stock Notes
+envelope menu. It can, on the ROM, with one array assignment — and the entry
+receives the *live soup entry of the note whose envelope was tapped*, which
+retires the newest-note heuristic the nineteenth finding above exists to
+support. Probed on isolated instance `l2probe`, 2026-08-04; full transcript
+with every command and answer in
+[`runtime/evidence/l2probe-routescripts.txt`](../runtime/evidence/l2probe-routescripts.txt),
+design in [`docs/notes-integration-design.md`](notes-integration-design.md).
+
+### The stock app's array, and ours next to it
+
+```text
+GetRoot().paperroll             -> frame
+Length(n.routeScripts)          -> 2
+titles                          -> " <GetTitle> <GetTitle>"   (Duplicate, Delete)
+```
+
+Assigning `n.routeScripts := <old entries> + {title, icon, RouteScript}`
+creates an **own slot on the RAM view frame that shadows the ROM proto**, and
+the method the picker itself calls to build its list
+(`view:GetRouteScripts(targetInfoFrame)`,
+`refs/NewtonProgrammerRef20.txt:52547-52561`) returns it:
+
+```text
+len=3 |<GetTitle> |<GetTitle> |Send to AI
+```
+
+The real envelope menu then draws `Print Note / Fax / Beam / — / Duplicate /
+Delete / Send to AI` (`runtime/evidence/l2probe-action-picker.png`). No
+transport, no routing slip, no Out Box: application-defined routing actions run
+immediately (`refs/NewtonProgrammerGuide20.txt:46271-46273`).
+
+There is **no `RegNotesRouteScript`**. The only documented per-app registry is
+Names-only (`kRegNamesRouteScriptFunc`, `Ref:43732-43746`); the bare
+`RegRouteScript` / `UnRegRouteScript` / `extraRouteScripts` / `devRouteScripts`
+symbols do exist in the 2.1 platform file but appear in neither 2.0 book and
+were not probed.
+
+### What the RouteScript receives
+
+`RouteScript(target, targetView)` — target and targetView out of
+`self:GetTargetInfo('routing)` (`Ref:51446-51450`):
+
+```text
+first note's envelope   -> fired isEntry=1 cursor=0 cls=list uid=2 stat=paperroll
+second note's envelope  -> uid=3 isEntry=1 tv=1 soup=Notes nData=1 [frame]
+```
+
+`IsSoupEntry` is 1 and `TargetIsCursor` is 0: it is the **live Notes soup
+entry**, not a copy, so `ExpandInk` and the rest of the seventeenth finding's
+extraction apply to it directly. Two different envelopes gave two different
+`uid`s with nothing else changed, so the target follows the page, not the
+clock.
+
+### Three traps in one probe
+
+1. **`entry.data` can be nil.** `Length(target.data)` on a blank page threw
+   `-48410` and `-48418` on two attempts. Guard it.
+2. **`ClassOf(item) = 'para` is not a reliable test.** An item created by
+   `MakeTextNote` has no class slot at all — `ClassOf` is `'frame`, slots are
+   `(text, viewBounds, viewFont, _proto, viewStationery)`. Typed notes on
+   hardware do carry `'para` (which is why A9's reader works), but a reader
+   that only accepts `'para` will refuse to re-send a note the harness itself
+   wrote.
+3. **`Length()` on a string returns bytes, not characters.** "the cat sat on
+   the mat" measured 46: strings are 16-bit and terminated, so `(22+1)*2`. Use
+   `StrLen`.
+
+### Folders are three documented calls, and they work
+
+```text
+AddFolder("AI", 'paperroll)     -> 'AI    (idempotent, Ref:38952-38966)
+GetFolderStr('AI)               -> "AI"   (Ref:39010-39017)
+GetFolderList('paperroll, nil)  -> AI,Business,Miscellaneous,personal
+entry.labels := 'AI; EntryChangeXmit(entry, nil)
+```
+
+Filing *is* the `labels` slot — "Setting the value of the labels slot is really
+the only 'filing' that is done" (`Guide:35418-35427`). The whole loop ran from
+inside the route script: `replied uid=6 from=3 chars=46 folder=AI`, and the
+note shows under the Notes "AI" tab
+(`runtime/evidence/l2probe-ai-folder.png`). Limits: twelve local folders per
+app, twelve global system-wide, and only the user can make global ones.
+`NewNote` returns nil rather than the entry, so the just-written note is found
+by re-querying and taking `ResetToEnd` (sixteenth finding).
+
+### It is RAM-only, and it removes cleanly
+
+```text
+=== inject before reboot
+"len=3"
+=== after reboot (podman restart)
+"len=2 |<GetTitle> |<GetTitle>"
+```
+
+The paperroll view frame is rebuilt from ROM at every reset, so the hook must
+be re-applied each boot — which is precisely what an application part's
+`InstallScript` is for: it "is executed when an application or auto part is
+activated on the Newton **or whenever the Newton is reset**"
+(`Guide:5209-5210`), with the matching rule that everything it changes must be
+undone in `RemoveScript` (`:5223-5234`).
+
+`RemoveSlot(n, 'routeScripts)` restores the ROM array exactly (`len=2`) — which
+is a *hazard*, not a feature: it would also discard an entry some other package
+appended after ours. Uninstall by rebuilding the array without our own frame.
