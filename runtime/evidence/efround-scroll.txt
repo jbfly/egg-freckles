@@ -1,0 +1,5 @@
+== Track L1 vApplication scroll-arrow experiment (eighteenth finding), instance efround ==
+-- live viewFlags:
+"viewFlags=581 scrollRow=0 rows=27"
+-- transcript row window BEFORE tapping the ROM up arrow:
+"brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the laz -- the quick brown fox jumps over the lazy dog 0123456789.lazy dog the quick brown fox jumps over the laz -- the quick brown fox jumps over the lazy dog 0123456789."

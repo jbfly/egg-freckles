@@ -3,30 +3,42 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = (ROOT / "examples/harness-client/Main.newt").read_text()
-PROJECT = (ROOT / "examples/harness-client/harness-client.nprj").read_text()
+PROJECT = (ROOT / "examples/harness-client/egg-freckles.nprj").read_text()
 
 
 def test_chat_transport_stays_non_blocking():
     assert "async: nil" not in SOURCE
     assert "endpoint:Input(" not in SOURCE
     # 6 chat (Bind, connect, handshake, hello, ACK, send) + 3 ink (Bind,
-    # connect, POST). A9 deleted the capture canvas but kept every one of the
-    # ink endpoint's calls: Ask reuses that transport unchanged.
-    assert SOURCE.count("async: true") == 9
-    assert SOURCE.count("form: 'string") == 7
+    # connect, POST) + 5 tools (Bind, connect, POLL, reply, re-POLL). Track L1
+    # folded the tools client in without relaxing one timing rule.
+    assert SOURCE.count("async: true") == 14
+    assert SOURCE.count("form: 'string") == 12
     assert "ViewQuitScript: func()" in SOURCE
     assert "self.endpoint:SetInputSpec(nil)" in SOURCE
     assert "self.inkEndpoint:SetInputSpec(nil)" in SOURCE
+    assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_a9_identity_and_mars_default_match():
-    assert "kAppSymbol := '|HarnessClientA9:jbfly|;" in SOURCE
-    assert 'kVersion := "2.4-a9";' in SOURCE
-    assert 'kAppTitle := "Newton Chat A9 " & kVersion;' in SOURCE
-    assert 'kAppLabel := "Chat A9";' in SOURCE
+def test_ef1_identity_is_named_for_a_human_and_mars_default_matches():
+    # Track L1: the round tag lives in the identity and the version string, and
+    # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
+    assert "kAppSymbol := '|EggFrecklesEF1:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef1";' in SOURCE
+    assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
+    assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "HarnessClientA9:jbfly"' in PROJECT
-    assert "version: 17" in PROJECT
+    assert 'name: "EggFrecklesEF1:jbfly"' in PROJECT
+    assert "version: 18" in PROJECT
+    # No dev cruft left in anything the human reads. Comments still name the
+    # old packages for provenance, so this checks the display strings only:
+    # every literal that reaches the screen as a title, a label or a button.
+    shown = [line.split('"')[1] for line in SOURCE.splitlines()
+             if line.strip().startswith(("kAppTitle", "kAppLabel", "text: \""))]
+    assert "Egg Freckles" in shown
+    for label in shown:
+        for cruft in ("Chat", "A9", "Harness", "R10P", "Newton"):
+            assert cruft not in label, label
     assert "serverAddress: [10, 42, 0, 1]" in SOURCE
     assert "serverPort: 6801" in SOURCE
     assert "inkPort: 18081" in SOURCE
@@ -64,32 +76,89 @@ def test_the_newest_note_is_read_without_the_off_by_one():
     assert "cursor:ResetToEnd();\n        local entry := cursor:Prev();" not in SOURCE
 
 
-def test_the_newest_note_is_the_most_recently_modified_one():
-    # The hardware bug: the human drew a cat, tapped Ask, and got an answer
-    # about an older D&D text note. timeStamp is CREATION time and drawing on
-    # an existing page only moves EntryModTime (measured nine minutes apart on
-    # the probe note). There is no _modTime index to order by -- that query
-    # raises evt.ex.fr.store -- so the comparison is done by hand, and bounded
-    # so the event loop cannot starve.
+def test_the_newest_note_is_the_last_one_the_store_allocated():
+    # Track L1. The device's clock had been set to 2008 and corrected, so every
+    # date on it lies: a note written while it was wrong sorts to the FRONT of
+    # the timeStamp index, where a scan running back from the end never sees it.
+    # That is why a fresh cat drawing lost to months-old D&D notes twice.
+    # EntryUniqueID comes off a per-soup counter that never consults the clock
+    # (soup:GetNextUid, refs/NewtonProgrammerRef20.txt:33348), and _uniqueID is
+    # a real index on this ROM. Proven side by side on the same 25-note soup in
+    # runtime/evidence/efround-ordering.txt: the old rule answered id=23
+    # "EF dnd session 18", this one answers id=24 "EF cat drawing page".
     assert "FindNewest: func()" in SOURCE
     assert "kScanLimit := 16;" in SOURCE
     assert "scanLimit: kScanLimit," in SOURCE
-    assert "local bestMod := EntryModTime(entry);" in SOURCE
+    assert "try cursor := soup:Query({indexPath: '_uniqueID})" in SOURCE
+    assert "local bestUid := EntryUniqueID(entry);" in SOURCE
     assert "while (entry <> nil) and (scanned < self.scanLimit) do" in SOURCE
+    # Highest ID wins; EntryModTime only breaks a cross-store ID tie.
+    assert "or (uid > bestUid)" in SOURCE
+    assert "((uid = bestUid) and (stamp <> nil)" in SOURCE
     # `mod` is the modulo operator; a local named that is a syntax error.
     assert "local mod :=" not in SOURCE
-    assert "local stamp := EntryModTime(entry);" in SOURCE
-    # Ask is the only caller; the timeStamp-ordered read is gone by name.
+    # Ask is the only caller; the timeStamp-ordered reads are gone by name.
     assert "ReadNote: func()" not in SOURCE
     assert "AskNote: func()" not in SOURCE
+    # Save Note reads back through the same rule instead of a same-minute
+    # tie-break of its own.
+    assert "local entry := :FindNewest();" in SOURCE
+
+
+def test_the_tools_client_lives_inside_this_package_now():
+    # Track L1: one install, one app, one NIE link. The separate
+    # HarnessToolsR10P package is deleted, which also removes the second NIE
+    # client that raised the cosmetic Communications alerts on hardware.
+    for op in ("ping", "front_app", "battery", "store_info", "pkg_list",
+               "note_list", "get_note", "note_probe"):
+        assert f'StrEqual(op, "{op}")' in SOURCE
+    assert "ToolDispatch: func(line)" in SOURCE
+    assert 'self.toolEndpoint:Output("POLL\\r\\n", nil, {' in SOURCE
+    # The watchdog stays above the host's 3 s heartbeat cadence.
+    assert "if self.toolMisses > 2 then :ToolRetry();" in SOURCE
+    assert "view:ToolWatch() onexception |evt.ex| do nil, [self], 4000);" in SOURCE
+    # Names are prefixed so nothing collides case-insensitively with the chat
+    # side's Stop/Bound/Connected/ArmInput/Grabbed.
+    for name in ("ToolStart", "ToolGrabbed", "ToolBound", "ToolConnected",
+                 "ToolPoll", "ToolArmInput", "ToolReply", "ToolStop"):
+        assert f"{name}: func" in SOURCE
+    # One link, three connections: nobody releases it while another holds it.
+    assert "ReleaseLink: func()" in SOURCE
+    assert "if self.endpoint or self.inkEndpoint or self.toolEndpoint then return nil;" in SOURCE
+    assert "if self.linkID then return :OpenSession();" in SOURCE
+    assert "if self.linkID then return :ToolOpen();" in SOURCE
+
+
+def test_every_endpoint_catches_its_own_exceptions():
+    # "If no ExceptionHandler method is specified, the exception is passed up
+    # the handler chain. Exceptions that are not caught are displayed as warning
+    # messages to the user" (refs/NewtonProgrammerRef20.txt:57321-57323) -- that
+    # warning is the modal Communications slip the hardware test complained
+    # about. Three endpoints, three handlers.
+    assert SOURCE.count("ExceptionHandler: func(error)") == 3
+    # And a delayed call that lands on a closed view raises -48809; every one of
+    # them is guarded, which is what makes closing the window silent.
+    assert SOURCE.count("AddDelayedCall(func(view) try view:") == SOURCE.count("AddDelayedCall(")
+
+
+def test_the_window_is_centred_on_whatever_screen_the_rom_reports():
+    # A9 hardcoded the box. The second hardware test said it loads off-centre,
+    # and a constant can only be centred on the screen it was measured against.
+    assert "kWinWidth := 304;" in SOURCE
+    assert "kWinHeight := 428;" in SOURCE
+    assert "ViewSetupFormScript: func()" in SOURCE
+    assert "CenterBounds: func()" in SOURCE
+    assert "try box := GetRoot():LocalBox()" in SOURCE
+    assert "local left := box.left + ((wide - self.winWidth) div 2);" in SOURCE
+    assert "local top := box.top + ((high - self.winHeight) div 2);" in SOURCE
 
 
 def test_one_ask_button_classifies_the_note_instead_of_offering_two():
-    # One button, one meaning: send the newest note, whatever kind it is.
-    # Never an "Ask Note"/"Ask Sketch" pair, never a silent skip.
-    assert 'text: "Ask",' in SOURCE
+    # Still one button with one meaning -- send the newest note, whatever kind
+    # it is -- but labelled for what it acts on. Track L1: the bare verbs did
+    # not say what they applied to. Never an "Ask Note"/"Ask Sketch" pair.
+    assert 'text: "Ask Note",' in SOURCE
     assert "buttonClickScript: func() self:Parent():Ask()," in SOURCE
-    assert 'text: "Ask Note",' not in SOURCE
     assert 'text: "Ask Sketch",' not in SOURCE
     # The classification ORDER is load-bearing: every sketch item's _proto is a
     # clPolygonView template with its own empty `points` binary, so testing
@@ -207,8 +276,8 @@ def test_prompt_is_a_large_multiline_handwriting_area():
 
 def test_the_second_control_row_carries_the_panel_buttons():
     for text, bounds in (
-        ("Ask", "{left: 14, top: 388, right: 96, bottom: 410}"),
-        ("Save Note", "{left: 104, top: 388, right: 196, bottom: 410}"),
+        ("Ask Note", "{left: 14, top: 388, right: 110, bottom: 410}"),
+        ("Save Note", "{left: 118, top: 388, right: 214, bottom: 410}"),
     ):
         assert f"viewBounds: {bounds}" in SOURCE
         assert f'text: "{text}",' in SOURCE
@@ -246,11 +315,16 @@ def test_the_scroll_buttons_page_the_transcript_window():
         assert f'text: "{text}",' in SOURCE
     assert "ScrollUp: func() :ScrollBy(self.visibleRows - self.scrollOverlap)," in SOURCE
     assert "ScrollDown: func() :ScrollBy(self.scrollOverlap - self.visibleRows)," in SOURCE
-    # The ROM's own scroll arrows reach only a view with vApplication set
-    # (refs/NewtonProgrammerRef20.txt:3193-3199); this float window measured
-    # viewFlags 576 through ns_eval, so wiring them would be dead code.
+    # The ROM's own scroll arrows cannot reach this window, and Track L1 tried
+    # it rather than assuming: viewFlags 580 went in, the live window read 581,
+    # the handlers worked when called directly, and tapping the arrow changed
+    # nothing at all. Scroll routing excludes floating views by definition
+    # (refs/NewtonProgrammerRef20.txt:4510-4512), so the flag is reverted and
+    # the handlers are gone rather than shipped dead.
+    assert "viewFlags:" not in SOURCE
     assert "ViewScrollUpScript: func()" not in SOURCE
     assert "ViewScrollDownScript: func()" not in SOURCE
+    assert "ViewOverviewScript: func()" not in SOURCE
 
 
 def test_host_errors_remain_visible_in_transcript():

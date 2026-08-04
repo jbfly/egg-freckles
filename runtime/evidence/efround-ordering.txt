@@ -1,0 +1,12 @@
+== Track L1 Ask-ordering probe, isolated instance efround, 2026-08-04T11:05:20Z ==
+-- 0. before: real clock, five notes (three from the seed flash, A and B created above)
+-- 1. clock set to 2008-06-01 (SetTime 54919320), note C created, clock corrected
+"clock poisoned to 64478105, corrected back to 64478105"
+-- SetTime(54919320) is a NO-OP under Einstein: Time() still read 64478105 (documented Ref:50542)
+-- so the poisoned clock is built by construction: 18 'dnd' notes, then the cat note last with a forged 2008 timeStamp
+"cat id=24 ts=54919320 mod=64478106"
+-- 2. both rules run over the same soup (25 entries), poisoned case: cat is last-allocated but 2008-stamped
+timed out after 5s waiting for NewtonScript result
+timed out after 30s waiting for NewtonScript result
+"A9 rule (timeStamp cursor, max EntryModTime) picks id=23 mod=64478106 text=EF dnd session 18"
+"EF1 rule (_uniqueID cursor, max EntryUniqueID) picks id=24 ts=54919320 text=EF cat drawing page"

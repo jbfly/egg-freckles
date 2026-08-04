@@ -209,7 +209,9 @@ The raw HTTP endpoints are:
 
 ## Build Newton packages reproducibly
 
-Build and stage Harness Loader v1.1 and Harness Client v1.1 with one target:
+Build and stage the two Newton packages — Harness Loader and the client, **Egg
+Freckles** (`egg-freckles.pkg`, which since Track L1 carries the chat client and
+the fixed-op tools channel in one app) — with one target:
 
 ```sh
 make newton-packages

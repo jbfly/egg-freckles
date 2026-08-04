@@ -39,6 +39,13 @@ Staged packages, in install order:
 | `harness-loader.pkg` | over-the-air updater, optional |
 | `harness-client.pkg` | chat client, optional |
 
+Those two staged files are the pre-Track-L1 build and are what this runbook was
+exercised against. **Anything staged from now on is one package**: Track L1
+merged the tools client into the chat client, `examples/harness-tools/` is
+deleted, and `make stage-hw PKG=examples/harness-client` stages
+`egg-freckles.pkg` (`EggFrecklesEF1:jbfly`, Extras label "Egg Freckles"), which
+carries chat *and* the eight tool ops. Install one package, not two.
+
 **The WaveLAN/Noguchi driver is NOT in this repo.** It ships with the card or
 comes from UNNA. Install it on the Newton before anything else, or the card
 will not appear in Internet Setup. This is the most likely thing to block the

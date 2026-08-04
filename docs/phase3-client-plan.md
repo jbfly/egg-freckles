@@ -191,7 +191,7 @@ Use the same per-frame SUM8 plus one whole-file checksum. **Verify before implem
 
 A future agent should use this loop; no step requires modifying the emulator image for ordinary client iterations.
 
-1. **Edit only the client and matching host tests/code.** Keep `examples/harness-client/harness-client.nprj` name and `kAppSymbol` stable so installation replaces the existing client rather than creating another app.
+1. **Edit only the client and matching host tests/code.** Keep the project file (now `examples/harness-client/egg-freckles.nprj`) and `kAppSymbol` in step, and bump the identity with `scripts/newton-round.sh` — a reused identity is refused with `-10402`, and a *stable* one cannot be reinstalled without the documented remove sequence.
 2. **Run host tests first.** Add focused protocol tests to the existing unittest suite, including checksum rejection, duplicate frame idempotence, one dropped ACK/retry, and unchanged PT100 mode. Run:
 
    ```sh

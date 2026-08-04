@@ -1216,3 +1216,87 @@ one **Ask** button. Deleted: the capture canvas, its `ViewStrokeScript` /
 Noise, all previously documented: `-48807`/`-48601` modal alerts from the seed
 flash while typing into the Notepad, and xdotool dropping the leading `feed ` of
 `feed the cat`.
+
+## 2026-08-04 — Track L1 round: "Egg Freckles", one package
+
+Round tag `ef1`, identity `EggFrecklesEF1:jbfly`, package version 18, built
+`examples/harness-client/egg-freckles.pkg` sha256
+`2831f8133ec083ba04b4757fa1c2ff8e2374fb7737d6d3133e8b33c8618d13ab`. Isolated
+instance `efround` (seeded flash), `NEWTON_FAKE_BACKEND=1 server.py` on 6801 and
+`runtime/raw_pkg_server.py` on `10.42.0.1:18081`. Round transcript
+`runtime/evidence/efround-round.txt`; ordering proof `efround-ordering.txt`;
+tools transcript `efround-tools.txt`; screens `efround-1*.png`.
+
+This round answers the second hardware test point by point. What each fix cost:
+
+**One package (shape (a): the tools channel lives inside the chat app).** The
+alternative — one `.pkg` carrying two forms — was not needed, because the chat
+app was already running a second endpoint on its NIE link for the ink POST, so
+the long poll is a third connection on the same link and nothing about the
+transport had to change. All eight ops answered with **no tools app installed**;
+`GetPackages()` on the device listed `EggFrecklesEF1:jbfly` and no
+`HarnessTools`. `front_app` returning `Notepad (paperroll)` while the chat
+window is open is not a bug — floating views are excluded from
+`'viewFrontMostApp` by definition.
+
+Three collisions had to be designed around, and they are the whole difficulty of
+merging two Newton apps:
+
+1. **Name collisions.** `Stop`, `Bound`, `Connected`, `ArmInput`, `Grabbed`,
+   `Released` exist on both sides, and NewtonScript symbols are
+   case-insensitive, so everything from the tools app is prefixed `Tool*`.
+2. **Link ownership.** One `InetGrabLink` for three connections. Whoever shuts
+   down last calls `InetReleaseLink` (`ReleaseLink` checks all three endpoint
+   slots first), and `Connect()` reuses a held link instead of grabbing a second
+   one. Releasing a link under a live endpoint is what raised the `-48803`
+   overlays in the loader rounds.
+3. **Two stop flags.** The chat sets `stopping` on every reconnect; the tools
+   retry loop must not read that flag or a chat reconnect would silently kill
+   the tools channel for good. `toolStopping` is separate, and `ViewQuitScript`
+   sets both.
+
+**Two sources of modal alerts found and killed** (`docs/newtonscript-eval.md`,
+twenty-first finding): endpoints with no `ExceptionHandler` show unsolicited
+disconnects to the user as `Communications — Sorry, a problem has occurred`,
+and an `AddDelayedCall` landing on a closed view raises `-48809`. Both were
+reproduced on screen and both are fixed; closing the window with the poll live
+is now silent (`efround-18-closed-silent.png`, broker logs one
+`Newton tools disconnected` and no reconnect).
+
+**Ask ordering.** `EntryModTime` ordering was replaced by highest
+`EntryUniqueID`; rule and evidence in `docs/notes-bridge.md` and the twentieth
+finding. On the shipped bytes, with a 2008-stamped note created last behind
+eighteen newer-dated ones, `Ask Note` answered
+`Note: EF cat drawing page two` (`efround-16-ask-note.png`).
+
+**`vApplication` verdict: no.** The eighteenth finding's open experiment was
+run and failed; the flag is reverted and the scroll scripts deleted. Detail in
+the eighteenth finding, which is now closed.
+
+**Window.** `viewBounds` is computed in `ViewSetupFormScript` from
+`GetRoot():LocalBox()` instead of being hardcoded; the live window reads
+`8,26,312,454` on a 320x480 root. Honest note: A9's hardcoded `8,24,312,452` was
+already close to centred on *this* screen, so the visible change in the emulator
+is two pixels. The value of the change is that it is now derived rather than
+asserted, which is also what makes it survive a different screen.
+
+**Regressions all clean on the final bytes**: short prompt round-tripped; a
+270-character prompt split `MSGP part 1/2 220B` + `2/2 50B` →
+`assembled 2 parts into 270B prompt`; **Up** moved the 27-row transcript to
+`scrollRow=10` and **Dn** returned it to 0; `Save Note` reported
+`Saved note id=27`.
+
+**Traps worth remembering.**
+
+- `scripts/newton-round.sh` had to be taught that a human-named app carries no
+  round tag in its title. Its `kAppTitle` rewrite is now optional (like the
+  Extras label already was), and `--self-check` grew a second case that bumps
+  `EggFrecklesEF1` → `EF2` and asserts the title and label come out
+  byte-identical.
+- Re-installing the *same* identity after a mid-round rebuild works, and the
+  documented sequence is the only one that does: `:Close()`, then
+  `GetPkgRef(name, GetDefaultStore())`, then `SafeRemovePackage`. Used twice
+  this round, so the final live proof ran on the committed bytes.
+- `ns_eval` cannot call a function held in a local (`Txt(entry)` is a *global*
+  call and throws); use `call Txt with (entry)` or inline it. Cost one silent
+  20-second timeout before the probe was rewritten.

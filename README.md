@@ -138,9 +138,10 @@ to start with. You do not need a Newton to see it work — you need a Newton
    `http://127.0.0.1:6080/vnc.html?autoconnect=1`.
 8. `make newton-packages` — build the client and the loader into
    `runtime/staging/`. (`make toolchain-hello` is the smaller smoke test.)
-9. `scripts/install-and-launch.sh /packages/harness-client/harness-client.pkg
-   'HarnessClientA9:jbfly'` — install the client into the running emulator and
-   open it.
+9. `scripts/install-and-launch.sh /packages/harness-client/egg-freckles.pkg
+   'EggFrecklesEF1:jbfly'` — install the client into the running emulator and
+   open it. One package carries chat, the device tools, notes and ink; there is
+   no separate tools app to install.
 10. `make test` — the suite, via `uv run --with pytest pytest -q`.
 
 Full operational detail — ports, the security boundary, the emulator control
@@ -162,11 +163,16 @@ physical device.
 
 ## Status and roadmap
 
-This works, and it is young. The physical MessagePad currently runs the older
-`Chat A3` client; everything since — the harness panel with notes and ink, the
-device tools, multi-frame prompts — is proven in the emulator and waiting on
-bench time. The tools channel has never run on the physical device. Ink has
-never been drawn with a real stylus into a real vision-model round trip.
+This works, and it is young. The physical MessagePad runs `Chat A7` plus the
+separate `HarnessToolsR10P` tools client, installed at the 2026-08-03 bench
+session, where chat, slash commands and agent tool calls all worked on real
+hardware (`docs/ROADMAP.md`, status log). Everything since — the scrolling
+transcript, the one-button Ask, and the single **Egg Freckles** package that
+now carries chat *and* tools in one app — is proven in the emulator and waiting
+on bench time; when it goes on, it is one install that replaces both. Ink has
+never been drawn with a real stylus into a completed vision-model round trip:
+the one attempt failed on a host PATH problem, and the canvas it used has since
+been deleted in favour of drawing in stock Notes.
 
 [`docs/ROADMAP.md`](docs/ROADMAP.md) is the plan and the evidence log;
 [`docs/START-HERE.md`](docs/START-HERE.md) is where a contributor or a coding

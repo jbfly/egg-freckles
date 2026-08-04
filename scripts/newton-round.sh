@@ -29,8 +29,11 @@ new_upper = tag.upper()
 patterns = [
     (r"^kAppSymbol := '\|([^\n]*?)" + re.escape(old_upper) + r"(:[^|\n]+)\|;$", r"kAppSymbol := '|\g<1>" + new_upper + r"\g<2>|;", 1),
     (r'^kVersion := "' + re.escape(base) + r'-' + re.escape(old) + r'";$', f'kVersion := "{base}-{tag}";', 1),
-    (r'^kAppTitle := "([^"\n]*?)' + re.escape(old_upper) + r'([^"\n]*)" & kVersion;$', r'kAppTitle := "\g<1>' + new_upper + r'\g<2>" & kVersion;', 1),
-    # The Extras label is optional: only the chat client carries one.
+    # Title and Extras label are both optional. Track L1 named the client for a
+    # human ("Egg Freckles"), so the round tag survives only in kAppSymbol, in
+    # kVersion and in the .nprj name — the two required patterns. A package whose
+    # user-visible strings still carry the tag (the loader) keeps being rewritten.
+    (r'^kAppTitle := "([^"\n]*?)' + re.escape(old_upper) + r'([^"\n]*)" & kVersion;$', r'kAppTitle := "\g<1>' + new_upper + r'\g<2>" & kVersion;', False),
     (r'^kAppLabel := "([^"\n]*?)' + re.escape(old_upper) + r'([^"\n]*)";$', r'kAppLabel := "\g<1>' + new_upper + r'\g<2>";', False),
 ]
 for pattern, replacement, required in patterns:
@@ -75,6 +78,27 @@ EOF
     if bump_identity "$tmp/Main.newt" "$tmp/test.nprj" r15a 2>/dev/null; then
         fail "self-check accepted an already-used tag"
     fi
+
+    # Track L1 shape: the product name carries no round tag, so only the symbol,
+    # the version and the .nprj name may move. The human-visible strings must
+    # come out byte-identical.
+    cat > "$tmp/Named.newt" <<'EOF'
+kAppSymbol := '|EggFrecklesEF1:jbfly|;
+kVersion := "1.0-ef1";
+kAppTitle := "Egg Freckles " & kVersion;
+kAppLabel := "Egg Freckles";
+EOF
+    cat > "$tmp/named.nprj" <<'EOF'
+{
+    name: "EggFrecklesEF1:jbfly",
+}
+EOF
+    bump_identity "$tmp/Named.newt" "$tmp/named.nprj" ef2
+    grep -Fx "kAppSymbol := '|EggFrecklesEF2:jbfly|;" "$tmp/Named.newt" >/dev/null
+    grep -Fx 'kVersion := "1.0-ef2";' "$tmp/Named.newt" >/dev/null
+    grep -Fx 'kAppTitle := "Egg Freckles " & kVersion;' "$tmp/Named.newt" >/dev/null
+    grep -Fx 'kAppLabel := "Egg Freckles";' "$tmp/Named.newt" >/dev/null
+    grep -Fx '    name: "EggFrecklesEF2:jbfly",' "$tmp/named.nprj" >/dev/null
     echo "newton-round self-check: PASS"
 }
 

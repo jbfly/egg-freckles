@@ -100,15 +100,15 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 85 pass (2026-08-04), of which **20** are client-source tests
+**Tests** — 88 pass (2026-08-04), of which **23** are client-source tests
 pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
-the bounded `EntryModTime` scan, the `NSI1` `H` line and the Track A8 transcript
-row window; 16 of the rest cover the Track F4 slash commands and the session
-registry. `pytest` is not in
+the Track L1 `EntryUniqueID` ordering rule and merged tools channel, the `NSI1`
+`H` line and the Track A8 transcript row window; 16 of the rest cover the Track
+F4 slash commands and the session registry. `pytest` is not in
 the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 85 passed
+uv run --with pytest pytest -q          # 88 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -197,9 +197,16 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-Since 2026-08-04 the *source* client is `HarnessClientA9:jbfly` ("Chat A9",
-v2.4-a9), and it is the **harness panel**, not just a chat window:
+Since 2026-08-04 the *source* client is `EggFrecklesEF1:jbfly` — user-visible
+name **"Egg Freckles"**, title "Egg Freckles 1.0-ef1", package version 18. It
+supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
+**harness panel**, not just a chat window:
 
+- it is now the *only* client package. Track L1 folded the fixed-op tools client
+  into it: `examples/harness-tools/` is deleted and its POLL transport and all
+  eight ops live in `examples/harness-client/Main.newt` under `Tool*` names
+  (`ToolStart`, `ToolPoll`, `ToolDispatch`, `ToolStop`). There is nothing
+  separate for the human to install;
 - it splits a prompt over 227 characters into `MSGP` frames that the host
   reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension: `MSGP`");
 - one **Ask** button sends the newest stock note *whatever kind it is* — text

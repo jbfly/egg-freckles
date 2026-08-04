@@ -332,3 +332,53 @@ is still the sanctioned write path.
 - The returned display line is ASCII-cleaned and capped at 200 characters for
   the Newton status view. There is no polling, queue, or bridge-owned history;
   every export resets the shared chat before its one model turn.
+
+## Which note is "the newest" — the ordering rule (Track L1, 2026-08-04)
+
+The rule the `Ask Note` button uses, and the reason it is not the obvious one.
+Full evidence in `docs/newtonscript-eval.md`, "Twentieth finding"; raw transcript
+[`efround-ordering.txt`](../runtime/evidence/efround-ordering.txt).
+
+**The rule.** The newest note is the one the store **allocated last**:
+
+```newtonscript
+cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: '_uniqueID});
+entry  := cursor:ResetToEnd();          // highest EntryUniqueID
+// then scan back kScanLimit (16) entries, keeping the highest EntryUniqueID;
+// EntryModTime breaks a tie ONLY (a union soup interleaves independent
+// per-store ID spaces). Falls back to the 'timeStamp cursor if the ID query
+// ever throws.
+```
+
+**Why not a date.** All three date-shaped candidates fail on this device:
+
+| Candidate | Why it fails |
+|---|---|
+| `timeStamp` | creation time, never moves — a drawing added to an existing page never becomes newest (A7's bug, seventeenth finding) |
+| `EntryModTime` | one-minute granularity, and stale until the user leaves the page (nineteenth finding) |
+| either, on this MessagePad | the clock had been set to **2008** and corrected, so a note written while it was wrong sorts to the *front* of the `timeStamp` index and loses every `EntryModTime` comparison. Both halves of A9's rule are poisoned at once |
+| `Query({indexPath: '_modTime})` | raises `evt.ex.fr.store` on this ROM — the index does not exist |
+
+`EntryUniqueID` is the only recency signal on the device that never consults the
+clock: IDs come off a per-soup counter (`soup:GetNextUid()` is documented as
+"the unique identifier to be assigned to the next entry added to the soup",
+`refs/NewtonProgrammerRef20.txt:33348`), and `_uniqueID` is queryable as an
+index even though the manuals never document it as one.
+
+**Measured, both rules over the same 25-note soup** — a "cat" note created last
+but stamped 2008-06-01, behind eighteen ordinary D&D notes:
+
+```text
+A9  (timeStamp cursor, max EntryModTime)  -> id=23  "EF dnd session 18"     wrong
+EF1 (_uniqueID cursor, max EntryUniqueID) -> id=24  "EF cat drawing page"   right
+```
+
+**What it costs.** A9 could answer with an *older* page you had just drawn on;
+this cannot — it will answer with the newest page you *created*. That trade was
+made deliberately: only one of the two survives a wrong clock, and the hardware
+has a wrong clock. Reading the **open** note (Track F3) is the fix that needs
+neither, and it is still the right long-term answer.
+
+`Save Note` reads its confirmation back through the same `FindNewest()`, so the
+id in "Saved note id=27" is the entry that was actually written — no
+same-minute tie-break needed any more.

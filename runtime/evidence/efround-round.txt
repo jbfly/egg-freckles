@@ -1,0 +1,28 @@
+== Track L1 live round: Egg Freckles EF1 on isolated instance efround ==
+package sha256 2831f8133ec083ba04b4757fa1c2ff8e2374fb7737d6d3133e8b33c8618d13ab
+host: NEWTON_FAKE_BACKEND=1 server.py:6801 + runtime/raw_pkg_server.py on 10.42.0.1:18081
+"You: who are youAgent: FAKE REPLY TO: who are you -- the quick brown fox jumps over the lazy dog 0123456789."
+-- MSGP on the host:
+[newton] ts=2026-08-04T11:28:22+00:00 MSGP part 1/2 220B total=220B
+[newton] ts=2026-08-04T11:28:23+00:00 MSGP part 2/2 50B total=270B
+[newton] ts=2026-08-04T11:28:23+00:00 MSGP assembled 2 parts into 270B prompt
+-- rows and window at the live bottom:
+"rows=27 scrollRow=0"
+-- after tapping Up:
+"scrollRow=10 top=You: pack my box with five dozen liquor"
+-- after tapping Dn:
+"scrollRow=0 top=box with five dozen liquor jugs pack my"
+-- the poisoned-clock case, rebuilt on the shipped bytes:
+"cat id=26 ts=54919320 | newest-by-timeStamp is id=25 text=FAKE REPLY TO: EF cat drawing page -- the quick brown fox jumps over the lazy dog 0123456789."
+-- transcript after tapping Ask Note:
+"Agent: New session.Note: EF cat drawing page twoAgent: FAKE REPLY TO: EF cat drawing page two -- the quick brown fox jumps over the lazy dog 0123456789."
+-- Save Note status line:
+"Saved note id=27"
+-- the task's exact tools call, only Egg Freckles running:
+{"request_id":"11","status":"result","result":"count=0 cap=100% charge=discharging ac=no type=nimh"}
+
+{"request_id":"12","status":"result","result":"count=28"}
+
+-- broker after close (must show disconnect and no reconnect):
+10.42.0.1 - - [04/Aug/2026 12:29:26] "POST /tools?timeout=20 HTTP/1.1" 200 -
+Newton tools disconnected

@@ -45,10 +45,14 @@ path — do not start it for an install.
 
 **`pkg_publisher.py`'s package serving is a different channel.** Its
 `ToolBroker` + HTTP handler (`pkg_publisher.py:62`, `:281`) back `/tools`,
-`/ink`, and `/note` for `examples/harness-tools` and `examples/harness-client`
-(`Ask` POSTs `/ink` for a drawing; nothing calls `/note` since Track F2 moved the
-note bridge onto the chat transport) — the agent-facing channel, not the ZC40
-loader's install flow. Do not point the loader at it.
+`/ink`, and `/note` for `examples/harness-client` — since Track L1 that one
+package is both the chat client and the tools client, and `examples/harness-tools`
+is deleted (`Ask` POSTs `/ink` for a drawing; nothing calls `/note` since Track F2
+moved the note bridge onto the chat transport) — the agent-facing channel, not the
+ZC40 loader's install flow. Do not point the loader at it. It also serves the
+client package itself at `/egg-freckles.pkg`, still answering the old
+`/harness-client.pkg` path as an alias (`pkg_publisher.py:482-487`), so a loader
+with the old filename typed in keeps working.
 
 Use `make stage-hw PKG=<examples-dir>` (below) to build, copy into
 `runtime/staging/hardware/`, and get the exact short filename to type.

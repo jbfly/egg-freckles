@@ -1,14 +1,13 @@
 # examples/ — Newton-side packages
 
-Five package source dirs. Each holds a NewtonScript project built into a
+Four package source dirs. Each holds a NewtonScript project built into a
 `.pkg` checked into the same directory.
 
 | dir | identity | status |
 |---|---|---|
 | `dice` | `Dice1:jbfly` ("Newton Dice") | Track G2 proof artifact: the first app an **agent** built end to end (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). Roll button → `Random(1, 6)`; emulator-proven on instance `gloop`, never on hardware. Also the smallest working example of a button + a live-updated text view |
-| `harness-client` | `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9) | CURRENT chat client and **the harness panel**: chat + one **Ask** button + `Save Note`, in one app. `Ask` sends the newest note *whatever kind it is* — text down the chat path, drawings as `NSI1` strokes to `POST /ink`, a mixed page as one request carrying both (ROADMAP Track A9). Long prompts and long notes split into `MSGP` parts (Track F1); the transcript is wrapped onto a 12-row grid with **Up**/**Dn** paging it (Track A8); built by `make newton-packages`. The `Ink` capture canvas was **deleted** in A9 — draw in stock Notes instead. `HarnessClientA7` is what is installed on the physical MP2000; A8 and A9 are emulator-proven only, and **A9 supersedes A8** (install A9, skip A8) |
+| `harness-client` | `EggFrecklesEF1:jbfly` ("Egg Freckles", v1.0-ef1) | CURRENT and **the only package the human installs**: the chat window, the `Ask Note`/`Save Note` bridge to stock Notes, and the fixed-op `/tools` channel, in one app on one NIE link (ROADMAP Track L1). `Ask Note` sends the newest note *whatever kind it is* — text down the chat path, drawings as `NSI1` strokes to `POST /ink`, a mixed page as one request carrying both — and "newest" now means the highest `EntryUniqueID`, which a wrong device clock cannot poison. Long prompts and long notes split into `MSGP` parts (Track F1); the transcript is wrapped onto a 12-row grid with **Up**/**Dn** paging it (Track A8); the window centres itself on the live root box. Built by `make newton-packages` as `egg-freckles.pkg`. **The physical MP2000 still runs `HarnessClientA7` plus the separate `HarnessToolsR10P`** — everything from A8 on is emulator-proven only, and Egg Freckles supersedes A8, A9 *and* R10P in one install |
 | `harness-loader` | `-HarnessLoaderZC40:jbfly` (v2.4) | CURRENT WiFi package loader; installed on physical MP2000 (ZC39 fallback also installed); built by `make newton-packages` |
-| `harness-tools` | `HarnessToolsR10P:jbfly` | fixed-op tools client (ping/front_app/get_note/note_list/note_probe/battery/store_info/pkg_list), all proven over the `POST /tools` link on Einstein, not yet on hardware; ROADMAP Track C |
 | `hello` | `HarnessHello:jbfly` | toolchain smoke test (`make toolchain-hello`) |
 
 Package identities are never reused — see `docs/phase3-chat-round.md`
@@ -17,8 +16,26 @@ correctly. The `.pkg` files checked into each dir above are the built
 artifacts; the emulator is served them read-only via the `compose.yaml:41`
 mount.
 
-`ink-capture` (`InkPad2:jbfly`) and `note-export` (`NoteExportN13:jbfly`) were
-deleted in Track F2 — their canvas, encoder and note read/create code now live
-inside `harness-client`, which is the whole point of the panel. Git history
-keeps them; `docs/ink-client-design.md` and `docs/notes-bridge.md` still
-describe what they proved.
+Three example dirs have been folded into `harness-client` rather than kept
+beside it, because the human installs packages one at a time on a 1997
+touchscreen and every extra package is another install, another Extras icon and
+another NIE client:
+
+- `ink-capture` (`InkPad2:jbfly`) and `note-export` (`NoteExportN13:jbfly`),
+  deleted in Track F2 — their encoder and note read/create code moved in.
+- `harness-tools` (`HarnessToolsR10P:jbfly`), deleted in Track L1 — its long-poll
+  transport and all eight ops (`ping`, `front_app`, `battery`, `store_info`,
+  `pkg_list`, `note_list`, `get_note`, `note_probe`) moved in verbatim, with
+  every name prefixed `Tool*` so nothing collides case-insensitively with the
+  chat side. The `POST /tools` wire contract did not change; what changed is
+  that the answers now come from the app the human already has open. A second
+  tools app was also a second NIE client competing for the broker's single
+  long-poll slot — the source of the cosmetic `Communications` alerts in the
+  2026-08-03 hardware test.
+
+Git history keeps all three; `docs/ink-client-design.md`, `docs/notes-bridge.md`
+and `docs/newtonscript-eval.md` still describe what they proved.
+
+Note that `harness-client/` keeps its directory name (a lot of docs cite paths
+inside it) while the project, the package and the app carry the product name:
+`egg-freckles.nprj` -> `egg-freckles.pkg` -> "Egg Freckles" in Extras.

@@ -779,9 +779,12 @@ already pins the `Encode()` origin fix.
    does that last step.
 2. **The transport is already in the client and nowhere else.** It owns the NIE
    link, the asynchronous `/ink` POST and the `INK ` reply parsing (Track F2
-   result). A tools op would need a second package installed and running, and
+   result). A tools op would need a second package installed and running (true
+   when this was written; Track L1 has since merged the two into one package, so
+   only the reply-shape half of this reason still applies), and
    the tools reply is a small single-line escaped ASCII envelope
-   (`examples/harness-tools/Main.newt` `Reply`) — the wrong shape for a
+   (`examples/harness-tools/Main.newt` `Reply`, now `ToolReply` in the
+   tools-channel section of `examples/harness-client/Main.newt`) — the wrong shape for a
    279-point payload, and the twelfth finding's starvation lesson says building
    that string synchronously is exactly how the long-poll link dies.
 3. **It replaces code instead of adding it.** The overlay comes out, a
@@ -869,7 +872,10 @@ building an unbounded string on the Newton.
 **Built and emulator-proven.** The section above is now history: `Chat A9`
 (`HarnessClientA9:jbfly`, v2.4-a9, project version 17) ships one **Ask** button
 that sends the newest note whatever kind it is, and the capture canvas is
-deleted. Full round record with every probe and its verbatim output:
+deleted. (The same Ask code now ships as **Egg Freckles**,
+`EggFrecklesEF1:jbfly`, v1.0-ef1, package version 18 — Track L1 renamed the
+client and folded the tools package into it; none of the ink behaviour below
+changed.) Full round record with every probe and its verbatim output:
 [`a9ask-round.txt`](../runtime/evidence/a9ask-round.txt). Proven on isolated
 instance `a9ask` (seeded flash) against `NEWTON_FAKE_BACKEND=1 server.py:6801`
 and `runtime/raw_pkg_server.py` on `10.42.0.1:18081`, with **real `codex`
@@ -983,7 +989,8 @@ proves the transport was not disturbed.
 ### Still open
 
 - **Not on hardware.** The physical MP2000 runs A7. A8 and A9 are both
-  emulator-only; A9 supersedes A8, so install A9 and skip A8.
+  emulator-only, and so is their Track L1 successor **Egg Freckles**
+  (`EggFrecklesEF1:jbfly`) — install that one and skip A8/A9.
 - **Risk S1 is still unmeasured.** Every probe stroke is a straight `/drag`
   (`emulator/control.py:185`), 17–51 points. A real freehand curve may produce
   far more; the client caps at 400 points and says so, but nobody has drawn a

@@ -1,7 +1,21 @@
-kAppSymbol := '|HarnessClientA9:jbfly|;
-kVersion := "2.4-a9";
-kAppTitle := "Newton Chat A9 " & kVersion;
-kAppLabel := "Chat A9";
+// "Egg Freckles" is the product, not a round number: one package the human
+// installs once, carrying the chat window, the Ask/Save Note bridge to stock
+// Notes, AND the fixed-op /tools channel that used to be a second package
+// (`HarnessToolsR10P`, deleted in this round). Two packages was the first
+// complaint of the second hardware test; a second tools app also meant two NIE
+// clients fighting for one broker slot and raising `Communications` alerts.
+// The round tag lives only in the identity and the version string — EF1, EF2,
+// … — because the identity may never be reused (docs/phase3-chat-round.md,
+// "Package identity") while the name on the Extras icon should stay put.
+kAppSymbol := '|EggFrecklesEF1:jbfly|;
+kVersion := "1.0-ef1";
+kAppTitle := "Egg Freckles " & kVersion;
+kAppLabel := "Egg Freckles";
+
+// The window is centred at setup time from the live root box instead of being
+// hardcoded, so it lands in the middle of whatever screen the ROM reports.
+kWinWidth := 304;
+kWinHeight := 428;
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -32,11 +46,10 @@ kMaxPrompt := 8192;
 kNoteBytes := 2048;
 
 // ---- "Ask" budgets ----
-// There is no modification-time index on the Notes soup on this ROM
-// (Query({indexPath: '_modTime}) raises evt.ex.fr.store), so the most recently
-// *touched* note is found by comparing EntryModTime by hand. That has to be
-// bounded or it starves the event loop, so the scan walks back at most this
-// many entries from the end of the timeStamp cursor.
+// How many entries back from the end of the _uniqueID cursor "Ask" looks. The
+// scan is bounded so it can never starve the 3 s host heartbeat (twelfth
+// finding), and EntryUniqueID reads the identifier "without reading the entry
+// into the cache" (refs/NewtonProgrammerRef20.txt:34872), so each step is cheap.
 kScanLimit := 16;
 // The probe note held 9 drawn items and 279 points, ~1.1 KB of NSI1 against the
 // host's 16 KiB single-body cap, so these caps only ever fire on something far
@@ -52,7 +65,29 @@ kInkPlaceholder := 63233;
 
 mainView := {
     _proto: protoFloatNGo,
-    viewBounds: {left: 8, top: 24, right: 312, bottom: 452},
+    // Replaced at setup time by :CenterBounds(); these are the fallback if the
+    // root view will not report a box.
+    viewBounds: {left: 8, top: 26, right: 312, bottom: 454},
+    // No viewFlags override. The eighteenth finding's open experiment — "would
+    // adding vApplication make the ROM's scroll arrows work?" — was run in this
+    // round and the answer is NO, measured rather than assumed:
+    //
+    //   viewFlags 580 (vFloating + vClickable + vApplication) went in, the live
+    //   window read 581 with vVisible added, the root view's own flags are 5 so
+    //   the parent chain qualifies, ViewScrollUpScript/ViewScrollDownScript were
+    //   supplied and both worked when called directly (scrollRow 0 -> 10) —
+    //   and tapping the ROM's up arrow at (309,461) changed **nothing at all**:
+    //   zero pixels, scrollRow still 0. The same tap scrolls the Notepad when
+    //   this window is closed, so the hit point is right.
+    //
+    // The mechanism is documented: scroll routing resolves like
+    // 'viewFrontMostApp, "not including floating views (those with vFloating set
+    // in their viewFlags slot)" (refs/NewtonProgrammerRef20.txt:4510-4512). A
+    // floating window is excluded by definition, flag or no flag — which the
+    // tools channel confirms from the other side, because front_app still
+    // answers "Notepad (paperroll)" while this window is open. The transcript
+    // therefore keeps its own Up/Dn buttons, and the scroll scripts are gone
+    // rather than shipped dead.
     title: kAppTitle,
     appSymbol: kAppSymbol,
     endpointClass: {_proto: protoBasicEndpoint},
@@ -115,10 +150,49 @@ mainView := {
     inkGotReply: nil,
     inkEndpoint: nil,
     inkPort: 18081,
+    // ---- tools channel state (folded in from the deleted harness-tools) ----
+    // A third connection on the same NIE link: the host's long poll on 18081.
+    // Every slot here is prefixed so it cannot collide case-insensitively with
+    // a method name — the -48200 trap that cost two rounds.
+    toolEndpoint: nil,
+    toolReady: nil,
+    toolMisses: 0,
+    toolStopping: nil,
+    toolID: nil,
+    toolOutcome: nil,
+    toolValue: nil,
+    toolPort: 18081,
+    winWidth: kWinWidth,
+    winHeight: kWinHeight,
     // The physical build always uses Mars. An emulator round may override this
     // slot through ns_eval without rebuilding or changing the package identity.
     serverAddress: [10, 42, 0, 1],
     serverPort: 6801,
+
+    // viewBounds has to be final before the view is laid out, which is what
+    // ViewSetupFormScript is for. A9 shipped a hardcoded box; the human's
+    // second hardware test said the window loads off-centre, and a constant can
+    // only ever be centred on the one screen it was measured against.
+    ViewSetupFormScript: func()
+    begin
+        :CenterBounds();
+        inherited:?ViewSetupFormScript();
+    end,
+
+    CenterBounds: func()
+    begin
+        local box := nil;
+        try box := GetRoot():LocalBox() onexception |evt.ex| do box := nil;
+        if box = nil then return nil;
+        local wide := box.right - box.left;
+        local high := box.bottom - box.top;
+        if (wide < self.winWidth) or (high < self.winHeight) then return nil;
+        local left := box.left + ((wide - self.winWidth) div 2);
+        local top := box.top + ((high - self.winHeight) div 2);
+        self.viewBounds := {left: left, top: top,
+            right: left + self.winWidth, bottom: top + self.winHeight};
+        return nil;
+    end,
 
     ViewSetupDoneScript: func()
     begin
@@ -129,19 +203,24 @@ mainView := {
         // grows it.
         self.askStrokes := [];
         // ponytail: the child list is not reachable until the view is fully open.
-        AddDelayedCall(func(view) view:Boot(), [self], 800);
+        //
+        // Every AddDelayedCall in this file carries the same try guard, and it
+        // is not decoration. A delayed call already in the queue still fires
+        // after the window closes, and `view:AnyMethod()` on a closed view
+        // raises -48809 "undefined method"
+        // (docs/newton-networking-lessons.md §1.4) — which the ROM shows the
+        // human as a modal "Sorry, a problem has occurred (-48809)" slip.
+        // Measured this round: closing the window raised exactly that, from the
+        // 4-second tools watchdog landing on the corpse. The guard is what makes
+        // closing the app silent.
+        AddDelayedCall(func(view) try view:Boot() onexception |evt.ex| do nil, [self], 800);
     end,
-
-    // There are deliberately no ViewScrollUpScript / ViewScrollDownScript
-    // slots. The ROM's own scroll arrows go to "the frontmost view that has
-    // [vApplication] set" (refs/NewtonProgrammerRef20.txt:3193-3199), and this
-    // window does not: its live viewFlags measured 576 = vFloating + vClickable
-    // through ns_eval, with bit 4 clear. Tapping the arrows did nothing. That
-    // is why the transcript carries its own Up/Dn buttons.
 
     ViewQuitScript: func()
     begin
         self.stopping := true;
+        self.toolStopping := true;
+        :ToolStop();
         :Stop();
         inherited:?ViewQuitScript();
     end,
@@ -151,6 +230,10 @@ mainView := {
         :Wire();
         :ShowTranscript();
         :Connect();
+        // The tools long poll opens after the chat link, so it finds a held
+        // NIE link and never grabs a second one. If chat is still connecting,
+        // ToolStart grabs its own and the two share whichever arrives first.
+        AddDelayedCall(func(view) try view:ToolStart() onexception |evt.ex| do nil, [self], 2500);
     end,
 
     // ponytail: custom template slots do not survive instantiation and a child's
@@ -355,16 +438,28 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
-        if self.linkID then
-        begin
-            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
-            self.linkID := nil;
-        end;
+        :ReleaseLink();
         self.ready := nil;
         self.inFlight := nil;
         self.draftSeq := nil;
         self.pendingParts := nil;
         self.partIndex := 0;
+    end,
+
+    // One NIE link, three connections: chat, ink POST, tools long poll. Whoever
+    // shuts down last releases it. Releasing it under a live endpoint is what
+    // raised the -48803 overlays in the loader rounds
+    // (docs/newton-networking-lessons.md §1.5), and dropping it to open a
+    // second connection cost the Track F2 round a -16009.
+    ReleaseLink: func()
+    begin
+        if self.endpoint or self.inkEndpoint or self.toolEndpoint then return nil;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+        return nil;
     end,
 
     Released: func(id, state, error) nil,
@@ -374,7 +469,12 @@ mainView := {
         :Stop();
         self.stopping := nil;
         :SetStatus("Connecting");
+        // If the tools poll (or a live ink POST) still holds the link, reuse it
+        // rather than grabbing a second one: a grab that is never matched by a
+        // release leaks, and this is the same rule SendInk follows.
+        if self.linkID then return :OpenSession();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+        return nil;
     end,
 
     Grabbed: func(id, state, error)
@@ -391,7 +491,8 @@ mainView := {
     begin
         local address := self.serverAddress;
         local callName := "Instantiate";
-        self.endpoint := {_proto: self.endpointClass, _parent: self};
+        self.endpoint := {_proto: self.endpointClass, _parent: self,
+            ExceptionHandler: func(error) self._parent:Dropped()};
         try
         begin
             self.endpoint:Instantiate(self.endpoint, [
@@ -678,24 +779,57 @@ mainView := {
         return out;
     end,
 
-    // The most recently *modified* note, not the most recently created one.
-    // timeStamp is creation time and never moves; drawing on an existing page
-    // updates EntryModTime alone (measured nine minutes apart on the probe note,
-    // ts=64477370 mod=64477379), which is why A7's timeStamp cursor answered a
-    // drawing with an older text note on hardware. There is no _modTime index to
-    // order by instead — Query({indexPath: '_modTime}) raises evt.ex.fr.store on
-    // this ROM — so the comparison is done by hand, bounded at scanLimit entries.
-    // ResetToEnd lands *on* the last entry and returns it, so the note-export
-    // idiom `ResetToEnd(); Prev()` read the second-newest note. Measured on
-    // this ROM: reset=3 entry=3 while Prev() gave 2.
-    // Honest limit: a drawing added to a note older than that window still
-    // loses. The real fix for that case is reading the *open* note (Track F3).
+    // The newest note is the one the store allocated last — NOT the one with
+    // the newest date, because on this device the dates lie.
+    //
+    // The human's MessagePad had its clock set to 2008 and then corrected. Every
+    // note written while it was wrong carries a 2008 `timeStamp` and a 2008
+    // `EntryModTime`, so it sorts to the *front* of the timeStamp index and the
+    // A9 scan — sixteen entries back from the *end* of that index — never even
+    // looked at it. That is the reported bug: a fresh cat drawing losing to
+    // months-old D&D notes. Reproduced by construction on instance `efround`
+    // with 25 notes, and both rules run over the same soup
+    // (runtime/evidence/efround-ordering.txt):
+    //
+    //   A9  (timeStamp cursor, max EntryModTime) -> id=23 "EF dnd session 18"
+    //   EF1 (_uniqueID cursor, max EntryUniqueID) -> id=24 "EF cat drawing page"
+    //
+    // `_uniqueID` is a real, queryable index on this ROM (the one index the ROM
+    // refuses to let you remove, refs/NewtonProgrammerRef20.txt:74421) and IDs
+    // come off a per-soup counter — `soup:GetNextUid()` is documented as "the
+    // unique identifier to be assigned to the next entry added to the soup"
+    // (:33348). Measured here: consecutive NewNote calls returned 3, 4, 5, …, 24.
+    // Nothing in that counter consults the clock, which is the whole point.
+    //
+    // The scan still walks back scanLimit entries because a union soup can
+    // interleave two stores whose ID spaces are independent; there, and only
+    // there, EntryModTime breaks the tie.
+    //
+    // Honest cost, stated plainly: A9 could answer with an *older* page you had
+    // just drawn on, and this cannot. Between "the note you just made" and "the
+    // page you just touched", only the first survives a broken clock, and a
+    // broken clock is what the hardware actually has. Reading the *open* note
+    // (Track F3) is the fix that needs neither.
     FindNewest: func()
     begin
-        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+        local soup := GetUnionSoupAlways(ROM_paperRollSoupName);
+        local cursor := nil;
+        try cursor := soup:Query({indexPath: '_uniqueID})
+        onexception |evt.ex| do cursor := nil;
+        // Belt and braces: if some store will not index by ID, fall back to the
+        // creation-time cursor rather than losing the button.
+        if cursor = nil then
+            try cursor := soup:Query({indexPath: 'timeStamp})
+            onexception |evt.ex| do cursor := nil;
+        if cursor = nil then return nil;
+        // ResetToEnd lands *on* the last entry and returns it, so the
+        // note-export idiom `ResetToEnd(); Prev()` read the second-newest note.
         local entry := cursor:ResetToEnd();
         if entry = nil then return nil;
         local best := entry;
+        local bestUid := EntryUniqueID(entry);
+        // ponytail: not `mod` — that is the modulo operator, and tntk reports it
+        // as a syntax error a dozen lines later.
         local bestMod := EntryModTime(entry);
         local scanned := 1;
         while (entry <> nil) and (scanned < self.scanLimit) do
@@ -703,12 +837,14 @@ mainView := {
             entry := cursor:Prev();
             if entry <> nil then
             begin
-                // ponytail: not `mod` — that is the modulo operator, and tntk
-                // reports it as a syntax error twelve lines later.
+                local uid := EntryUniqueID(entry);
                 local stamp := EntryModTime(entry);
-                if (stamp <> nil) and ((bestMod = nil) or (stamp > bestMod)) then
+                if (uid <> nil) and ((bestUid = nil) or (uid > bestUid)
+                    or ((uid = bestUid) and (stamp <> nil)
+                        and ((bestMod = nil) or (stamp > bestMod)))) then
                 begin
                     best := entry;
+                    bestUid := uid;
                     bestMod := stamp;
                 end;
             end;
@@ -984,24 +1120,18 @@ mainView := {
     end,
 
     // "Save Note": the two-step create proven in note-export N12/N13. The
-    // readback resolves a same-minute tie by highest entry ID so the status
-    // line names the entry that was actually written.
+    // readback is now :FindNewest() itself — the entry the store just allocated
+    // is by definition the highest ID — which both names the note that was
+    // written and proves the ordering rule on every tap. A9 needed a
+    // same-minute tie-break here; ID ordering has no ties to break.
     SaveNote: func()
     begin
         if StrLen(self.lastReply) = 0 then return :SetStatus("No reply to save");
         local paperroll := GetRoot().paperroll;
         local note := paperroll:MakeTextNote(self.lastReply, nil);
         paperroll:NewNote(note, nil, nil);
-        local cursor := GetUnionSoupAlways(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
-        local entry := cursor:ResetToEnd();
+        local entry := :FindNewest();
         if entry = nil then return :SetStatus("Saved, but no entry read back");
-        local stamp := GetSysEntryData(entry, 'timeStamp);
-        local candidate := cursor:Prev();
-        while candidate and (GetSysEntryData(candidate, 'timeStamp) = stamp) do
-        begin
-            if EntryUniqueID(candidate) > EntryUniqueID(entry) then entry := candidate;
-            candidate := cursor:Prev();
-        end;
         return :SetStatus("Saved note id=" & EntryUniqueID(entry));
     end,
 
@@ -1017,7 +1147,7 @@ mainView := {
         self.inkBusy := true;
         self.inkGotReply := nil;
         :SetStatus("Sending " & strokes & " strokes");
-        AddDelayedCall(func(view) view:InkExpired(), [self], 150000);
+        AddDelayedCall(func(view) try view:InkExpired() onexception |evt.ex| do nil, [self], 150000);
         if self.linkID then return :InkOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
         return nil;
@@ -1043,7 +1173,8 @@ mainView := {
     InkOpen: func()
     begin
         if self.inkEndpoint then return nil;
-        self.inkEndpoint := {_proto: self.endpointClass, _parent: self};
+        self.inkEndpoint := {_proto: self.endpointClass, _parent: self,
+            ExceptionHandler: func(error) self._parent:InkDropped()};
         try
         begin
             self.inkEndpoint:Instantiate(self.inkEndpoint, [
@@ -1161,7 +1292,7 @@ mainView := {
     // goes away — the NIE link belongs to the chat session.
     InkDone: func()
     begin
-        AddDelayedCall(func(view) view:InkStop(), [self], 1000);
+        AddDelayedCall(func(view) try view:InkStop() onexception |evt.ex| do nil, [self], 1000);
         return nil;
     end,
 
@@ -1175,6 +1306,7 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
+        :ReleaseLink();
         return nil;
     end,
 
@@ -1190,7 +1322,833 @@ mainView := {
         if self.stopping then return nil;
         :SetStatus(message);
         // ponytail: let the peer-close FSM settle before InetReleaseLink.
-        AddDelayedCall(func(view) view:Stop(), [self], 1000);
+        AddDelayedCall(func(view) try view:Stop() onexception |evt.ex| do nil, [self], 1000);
+    end,
+
+    // ================= the /tools channel (was HarnessToolsR10P) =============
+    //
+    // The host holds a long poll on 18081 and pushes "TOOLS <id> <op> [arg]";
+    // this answers with three escaped lines and polls again. It is the R10P
+    // transport unchanged — same 3 s heartbeat, same 4 s watchdog, same
+    // async output specs with form: 'string — with three differences forced by
+    // living inside the chat app rather than beside it:
+    //
+    //   1. every name is prefixed Tool*, because NewtonScript symbols are
+    //      case-insensitive and Stop/Bound/Connected/ArmInput/Grabbed all
+    //      already exist here;
+    //   2. it never grabs its own NIE link when the chat already holds one, and
+    //      never releases a link another connection is still using;
+    //   3. its retry loop watches toolStopping, not the chat's stopping slot,
+    //      so a chat reconnect does not silently kill the tools channel and a
+    //      closed window does kill it.
+    //
+    // Why one package at all: two apps meant two NIE clients fighting over the
+    // single broker slot, which is what raised the cosmetic Communications
+    // alerts in the 2026-08-03 hardware test (docs/parallel-emulators.md warns
+    // about exactly this), and it meant the human installing two packages.
+
+    ToolStart: func()
+    begin
+        if self.toolStopping then return nil;
+        if self.toolEndpoint then return nil;
+        if self.linkID then return :ToolOpen();
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'ToolGrabbed);
+        return nil;
+    end,
+
+    ToolGrabbed: func(id, state, error)
+    begin
+        if self.toolStopping then return nil;
+        if self.toolEndpoint then return nil;
+        if error then return :ToolRetry();
+        self.linkID := id;
+        // NIE progress is not failure: everything before 'connected is ignored.
+        if state.linkStatus <> 'connected then return nil;
+        return :ToolOpen();
+    end,
+
+    ToolOpen: func()
+    begin
+        if self.toolEndpoint then return nil;
+        try
+        begin
+            // Every endpoint here carries an ExceptionHandler, and that is what
+            // buys silence. An unsolicited disconnect has no CompletionScript to
+            // land in, and "If no ExceptionHandler method is specified, the
+            // exception is passed up the handler chain. Exceptions that are not
+            // caught are displayed as warning messages to the user"
+            // (refs/NewtonProgrammerRef20.txt:57321-57323) — that warning is the
+            // modal "Communications — Sorry, a problem has occurred" slip the
+            // hardware test complained about. Catching it turns a modal alert
+            // into a one-second reconnect the human never sees.
+            self.toolEndpoint := {_proto: self.endpointClass, _parent: self,
+                ExceptionHandler: func(error) self._parent:ToolRetry()};
+            self.toolEndpoint:Instantiate(self.toolEndpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [self.linkID], typeList: ['struct, 'ulong]}},
+                {label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [1], typeList: ['struct, 'ulong]}},
+            ]);
+            self.toolEndpoint:Bind(nil, {
+                async: true, reqTimeout: 10000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:ToolRetry() else self._parent:ToolBound(),
+            });
+        end
+        onexception |evt.ex| do :ToolRetry();
+        return nil;
+    end,
+
+    ToolBound: func()
+    begin
+        if self.toolStopping then return nil;
+        local address := self.serverAddress;
+        try
+            self.toolEndpoint:connect([{
+                label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                form: 'template,
+                data: {arglist: [address[0], address[1], address[2], address[3], self.toolPort],
+                       typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
+            }], {
+                async: true, reqTimeout: 45000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:ToolRetry() else self._parent:ToolConnected(),
+            })
+        onexception |evt.ex.comm| do :ToolRetry();
+        return nil;
+    end,
+
+    ToolConnected: func()
+    begin
+        if self.toolStopping then return nil;
+        self.toolReady := true;
+        self.toolMisses := 0;
+        :ToolPoll();
+        // The watchdog only starts once there is something to watch, and it
+        // reschedules itself from here on.
+        AddDelayedCall(func(view) try view:ToolWatch() onexception |evt.ex| do nil, [self], 4000);
+        return nil;
+    end,
+
+    ToolPoll: func()
+    begin
+        if not self.toolReady then return nil;
+        try self.toolEndpoint:Output("POLL\r\n", nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:ToolRetry() else self._parent:ToolArmInput(),
+        })
+        onexception |evt.ex.comm| do :ToolRetry();
+        return nil;
+    end,
+
+    ToolArmInput: func()
+    begin
+        if not self.toolReady then return nil;
+        try self.toolEndpoint:SetInputSpec({
+            _parent: self,
+            form: 'string,
+            termination: {endSequence: "\r\n"},
+            discardAfter: 512,
+            InputScript: func(endpoint, data, terminator, options)
+            begin
+                // Any line at all — heartbeat included — proves the link.
+                self._parent.toolMisses := 0;
+                if BeginsWith(data, "TOOLS ") then self._parent:ToolDispatch(data);
+                if self._parent.toolReady then self._parent:ToolArmInput();
+            end,
+        })
+        onexception |evt.ex.comm| do :ToolRetry();
+        return nil;
+    end,
+
+    // 4 s, deliberately above the host's 3 s heartbeat cadence
+    // (pkg_publisher.py:77). A faster watchdog forces false reconnects — one of
+    // the measured footguns in docs/newton-networking-lessons.md §2.
+    ToolWatch: func()
+    begin
+        if self.toolStopping then return nil;
+        if self.toolReady then
+        begin
+            self.toolMisses := self.toolMisses + 1;
+            if self.toolMisses > 2 then :ToolRetry();
+        end;
+        AddDelayedCall(func(view) try view:ToolWatch() onexception |evt.ex| do nil, [self], 4000);
+        return nil;
+    end,
+
+    ToolReply: func()
+    begin
+        if self.toolID = nil then return :ToolRetry();
+        local response := self.toolID & "\r\n" & self.toolOutcome
+            & "\r\n" & :Escape(self.toolValue) & "\r\n";
+        try self.toolEndpoint:Output(response, nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:ToolRetry() else self._parent:ToolReplySent(),
+        })
+        onexception |evt.ex.comm| do :ToolRetry();
+        return nil;
+    end,
+
+    ToolReplySent: func()
+    begin
+        if self.toolStopping then return nil;
+        self.toolID := nil;
+        self.toolOutcome := nil;
+        self.toolValue := nil;
+        // InputScript has already re-armed input, so this only sends the poll.
+        try self.toolEndpoint:Output("POLL\r\n", nil, {
+            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                if result then self._parent:ToolRetry(),
+        })
+        onexception |evt.ex.comm| do :ToolRetry();
+        return nil;
+    end,
+
+    ToolDispatch: func(line)
+    begin
+        local tokens := StrTokenize(line, " \r\n");
+        local marker := call tokens with ();
+        local requestID := call tokens with ();
+        local op := call tokens with ();
+        local argument := call tokens with ();
+        if marker = nil or requestID = nil or op = nil then return nil;
+        self.toolID := requestID;
+        try
+        begin
+            if StrEqual(op, "ping") then
+            begin
+                self.toolOutcome := "result";
+                self.toolValue := "pong";
+            end
+            else if StrEqual(op, "front_app") then
+            begin
+                self.toolOutcome := "result";
+                self.toolValue := :FrontApp();
+            end
+            else if StrEqual(op, "get_note") then
+            begin
+                // Same nil guard + Floor as pkg_list: a missing argument must
+                // not throw, and StringToNumber yields a Real on this ROM.
+                local ordinal := 0;
+                if argument <> nil then ordinal := StringToNumber(argument);
+                if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
+                if ordinal < 1 or ordinal > 64 then
+                begin
+                    self.toolOutcome := "error";
+                    self.toolValue := "note ordinal must be 1..64";
+                end
+                else
+                begin
+                    self.toolOutcome := "result";
+                    self.toolValue := :GetNote(ordinal);
+                end;
+            end
+            else if StrEqual(op, "note_list") then
+            begin
+                local ordinal := 0;
+                if argument <> nil then ordinal := StringToNumber(argument);
+                if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
+                local total := :NoteCount();
+                // Paged for the same reason pkg_list is, and capped at the
+                // same 64 as get_note: one reply must never walk an
+                // arbitrarily long soup and starve the heartbeat.
+                local limit := total;
+                if limit > 64 then limit := 64;
+                if ordinal = 0 then
+                begin
+                    self.toolOutcome := "result";
+                    self.toolValue := "count=" & total;
+                end
+                else if ordinal < 1 or ordinal > limit then
+                begin
+                    self.toolOutcome := "error";
+                    self.toolValue := "note ordinal must be 1.." & limit;
+                end
+                else
+                begin
+                    self.toolOutcome := "result";
+                    self.toolValue := :NoteEntry(ordinal, total);
+                end;
+            end
+            else if StrEqual(op, "note_probe") then
+            begin
+                self.toolOutcome := "result";
+                self.toolValue := :NoteProbe();
+            end
+            else if StrEqual(op, "battery") then
+            begin
+                self.toolOutcome := "result";
+                self.toolValue := :BatteryInfo();
+            end
+            else if StrEqual(op, "store_info") then
+            begin
+                self.toolOutcome := "result";
+                self.toolValue := :StoreInfo();
+            end
+            else if StrEqual(op, "pkg_list") then
+            begin
+                local ordinal := 0;
+                if argument <> nil then ordinal := StringToNumber(argument);
+                // StringToNumber returns a Real on this ROM, and an array
+                // cannot be indexed by a Real: packages[1.0 - 1] throws
+                // evt.ex.fr.type;type.ref.frame. Floor it back to an integer.
+                if ordinal = nil then ordinal := 0 else ordinal := Floor(ordinal);
+                local total := :PkgCount();
+                if ordinal = 0 then
+                begin
+                    self.toolOutcome := "result";
+                    self.toolValue := "count=" & total;
+                end
+                else if ordinal < 1 or ordinal > total then
+                begin
+                    self.toolOutcome := "error";
+                    self.toolValue := "package ordinal must be 1.." & total;
+                end
+                else
+                begin
+                    self.toolOutcome := "result";
+                    self.toolValue := :PkgEntry(ordinal, total);
+                end;
+            end
+            else
+            begin
+                self.toolOutcome := "unknown_op";
+                self.toolValue := "unknown op: " & op;
+            end;
+        end
+        onexception |evt.ex| do
+        begin
+            local exception := CurrentException();
+            self.toolOutcome := "error";
+            if HasSlot(exception, 'error) then self.toolValue := "" & exception.error;
+            else if HasSlot(exception, 'name) then self.toolValue := "" & exception.name;
+            else self.toolValue := "Newton error";
+        end;
+        :ToolReply();
+        return nil;
+    end,
+
+    ToolRetry: func()
+    begin
+        if self.toolStopping then return nil;
+        self.toolStopping := true;
+        :ToolStop();
+        AddDelayedCall(func(view) try view:ToolResume() onexception |evt.ex| do nil, [self], 1000);
+        return nil;
+    end,
+
+    ToolResume: func()
+    begin
+        // The view may have been closed inside that second; ViewQuitScript's
+        // stopping flag is the one thing that outlives a delayed call.
+        if self.stopping then return nil;
+        self.toolStopping := nil;
+        return :ToolStart();
+    end,
+
+    ToolStop: func()
+    begin
+        self.toolReady := nil;
+        if self.toolEndpoint then
+        begin
+            try self.toolEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.toolEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.toolEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.toolEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.toolEndpoint := nil;
+        end;
+        :ReleaseLink();
+        return nil;
+    end,
+
+    // ---- the fixed operations themselves, lifted from R10P unchanged ----
+
+    FrontApp: func()
+    begin
+        local app := GetView('viewFrontMostApp);
+        if app = nil then return "";
+        local symbol := app.appSymbol;
+        return GetAppName(symbol) & " (" & symbol & ")";
+    end,
+
+    NumStr: func(value)
+    begin
+        if value = nil then return "?";
+        try
+        begin
+            if IsInteger(value) then return "" & value;
+            return "" & Floor(value);
+        end
+        onexception |evt.ex| do return "?";
+        return "?";
+    end,
+
+    SlotOr: func(frame, tag)
+    begin
+        if not IsFrame(frame) then return nil;
+        if not HasSlot(frame, tag) then return nil;
+        return frame.(tag);
+    end,
+
+    BatteryInfo: func()
+    begin
+        local count := nil;
+        try count := BatteryCount()
+        onexception |evt.ex| do count := nil;
+
+        local out := "count=" & :NumStr(count);
+
+        local status := nil;
+        try status := BatteryStatus(0)
+        onexception |evt.ex| do status := nil;
+        if not IsFrame(status) then return out & " status=none";
+
+        local capacity := :SlotOr(status, 'batteryCapacity);
+        if capacity = nil then out := out & " cap=?"
+        else out := out & " cap=" & :NumStr(capacity) & "%";
+
+        local charge := :SlotOr(status, 'chargeState);
+        if charge = nil then out := out & " charge=?"
+        else out := out & " charge=" & charge;
+
+        local ac := :SlotOr(status, 'acPower);
+        if ac = nil then out := out & " ac=?"
+        else out := out & " ac=" & ac;
+
+        local kind := :SlotOr(status, 'batteryType);
+        if kind = nil then out := out & " type=?"
+        else out := out & " type=" & kind;
+
+        return out;
+    end,
+
+    StoreInfo: func()
+    begin
+        local stores := GetStores();
+        if stores = nil then return "stores=0";
+        local out := "";
+        for index := 0 to Length(stores) - 1 do
+        begin
+            if StrLen(out) > 0 then out := out & "\n";
+            out := out & :StoreLine(stores[index]);
+        end;
+        if StrLen(out) = 0 then return "stores=0";
+        return out;
+    end,
+
+    StoreLine: func(store)
+    begin
+        local name := nil;
+        try name := store:GetName()
+        onexception |evt.ex| do name := nil;
+        if name = nil then name := "?";
+
+        local total := nil;
+        try total := store:TotalSize()
+        onexception |evt.ex| do total := nil;
+
+        local used := nil;
+        try used := store:UsedSize()
+        onexception |evt.ex| do used := nil;
+
+        local free := nil;
+        if IsInteger(total) and IsInteger(used) then free := total - used;
+
+        local readOnly := "?";
+        try
+        begin
+            if store:IsReadOnly() then readOnly := "y" else readOnly := "n";
+        end
+        onexception |evt.ex| do readOnly := "?";
+
+        return name & " total=" & :NumStr(total) & " used=" & :NumStr(used)
+            & " free=" & :NumStr(free) & " ro=" & readOnly;
+    end,
+
+    PkgCount: func()
+    begin
+        local packages := GetPackages();
+        if packages = nil then return 0;
+        return Length(packages);
+    end,
+
+    PkgEntry: func(ordinal, total)
+    begin
+        local packages := GetPackages();
+        if packages = nil then return "" & ordinal & "/" & total & " ?";
+        local package := packages[ordinal - 1];
+        if not IsFrame(package) then return "" & ordinal & "/" & total & " ?";
+
+        local title := :SlotOr(package, 'title);
+        if title = nil then title := "?" else title := "" & title;
+
+        local size := :SlotOr(package, 'size);
+
+        local storeName := "?";
+        local store := :SlotOr(package, 'store);
+        if store <> nil then
+        begin
+            local resolved := nil;
+            try resolved := store:GetName()
+            onexception |evt.ex| do resolved := nil;
+            if resolved <> nil then storeName := resolved;
+        end;
+
+        return "" & ordinal & "/" & total & " " & title & "|" & :NumStr(size)
+            & "|" & storeName;
+    end,
+
+    ExceptionName: func()
+    begin
+        local exception := CurrentException();
+        try
+        begin
+            if IsFrame(exception) then
+            begin
+                if HasSlot(exception, 'name) then return "" & exception.name;
+                if HasSlot(exception, 'error) then return "" & exception.error;
+            end;
+        end
+        onexception |evt.ex| do return "evt.ex";
+        return "evt.ex";
+    end,
+
+    SlotNames: func(frame)
+    begin
+        local out := "";
+        try
+            foreach tag, value in frame do
+            begin
+                if StrLen(out) > 0 then out := out & ",";
+                out := out & tag;
+            end
+        onexception |evt.ex| do out := out & "!" & :ExceptionName();
+        return "[" & out & "]";
+    end,
+
+    NoteProbe: func()
+    begin
+        try return :NoteProbeSteps()
+        onexception |evt.ex| do return "probe!" & :ExceptionName();
+    end,
+
+    NoteProbeSteps: func()
+    begin
+        local out := "";
+        local stores := nil;
+        local targetStore := nil;
+        try
+        begin
+            stores := GetStores();
+            out := "stores=" & Length(stores);
+        end
+        onexception |evt.ex| do out := "stores!" & :ExceptionName();
+
+        if stores <> nil then
+            for index := 0 to Length(stores) - 1 do
+            begin
+                local store := stores[index];
+                out := out & ";s" & index & "=";
+                try out := out & store:GetName()
+                onexception |evt.ex| do out := out & "name!" & :ExceptionName();
+
+                local hasSoup := nil;
+                try
+                begin
+                    hasSoup := store:HasSoup(ROM_paperRollSoupName);
+                    if hasSoup then out := out & ":paper=1" else out := out & ":paper=0";
+                end
+                onexception |evt.ex| do out := out & ":paper!" & :ExceptionName();
+                if targetStore = nil and hasSoup then targetStore := store;
+            end;
+
+        local soup := nil;
+        if targetStore = nil then out := out & ";first=none"
+        else
+        begin
+            try
+            begin
+                soup := targetStore:GetSoup(ROM_paperRollSoupName);
+                out := out & ";soup=get";
+            end
+            onexception |evt.ex| do out := out & ";soup!" & :ExceptionName();
+        end;
+        if soup <> nil then
+            try out := out & ",class=" & ClassOf(soup)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local cursor := nil;
+        if soup <> nil then
+            try
+            begin
+                cursor := soup:Query(nil);
+                out := out & ";cursor=get";
+            end
+            onexception |evt.ex| do out := out & ";cursor!" & :ExceptionName();
+        if cursor <> nil then
+            try out := out & ",class=" & ClassOf(cursor)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local entry := nil;
+        local gotEntry := nil;
+        if cursor <> nil then
+            try
+            begin
+                entry := cursor:Entry();
+                gotEntry := true;
+                out := out & ";entry=get";
+            end
+            onexception |evt.ex| do out := out & ";entry!" & :ExceptionName();
+        if gotEntry then
+        begin
+            try out := out & ",class=" & ClassOf(entry)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+            try
+            begin
+                if entry = nil then out := out & ",kind=nil"
+                else if entry = 'deleted then out := out & ",kind=deleted"
+                else if IsFrame(entry) then out := out & ",kind=frame"
+                else out := out & ",kind=other";
+            end
+            onexception |evt.ex| do out := out & ",kind!" & :ExceptionName();
+            if IsFrame(entry) then out := out & ",slots=" & :SlotNames(entry);
+        end;
+
+        local sysData := nil;
+        local sysOK := nil;
+        if gotEntry then
+            try
+            begin
+                sysData := GetSysEntryData(entry, 'data);
+                sysOK := true;
+                out := out & ";sysdata=ok";
+            end
+            onexception |evt.ex| do out := out & ";sysdata!" & :ExceptionName();
+        if sysOK then
+            try out := out & ",class=" & ClassOf(sysData)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local directData := nil;
+        local directOK := nil;
+        if gotEntry then
+            try
+            begin
+                directData := entry.data;
+                directOK := true;
+                out := out & ";direct=ok";
+            end
+            onexception |evt.ex| do out := out & ";direct!" & :ExceptionName();
+        if directOK then
+            try out := out & ",class=" & ClassOf(directData)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+
+        local data := nil;
+        local dataOK := nil;
+        if directOK then
+        begin
+            data := directData;
+            dataOK := true;
+            out := out & ";textvia=direct";
+        end
+        else if sysOK then
+        begin
+            data := sysData;
+            dataOK := true;
+            out := out & ";textvia=sys";
+        end
+        else out := out & ";textvia=none";
+
+        if dataOK then
+        begin
+            try out := out & ",class=" & ClassOf(data)
+            onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+            local dataIsArray := nil;
+            try
+            begin
+                dataIsArray := IsArray(data);
+                if dataIsArray then out := out & ",array=1" else out := out & ",array=0";
+            end
+            onexception |evt.ex| do out := out & ",array!" & :ExceptionName();
+            if dataIsArray then
+            begin
+                local dataLength := nil;
+                try
+                begin
+                    dataLength := Length(data);
+                    out := out & ",len=" & dataLength;
+                end
+                onexception |evt.ex| do out := out & ",len!" & :ExceptionName();
+                if dataLength <> nil and dataLength > 0 then
+                begin
+                    local first := nil;
+                    local firstOK := nil;
+                    try
+                    begin
+                        first := data[0];
+                        firstOK := true;
+                        out := out & ";item0=get";
+                    end
+                    onexception |evt.ex| do out := out & ";item0!" & :ExceptionName();
+                    if firstOK then
+                    begin
+                        try out := out & ",class=" & ClassOf(first)
+                        onexception |evt.ex| do out := out & ",class!" & :ExceptionName();
+                        if IsFrame(first) then out := out & ",slots=" & :SlotNames(first)
+                        else out := out & ",slots=n/a";
+                    end;
+                end;
+            end;
+        end;
+        return out;
+    end,
+
+    // The R10J cursor walk, unchanged, lifted out so note_list and get_note
+    // share one implementation. Returns the ordinal-th entry in ascending
+    // timeStamp order across every store that has the paperroll soup, or nil.
+    // Walk cost is O(ordinal), never O(soup) -- twelfth finding.
+    // This is deliberately still timeStamp order: an ordinal is a paging cursor
+    // for one conversation, and the agent asks for "note 7 of 25", not for the
+    // newest. "Newest" is Ask's problem, and Ask uses :FindNewest().
+    NoteAt: func(ordinal)
+    begin
+        local cursors := [];
+        local entries := [];
+        foreach store in GetStores() do
+            if store:HasSoup(ROM_paperRollSoupName) then
+            begin
+                local cursor := store:GetSoup(ROM_paperRollSoupName):Query({indexPath: 'timeStamp});
+                AddArraySlot(cursors, cursor);
+                AddArraySlot(entries, cursor:Entry());
+            end;
+        if Length(entries) = 0 then return nil;
+
+        local entry := nil;
+        for position := 1 to ordinal do
+        begin
+            local selected := nil;
+            entry := nil;
+            for index := 0 to Length(entries) - 1 do
+            begin
+                local candidate := entries[index];
+                if candidate <> nil and candidate <> 'deleted then
+                    if entry = nil or GetSysEntryData(candidate, 'timeStamp) < GetSysEntryData(entry, 'timeStamp) then
+                    begin
+                        entry := candidate;
+                        selected := index;
+                    end;
+            end;
+            if entry = nil then return nil;
+            if position < ordinal then entries[selected] := cursors[selected]:Next();
+        end;
+        return entry;
+    end,
+
+    NoteText: func(entry)
+    begin
+        local data := GetSysEntryData(entry, 'data);
+        local text := "";
+        if IsArray(data) then foreach item in data do
+            if item.viewStationery = 'para then
+            begin
+                if StrLen(text) > 0 then text := text & "\n";
+                if IsString(item.text) then text := text & item.text;
+                else text := text & DecodeRichString(item.text, ROM_fontSystem10).text;
+            end;
+        return text;
+    end,
+
+    GetNote: func(ordinal)
+    begin
+        local entry := :NoteAt(ordinal);
+        if entry = nil then return "";
+        return :NoteText(entry);
+    end,
+
+    NoteCount: func()
+    begin
+        local total := 0;
+        foreach store in GetStores() do
+            if store:HasSoup(ROM_paperRollSoupName) then
+            begin
+                local counted := nil;
+                try counted := store:GetSoup(ROM_paperRollSoupName)
+                    :Query({indexPath: 'timeStamp}):CountEntries()
+                onexception |evt.ex| do counted := nil;
+                if IsInteger(counted) then total := total + counted;
+            end;
+        return total;
+    end,
+
+    // One short ASCII line: no newlines, no "|" (the field separator), capped.
+    OneLine: func(text, limit)
+    begin
+        local out := "";
+        local length := StrLen(text);
+        local kept := length;
+        if kept > limit then kept := limit;
+        local i := 0;
+        while i < kept do
+        begin
+            local ch := SubStr(text, i, 1);
+            if ch = "\n" or ch = "\r" or ch = "\t" or ch = "|" then out := out & " "
+            else out := out & ch;
+            i := i + 1;
+        end;
+        if length > limit then out := out & "...";
+        return out;
+    end,
+
+    // Notepad entries usually have no title at all -- every entry on the
+    // seeded flash had title = nil -- so fall back to the note's first
+    // characters, which is what makes the listing readable.
+    NoteLabel: func(entry)
+    begin
+        local title := nil;
+        try title := GetSysEntryData(entry, 'title)
+        onexception |evt.ex| do title := nil;
+        if title <> nil and not IsString(title) then
+            try title := DecodeRichString(title, ROM_fontSystem10).text
+            onexception |evt.ex| do title := nil;
+        if IsString(title) and StrLen(title) > 0 then return :OneLine(title, 32);
+
+        local text := "";
+        try text := :NoteText(entry)
+        onexception |evt.ex| do text := "";
+        if not IsString(text) or StrLen(text) = 0 then return "(untitled)";
+        return :OneLine(text, 32);
+    end,
+
+    NoteEntry: func(ordinal, total)
+    begin
+        local entry := :NoteAt(ordinal);
+        if entry = nil then return "" & ordinal & "/" & total & " ?|?";
+        local stamp := nil;
+        try stamp := GetSysEntryData(entry, 'timeStamp)
+        onexception |evt.ex| do stamp := nil;
+        return "" & ordinal & "/" & total & " " & :NoteLabel(entry)
+            & "|" & :NumStr(stamp);
+    end,
+
+    Escape: func(text)
+    begin
+        local out := "";
+        local i := 0;
+        while i < StrLen(text) do
+        begin
+            local ch := SubStr(text, i, 1);
+            if ch = "\\" then out := out & "\\\\";
+            else if ch = "\"" then out := out & "\\\"";
+            else if ch = "\r" then out := out & "\\r";
+            else if ch = "\n" then out := out & "\\n";
+            else if ch = "\t" then out := out & "\\t";
+            else out := out & ch;
+            i := i + 1;
+        end;
+        return out;
     end,
 
     stepChildren: [
@@ -1272,19 +2230,20 @@ mainView := {
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
         },
-        // "Ask" is one button with one meaning: send the newest note,
-        // whatever kind it is. The capture canvas that used to sit behind an
-        // "Ink" button here is deleted, multi-stroke defect and all — stock
-        // Notes keeps every stroke and this reads them.
+        // One button, one meaning: send the newest note, whatever kind it is.
+        // It is labelled "Ask Note" rather than "Ask" because the human's
+        // second hardware test said the bare verbs did not say what they act
+        // on — "Send" sends what you typed, "Ask Note" asks about your newest
+        // note, "Save Note" saves the answer.
         {
             _proto: protoTextButton,
-            viewBounds: {left: 14, top: 388, right: 96, bottom: 410},
-            text: "Ask",
+            viewBounds: {left: 14, top: 388, right: 110, bottom: 410},
+            text: "Ask Note",
             buttonClickScript: func() self:Parent():Ask(),
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 104, top: 388, right: 196, bottom: 410},
+            viewBounds: {left: 118, top: 388, right: 214, bottom: 410},
             text: "Save Note",
             buttonClickScript: func() self:Parent():SaveNote(),
         },

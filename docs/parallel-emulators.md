@@ -95,7 +95,9 @@ strings -el "$f" | grep -ci 'Untitled Ethernet'   # want >0
 | `~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash` | 4 | 3 | **Yes** — newest working snapshot; carries `HarnessLoaderR3O`/`R7B` and no HarnessTools, so nothing competes for the broker |
 | `runtime/backups/internal-before-*.flash` (Jul 24) | 4 | 3 | Workable older fallbacks |
 
-Prefer a seed with **no HarnessTools package installed**. Two tools clients on
+Prefer a seed with **no tools-capable client installed** — an old
+`HarnessTools*` package, or, since Track L1 merged the tools channel into the
+chat client, any `EggFreckles*` build. Two tools clients on
 one broker fight over the single long-poll slot, and a client whose window you
 closed keeps retrying its endpoint and raises modal `Communications — Sorry, a
 problem has occurred` alerts over whatever you are doing. If you do end up with

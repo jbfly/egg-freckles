@@ -1,0 +1,33 @@
+== Track L1: /tools ops answered by Egg Freckles EF1 with NO separate tools app, instance efround ==
+-- packages on the device (proof there is no HarnessTools):
+"[HarnessLoader:jbfly][HarnessLoaderR3O:jbfly][HarnessLoaderR7B:jbfly][HarnessProbe:jbfly][EggFrecklesEF1:jbfly]"
+-- POST /tools op=ping
+{"request_id":"1","status":"result","result":"pong"}
+
+-- POST /tools op=battery
+{"request_id":"2","status":"result","result":"count=0 cap=100% charge=discharging ac=no type=nimh"}
+
+-- POST /tools op=front_app
+{"request_id":"3","status":"result","result":"Notepad (paperroll)"}
+
+-- POST /tools op=store_info
+{"request_id":"4","status":"result","result":"Internal total=7638048 used=902792 free=6735256 ro=n"}
+
+-- POST /tools op=pkg_list args={}
+{"request_id":"5","status":"result","result":"count=38"}
+
+-- POST /tools op=pkg_list args={"id":1}
+{"request_id":"6","status":"result","result":"1/38 ScreenBuffer|428|?"}
+
+-- POST /tools op=note_list args={}
+{"request_id":"7","status":"result","result":"count=25"}
+
+-- POST /tools op=note_list args={"id":25}
+{"request_id":"8","status":"result","result":"25/25 EF dnd session 18|64478106"}
+
+-- POST /tools op=get_note args={"id":25}
+{"request_id":"9","status":"result","result":"EF dnd session 18"}
+
+-- POST /tools op=note_probe args={}
+{"request_id":"10","status":"result","result":"stores=1;s0=Internal:paper=1;soup=get,class=PlainSoup;cursor=get,class=frame;entry=get,class=paperroll,kind=frame,slots=[class,data,viewStationery,height,_version,timestamp,_uniqueID,_modTime];sysdata=ok,class=weird_immediate;direct=ok,class=weird_immediate;textvia=direct,class=weird_immediate,array=0"}
+

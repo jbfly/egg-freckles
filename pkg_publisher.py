@@ -26,7 +26,7 @@ DEFAULT_PORT = int(os.environ.get("NEWTON_PUBLISHER_PORT", "18081"))
 DEFAULT_PACKAGE_PATH = Path(
     os.environ.get(
         "NEWTON_PUBLISHER_PACKAGE",
-        BASE_DIR / "examples" / "harness-client" / "harness-client.pkg",
+        BASE_DIR / "examples" / "harness-client" / "egg-freckles.pkg",
     )
 )
 STATUS_BODY = b"Harness server v1.1 OK\n"
@@ -160,7 +160,7 @@ class ToolBroker:
 PAGE_BODY = (
     b"<!doctype html><html><body>"
     b"<h1>Newton Harness Client</h1>"
-    b"<p><a href=\"/harness-client.pkg\">Download package</a></p>"
+    b"<p><a href=\"/egg-freckles.pkg\">Download package</a></p>"
     b"</body></html>"
 )
 
@@ -477,11 +477,14 @@ class PublisherHandler(BaseHTTPRequestHandler):
             self._send_bytes(HTTPStatus.OK, body, "text/plain; charset=us-ascii")
             return
         if path.endswith(".pkg") and "/" not in path[1:]:
-            # ponytail: /harness-client.pkg keeps its configured path; any other
-            # name is served from runtime/staging/hardware. Name-only, no subdirs.
+            # ponytail: the configured package answers to its own name and to
+            # the old one, so a loader on the device that still has
+            # "harness-client.pkg" typed into it keeps working after the Track L1
+            # rename. Any other name is served from runtime/staging/hardware.
+            # Name-only, no subdirs.
             source = (
                 self.package_path
-                if path == "/harness-client.pkg"
+                if path in ("/egg-freckles.pkg", "/harness-client.pkg")
                 else STAGING_DIR / path[1:]
             )
             try:

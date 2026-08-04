@@ -4,7 +4,8 @@ ROADMAP Track F4, live-proven 2026-08-03. Everything here is **server-side**:
 `server.py` answers these before the backend is called, and the replies are
 ordinary `TEXT` frames. There is no client change and no wire change, so it
 works from **hardware Chat A3 unchanged** and from emulator Chat A9 alike
-(`/help` re-proved on A9, `runtime/evidence/a9ask-14-help-bottom.png`) —
+(`/help` re-proved on A9, `runtime/evidence/a9ask-14-help-bottom.png`), and so
+also from A9's successor **Egg Freckles** (`EggFrecklesEF1:jbfly`) —
 and from the PT100 terminal path, which shares the same code.
 
 ## The command set

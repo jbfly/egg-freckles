@@ -69,12 +69,12 @@ newton-packages:
 	@set -eu; \
 	for dir in $(NEWTON_PACKAGE_DIRS); do $(MAKE) -B -C "$$dir"; done; \
 	mkdir -p "$(NEWTON_STAGING_DIR)"; \
-	for pkg in examples/harness-loader/harness-loader.pkg examples/harness-client/harness-client.pkg; do \
+	for pkg in examples/harness-loader/harness-loader.pkg examples/harness-client/egg-freckles.pkg; do \
 		python3 -c 'import pathlib, struct, sys; p=pathlib.Path(sys.argv[1]); d=bytearray(p.read_bytes()); assert len(d) >= 36 and d[:8] == b"package0", "not a Newton package"; d[32:36]=struct.pack(">I", int(sys.argv[2]) + 2082844800); p.write_bytes(d)' "$$pkg" "$(NEWTON_SOURCE_DATE_EPOCH)"; \
 		cp "$$pkg" "$(NEWTON_STAGING_DIR)/$${pkg##*/}"; \
 	done; \
 	cd "$(NEWTON_STAGING_DIR)"; \
-	sha256sum harness-loader.pkg harness-client.pkg > SHA256SUMS
+	sha256sum harness-loader.pkg egg-freckles.pkg > SHA256SUMS
 
 # Builds one example dir the same way newton-packages does (forced rebuild,
 # same reproducible-build header stamp) and stages it for the ZC40 loader.

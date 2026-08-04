@@ -488,7 +488,8 @@ fixed-op dispatch. Nothing about the wire protocol changed: the host `POST
 name and validates only that `args.id` is an integer if present
 (`pkg_publisher.py:354-386`), so these three ops needed **only** Newton-side
 code. The reply still travels as the 3-line escaped `id / status / value`
-frame (`examples/harness-tools/Main.newt` `Reply`).
+frame (`Reply`; that client was folded into `examples/harness-client/Main.newt` as `ToolReply` in Track L1 and the
+separate package deleted).
 
 | op | args | reply shape | status |
 |---|---|---|---|
@@ -1166,10 +1167,160 @@ not an application view, and tapping the arrows on screen changed nothing.
 generalises: **a floating harness app has to supply its own scroll control.**
 Chat A8 does, with two `protoTextButton`s that page a row window.
 
-What is **not** established: whether adding `vApplication` to the float
-window's `viewFlags` would make the arrows work without breaking `Show`/`Hide`,
-the close box, or `'viewFrontMostApp` resolution. That was not tried, and it is
-the obvious next experiment for anyone who wants zero-tap scrolling.
+**Answered 2026-08-04 (Track L1): adding `vApplication` does not help.** The
+experiment this paragraph asked for was run on instance `efround` and the answer
+is no, so nobody needs to run it again:
+
+| Step | Result |
+|---|---|
+| Ship `viewFlags: 580` (`vFloating` + `vClickable` + `vApplication`) | live window reads **581**, the ROM adding `vVisible` — the flag is really set |
+| Parent chain requirement (`refs/NewtonProgrammerGuide20.txt:8394-8396`) | satisfied: `GetRoot()` reads `viewFlags` **5** = `vVisible` + `vApplication` |
+| `ViewScrollUpScript` / `ViewScrollDownScript` / `ViewOverviewScript` supplied and called directly | works — `scrollRow` 0 → 10 |
+| Tap the ROM's up arrow at `(309,461)` with the window frontmost | **nothing at all**: zero changed pixels, `scrollRow` still 0 |
+| Same tap with the window closed | the Notepad scrolls (~1,800 changed pixels) — so the hit point is right |
+
+The mechanism was in the Reference the whole time. Scroll routing resolves the
+target the way `'viewFrontMostApp` does, and that symbol returns "the frontmost
+view on the screen that has the `vApplication` flag set in its `viewFlags` slot,
+**but not including floating views** (those with `vFloating` set in their
+`viewFlags` slot)" (`refs/NewtonProgrammerRef20.txt:4510-4512`). A floating
+window is excluded *by definition*, flag or no flag. The same exclusion shows up
+from the other side in the merged client: with the Egg Freckles window open and
+frontmost, its own `front_app` op still answers `Notepad (paperroll)`.
+
+So the eighteenth finding's rule is stronger than it was, not weaker: **a
+floating harness app cannot have the ROM's scroll arrows, and no view flag will
+give them to it.** The flag was reverted (the shipped window is back to the
+proto default) and the three scripts were deleted rather than shipped dead. The
+transcript keeps its own Up/Dn buttons. Apple's own advice points the same way:
+"For the base view of an application, it is recommended that you use
+protoDragger instead of protoFloater. The floating property interferes with some
+system services for applications" (`:21606-21609`) — which is the real, larger
+experiment nobody has run: build the app on `protoDragger` and see what else
+changes.
+
+## Twentieth finding: the clock lies, and `EntryUniqueID` does not (Track L1)
+
+The human's MessagePad had its date set to 2008 and then corrected. That is not
+a curiosity: it silently breaks every "newest note" rule built on a date, and it
+is why `Ask` sent the wrong note on hardware **twice** — the second time even
+after Track A9 had switched from `timeStamp` to `EntryModTime`.
+
+### Why A9's fix was not enough
+
+A9 scanned sixteen entries back from the **end of the `timeStamp` cursor** and
+took the largest `EntryModTime`. Both halves of that trust the clock. A note
+written while the clock said 2008 gets a 2008 `timeStamp`, which puts it at the
+**front** of the index — outside a window that starts at the back — and a 2008
+`EntryModTime` to match, which loses every comparison. The note is invisible to
+the rule twice over. Months-old D&D notes win, exactly as reported.
+
+Reproduced by construction on instance `efround` and both rules run over the
+same 25-entry soup ([`efround-ordering.txt`](../runtime/evidence/efround-ordering.txt)):
+
+```text
+A9 rule (timeStamp cursor, max EntryModTime) picks id=23 mod=64478106 text=EF dnd session 18
+EF1 rule (_uniqueID cursor, max EntryUniqueID) picks id=24 ts=54919320 text=EF cat drawing page
+```
+
+`id=24` is the "cat", created last and stamped 2008-06-01. The old rule cannot
+see it; the new rule cannot miss it.
+
+### `_uniqueID` is a queryable index on this ROM
+
+Undocumented as a query path — the manuals mention `_uniqueID` exactly twice and
+never in a query — but it works, and it is the one index the ROM refuses to let
+you drop (error `-48023`, "Tried to call RemoveIndex on the `_uniqueID` index",
+`refs/NewtonProgrammerRef20.txt:74421`):
+
+```text
+GetUnionSoupAlways("Notes"):Query({indexPath: '_uniqueID})   -> uidq=ok
+```
+
+Cursor order is allocation order, measured: consecutive `NewNote` calls on the
+seeded flash returned ids 3, 4, 5, … 24, 25, and `ResetToEnd()` on that cursor
+lands on the note just created. `EntryUniqueID` reads it "without reading the
+entry into the cache" (`:34872`), so a bounded scan is cheap.
+
+**What the manuals actually promise is less than that**, and the honest reading
+matters: they define the ID only as "the value that identifies the specified
+entry to the system" (`:34871-34872`) and never promise monotonicity or
+non-reuse. The nearest thing to a contract is `soup:GetNextUid()` — "the unique
+identifier to be assigned to the next entry added to the soup" (`:33348`) —
+which is a counter by construction. So the rule rests on a documented counter
+plus a measurement, not on a documented ordering guarantee. If a future ROM or a
+restore reuses IDs, this breaks; nothing else available on the device is any
+better, and everything date-based is already known to be worse.
+
+### The shipped rule, and what it costs
+
+`FindNewest` takes the **highest `EntryUniqueID`** in the last `scanLimit`
+entries of the `_uniqueID` cursor, with `EntryModTime` breaking a tie only
+(a union soup can interleave two stores whose ID spaces are independent), and
+falls back to the `timeStamp` cursor if the ID query ever throws.
+
+The cost is real and was accepted deliberately: **A9 could answer with an older
+page you had just drawn on, and this cannot.** Between "the note you just made"
+and "the page you just touched", only the first survives a broken clock, and a
+broken clock is what the hardware has. Reading the *open* note (Track F3) is the
+fix that needs neither.
+
+### `SetTime` is documented, and does nothing under Einstein
+
+Worth knowing before anyone plans a clock experiment. `SetTime(time)` "Sets the
+time of the system clock", taking minutes since 1904
+(`refs/NewtonProgrammerRef20.txt:50542-50548`), and `SetTimeInSeconds` is its
+1993-epoch sibling (`:50554-50560`). Both resolve on this ROM. Neither moves the
+clock in the emulator:
+
+```text
+runtime/ns_eval.py --instance efround 'SetTime(54919320); "after=" & Time()'
+  -> "after=64478105"          (unchanged: still the host's wall clock)
+```
+
+Einstein drives the Newton's clock from the host RTC, so a poisoned-clock
+scenario has to be built by construction — create the notes, then write the past
+`timeStamp` onto the entry with `EntryChangeXmit`. `EntryModTime` cannot be
+forged that way at all, which is why the proof above demonstrates the
+*window* half of the poisoning empirically and argues the comparison half from
+the fact that both stamps come off the same wrong clock.
+
+## Twenty-first finding: modal `Communications` alerts are opt-out (Track L1)
+
+The "Sorry, a problem has occurred" slips that the 2026-08-03 hardware test
+logged as cosmetic noise (finding 3) are not something the app has to live with.
+They are what the ROM does with an exception the app declined to catch:
+
+> If no `ExceptionHandler` method is specified, the exception is passed up the
+> handler chain. Exceptions that are not caught are displayed as warning
+> messages to the user.
+> — `refs/NewtonProgrammerRef20.txt:57321-57323`
+
+`endpoint:ExceptionHandler(error)` is sent "whenever an exception is thrown and a
+corresponding `CompletionScript` method does not exist" (`:57291-57294`). Every
+`Output`/`Bind`/`connect` in this repo already carries a `CompletionScript`, so
+those errors were always handled — but an **unsolicited disconnect** has no
+completion script to land in, and that is precisely the case that reaches the
+user as a modal slip. Egg Freckles gives all three endpoints (chat, ink, tools)
+an `ExceptionHandler` that routes into the existing failure path, turning a
+modal alert into a one-second reconnect.
+
+**The second alert source is a delayed call landing on a closed view**, and it is
+easy to ship by accident. `AddDelayedCall(func(view) view:ToolWatch(), [self],
+4000)` reschedules a watchdog forever; when the window closes, the call already
+in the queue still fires, the method is gone with the view, and the ROM shows
+`-48809` — "undefined method"
+(`docs/newton-networking-lessons.md` §1.4). Measured this round: closing the
+window raised exactly that slip. Every `AddDelayedCall` in the client now reads
+
+```newtonscript
+AddDelayedCall(func(view) try view:ToolWatch() onexception |evt.ex| do nil, [self], 4000);
+```
+
+and closing the window is silent — verified with the tools long poll live, the
+broker logging one `Newton tools disconnected` and no reconnect
+([`efround-round.txt`](../runtime/evidence/efround-round.txt),
+[`efround-18-closed-silent.png`](../runtime/evidence/efround-18-closed-silent.png)).
 
 ## Nineteenth finding: `EntryModTime` is coarse, and it lags (Track A9)
 

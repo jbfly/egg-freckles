@@ -27,8 +27,10 @@ slot absent and produced no payload on the wire.
   (`Output: func(data, opts, outSpec)`). The broken two-arg form is documented
   at `docs/newton-dev-notes.md:79`.
 - Live source: `examples/harness-loader/Main.newt` `Output(binary, nil,
-  {async: nil, reqTimeout: 10000, ...})`; `examples/harness-tools/Main.newt:95`
-  `self.endpoint:Output("POLL\r\n", nil, {form: 'string, async: true, ...})`.
+  {async: nil, reqTimeout: 10000, ...})`; `examples/harness-client/Main.newt:1437`
+  `self.toolEndpoint:Output("POLL\r\n", nil, {form: 'string, async: true, ...})`
+  (this was `examples/harness-tools/Main.newt:95` until Track L1 merged that
+  package into the client's tools-channel section).
 
 ### 1.2 Synchronous `connect` continues directly; do not wait for a callback
 
@@ -99,7 +101,9 @@ R14G then reported "Harness Client install queued" with no overlay.
   handling removed `-48803`" … "r14b exposed the earlier normal state `Link:
   initializing` … `Grabbed` was incorrectly sending ordinary NIE progress
   notifications to `Failed`"). The corrected `Grabbed` guard is at
-  `examples/harness-loader/Main.newt:87-93` and `examples/harness-tools/Main.newt:40-44`.
+  `examples/harness-loader/Main.newt:87-93` and, since Track L1 folded the tools
+  package into the client, `examples/harness-client/Main.newt:1359-1368`
+  (`ToolGrabbed`; formerly `examples/harness-tools/Main.newt:40-44`).
 - Nuance: `-48803` *does* mean "wrong number of arguments / callback can't be
   called" (§1.4). The teardown overlay surfaces it because a half-stopped link
   can't call a callback. So both readings are right: the error code's meaning is
@@ -140,7 +144,9 @@ by switching the Newton side to **async output specs with a `completionScript`**
 - Evidence: `docs/newton-dev-notes.md:79,91` ("EnRoute's working code
   predominantly uses an async output spec with a completion callback rather
   than a synchronous spec"); production shape at
-  `examples/harness-tools/Main.newt:95-100,140-141`.
+  `examples/harness-client/Main.newt:1437-1445` (was
+  `examples/harness-tools/Main.newt:95-100,140-141` before Track L1 merged that
+  package into the client).
 - The `einstein-nie-rom-trace.patch` records the ROM addresses of the NIE
   endpoint send chain (`TNewScriptEndpointClient::DoOutput` @ `0x00134fdc`,
   `OutputRaw` @ `0x0013558C`, `TEndpoint::nSnd(raw)` @ `0x00382BBC`,
@@ -157,8 +163,9 @@ holds the poll until a named operation arrives. Steady sequential latency
 
 - Evidence: `docs/newtonscript-eval.md:335-360` (R9 production benchmark, 10
   `ping` calls on one TCP source port, min 0.110 s / median 0.814 s / max
-  0.815 s); `examples/harness-tools/Main.newt:92-100` (the `Poll`/`ArmInput`
-  cycle). Old baseline at `docs/newtonscript-eval.md:241-247` (5.8–11.5 s).
+  0.815 s); `examples/harness-client/Main.newt:1434-1464` (the
+  `ToolPoll`/`ToolArmInput` cycle, formerly `examples/harness-tools/Main.newt:92-100`
+  before Track L1). Old baseline at `docs/newtonscript-eval.md:241-247` (5.8–11.5 s).
 
 ### 1.9 Async endpoint I/O does not block the UI event loop
 
@@ -232,7 +239,7 @@ The traps that cost real time.
 | **Duplicate `Grabbed` notifications creating a second endpoint** | Each connected notification spawned another endpoint/TCP connection from one tap. | First statement in `Grabbed`: `if self.endpoint then return nil;` | `docs/client-network-port.md` ("Duplicate notifications cannot reconnect") |
 | **Idle link is a race, not a threshold** | Four idle trials at ~92–100 s disagreed; we kept trying to tune the gap. Gap length does not predict cost: 60 s cost 7.1 s, 300 s cost 0.19 s. What predicts cost is **who notices the dead link first**. | Don't tune the gap. If the ~7 s worst case matters, run a host-side keepalive that touches the link more often than it dies, so the 4 s watchdog always wins the race. Worst case is no worse than the 5.8–11.5 s baseline this replaced. | `docs/newtonscript-eval.md:398-413`; `runtime/evidence/idle-sweep.txt`; commit `6442573` |
 | **Watchdog period below heartbeat cadence** | A faster-than-3 s watchdog forced false reconnects and a 9.0 s warm call. | Watchdog period must stay **above the 3 s host-heartbeat cadence** (`pkg_publisher.py:70`); R10D uses 4 s. | `docs/newtonscript-eval.md:366-375` |
-| **Zombie package tears down without `Stop()`** | Closing the app's view left the source port alive (zombie) beside a fresh connection. | Add `ViewQuitScript` that calls `Stop()` (unbind, dispose, release NIE). | `docs/newtonscript-eval.md:377-383`; `examples/harness-tools/Main.newt:26-30` |
+| **Zombie package tears down without `Stop()`** | Closing the app's view left the source port alive (zombie) beside a fresh connection. | Add `ViewQuitScript` that calls `Stop()` (unbind, dispose, release NIE). | `docs/newtonscript-eval.md:377-383`; `examples/harness-client/Main.newt:219-226` (was `examples/harness-tools/Main.newt:26-30` before Track L1) |
 | **Startup `Bind`/`Connect`/`Output` can hold the app task for the full 45 s connect timeout** | Real-hardware bring-up exposed synchronous endpoint calls blocking the UI. | Use endpoint callback specs with `async: true` for `Bind`, `Connect`, and both `Output` operations. Input path stays `SetInputSpec`-only. | `docs/newtonscript-eval.md:415-435` (R10I) |
 | **Missing `form: 'string` on the output spec** | Einstein established TCP but emitted no payload. | Every output spec includes `form: 'string`. | `docs/newtonscript-eval.md:431-435` |
 | **Treating replacement of the prior input spec as a communication error** | Caused connection churn. | Inline `SetInputSpec` is valid when changing or stopping the persistent spec; the same spec is automatically reposted if left unchanged. | `refs/NewtonProgrammerGuide20.txt:50167-50178`; `refs/NewtonProgrammerRef20.txt:56549-56557` |
@@ -314,7 +321,9 @@ question — Newton can hold one persistent socket and exchange newline-delimite
 frames via async `SetInputSpec` + `Output(form:'string, async:true)`. The
 remaining risk is the model100 framing/retry *logic*, not whether Newton can
 sustain a bidirectional socket. Don't re-litigate persistence; reuse
-`examples/harness-tools/Main.newt` as the transport skeleton.
+the tools-channel section of `examples/harness-client/Main.newt` (`Tool*`) as the
+transport skeleton — it is the same code, moved there when Track L1 deleted
+`examples/harness-tools/`.
 
 ### 4.3 The same-socket long poll (§1.8) needs a **host-side keepalive** (§2
 footgun). The plan's stop-and-wait framing assumes a live link; the idle race

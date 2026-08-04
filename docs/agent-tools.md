@@ -249,6 +249,10 @@ Three things learned running it:
   the Newton raised the familiar modal `Communications — Sorry, a problem has
   occurred` slip *over the chat window*. The turn completed correctly anyway;
   the slip has a close box and is cosmetic. Expect it, do not chase it.
+  (Track L1 removed the cause going forward: the tools client and the chat
+  client are now one package, `EggFrecklesEF1:jbfly`, sharing one app. Two
+  separate packages is what the physical MP2000 still has installed, so expect
+  the slip there until Egg Freckles replaces them.)
 - **`xdotool` typing drops the first characters and mangles shifted keys.**
   The first attempt lost the leading `Use ` and turned `:` into `;` and `?`
   into `/`. Tap the field, wait ~3 s, then type in short chunks with a pause

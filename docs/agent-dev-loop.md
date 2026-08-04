@@ -52,9 +52,12 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
 
    Then rename inside them: the `Makefile` names `hello.pkg` and `hello.nprj`
    in three places (target, prerequisite, `clean`), and `tntk` is invoked as
-   `-c <name>.nprj`. `build_pkg` looks for `<dirname>.pkg`
-   (`newton_mcp.py:tool_build_pkg`), so keep directory, `.nprj` and `.pkg`
-   basenames identical.
+   `-c <name>.nprj`. `build_pkg` looks for `<dirname>.pkg` first and only falls
+   back to any `*.pkg` in the directory (`newton_mcp.py:272-275`), so keep
+   directory, `.nprj` and `.pkg` basenames identical. (`examples/harness-client`
+   is the one deliberate exception — it builds `egg-freckles.pkg` and rides that
+   fallback, because Track L1 renamed the package without renaming the
+   directory.)
 
 4. **Give it a brand-new identity — never reuse one.** In `Main.newt` set
    `kAppSymbol := '|<Name><Round>:jbfly|;` and put the *same* string in the

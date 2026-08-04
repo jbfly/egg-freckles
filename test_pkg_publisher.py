@@ -19,7 +19,7 @@ import pkg_publisher
 class PublisherTest(unittest.TestCase):
     def test_page_package_headers_and_404(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            package_path = Path(tmp) / "examples" / "harness-client" / "harness-client.pkg"
+            package_path = Path(tmp) / "examples" / "harness-client" / "egg-freckles.pkg"
             package_path.parent.mkdir(parents=True)
             package_path.write_bytes(b"first package")
 
@@ -44,7 +44,7 @@ class PublisherTest(unittest.TestCase):
                     self.assertEqual(headers["Connection"], "close")
                     self.assertEqual(headers["Content-Type"], "text/plain; charset=us-ascii")
 
-                    status, headers, body, _ = self.fetch(port, "/harness-client.pkg")
+                    status, headers, body, _ = self.fetch(port, "/egg-freckles.pkg")
                     self.assertEqual(status, 200)
                     self.assertEqual(body, b"first package")
                     self.assertEqual(headers["Content-Length"], str(len(body)))
@@ -54,10 +54,17 @@ class PublisherTest(unittest.TestCase):
                     )
 
                     package_path.write_bytes(b"second package")
-                    status, headers, body, _ = self.fetch(port, "/harness-client.pkg")
+                    status, headers, body, _ = self.fetch(port, "/egg-freckles.pkg")
                     self.assertEqual(status, 200)
                     self.assertEqual(body, b"second package")
                     self.assertEqual(headers["Content-Length"], str(len(body)))
+
+                    # Track L1 renamed the package; the old path stays an alias
+                    # so a loader on the device with "harness-client.pkg" still
+                    # typed into it keeps working after the rename.
+                    status, headers, body, _ = self.fetch(port, "/harness-client.pkg")
+                    self.assertEqual(status, 200)
+                    self.assertEqual(body, b"second package")
 
                     status, headers, body, _ = self.fetch(port, "/../../etc/passwd")
                     self.assertEqual(status, 404)

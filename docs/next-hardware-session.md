@@ -46,7 +46,9 @@ Everything else stands. Two facts that pin the whole session:
 - **Every Newton-side address in this repo is hardcoded to `10.42.0.1:18081`** —
   `examples/harness-loader/Main.newt:99` (`local address := [10, 42, 0, 1]`),
   `:22` (`serverPort: 18081`), and `examples/harness-tools/Main.newt:72`
-  (`arglist: [10, 42, 0, 1, 18081]`). So the answer to the mars/vacation
+  (`arglist: [10, 42, 0, 1, 18081]` — that package was deleted in Track L1; the
+  same hardcoded address now lives in the tools-channel section of
+  `examples/harness-client/Main.newt`). So the answer to the mars/vacation
   question is: **bring up the AP and put mars on 10.42.0.1.** Do not try to make
   the house LAN work — it costs one 17-character NS Basic edit to unify on
   `10.42.0.1`, and then every other step costs zero typed characters. Chasing

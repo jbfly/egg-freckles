@@ -7,6 +7,67 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track L1 done: one package, and it has a name.** Ships as
+  **Egg Freckles** (`EggFrecklesEF1:jbfly`, v1.0-ef1, package version 18),
+  answering points (1) through (4) of the hardware feedback below. Round record
+  `docs/newton-dev-notes.md` "Track L1 round"; evidence
+  `runtime/evidence/efround-*`; proven on isolated instance `efround` with the
+  **committed** bytes (sha256 `2831f813…`) against `NEWTON_FAKE_BACKEND=1
+  server.py:6801` and `raw_pkg_server.py:18081`.
+  - **The tools client is inside the chat app now** — shape (a), not a two-form
+    package. `examples/harness-tools/` is deleted. The chat window already ran a
+    second endpoint on its NIE link for the ink POST, so the `/tools` long poll
+    is simply a third connection on the same link; every timing rule is
+    unchanged (3 s heartbeat, 4 s watchdog, `async: true`, `form: 'string`,
+    `ViewQuitScript` teardown). All eight ops answered over `POST /tools`
+    **with only Egg Freckles installed** — `battery` →
+    `count=0 cap=100% charge=discharging ac=no type=nimh`, `note_list` →
+    `count=28` — and the device's package list contains no `HarnessTools`
+    (`runtime/evidence/efround-tools.txt`).
+  - **Ask is no longer clock-dependent, which is what actually fixes the cat.**
+    "Newest" now means the highest `EntryUniqueID` — a per-soup counter that
+    never reads the clock — instead of the newest `EntryModTime`. A9's rule was
+    poisoned twice over by the 2008 clock: a note written while the date was
+    wrong sorts to the *front* of the `timeStamp` index, outside a scan that
+    starts at the back, *and* loses every date comparison. Both rules run over
+    the same rigged 25-note soup: A9 answers `id=23 "EF dnd session 18"`, EF1
+    answers `id=24 "EF cat drawing page"`. On the shipped bytes the button
+    itself answered `Note: EF cat drawing page two`. Rule in
+    `docs/notes-bridge.md`, mechanism in `docs/newtonscript-eval.md` "Twentieth
+    finding". **The trade is real and deliberate**: a drawing added to an
+    *older* page no longer wins. Only one of the two behaviours survives a wrong
+    clock, and the hardware has a wrong clock; Track F3 / L2 (read the note the
+    user is actually on) is the fix that needs neither.
+  - **`vApplication` experiment: answered, and the answer is no.** The
+    eighteenth finding's open question is now closed. The flag really was set
+    (live `viewFlags` 581), the root view's chain qualifies, the handlers worked
+    when called directly — and tapping the ROM's up arrow changed *nothing*,
+    while the same tap scrolls the Notepad with the window closed. Scroll
+    routing excludes floating views by definition
+    (`refs/NewtonProgrammerRef20.txt:4510-4512`). Reverted; **Up**/**Dn** stay
+    and still page the transcript (27 rows, `scrollRow` 10 → 0).
+  - **Two sources of the modal alert noise found and killed** — worth more than
+    the feature work, and they apply to every app in this repo. An endpoint with
+    no `ExceptionHandler` shows every unsolicited disconnect to the user as
+    `Communications — Sorry, a problem has occurred` (`refs:57321-57323`), and
+    an `AddDelayedCall` that lands on a closed view raises `-48809`. Both
+    reproduced on screen, both fixed; closing the window with the poll live is
+    now silent (`efround-18-closed-silent.png`). New "Twenty-first finding".
+  - Naming: Extras reads **Egg Freckles**, title "Egg Freckles 1.0-ef1", buttons
+    **Send** / **Ask Note** / **Save Note** / New / Up / Dn. The round tag lives
+    only in the identity, the version string and the `.nprj` name;
+    `scripts/newton-round.sh` was taught that (its title rewrite is now
+    optional) and its `--self-check` covers the EF1 → EF2 bump.
+  - Window `viewBounds` is computed from the live root box instead of hardcoded
+    (`8,26,312,454` on a 320x480 screen). Honest: A9's constant was already
+    near-centred *here*, so this is two pixels in the emulator — the point is
+    that it is derived, not asserted.
+  - 88 tests (85 + 3). **Still open, deliberately**: the loader package keeps
+    its `-HarnessLoaderZC40` name (a separate cheap round), and **the physical
+    MP2000 still runs A7 + R10P** — this whole lineage remains emulator-proven
+    only until the human installs it. When they do, it is now **one** install
+    that replaces both.
+
 - **2026-08-04 — Track L2 designed: "Send to AI" really does go in the stock
   Notes menu, and it kills the wrong-note bug outright.** Research and design
   only, no client code. Design:
@@ -1034,16 +1095,21 @@ retyping error slips.
 
 Direct answers to the second hardware test (status log entry above).
 
-- **L1. One package, real name: "Egg Freckles" client.** Fold the
-  harness-tools fixed-op client into the chat package so one ZC40 install
-  delivers both (and the two-NIE-client `Communications` slip noise dies
-  with the second app). User-visible name "Egg Freckles"; loader retitles
-  plain "Loader"; internal identity bumps (EF1, EF2…) keep the -10402 rule.
-  Same round: center the window; clearer button labels; try the eighteenth
-  finding's `vApplication` experiment for native ROM scroll arrows (keep
-  Up/Dn if it misbehaves); make Ask's newest-note ordering robust to a
-  wrong clock (`EntryUniqueID` is allocation-ordered; the 2008-clock
-  history poisons every time-based index).
+- **L1. One package, real name: "Egg Freckles" client — DONE 2026-08-04**
+  (`EggFrecklesEF1:jbfly`, v1.0-ef1; status-log entry at the top of this
+  file). The fixed-op client now lives inside the chat app on the same NIE
+  link and `examples/harness-tools/` is deleted, so one install delivers
+  both and the second NIE client is gone. Window centred from the live root
+  box, buttons relabelled Send / Ask Note / Save Note, Ask ordered by
+  `EntryUniqueID` instead of any clock-derived stamp. The `vApplication`
+  experiment was run and **failed** — floating views are excluded from
+  scroll routing by definition — so Up/Dn stay and the eighteenth finding
+  is closed. Two modal-alert sources (missing `ExceptionHandler`, delayed
+  calls landing on a closed view) were found and fixed on the way.
+  **Still open from L1**: the loader package keeps its `-HarnessLoaderZC40`
+  identity and "Load ZC40" label — retitling it plain **Loader** is a
+  separate cheap round, and it is the last piece of dev cruft the human
+  sees in Extras.
 - **L2. Notes Action-menu integration — DESIGNED 2026-08-04, not built.**
   `docs/notes-integration-design.md` is the design, with a four-session build
   plan and every unproven step tagged `[verify]`; the mechanism was measured
