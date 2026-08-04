@@ -1,0 +1,206 @@
+Track L2 build — "Send to AI" shipped inside Egg Freckles
+==========================================================
+
+Date        2026-08-04
+Instance    l2build (isolated; `make emulator-instance-up INSTANCE=l2build`,
+            seeded with
+            ~/newton-archive/newton-harness/flash-backups/
+            internal-before-round9-loader-20260725-195622.flash per
+            docs/parallel-emulators.md). Torn down after the round.
+Host        NEWTON_FAKE_BACKEND=1 server.py on 6801 (text answers),
+            runtime/raw_pkg_server.py on 10.42.0.1:18081 (package + /ink +
+            /tools). The vision calls are REAL codex, as in the A9 round.
+Builds      EggFrecklesEF2:jbfly  sha256 a5ee94a0b4717b4f6d86ff21f6ebf094e6dc27614908574618cbf9fc51d198d1
+            EggFrecklesEF3:jbfly  sha256 085c12f7106199e13969119cf3a22959bc514b3bfbfb1565218f9c44d4e7df23  (adds the per-send ink watchdog)
+            EggFrecklesEF4:jbfly  sha256 d8df05c7d9c68917a9e51a3138f5d8d16557102b13b3fdcbdbb4c1765df590ad  (EF3 + identity; the committed source)
+
+Screenshots
+  l2build-01-action-picker.png       "Send to AI" in the stock picker (text note)
+  l2build-02-folder-picker.png       "AI" in the Notes folder tab picker
+  l2build-03-ai-folder-text-reply.png the text reply inside the AI folder
+  l2build-04-sketch-picker.png       the picker over a 6-stroke house sketch
+  l2build-04-sketch-reply.png        the vision answer as a filed note
+  l2build-05-sketch-host-render.png  what the host rendered from the NSI1 body
+  l2build-06-chat-regression.png     the chat window still works
+  l2build-07-mixed-picker.png        the picker over a mixed note
+  l2build-08-picker-after-reboot.png the item is back after `podman restart`
+  l2build-09-mixed-reply.png         the mixed answer as a filed note
+  l2build-10-ai-folder.png           every reply, in the AI folder
+  l2build-11-picker-after-scrub.png  the item is gone after the package is removed
+
+
+1. tntk emits InstallScript, and the ROM runs it — on install AND on reset
+--------------------------------------------------------------------------
+
+tntk's own part dump prints both slots into the part frame (note the ROM's
+case-insensitive symbol interning lower-cases the first one):
+
+    installScript: '<function, 1 arg(s) #0f71e751>,
+    RemoveScript: <function, 1 arg(s) #0f6dbe51>
+
+The entry frame carries an `aiVia` slot recording which mechanism installed it,
+so this is measured and not inferred. Straight after installing EF2:
+
+    $ ns_eval 'begin local n := GetRoot().paperroll; ... end'
+    "len=3 |<GetTitle> |<GetTitle> |Send to AI"
+    "hook=EggFrecklesEF2:jbfly via=install agent= rs=_function"
+
+`via=install` means the part frame's InstallScript did it, not the window
+fallback. The agent frame is real and inherits the client's methods:
+
+    "agentClass=frame isframe=y route=_function collect=_function ownlink=y"
+
+(`route` is the agent's own slot, `collect` is `CollectNote` reached through
+`_proto`, `ownlink` is its own `linkID` slot rather than a window's.)
+
+Then, with EF3 installed, `podman restart newton-harness-l2build_emulator_1`,
+and **without opening Egg Freckles at any point after the reboot**:
+
+    "len=3 |<GetTitle> |<GetTitle> |Send to AI via=install hook=EggFrecklesEF3:jbfly"
+
+The l2probe round measured that this slot is pure RAM and is gone after a reset
+(`l2probe-routescripts.txt` §6), so this is InstallScript re-applying it. It
+also answers the second [verify]: `GetRoot().paperroll` **does** exist when
+InstallScript runs at boot — the retry path (up to four tries, 5 s apart) was
+never needed, but it is still there for a slower device.
+
+The `ViewSetupFormScript`-style fallback (`via='window`) therefore never fired
+in this round. It ships anyway, and never overwrites an InstallScript entry.
+
+
+2. Text-only note: NSI1 with zero strokes, answered from the H line
+--------------------------------------------------------------------
+
+The note was written by `MakeTextNote`, i.e. its item has **no class slot** —
+the case the design flagged as fatal for a `ClassOf(item) = 'para` reader.
+
+Tapping the envelope on "the cat sat on the mat" and choosing Send to AI, with
+the Egg Freckles window CLOSED, produced one POST and the host's new
+zero-stroke branch answered from the text (publisher log):
+
+    NOTE WIRE C> MSG '/new'
+    NOTE WIRE C> MSG 'the cat sat on the mat'
+    NOTE WIRE S> TEXT FAKE REPLY TO: the cat sat on the mat -- ...
+    10.42.0.1 - - [04/Aug/2026 14:38:32] "POST /ink HTTP/1.0" 200 -
+
+No PNG was rendered and no vision call was made. The reply came back as a note:
+
+    $ ns_eval '... c:ResetToEnd() ...'
+    "uid=4 labels=AI folders= text=re: the cat sat on the matFAKE REPLY TO: ..."
+
+    "folders=AI,Business,Miscellaneous,personal, str=AI"
+
+and the Notes folder tab shows it under "AI" (screenshots 02 and 03). Repeated
+on the shipped EF3 bytes against the *reply* note itself — a class-less item
+again — giving `uid=10 lab=AI`.
+
+
+3. Sketch note: six strokes, real vision reading, filed answer
+---------------------------------------------------------------
+
+Drawn with the stock Sketches tool over `/drag` (a house: four walls, two roof
+lines):
+
+    "uid=5 n=6 /ink2 /ink2 /ink2 /ink2 /ink2 /ink2"
+
+Send to AI -> one POST -> the host rendered `l2build-05-sketch-host-render.png`
+(the house, origin-subtracted to the top-left) -> real codex answered:
+
+    10.42.0.1 - - [04/Aug/2026 14:43:32] "POST /ink HTTP/1.0" 200 -
+
+and the reply note reads
+
+    re: 6 strokes
+
+    A simple outline of a house with a pitched roof.
+
+
+4. Mixed note: ONE POST carrying the S lines and the H line
+-------------------------------------------------------------
+
+    "uid=7 n=4 para/weird_immediate /ink2 /ink2 /ink2"
+
+One request, and the note's own words reached the vision prompt on the H line:
+
+    INK PROMPT 'The attached PNG is a sketch ... No preamble, no markdown.
+     The drawing is accompanied by this note text: what is this shape'
+    10.42.0.1 - - [04/Aug/2026 14:52:00] "POST /ink HTTP/1.0" 200 -
+
+    re: what is this shape
+
+    An upside-down triangle.
+
+That is exactly one `POST /ink` line in the log for the whole interaction.
+
+
+5. The defect this round found: the ink watchdog was not per-send
+------------------------------------------------------------------
+
+The first attempt at the mixed note produced a WRONG note:
+
+    "(not sent) The host did not answer"
+
+while the host had answered 200 fourteen seconds earlier. Cause: `SendInk`
+armed `AddDelayedCall(:InkExpired, 150000)` with no ticket, so the watchdog
+from the *sketch* send (POST completed 14:43:32, watchdog due 14:46:02) landed
+inside the *mixed* send that was still in flight, called `InkDone`, and
+`InkDone` disposed the endpoint one second later. The emulator's TCP trace for
+that connection ends with the Newton sending FIN before any response payload
+arrived:
+
+    TCPDIAG state=kStateConnected size=948 ... payload=894 flags=0x010 dst=18081
+    TCPDIAG state=kStateConnected size=54 ... payload=0 flags=0x011 dst=18081
+    TCPDIAG state=kStateNewtonDiscWaitForACK ...
+
+Fix (EF3): each send takes a ticket in `self.inkSeq` and the watchdog is armed
+with it; `InkExpired(seq)` returns immediately unless it is the current one.
+The same mixed note then routed correctly (section 4). The bug is older than
+this round — it is in the A9/EF1 Ask path too, where it shows up only as a
+wrong status line, which is why nobody saw it until a route script started
+writing the outcome into the user's notes.
+
+
+6. Uninstall: the item goes, and it takes nothing else with it
+----------------------------------------------------------------
+
+`GetRoot().|EggFrecklesEF4:jbfly|:Close()` then
+`SafeRemovePackage(GetPkgRef("EggFrecklesEF4:jbfly", GetDefaultStore()))`:
+
+    before: "len=4 probe=7 |<GetTitle> |<GetTitle> |Send to AI |Other Pkg"
+    after:  "probe= len=2 |<GetTitle> |<GetTitle>"
+
+and the picker draws Print Note / Fax / Beam / Duplicate / Delete and nothing
+else (`l2build-11-picker-after-scrub.png`).
+
+**Honest reading of that measurement.** `probe` was a marker slot this probe
+put on the paperroll view frame itself, and it is gone too — so the Notepad
+base view is **re-instantiated when a package is removed**, and the whole RAM
+`routeScripts` own slot dies with it. The simulated third-party entry
+("Other Pkg") went the same way, by the ROM's hand, not ours. That means the
+uninstall gate passes, but this path **cannot show that `RemoveScript` ran**:
+its rebuild has nothing observable left to do. What is proven is that tntk
+emits the slot, that the item is gone, and that our code contains no
+`RemoveSlot` call at all (pinned by `test_newton_client_source.py`).
+
+
+7. Regression: the chat window and the tools channel are untouched
+-------------------------------------------------------------------
+
+With only Egg Freckles installed:
+
+    You: from ef2
+    Agent: FAKE REPLY TO: from ef2 -- the quick brown fox ...
+
+    $ curl -X POST http://10.42.0.1:18081/tools -d '{"op":"front_app","args":{}}'
+    {"request_id":"1","status":"result","result":"Notepad (paperroll)"}
+    $ curl -X POST http://10.42.0.1:18081/tools -d '{"op":"note_list","args":{}}'
+    {"request_id":"2","status":"result","result":"count=3"}
+
+
+8. Noise, for the record
+-------------------------
+
+Stacked `-48601` / `-48808` modal alerts appeared twice, once after closing the
+Egg Freckles window and once at boot. Both are the seed flash's documented
+noise (`docs/parallel-emulators.md`, `docs/newton-dev-notes.md:866`); dismissing
+them cleared them and nothing recurred during the routing tests.

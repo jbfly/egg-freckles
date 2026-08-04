@@ -1,11 +1,18 @@
 # "Send to AI" in the stock Notes menu — design (Track L2)
 
-**Status: designed, nothing shipped.** Every mechanism below was measured on
-isolated emulator instance `l2probe` on 2026-08-04; the transcript with the
-exact commands and answers is
+**Status: BUILT and emulator-proven — read "Build result" at the end first, it
+is the current state.** The design below is kept as written on 2026-08-04
+because its reasoning still holds; the build settled every **[verify]** tag in
+it and changed four things, all recorded in that final section. Two claims in
+the design as written are now known to be wrong in detail: a `RouteScript`
+closure cannot be compiled by `tntk` (§1), and uninstall does not depend on
+`RemoveScript` at all (§5, §6).
+
+Every mechanism below was measured on isolated emulator instance `l2probe` on
+2026-08-04; the transcript with the exact commands and answers is
 [`runtime/evidence/l2probe-routescripts.txt`](../runtime/evidence/l2probe-routescripts.txt).
-Anything not measured carries a **[verify]** tag and is called out again in the
-build plan.
+The build's own transcript is
+[`runtime/evidence/l2build-round.txt`](../runtime/evidence/l2build-round.txt).
 
 The human asked for this after the second hardware test: *an entry in the Notes
 Action (envelope) menu — "Send to AI" — with the reply arriving as a new note,
@@ -393,3 +400,117 @@ conversation.
   routing actions run immediately and never see a slip
   (`Guide:46271-46273`) — which is exactly the interaction the human asked
   for.
+
+---
+
+## Build result — 2026-08-04, shipped in `EggFrecklesEF4:jbfly`
+
+**Status: built, and every `[verify]` above is settled.** Everything below was
+measured on isolated instance `l2build` against
+`NEWTON_FAKE_BACKEND=1 server.py:6801` and `runtime/raw_pkg_server.py` on
+`10.42.0.1:18081`, with **real** codex for the vision calls. Transcript with the
+commands and answers: [`runtime/evidence/l2build-round.txt`](../runtime/evidence/l2build-round.txt).
+Physical hardware is still untouched — session 4 of the build plan is the
+human's.
+
+### The picker, for real
+
+![the shipped item](../runtime/evidence/l2build-01-action-picker.png)
+
+### Every `[verify]`, settled
+
+| `[verify]` | Verdict | Evidence |
+| --- | --- | --- |
+| §5 `tntk` emits `InstallScript`/`RemoveScript` | **Yes, both.** tntk's part dump prints `installScript: '<function, 1 arg(s)>` and `RemoveScript: <function, 1 arg(s)>`; the ROM runs InstallScript on activation **and on reset**. The entry records which mechanism made it (`aiVia`), and it read `via=install` after a plain install and again after `podman restart` with the app never opened | `l2build-round.txt` §1; `l2build-08-picker-after-reboot.png` |
+| §5 is `GetRoot().paperroll` instantiated when InstallScript runs at boot | **Yes.** `via=install` after a cold boot means the hook landed on the first try; the four-retry `AddDelayedCall` path shipped but never fired | `l2build-round.txt` §1 |
+| §4 the host's zero-stroke `/ink` body | **Built and proven.** `pkg_publisher.py` skips the PNG and the vision call and answers a zero-stroke body from the `H` line via `ask_model`; a zero-stroke body with *no* `H` line is now a 400. Pinned by `test_pkg_publisher.py::test_ink_zero_strokes_is_answered_from_the_text` | `l2build-round.txt` §2 |
+| §2 multi-select target from the overview | **Implemented, not exercised.** `Route` calls `GetTargetCursor(target, nil)` unconditionally and takes `:Entry()`, which is the documented shape for any target (`Guide:46379-46381`). Every live tap in this round was a single open note, so the checked-overview case is still unproven on the ROM | `Main.newt`, `noteAgent.Route` |
+| §3 opening a `protoFloatNGo` from a RouteScript | **Not built, deliberately.** The design already demoted the progress panel to optional; the reply note is the surface, and a *failure* now also writes a note ("(not sent) …"), so the silent case the panel was meant to cover no longer exists. Still unprobed | `Main.newt`, `noteAgent.InkDone` |
+| §3 `RemoveFolder("AI")` on uninstall | **Deliberately not done — deviation from build plan step 9.** `RemoveScript` runs on *every* deactivation, package replacement included, so removing the folder would unfile every answer the user had kept, every time they installed a newer Egg Freckles. By then the folder is the user's data. `RemoveAppFolders` is still never called | `Main.newt`, part frame `RemoveScript` |
+| §1 `RegRouteScript` / `extraRouteScripts` as a general registry | **Still unprobed**, and still not needed | — |
+
+### The three routes
+
+| Note | Body | Answer |
+| --- | --- | --- |
+| text only, written by `MakeTextNote` (**no class slot**) | `NSI1 320 480 0` + `H the cat sat on the mat` | filed note, `uid=4 labels=AI` |
+| six `ink2` strokes (a house, stock Sketches tool) | `NSI1 320 480 6` + six `S` lines | "A simple outline of a house with a pitched roof." |
+| one `para` + three `ink2` | **one** POST with three `S` lines and one `H` line | "An upside-down triangle." |
+
+The host-rendered PNG for the sketch is
+[`l2build-05-sketch-host-render.png`](../runtime/evidence/l2build-05-sketch-host-render.png)
+and it is the house.
+
+### What the build changed in the design
+
+1. **The route script cannot be a closure.** `RouteScript: func(target,
+   targetView) agent:Route(…)` — the obvious shape, written in §1 above —
+   **segfaults `tntk`**, which dies on any nested function that reads an
+   enclosing function's local (`docs/newtonscript-eval.md`, twenty-second
+   finding; it is also the real explanation of the old "constants inside a
+   function body" trap). `RouteScript` ships as a plain method value,
+   `self.NotesRoute`, which uses neither a closure nor `self` — the ROM does
+   not document what `self` is bound to when it fires the item — and finds its
+   agent by walking `GetRoot().paperroll.routeScripts` for the entry carrying
+   an `aiHook` slot.
+
+2. **The agent is a proto-child of the client's own base template.** §5 asked
+   for the extraction and the endpoint lifecycle to be reused; the cheapest way
+   to reuse them turned out to be `{_proto: theForm}` plus four overrides
+   (`SetStatus` → a slot, `Wire` → nil, `HandleInkLine` → write a note,
+   `InkDone` → write a *failure* note). `CollectNote`, `Clean`, `EncodeInk`,
+   `SendInk`, `InkOpen`, `InkBound`, `InkPost`, `InkStop`, `ReleaseLink` and
+   `FindNewest` are inherited verbatim, so there is exactly one copy of each.
+
+3. **The agent grabs its own NIE link, and that is correct rather than a
+   compromise.** §4 worried about two link owners. The NIE link controller
+   **refcounts**: "Whenever an application grabs a link, the link controller
+   increments its count of users of that link. The physical link is dropped
+   only after all users have released the link"
+   (`refs/nie11/nie11api.txt:822-826`), and the documented multi-client flow is
+   exactly grab / use / release per client. So the agent keeps its own
+   `linkID`, `endpoint` and `inkEndpoint` own-slots (set to nil at hook time so
+   it can never read a window's link through the proto chain) and its
+   grab/release pairs are matched. The `-16009` footgun was a client *dropping
+   the link it was using* and re-grabbing, which this does not do.
+
+4. **The ink watchdog had to become per-send.** The first mixed-note attempt
+   filed "(not sent) The host did not answer" while the host had answered 14
+   seconds earlier: `SendInk`'s 150 s `AddDelayedCall` carried no ticket, so
+   the *previous* send's watchdog landed inside the next one and tore down its
+   endpoint. `self.inkSeq` now stamps each send and `InkExpired(seq)` ignores
+   any ticket but the current one. This bug predates L2 — on the Ask button it
+   only produced a wrong status line — which is why it took a route script
+   writing outcomes into the user's notes to expose it
+   (`runtime/evidence/l2build-round.txt` §5).
+
+5. **The class-less-item guard was needed and is in the shared extractor.**
+   `CollectNote` gained a final `else if item.text then :CollectPara(item)`.
+   The round routed a reply note the harness itself had written, which is
+   exactly the item with no class slot §2 warned about, and got the right text.
+
+### Uninstall, honestly
+
+The gate passes: after `SafeRemovePackage` the picker draws Print Note / Fax /
+Beam / Duplicate / Delete and nothing else
+([`l2build-11-picker-after-scrub.png`](../runtime/evidence/l2build-11-picker-after-scrub.png)),
+and `routeScripts` is back to `len=2`.
+
+But the mechanism is not the one §1 assumed. A marker slot written onto
+`GetRoot().paperroll` itself, and a simulated third-party `routeScripts` entry,
+were **both** gone after the removal too — the ROM re-instantiates the Notepad
+base view when a package is removed, taking the whole RAM own slot with it
+(`docs/newtonscript-eval.md`, twenty-third finding). So uninstall is clean
+whether or not `RemoveScript` ran, and this path cannot prove that it ran.
+`RemoveScript` ships anyway — the Guide requires it (`:5223-5234`), it is the
+only thing that would work if a future ROM kept the frame, and it removes our
+entry by its `aiHook` mark and never calls `RemoveSlot`.
+
+### Still open
+
+- **Hardware.** Build-plan session 4 is untouched: nobody has tapped this on the
+  physical MP2000.
+- **The checked-overview multi-select case** (above).
+- **The Ask button stays for now.** §7 says this path eventually retires it;
+  retiring it before the human has used "Send to AI" on real hardware would
+  remove the working path and leave only the untested one.

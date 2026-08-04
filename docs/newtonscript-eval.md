@@ -1486,3 +1486,74 @@ undone in `RemoveScript` (`:5223-5234`).
 `RemoveSlot(n, 'routeScripts)` restores the ROM array exactly (`len=2`) — which
 is a *hazard*, not a feature: it would also discard an entry some other package
 appended after ours. Uninstall by rebuilding the array without our own frame.
+
+## Twenty-second finding: `tntk` segfaults on a closure — and that is the "constants" trap (Track L2)
+
+**Rule: a nested `func` may read its own parameters and locals, globals, and
+`self`. The moment it reads a variable belonging to an *enclosing* function,
+`tntk` dies with SIGSEGV (exit 139) and no diagnostic.**
+
+Measured on the host toolchain (`~/newton-dev/prefix/bin/tntk`, platform files
+`21PTF`), one construct per build, everything else identical:
+
+| Source | Build |
+|---|---|
+| `A: func() begin local e := {R: func(x) 1}; e end` | **0** |
+| `A: func() begin local g := {n: 1}; local r := func(x) g.n; r end` | **139** |
+| `A: func() begin local g := {n: 1}; local e := {R: func(x) g.n}; e end` | **139** |
+| `A: func() begin AddDelayedCall(func(view) view:A(), [self], 100); nil end` | **0** |
+| `kCap := 6144;` … `A: func() kCap + 1` | **139** |
+| `kCap := 6144;` … `{cap: kCap, A: func() self.cap + 1}` | **0** |
+
+The last two rows are the important ones. `examples/harness-client/Main.newt`
+has carried a comment since Track A2 saying "tntk segfaults on a top-level
+constant inside a function body, so the caps live in slots". That is the *same*
+defect seen from one angle: `tntk` compiles the whole `.newt` file as one
+function body (it prepends `__tntk := func() begin end;` and reads
+`__tntk.argFrame`, `~/newton-dev/tntk/part.cpp:52`), so a top-level `kCap` is a
+**local of that function**, and a method reading it is a closure. One rule, not
+two, and the workaround is the same one already in the file: put the value in a
+slot and read it through `self`.
+
+This is a `tntk`/NEWT/0 limit, not a NewtonScript one. Closures work fine on the
+ROM — `ns_eval` on instance `l2build` compiled and ran one:
+
+```text
+$ ns_eval 'begin local a := {n: 5}; local f := func() a.n + 1; "closure=" & (call f with ()) end'
+"closure=6"
+```
+
+(Also worth knowing for `ns_eval`: a local holding a function must be invoked as
+`call f with ()`; `f()` never returns a result.)
+
+**What it cost this round.** The Track L2 route script wanted the obvious
+`RouteScript: func(target, targetView) agent:Route(target, targetView)` closure
+over the agent frame built a few lines above. That cannot be compiled. The
+shipped code instead makes `RouteScript` a plain method value
+(`self.NotesRoute`) that takes neither `self` nor a closure and finds its agent
+by walking `GetRoot().paperroll.routeScripts` for the entry carrying an
+`aiHook` slot. If you hit an unexplained `tntk` segfault, look for a nested
+`func` reading an outer name before you look anywhere else.
+
+## Twenty-third finding: removing a package re-instantiates the Notepad base view (Track L2)
+
+A probe slot written straight onto `GetRoot().paperroll` does not survive
+`SafeRemovePackage` of an unrelated application part. On instance `l2build`,
+with `EggFrecklesEF4:jbfly` installed:
+
+```text
+before: "len=4 probe=7 |<GetTitle> |<GetTitle> |Send to AI |Other Pkg"
+after:  "probe= len=2 |<GetTitle> |<GetTitle>"
+```
+
+`probe` was set by the probe itself, and `Other Pkg` was a simulated
+third-party `routeScripts` entry. Both are gone, along with our own — so the
+ROM rebuilt the view frame and took the whole RAM `routeScripts` own slot with
+it, the same way a reset does (twentieth finding, §6 of
+`runtime/evidence/l2probe-routescripts.txt`).
+
+Two consequences. Uninstall of a `routeScripts` hook is clean **whether or not
+your `RemoveScript` runs** — which is convenient and is also why this path
+cannot be used to prove that `RemoveScript` ran. And any state a package parks
+on another app's base view frame is lost at least three ways: reset, package
+removal, and (by extension) anything else that re-instantiates that app.

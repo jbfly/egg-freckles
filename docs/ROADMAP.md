@@ -7,6 +7,56 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Track L2 built: "Send to AI" is in the stock Notes envelope
+  menu, and it works with the app closed.** Ships inside Egg Freckles as
+  `EggFrecklesEF4:jbfly` (v1.0-ef4) — still one package, still one Extras icon.
+  Design + settled `[verify]` table:
+  [`docs/notes-integration-design.md`](notes-integration-design.md) "Build
+  result"; round transcript `runtime/evidence/l2build-round.txt`; screenshots
+  `runtime/evidence/l2build-*.png`. Proven on isolated instance `l2build`
+  against `NEWTON_FAKE_BACKEND=1 server.py:6801` and
+  `runtime/raw_pkg_server.py:18081`, with **real** codex for the vision calls.
+  - **`InstallScript` works under `tntk`** — the first and riskiest `[verify]`,
+    and the answer is yes on both counts. tntk emits the slot and the ROM runs
+    it on activation *and on reset*: after `podman restart`, with Egg Freckles
+    never opened, the picker item was back and the entry's own `aiVia` slot read
+    `install`. `GetRoot().paperroll` already exists at that point, so the
+    deferred-retry path shipped but never fired. The `ViewSetupFormScript`
+    fallback ships as insurance and never overwrites an InstallScript entry.
+  - **The wrong-note bug is gone by construction on this path.** The route
+    script is handed the live soup entry of the page whose envelope was tapped,
+    so there is no newest-note heuristic to poison. Three routes proven: a
+    text-only note (zero-stroke `NSI1` + `H` line, answered from the text — a
+    new host branch in `pkg_publisher.py`), a six-stroke house sketch (real
+    vision: *"A simple outline of a house with a pitched roof."*), and a mixed
+    page as **one** POST carrying both. The answer comes back as a native note
+    filed in an "AI" folder.
+  - **One defect found and fixed, older than this track.** The 150 s ink
+    watchdog was not per-send, so an earlier send's timer could land inside a
+    later one and tear its endpoint down — the first mixed-note attempt filed
+    "(not sent) The host did not answer" while the host had answered. `inkSeq`
+    now tickets each send. On the Ask button this only ever showed a wrong
+    status line, which is why it survived A9 and L1.
+  - **New toolchain rule, and it explains an old one.** `tntk` **segfaults** on
+    any nested `func` that reads an enclosing function's local — i.e. on a
+    closure — and since it compiles the whole `.newt` file as one function body,
+    that is also the real reason "a top-level constant inside a function body"
+    has always crashed it. One rule, not two
+    (`docs/newtonscript-eval.md`, twenty-second finding). The route script is
+    therefore a plain method value that uses neither a closure nor `self`.
+  - **Uninstall is clean but not for the documented reason.** Removing the
+    package re-instantiates the Notepad base view and takes the whole RAM
+    `routeScripts` slot with it — a probe marker and a simulated third-party
+    entry vanished too (twenty-third finding). `RemoveScript` ships regardless,
+    removes only our marked entry, and never calls `RemoveSlot`. It deliberately
+    does **not** `RemoveFolder("AI")`: RemoveScript runs on every deactivation,
+    package replacement included, and that would unfile the user's answers on
+    every upgrade.
+  - **The Ask button stays for now.** The design says this path eventually
+    retires it. It should not be retired until the human has used "Send to AI"
+    on the physical MP2000 — otherwise the only proven path is deleted in favour
+    of an unproven one. 93 tests (88 + 5). **Hardware: untouched.**
+
 - **2026-08-04 — Track L1 done: one package, and it has a name.** Ships as
   **Egg Freckles** (`EggFrecklesEF1:jbfly`, v1.0-ef1, package version 18),
   answering points (1) through (4) of the hardware feedback below. Round record

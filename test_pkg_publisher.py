@@ -174,6 +174,40 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
+    def test_ink_zero_strokes_is_answered_from_the_text(self) -> None:
+        """Track L2: "Send to AI" on a text-only note sends NSI1 with 0 strokes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ink_path = Path(tmp) / "ink.png"
+            with pkg_publisher.make_server("127.0.0.1", 0, ink_path=ink_path) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                try:
+                    body = b"NSI1 320 480 0\r\nH what is a newton\r\n"
+                    with mock.patch.object(pkg_publisher, "ask_model",
+                                           return_value="A 1990s PDA.") as model, \
+                            mock.patch.object(pkg_publisher, "interpret") as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", body)
+                    self.assertEqual((status, response), (200, b"INK A 1990s PDA.\r\n"))
+                    self.assertEqual(model.call_args.args, ("what is a newton",))
+                    # No drawing, so no vision call and no PNG written at all.
+                    vision.assert_not_called()
+                    self.assertFalse(ink_path.exists())
+
+                    with mock.patch.object(pkg_publisher, "ask_model",
+                                           side_effect=RuntimeError("model down")):
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", body)
+                    self.assertEqual((status, response),
+                                     (502, b"INK No reading: model down\r\n"))
+
+                    # A zero-stroke body with no H line asks nothing.
+                    status, _, response, _ = self.fetch(
+                        port, "/ink", "POST", b"NSI1 320 480 0\r\n")
+                    self.assertEqual((status, response), (400, b"invalid ink\n"))
+                finally:
+                    server.shutdown()
+                    thread.join()
+
     def test_ink_render(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ink_path = Path(tmp) / "ink.png"

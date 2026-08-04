@@ -1300,3 +1300,61 @@ asserted, which is also what makes it survive a different screen.
 - `ns_eval` cannot call a function held in a local (`Txt(entry)` is a *global*
   call and throws); use `call Txt with (entry)` or inline it. Cost one silent
   20-second timeout before the probe was rewritten.
+
+## Track L2 round — "Send to AI" in the stock Notes menu, built (2026-08-04)
+
+Instance `l2build`, seeded from
+`internal-before-round9-loader-20260725-195622.flash`, torn down afterwards.
+Host: `NEWTON_FAKE_BACKEND=1 server.py:6801` for text answers,
+`runtime/raw_pkg_server.py` on `10.42.0.1:18081` for the package, `/ink` and
+`/tools`, and **real** codex for the vision calls. Three identities burned
+(`EggFrecklesEF2` → `EF3` → `EF4`), which is the rule working as intended: EF3
+carried a bug fix found on EF2, EF4 exists because the RemoveScript probe needed
+a fresh install. Full transcript: `runtime/evidence/l2build-round.txt`. Settled
+`[verify]` table: `docs/notes-integration-design.md`, "Build result".
+
+**What shipped.** `GetRoot().paperroll.routeScripts` grows one frame, appended
+from the part frame's `InstallScript`. Choosing the item runs a *route agent*: a
+heap frame whose `_proto` is the client's own base template, so `CollectNote`,
+`Clean`, `EncodeInk` and the entire `SendInk` → `InkStop` lifecycle are
+inherited rather than copied, with four overrides (`SetStatus` writes a slot
+instead of a view, `Wire` is nil, `HandleInkLine` writes a note, `InkDone`
+writes a *failure* note). The answer is a native note filed into an "AI" folder.
+
+**The two hours that mattered, in order.**
+
+1. **`tntk` segfaulted with no diagnostic**, on the obvious
+   `RouteScript: func(target, targetView) agent:Route(...)` closure. Bisected
+   with six two-line packages: any nested `func` that reads an *enclosing*
+   function's local kills it (exit 139). Since `tntk` compiles the whole file as
+   one function body (`part.cpp:52`), that is also the true cause of the "a
+   top-level constant inside a function body segfaults" comment this repo has
+   carried since A2 — one rule, not two (twenty-second finding). Shipped shape:
+   `RouteScript: self.NotesRoute`, a method value that uses neither a closure
+   nor `self`, and finds its agent by walking the array the item lives in.
+2. **`aiVia` was worth the two lines.** The entry records whether
+   `InstallScript` or the window fallback created it, so "does InstallScript
+   work under tntk?" is a read rather than an argument: `via=install` on a plain
+   install, and again after `podman restart` with the app never opened.
+3. **A wrong answer in the user's notes.** The first mixed-note route filed
+   "(not sent) The host did not answer" 14 seconds after the host had answered.
+   Cause: `SendInk`'s 150 s `AddDelayedCall` watchdog carried no ticket, so the
+   *sketch* send's watchdog (due 14:46:02) fired inside the *mixed* send and
+   `InkDone` disposed its endpoint — the emulator TCP trace ends with the Newton
+   sending FIN before any response payload. `inkSeq` now tickets each send. This
+   bug is A9-vintage; on the Ask button it was only a wrong status line, and it
+   took a route script writing outcomes into notes to make it visible.
+
+**Traps worth remembering.**
+
+- `ns_eval` needs `call f with ()` to invoke a function held in a local; `f()`
+  silently times out. (Already recorded in the L1 round; cost 20 s again here.)
+- `"" & true` yields the empty string on this ROM, so a probe that prints a
+  boolean with `&` reads as a failure. Print `(if x then "y" else "n")`.
+- Drawing into the seed flash's three `data=nil` notes leaves nothing in the
+  soup. Make a note with **+New** first. And the Notepad must be switched to
+  **Sketches** (the `A`-icon picker) or `/drag` strokes get recognised as text —
+  four drags became the word `I--`.
+- `SafeRemovePackage` re-instantiates the Notepad base view, so a marker slot on
+  `GetRoot().paperroll` does not survive it (twenty-third finding). Uninstall is
+  clean either way, but that path cannot prove `RemoveScript` ran.

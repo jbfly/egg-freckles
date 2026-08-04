@@ -50,7 +50,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
 | `docs/dev-harness.md` | You need the containers, ports, security boundary, or the full emulator control API. This was the old `README.md`; the README is now the public front door. |
 | `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end; results appended after the design, and **read "A9 result" first — it is the current state**. Track A9 deleted the capture canvas (it dropped all but the first stroke) and moved capture into stock Notes: one **Ask** button reads the newest note's strokes out of the soup and POSTs them, with the page's text on an optional `NSI1` `H` line. Earlier sections ("Stage 5 result", "Track F2 result") describe the canvas that no longer exists. Still open: not installed on physical hardware, multi-part POST unbuilt (and still not needed). See `docs/ROADMAP.md` Tracks E, F and A9. |
-| `docs/notes-integration-design.md` | You are building "Send to AI" into the **stock Notes envelope menu** (ROADMAP Track L2). Designed 2026-08-04, **nothing shipped**; the mechanism was measured on the ROM (evidence `runtime/evidence/l2probe-routescripts.txt`, finding twenty in `docs/newtonscript-eval.md`) and every unproven step in its build plan carries a `[verify]` tag. |
+| `docs/notes-integration-design.md` | You touch "Send to AI", the entry in the **stock Notes envelope menu** (ROADMAP Track L2). **Built and emulator-proven 2026-08-04 — read its "Build result" section first, it is the current state** and it settles every `[verify]` tag in the design above it. Evidence `runtime/evidence/l2build-*` and `l2probe-routescripts.txt`; findings twenty, twenty-two and twenty-three in `docs/newtonscript-eval.md`. Not on hardware. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc
@@ -100,15 +100,17 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 88 pass (2026-08-04), of which **23** are client-source tests
+**Tests** — 93 pass (2026-08-04), of which **27** are client-source tests
 pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
 the Track L1 `EntryUniqueID` ordering rule and merged tools channel, the `NSI1`
-`H` line and the Track A8 transcript row window; 16 of the rest cover the Track
+`H` line, the Track A8 transcript row window and the Track L2 "Send to AI" hook
+(the `InstallScript` route, the closure-free `RouteScript`, the AI-folder reply,
+and that nothing ever calls `RemoveSlot`); 16 of the rest cover the Track
 F4 slash commands and the session registry. `pytest` is not in
 the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 88 passed
+uv run --with pytest pytest -q          # 93 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -197,8 +199,8 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-Since 2026-08-04 the *source* client is `EggFrecklesEF1:jbfly` — user-visible
-name **"Egg Freckles"**, title "Egg Freckles 1.0-ef1", package version 18. It
+Since 2026-08-04 the *source* client is `EggFrecklesEF4:jbfly` — user-visible
+name **"Egg Freckles"**, title "Egg Freckles 1.0-ef4", package version 18. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
 **harness panel**, not just a chat window:
 
@@ -209,6 +211,14 @@ supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
   separate for the human to install;
 - it splits a prompt over 227 characters into `MSGP` frames that the host
   reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension: `MSGP`");
+- it puts **"Send to AI" into the stock Notes Action (envelope) menu** (Track
+  L2), which is the interesting one: choosing it routes *the page whose envelope
+  you tapped* — text, drawing or both — and files the answer as a new note in an
+  "AI" folder. No newest-note heuristic, and it works with the Egg Freckles
+  window closed, because the hook is installed from the part frame's
+  `InstallScript` and re-installed on every reset. `docs/notes-integration-design.md`
+  "Build result" is the current state; it supersedes **Ask** eventually, but
+  **Ask stays until the human has used it on hardware**;
 - one **Ask** button sends the newest stock note *whatever kind it is* — text
   down that same chat path, drawings as `NSI1` strokes to `POST /ink`, a mixed
   page as one request carrying both — and `Save Note` writes a reply back as a

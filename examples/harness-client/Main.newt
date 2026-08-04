@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF1:jbfly|;
-kVersion := "1.0-ef1";
+kAppSymbol := '|EggFrecklesEF4:jbfly|;
+kVersion := "1.0-ef4";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -59,9 +59,163 @@ kMaxPoints := 400;
 kMaxItems := 64;
 // The note's own text rides one optional NSI1 "H" line into the vision prompt.
 kHintBytes := 200;
+
+// ---- "Send to AI" (the stock Notes envelope menu) ----
+// The item the ROM draws at the bottom of the Action picker, and the folder the
+// answer is filed into. Both are user-visible strings, so they carry no round
+// tag (docs/notes-integration-design.md §5).
+kMenuTitle := "Send to AI";
+kAIFolder := "AI";
+// How many 5-second retries the hook gets if GetRoot().paperroll is not
+// instantiated yet when InstallScript runs at boot (design §5, [verify]).
+kHookTries := 4;
 // Ink Text leaves this placeholder character (0xF701) in a paragraph's `text`,
 // once per ink word, and the word itself is in `styles` as an 'inkWord binary.
 kInkPlaceholder := 63233;
+
+// ===================== the "Send to AI" route script =======================
+//
+// These slots are copied onto a small heap frame whose `_proto` is this
+// package's own base template (`:NotesHook`), so the route script inherits the
+// whole client verbatim: `CollectNote` and its converters, `Clean`,
+// `EncodeInk`, and the entire `SendInk` lifecycle down to `InkStop` — the same
+// code the Ask button runs, not a copy of it. Only four things differ, and they
+// are the four below: there is no window to put a status line in, the reply
+// becomes a note instead of a transcript row, and a failure has to say so
+// somewhere.
+//
+// Why a frame and not a closure over the view: the menu item fires from inside
+// Notes, with the Egg Freckles window closed, months after it was opened. There
+// may be no view. The agent is created once per boot by the hook and lives in
+// the NewtonScript heap until the package is removed.
+noteAgent := {
+    // Where a status line would have gone. Kept because the inherited network
+    // code calls it on every path, and because it is what the failure note
+    // says (docs/notes-integration-design.md §3 demoted the progress popup;
+    // the note itself is the surface).
+    aiStatus: nil,
+    // A short label for the note we were asked about, so the reply can say
+    // what it is a reply to.
+    aiLabel: "",
+    // ponytail: tntk segfaults on a top-level constant inside a function body
+    // (the same trap the transcript caps hit), so the folder name is a slot.
+    aiFolder: kAIFolder,
+
+    SetStatus: func(message)
+    begin
+        self.aiStatus := message;
+        return nil;
+    end,
+
+    // There is no view, so there are no children to wire. The inherited
+    // SetStatus/PromptField call this; overriding it to nil is what keeps
+    // :ChildViewFrames() from being sent to a frame that is not a view.
+    Wire: func() nil,
+
+    // The Action picker hands us the live soup entry of the note whose envelope
+    // was tapped (design §2, evidence §4) — there is no newest-note heuristic
+    // on this path and no way to send the wrong page.
+    Route: func(target, targetView)
+    begin
+        if self.inkBusy then return nil;
+        if target = nil then return nil;
+        local entry := target;
+        // "GetTargetCursor works with any kind of target data, whether or not
+        // it's a cursor" (Guide:46379-46381), so the overview's multi-select
+        // needs no special case: take the first checked note and ignore the
+        // rest, which is what v1 promises.
+        try
+        begin
+            local cursor := GetTargetCursor(target, nil);
+            if cursor then
+            begin
+                local first := cursor:Entry();
+                if first then entry := first;
+            end;
+        end
+        onexception |evt.ex| do entry := target;
+        local data := nil;
+        // A blank page's `data` is nil and Length(nil) raises -48410/-48418
+        // (design §2). IsArray is the guard.
+        try data := GetSysEntryData(entry, 'data)
+        onexception |evt.ex| do data := nil;
+        if not IsArray(data) then return nil;
+        :CollectNote(data);
+        local text := :Clean(self.askText);
+        local strokes := Length(self.askStrokes);
+        local hint := text;
+        if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
+        // An empty page has nothing to ask about. Say nothing rather than
+        // filing a note that says nothing.
+        if (strokes = 0) and (StrLen(hint) = 0) then return nil;
+        if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
+        else self.aiLabel := "" & strokes & " strokes";
+        local body := :EncodeInk(hint);
+        if body = nil then return nil;
+        // Everything from here is the Ask button's asynchronous POST, unchanged:
+        // the route script returns nil now and the answer lands in InputScript
+        // ~9 s later. A synchronous wait would freeze Notes for that whole time
+        // (design §4).
+        :SendInk(body, strokes);
+        return nil;
+    end,
+
+    // The reply arrives on the same connection as one "INK <text>" line.
+    HandleInkLine: func(line)
+    begin
+        if not BeginsWith(line, "INK ") then return nil;
+        self.inkGotReply := true;
+        :FileReply(SubStr(line, 4, StrLen(line) - 6));
+        return nil;
+    end,
+
+    // Exactly one note per tap, whether the host answered or not: this is the
+    // only feedback a menu user gets, so silence on failure would look like the
+    // feature is broken.
+    InkDone: func()
+    begin
+        if not self.inkGotReply then
+        begin
+            self.inkGotReply := true;
+            local why := self.aiStatus;
+            if why = nil then why := "no answer from the host";
+            try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;
+        end;
+        AddDelayedCall(func(agent) try agent:InkStop() onexception |evt.ex| do nil,
+            [self], 1000);
+        return nil;
+    end,
+
+    // The two-step create proven in note-export N12/N13, then the one slot that
+    // is all filing is on this system: "Setting the value of the labels slot is
+    // really the only 'filing' that is done" (Guide:35418-35427). AddFolder is
+    // idempotent and returns the existing tag (Ref:38952-38966).
+    FileReply: func(reading)
+    begin
+        try
+        begin
+            local paperroll := GetRoot().paperroll;
+            if not IsFrame(paperroll) then return nil;
+            local newline := Chr(13);
+            local body := "re: " & self.aiLabel & newline & newline & reading;
+            local tag := nil;
+            try tag := AddFolder(self.aiFolder, 'paperroll)
+            onexception |evt.ex| do tag := nil;
+            paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);
+            // NewNote returns nil, so the entry is read back — by highest
+            // _uniqueID, never by date, because the hardware's clock lies
+            // (:FindNewest, and the twentieth finding).
+            local entry := :FindNewest();
+            if (entry <> nil) and (tag <> nil) then
+            begin
+                entry.labels := tag;
+                EntryChangeXmit(entry, nil);
+            end;
+        end
+        onexception |evt.ex| do nil;
+        return nil;
+    end,
+};
 
 mainView := {
     _proto: protoFloatNGo,
@@ -147,6 +301,8 @@ mainView := {
     askTruncated: nil,
     inkBody: nil,
     inkBusy: nil,
+    // Which send the 150 s watchdog belongs to; see SendInk.
+    inkSeq: 0,
     inkGotReply: nil,
     inkEndpoint: nil,
     inkPort: 18081,
@@ -162,6 +318,12 @@ mainView := {
     toolOutcome: nil,
     toolValue: nil,
     toolPort: 18081,
+    // ---- "Send to AI" state ----
+    // The slots the hook needs. They are slots, not constants read inside the
+    // function bodies, for the tntk reason noted on capBytes above.
+    noteAgent: noteAgent,
+    menuTitle: kMenuTitle,
+    hookTries: kHookTries,
     winWidth: kWinWidth,
     winHeight: kWinHeight,
     // The physical build always uses Mars. An emulator round may override this
@@ -214,6 +376,15 @@ mainView := {
         // 4-second tools watchdog landing on the corpse. The guard is what makes
         // closing the app silent.
         AddDelayedCall(func(view) try view:Boot() onexception |evt.ex| do nil, [self], 800);
+        // The fallback hook. If InstallScript never ran, or a future ROM drops
+        // it, the "Send to AI" item still appears — from the first time the
+        // human opens Egg Freckles after a boot. It is a no-op when
+        // InstallScript already hooked. self._proto is the package template:
+        // the agent must proto to the template, never to a window that can be
+        // closed out from under it.
+        local form := self._proto;
+        if not IsFrame(form) then form := self;
+        try form:NotesHook(0, 'window) onexception |evt.ex| do nil;
     end,
 
     ViewQuitScript: func()
@@ -874,7 +1045,14 @@ mainView := {
             else if item.viewStationery = 'para then :CollectPara(item)
             else if item.viewStationery = 'poly then :CollectPoly(item)
             else if item.viewStationery = 'pict then nil
-            else if ClassOf(item.ink) = 'ink2 then :CollectInk(item);
+            else if ClassOf(item.ink) = 'ink2 then :CollectInk(item)
+            // Last resort: an item the harness itself wrote. A note made by
+            // MakeTextNote holds an item with no class slot at all — ClassOf is
+            // 'frame, slots (text, viewBounds, viewFont, _proto, viewStationery)
+            // — so anything with a `text` slot is read as a paragraph rather
+            // than skipped (design §2, evidence §4). Without this, "Send to AI"
+            // could not be used on a reply note.
+            else if item.text then :CollectPara(item);
         end;
         return nil;
     end,
@@ -1135,26 +1313,161 @@ mainView := {
         return :SetStatus("Saved note id=" & EntryUniqueID(entry));
     end,
 
+    // ---- the "Send to AI" hook into the stock Notes Action menu ----
+    //
+    // The Action button "searches its own context for the first routeScripts
+    // slot that it finds" (Guide:46271-46280), and for Notes that search ends
+    // at GetRoot().paperroll — a RAM frame whose routeScripts comes from a ROM
+    // proto. Assigning to it creates an own slot that shadows the proto, and
+    // GetRouteScripts (the method the picker actually calls,
+    // Ref:52547-52561) returns the shadowing value. Measured on the ROM:
+    // len 2 -> 3 and the item is drawn (runtime/evidence/l2probe-routescripts.txt
+    // §3). It is pure RAM and does not survive a reset (§6), which is why this
+    // runs from InstallScript, "executed when an application or auto part is
+    // activated on the Newton or whenever the Newton is reset"
+    // (Guide:5209-5210).
+    //
+    // `via` records which mechanism installed the entry — 'install from the
+    // part frame's InstallScript, 'window from the fallback below — so the
+    // round can read it back instead of guessing. The window fallback never
+    // overwrites an entry InstallScript already made.
+    NotesHook: func(tries, via)
+    begin
+        local paperroll := nil;
+        try paperroll := GetRoot().paperroll
+        onexception |evt.ex| do paperroll := nil;
+        // At boot InstallScript may run before the Notepad view frame exists.
+        // Retry rather than give up: the alternative is a menu item that is
+        // missing until the app is opened.
+        if not IsFrame(paperroll) then
+        begin
+            if tries > 0 then
+                AddDelayedCall(func(form, left, how)
+                        try form:NotesHook(left, how) onexception |evt.ex| do nil,
+                    [self, tries - 1, via], 5000);
+            return nil;
+        end;
+        if :NotesHooked(paperroll) and (via <> 'install) then return nil;
+        // The agent is a heap frame whose proto is this template, so it
+        // inherits every method the Ask button uses. Its own copies of the
+        // mutable network slots are what keep it from reading a live window's
+        // link through the proto chain.
+        local agent := {_proto: self};
+        foreach tag, value in self.noteAgent do agent.(tag) := value;
+        // NIE and the endpoint machinery look their callbacks up by symbol in
+        // the context frame they were handed; give the agent its own copies
+        // rather than betting on proto lookup inside the ROM.
+        agent.InkGrabbed := self.InkGrabbed;
+        agent.Released := self.Released;
+        agent.linkID := nil;
+        agent.endpoint := nil;
+        agent.inkEndpoint := nil;
+        agent.toolEndpoint := nil;
+        agent.inkBusy := nil;
+        // ponytail: template literals live in the read-only package, so the
+        // stroke array has to be re-made in the heap before anything grows it.
+        agent.askStrokes := [];
+        local entry := {
+            title: self.menuTitle,
+            icon: nil,
+            // Our mark, so uninstall removes this entry and nothing else.
+            aiHook: self.appSymbol,
+            aiVia: via,
+            agent: agent,
+            // A function, not a symbol: a symbol here is looked up in an
+            // application named by an appSymbol slot, which is for view
+            // definitions (Ref:51442-51454). See :NotesRoute for why it is that
+            // function and not a closure.
+            RouteScript: self.NotesRoute,
+        };
+        paperroll.routeScripts := :NotesRebuild(paperroll, entry);
+        return nil;
+    end,
+
+    // What the picker actually runs. It uses neither `self` nor a closure, and
+    // both of those are forced:
+    //
+    //   - tntk **segfaults** on any nested function that reads a variable from
+    //     the enclosing function, which is what `func(t, tv) agent:Route(t, tv)`
+    //     would be (the twenty-second finding in docs/newtonscript-eval.md).
+    //     This is the same defect the transcript caps hit as "a top-level
+    //     constant inside a function body": a top-level constant *is* a local
+    //     of the function tntk wraps the file in.
+    //   - the ROM does not document whether a RouteScript given as a function
+    //     is called as a plain call or as a message send, so `self` could be
+    //     this frame, the Action button view, or nothing.
+    //
+    // So it finds the agent the one way that works from anywhere: back through
+    // the array the item it was called for lives in.
+    NotesRoute: func(target, targetView)
+    begin
+        local paperroll := nil;
+        try paperroll := GetRoot().paperroll
+        onexception |evt.ex| do paperroll := nil;
+        if not IsFrame(paperroll) then return nil;
+        local list := paperroll.routeScripts;
+        if not IsArray(list) then return nil;
+        foreach item in list do
+            if IsFrame(item) and (item.aiHook <> nil) and IsFrame(item.agent) then
+                return item.agent:Route(target, targetView);
+        return nil;
+    end,
+
+    NotesHooked: func(paperroll)
+    begin
+        local list := paperroll.routeScripts;
+        if not IsArray(list) then return nil;
+        foreach item in list do
+            if IsFrame(item) and (item.aiHook = self.appSymbol) then return true;
+        return nil;
+    end,
+
+    // The array without our entry, plus `entry` if one is given. Uninstall goes
+    // through the same shape (in RemoveScript, which cannot call in here — see
+    // the part frame). **Never RemoveSlot**: that restores the ROM array
+    // exactly, throwing away anything a different package appended after us
+    // (design §1; evidence §6 measured the restore).
+    NotesRebuild: func(paperroll, entry)
+    begin
+        local rebuilt := [];
+        local list := paperroll.routeScripts;
+        if IsArray(list) then
+            foreach item in list do
+                if not (IsFrame(item) and (item.aiHook = self.appSymbol)) then
+                    AddArraySlot(rebuilt, item);
+        if entry then AddArraySlot(rebuilt, entry);
+        return rebuilt;
+    end,
+
     // ---- The /ink transport (kept from the retired capture overlay) ----
 
     // ponytail: the ink POST is a second endpoint on the NIE link the chat
     // already holds — one link, two connections. Dropping the chat link first
     // and re-grabbing it cost a round: `connect` then failed with -16009,
     // "invalid call when not connected".
+    // Each send takes a ticket, and the watchdog only fires for the ticket it
+    // was armed with. Measured in the L2 round: a 150 s watchdog left over from
+    // an earlier send landed in the middle of a *later* one and killed it — on
+    // the Ask button that was a wrong status line, but the route script writes
+    // a note, so it became a wrong answer in the user's AI folder
+    // ("(not sent) The host did not answer" while the host had answered).
     SendInk: func(body, strokes)
     begin
         self.inkBody := body;
         self.inkBusy := true;
         self.inkGotReply := nil;
+        self.inkSeq := self.inkSeq + 1;
         :SetStatus("Sending " & strokes & " strokes");
-        AddDelayedCall(func(view) try view:InkExpired() onexception |evt.ex| do nil, [self], 150000);
+        AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
+            [self, self.inkSeq], 150000);
         if self.linkID then return :InkOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
         return nil;
     end,
 
-    InkExpired: func()
+    InkExpired: func(seq)
     begin
+        if seq <> self.inkSeq then return nil;
         if not self.inkBusy then return nil;
         self.inkBusy := nil;
         :SetStatus("The host did not answer");
@@ -2254,4 +2567,50 @@ mainView := {
     app: kAppSymbol,
     text: kAppLabel,
     theForm: mainView,
+
+    // "The InstallScript function in a package part is executed when an
+    // application or auto part is activated on the Newton or whenever the
+    // Newton is reset" (Guide:5209-5210) — which is exactly what the "Send to
+    // AI" hook needs, because the slot it writes is RAM and a reset rebuilds
+    // the Notepad's view frame without it (evidence §6). It is deliberately one
+    // line: "the system executes a deep clone of the InstallScript function …
+    // keep [it] as small as possible … If you need to execute a lot of code,
+    // you might want to make a method in the application base template and send
+    // it a message from your InstallScript" (Ref:2818-2826).
+    InstallScript: func(partFrame)
+        try partFrame.theForm:NotesHook(4, 'install)
+        onexception |evt.ex| do nil,
+
+    // "Any changes that you make to the system in the InstallScript function
+    // must be reversed in the RemoveScript function" (Guide:5223-5234). This
+    // one cannot delegate the way InstallScript does: "because the application
+    // has been removed, the theForm slot contains an invalid reference"
+    // (Ref:2864-2882). So the rebuild is repeated here, and only here.
+    //
+    // It removes OUR entry and nothing else — never RemoveSlot on routeScripts,
+    // which restores the ROM array exactly and would silently discard an item
+    // another package appended after us (design §1).
+    //
+    // It deliberately does NOT RemoveFolder("AI"): RemoveScript runs on every
+    // deactivation, package replacement included, so deleting the folder would
+    // unfile every answer the user had kept each time they installed a newer
+    // Egg Freckles. The folder is the user's data by then.
+    RemoveScript: func(frame)
+    begin
+        try
+        begin
+            local paperroll := GetRoot().paperroll;
+            if IsFrame(paperroll) and IsArray(paperroll.routeScripts) then
+            begin
+                local rebuilt := [];
+                local dropped := nil;
+                foreach item in paperroll.routeScripts do
+                    if IsFrame(item) and (item.aiHook = frame.app) then dropped := true
+                    else AddArraySlot(rebuilt, item);
+                if dropped then paperroll.routeScripts := rebuilt;
+            end;
+        end
+        onexception |evt.ex| do nil;
+        return nil;
+    end,
 }

@@ -1,9 +1,14 @@
+import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = (ROOT / "examples/harness-client/Main.newt").read_text()
 PROJECT = (ROOT / "examples/harness-client/egg-freckles.nprj").read_text()
+# The comments in that file quote the very API names some of these tests
+# forbid ("never RemoveSlot", "does NOT RemoveFolder"), so the negative
+# assertions run against the source with its // comments stripped.
+CODE = re.sub(r"//[^\n]*", "", SOURCE)
 
 
 def test_chat_transport_stays_non_blocking():
@@ -20,15 +25,15 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef1_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef4_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF1:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef1";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF4:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef4";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF1:jbfly"' in PROJECT
+    assert 'name: "EggFrecklesEF4:jbfly"' in PROJECT
     assert "version: 18" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
@@ -136,9 +141,11 @@ def test_every_endpoint_catches_its_own_exceptions():
     # warning is the modal Communications slip the hardware test complained
     # about. Three endpoints, three handlers.
     assert SOURCE.count("ExceptionHandler: func(error)") == 3
-    # And a delayed call that lands on a closed view raises -48809; every one of
-    # them is guarded, which is what makes closing the window silent.
-    assert SOURCE.count("AddDelayedCall(func(view) try view:") == SOURCE.count("AddDelayedCall(")
+    # And a delayed call that lands on a closed view -- or on an agent whose
+    # package has been removed -- raises -48809; every one of them opens with a
+    # try, which is what makes closing the window silent.
+    guarded = re.findall(r"AddDelayedCall\(func\([^)]*\)\s*\n?\s*try ", SOURCE)
+    assert len(guarded) == SOURCE.count("AddDelayedCall(")
 
 
 def test_the_window_is_centred_on_whatever_screen_the_rom_reports():
@@ -251,6 +258,73 @@ def test_the_ink_overlay_shares_the_chat_link():
     # The reading joins the transcript instead of a private status line -- and
     # with the overlay gone, that status line no longer exists at all.
     assert ':AppendLine("Ink: " & reading);' in SOURCE
+
+
+def test_send_to_ai_is_hooked_into_the_stock_notes_action_menu():
+    # Track L2. The item is an extra frame on GetRoot().paperroll.routeScripts,
+    # which is RAM and dies on every reset -- so it is re-applied from the part
+    # frame's InstallScript, "executed ... whenever the Newton is reset".
+    assert 'kMenuTitle := "Send to AI";' in SOURCE
+    assert "InstallScript: func(partFrame)" in SOURCE
+    assert "try partFrame.theForm:NotesHook(4, 'install)" in SOURCE
+    assert "paperroll.routeScripts := :NotesRebuild(paperroll, entry);" in SOURCE
+    assert "title: self.menuTitle," in SOURCE
+    # RouteScript uses neither self nor a closure: tntk segfaults on a nested
+    # function that reads an enclosing local (twenty-second finding), and the
+    # ROM does not say what self is when it fires the item. It walks back
+    # through the array the item lives in instead.
+    assert "RouteScript: self.NotesRoute," in SOURCE
+    assert "NotesRoute: func(target, targetView)" in SOURCE
+    assert "return item.agent:Route(target, targetView);" in SOURCE
+    for closure in ("func(target, targetView) agent:", "func() agent.", "func() kAppSymbol"):
+        assert closure not in SOURCE
+    # The window is a fallback, not the mechanism, and it never overwrites an
+    # entry InstallScript already made.
+    assert "try form:NotesHook(0, 'window) onexception |evt.ex| do nil;" in SOURCE
+    assert "if :NotesHooked(paperroll) and (via <> 'install) then return nil;" in SOURCE
+
+
+def test_uninstall_removes_our_entry_and_never_the_whole_array():
+    # RemoveSlot restores the ROM array exactly, discarding any entry a
+    # different package appended after us (design section 1, evidence section 6).
+    assert "RemoveSlot(" not in CODE
+    assert "RemoveScript: func(frame)" in SOURCE
+    assert "if IsFrame(item) and (item.aiHook = frame.app) then dropped := true" in SOURCE
+    assert "if dropped then paperroll.routeScripts := rebuilt;" in SOURCE
+    # RemoveScript runs on every deactivation, package replacement included, so
+    # it must not delete the user's filed answers along with the folder.
+    assert "RemoveFolder(" not in CODE
+    assert "RemoveAppFolders(" not in CODE
+
+
+def test_the_route_script_reuses_the_ask_extractor_and_the_ask_transport():
+    # The agent's proto is the client's own base template: one extractor, one
+    # ink transport, no second copy to keep in step.
+    assert "local agent := {_proto: self};" in SOURCE
+    assert "foreach tag, value in self.noteAgent do agent.(tag) := value;" in SOURCE
+    # Same POST the Ask button makes, and the same 150 s watchdog with it.
+    assert ":SendInk(body, strokes);" in SOURCE
+    # It must not read a live window's link through the proto chain.
+    assert "agent.linkID := nil;" in SOURCE
+    # A blank page's data is nil; Length(nil) raises -48410/-48418.
+    assert "if not IsArray(data) then return nil;" in SOURCE
+    # Multi-select from the overview: first entry, no special case.
+    assert "local cursor := GetTargetCursor(target, nil);" in SOURCE
+    # A note the harness wrote itself has an item with no class slot at all.
+    assert "else if item.text then :CollectPara(item);" in SOURCE
+
+
+def test_the_reply_comes_back_as_a_note_filed_in_the_ai_folder():
+    assert 'kAIFolder := "AI";' in SOURCE
+    assert "try tag := AddFolder(self.aiFolder, 'paperroll)" in SOURCE
+    assert "paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);" in SOURCE
+    # NewNote returns nil, so the entry is read back by highest _uniqueID --
+    # never by date, because the hardware's clock lies.
+    assert "local entry := :FindNewest();" in SOURCE
+    assert "EntryChangeXmit(entry, nil);" in SOURCE
+    # Exactly one note per tap: a failure has to say so somewhere, and this is
+    # the only surface a menu user has.
+    assert 'try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;' in SOURCE
 
 
 def test_the_line_scan_avoids_strpos_with_a_carriage_return():

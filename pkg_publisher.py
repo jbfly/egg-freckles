@@ -342,6 +342,13 @@ class PublisherHandler(BaseHTTPRequestHandler):
                 body_lines = body_lines[1:]
             if len(body_lines) != stroke_count:
                 raise ValueError
+            # A text-only note routed from the Notes envelope menu ("Send to
+            # AI", ROADMAP Track L2) arrives as a zero-stroke body: the header,
+            # one H line, and nothing else. There is no drawing to render or
+            # look at, so it is answered from the text alone. Without the H line
+            # a zero-stroke body carries no question at all and is rejected.
+            if stroke_count == 0 and not hint:
+                raise ValueError
             strokes = []
             for line in body_lines:
                 fields = line.split()
@@ -363,10 +370,15 @@ class PublisherHandler(BaseHTTPRequestHandler):
         except (IndexError, UnicodeDecodeError, ValueError):
             self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink\n", "text/plain; charset=us-ascii")
             return
-        self.ink_path.parent.mkdir(parents=True, exist_ok=True)
-        save_ink_png(self.ink_path, strokes)
+        if strokes:
+            self.ink_path.parent.mkdir(parents=True, exist_ok=True)
+            save_ink_png(self.ink_path, strokes)
         try:
-            reading, status = interpret(self.ink_path, hint), HTTPStatus.OK
+            # Zero strokes: skip the PNG and the vision call and put the note's
+            # own words to the model as a plain turn. One reply shape either
+            # way, so the client needs no branch at all.
+            reading = interpret(self.ink_path, hint) if strokes else ask_model(hint)
+            status = HTTPStatus.OK
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
         # ponytail: "INK " prefix is all the client needs to tell the body
