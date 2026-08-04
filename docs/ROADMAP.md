@@ -128,8 +128,11 @@ agent can complete one task and verify it.
     empty-box glyph. The window header had the same box and *is* fixed here, by
     using two `protoStaticText` children instead of one `"\n"`-joined string.
   - **Hardware upgrade path** (nothing done on the device this round): install
-    the new Loader **using ZC40**, verify one real install with it, then delete
-    ZC40. **Keep ZC39 as the deep fallback until Loader is hardware-proven.**
+    the new Loader **using ZC40**, verify one real install with it. **Keep
+    ZC40 installed as the deep fallback after Loader is hardware-proven — it
+    is not deleted.** (Update 2026-08-04: the user deleted ZC39 from the
+    physical device at the bench, so ZC40 is now the fallback loader instead
+    of ZC39.)
   - **94 tests collected, 91 passed, 3 failed.** No test pins the loader
     identity; the standalone `scripts/test-loader-install-guard.py` did and was
     updated to `-Loader1:jbfly`. All three failures are in
@@ -955,8 +958,10 @@ Hardware-proven and current:
 - **Install path**: `examples/harness-loader` (`-Loader1:jbfly`, Extras label
   "Loader"; the device still runs `-HarnessLoaderZC40:jbfly` until it is
   upgraded) pulls any staged `.pkg` over WiFi from `runtime/dual_send.py` on
-  18081. ZC39 is the installed deep fallback. NS Basic bootstrap (`bootstrap/`) is the bare-metal
-  lifeline; Newt's Cape and Dock TCP are preserved in `downloads/recovery/`.
+  18081. ZC40 is the installed deep fallback (ZC39 was deleted from the
+  physical device by the user, reported 2026-08-04). NS Basic bootstrap
+  (`bootstrap/`) is the bare-metal lifeline; Newt's Cape and Dock TCP are
+  preserved in `downloads/recovery/`.
 - **Backup/inventory**: `runtime/newton_backup.py` speaks real Dock protocol
   (DES auth, NSOF); produced `docs/installed-package-inventory.md`.
 
@@ -1028,8 +1033,11 @@ tells it to do something destructive.
   rounds 3–9, superseded by `runtime/emulators/mp2000-core-20260803/`) to
   `~/newton-archive/` rather than deleting — they are backups.
 - **A5. Untrack superseded staged builds**: `runtime/staging/hardware/`
-  ZC37/ZC38 loaders and `harness-client-a1.pkg`. ZC39 stays (documented live
-  fallback), ZC40 and A3 stay.
+  ZC37/ZC38 loaders and `harness-client-a1.pkg`. ZC39's staged build can now
+  be untracked too — the user deleted `-HarnessLoaderZC39:jbfly` from the
+  physical device at the bench (reported 2026-08-04), so it is no longer the
+  documented live fallback. ZC40 and A3 stay (ZC40 is now the documented
+  fallback loader).
 - **A6. Audit `containers/patches/`**: the five `einstein-tcp-*`/
   `einstein-nie-rom-trace` diagnostic patches date from the closed rounds 3–8
   TCP investigation. Check `containers/emulator.Dockerfile` for which patches

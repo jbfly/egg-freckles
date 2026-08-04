@@ -1,5 +1,10 @@
 # Installed package inventory — 2026-08-03
 
+> **Update 2026-08-04:** the user deleted `-HarnessLoaderZC39:jbfly` from the
+> physical device at the bench, after this 2026-08-03 Dock backup was taken.
+> Rows below still show it because they are the backup snapshot; it is no
+> longer on the device. ZC40 is now the fallback loader.
+
 The physical MP2000 has **83 installed package payloads across three stores,
 using 7,209,706 bytes (6.88 MiB) of compressed payload data**. There are 82
 distinct package identities because `Dock ZC & TCP/IP:Kallisys` is present on
@@ -99,7 +104,7 @@ Internal packages below. It predates `Dock ZC & TCP/IP:Kallisys`,
 
 | Package identity | Bytes | KiB |
 |---|---:|---:|
-| `-HarnessLoaderZC39:jbfly` | 14,752 | 14.4 |
+| `-HarnessLoaderZC39:jbfly` (deleted by the user 2026-08-04) | 14,752 | 14.4 |
 | `-HarnessLoaderZC40:jbfly` | 14,832 | 14.5 |
 | `Dock ZC & TCP/IP:Kallisys` | 42,380 | 41.4 |
 | `HarnessClientA3:jbfly` | 19,344 | 18.9 |
@@ -108,7 +113,8 @@ Internal packages below. It predates `Dock ZC & TCP/IP:Kallisys`,
 
 These identities explain the Extras labels: `HarnessClientA3:jbfly` appears as
 **Chat A3**, and `NewtsCape:NewtsCape` appears as **NewtScape**. ZC40 is the
-current loader; ZC39 remains the fallback.
+current loader; ZC39 was deleted from the device by the user (reported
+2026-08-04), so ZC40 is now the fallback too.
 
 ## 16 MB ATA card — 21 active payloads
 
@@ -147,7 +153,7 @@ files and remained present after reboot:
 
 | Emulator package | User-visible name | Source `.pkg` bytes |
 |---|---|---:|
-| `-HarnessLoaderZC39:jbfly` | ZC39 Loader 2.3 | 14,624 |
+| `-HarnessLoaderZC39:jbfly` (deleted from the physical device by the user 2026-08-04; this emulator baseline predates that) | ZC39 Loader 2.3 | 14,624 |
 | `-HarnessLoaderZC40:jbfly` | ZC40 Loader 2.4 | 14,704 |
 | `HarnessClientA3:jbfly` | Chat A3 / Newton Chat 2.3-a3 | 19,184 |
 | `NewtsCape:NewtsCape` | NewtScape | 296,128 |

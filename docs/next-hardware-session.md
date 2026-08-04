@@ -3,8 +3,10 @@
 > **SUPERSEDED 2026-08-02.** This is a pre-ZC40 session plan; the hardware
 > session it was written for already happened on 2026-08-02. **Do not follow
 > Step 5's "keep only ZC34 Loader 2.0" instruction** — ZC40 is the current
-> loader, ZC39 the documented live fallback; deleting down to ZC34 would
-> destroy six generations of progress. For what is actually on the device,
+> loader; deleting down to ZC34 would destroy six generations of progress.
+> **Update 2026-08-04:** the user deleted ZC39 from the device at the bench;
+> ZC40 is now the documented fallback loader (kept installed as the deep
+> fallback even after Loader 1.0 is hardware-proven). For what is actually on the device,
 > see `docs/installed-package-inventory.md`. For the current bench procedure,
 > see `docs/hardware-bench-runbook.md`. The rest of this file is kept for its
 > NIE/AP appendices, still cited elsewhere.

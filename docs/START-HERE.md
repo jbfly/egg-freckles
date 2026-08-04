@@ -251,15 +251,19 @@ Human gates and preserved recovery state:
 - **Newt's Cape is preserved and physically installed.** The pinned 296,128-byte
   freeware/unexpiring package is checksum-addressed in `downloads/recovery/`
   and installed/launched in Einstein. ZC40 installed it on the physical MP2000
-  on 2026-08-02; ZC40 is what runs on the device and ZC39 is the unchanged
-  fallback. **In source the loader is now `-Loader1:jbfly`, Extras label plain
-  "Loader"** (2026-08-04, ROADMAP Track L4) — bigger filename field, an
-  on-screen-keyboard button, emulator-proven only. Install it using ZC40, prove
-  one real install with it, then delete ZC40; keep ZC39 until then.
+  on 2026-08-02; ZC40 is what runs on the device. ZC39 was the unchanged
+  fallback until the user deleted it from the physical device at the bench
+  (reported 2026-08-04) — ZC40 is now the fallback. **In source the loader is
+  now `-Loader1:jbfly`, Extras label plain "Loader"** (2026-08-04, ROADMAP
+  Track L4) — bigger filename field, an on-screen-keyboard button,
+  emulator-proven only. Install it using ZC40, prove one real install with it;
+  keep ZC40 installed as the deep fallback afterward (it is not deleted).
 - **The physical Extras and Storage state is photographed and transcribed.**
   See `docs/physical-newton-inventory.md`. It confirms Chat A3, NewtScape,
-  ZC39, ZC40, NIE, `Internet Setups`, and `DEMO.BAS:NSBASIC`; Dock TCP was not
-  visible and Dock had no TCP/IP choice.
+  ZC39, ZC40, NIE, `Internet Setups`, and `DEMO.BAS:NSBASIC` as of the
+  2026-08-02 photos; ZC39 has since been deleted from the device by the user
+  (reported 2026-08-04). Dock TCP was not visible and Dock had no TCP/IP
+  choice.
 - **Dock TCP 1.2 is preserved and ready for ZC40.** The byte-identical upstream
   data fork appears in Newton Research NCX 1.4, 2.3, and 3.0.2. Its 72,432-byte
   recovery copy and checksum are in `downloads/recovery/`; it adds the missing

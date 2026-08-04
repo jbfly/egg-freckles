@@ -2,7 +2,8 @@
 // (docs/phase3-chat-round.md "Package identity"). The leading "-" is deliberate:
 // it sorts the loader first in Extras, which is where you want it when you are
 // recovering a device. The old "-HarnessLoaderZC<n>" dev names are retired --
-// ZC39/ZC40 stay installed on hardware until this one is hardware-proven.
+// ZC40 stays installed on hardware until this one is hardware-proven
+// (ZC39 was deleted from the device by the user, reported 2026-08-04).
 kAppSymbol := '|-Loader1:jbfly|;
 kVersion := "1.0";
 kAppLabel := "Loader";

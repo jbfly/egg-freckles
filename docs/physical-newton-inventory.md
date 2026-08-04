@@ -1,5 +1,12 @@
 # Physical MP2000 inventory — 2026-08-02
 
+> **Update 2026-08-04:** the user deleted `-HarnessLoaderZC39:jbfly` ("ZC39
+> Loader 2.3") from the physical device at the bench. This page transcribes
+> photographs taken 2026-08-02, before that deletion, so ZC39 correctly
+> appears below as present *at that time*. It is no longer on the device;
+> ZC40 is now the fallback loader. See `docs/installed-package-inventory.md`
+> and `docs/next-hardware-session.md` for current state.
+
 The photographed Newton already has the working network stack, the current
 harness, and both recovery applications. **Dock TCP was not visible**, which
 explains why the ROM Dock application did not offer TCP/IP even though normal
@@ -20,7 +27,7 @@ which includes Internal, the Ultimate Newton 4 MB card, and the 16 MB ATA card.
 | Item | Photographic evidence | Meaning |
 |---|---|---|
 | ZC40 Loader 2.4 | Extras page 3 | Current WiFi package installer is present. |
-| ZC39 Loader 2.3 | Extras page 3 | Unchanged loader fallback is present. |
+| ZC39 Loader 2.3 | Extras page 3 | Unchanged loader fallback was present at photo time (2026-08-02); **deleted by the user 2026-08-04** — see update note above. |
 | Chat A3 | Extras page 1 | Current `HarnessClientA3:jbfly` client is present. |
 | NewtScape | Extras page 2 | The non-demo recovery browser is present. |
 | Newton Devices, Newton Internet, NIE Ethernet, Internet Setup, 802.11b WaveLAN | Extras pages 1–2 | NIE and the WaveLAN path are installed; reinstalling the NIE quartet is not the fix for Dock. |
@@ -66,6 +73,8 @@ Evidence: [Extras page 2](../runtime/evidence/hardware-20260802-extras-2.jpg).
 | Writing Practice | z3ComDrv:clli? | ZC39 Loader 2.3 | ZC40 Loader 2.4 |
 
 Evidence: [Extras page 3](../runtime/evidence/hardware-20260802-extras-3.jpg).
+ZC39 Loader 2.3 shown above was subsequently deleted from the device by the
+user (reported 2026-08-04); only ZC40 Loader 2.4 remains installed.
 
 ## Storage soups and data
 
