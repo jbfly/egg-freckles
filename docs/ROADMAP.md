@@ -7,6 +7,30 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Fourth hardware test (photo evidence): NIE link-lifecycle
+  fault on EF5 launch.** The human photographed the MP2000 running
+  `Egg Freckles 1.0-ef5` showing two errors at once: a modal NIE alert —
+  *"Newton Internet Enabler: The following exception occurred in event
+  (RemoveLinkClient) of state (connected) of finite state machine
+  (InetManagerFSM): {<1> name: 'evt.ex.fr.intrp, error: -48803}"* — and the
+  status line `Bind error -60047`. Reading of the evidence:
+  `-48803`-on-release is the repo's documented signature for
+  **`InetReleaseLink` called while an endpoint is still live**
+  (`docs/newton-networking-lessons.md` §1.5), and `evt.ex.fr.intrp` inside
+  the FSM means one of *our* NewtonScript callbacks threw an unguarded
+  interpreter exception inside an NIE FSM event. The subsequent
+  `Bind error -60047` is the next connection failing to bind against the
+  half-torn-down link. **Leading suspect, not yet confirmed:** the
+  known two-package fight — installing EF5 leaves EF4 active until manually
+  deleted (`docs/newton-dev-notes.md`, effix round operational traps), and
+  two Egg Freckles both running install hooks / holding NIE state is exactly
+  the shape that releases a link out from under a live endpoint. Awaiting the
+  human's report of what Extras contained at the time. If it reproduces with
+  only EF5 installed after a clean restart, this becomes a real EF6 bug:
+  wrap every link/endpoint callback (`Released`, completion scripts) in
+  `try … onexception` so nothing of ours can throw into the FSM, and add a
+  single retry-after-delay on bind failure. Einstein cannot reproduce this —
+  its synthetic link never exercises the real InetManagerFSM.
 - **2026-08-04 — Third hardware test: "Send to AI" filed the wrong note, fixed
   in `EggFrecklesEF5:jbfly` (v1.0-ef5); Egg Freckles now has an icon.** The
   human ran EF4 on the physical MP2000 and reported: *"Send to AI works, but
