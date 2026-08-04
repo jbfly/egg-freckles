@@ -7,6 +7,36 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Fifth hardware test (EF5 on the MP2000): the dev loop worked
+  end to end — codex wrote a dice program, the human installed it via ZC40,
+  and it ran on real hardware.** Remaining findings, triaged:
+  1. **Handwritten (ink) notes get truncated.** A handwritten "Send a list of
+     ice hotels in Iceland" transcribed as just "Send a list", client
+     reported 17 strokes (fewer than drawn). This is the A9 round's flagged
+     unmeasured risk landing: `kMaxPoints := 400` was calibrated on straight
+     `/drag` test strokes (17–89 points each); real handwriting is far
+     denser, so whole strokes get dropped. An earlier long handwritten note
+     returned nothing at all, then the fourth-test NIE error appeared.
+     Fix (EF6): **decimate, don't truncate** — thin points per stroke to fit
+     the budget (host body cap is 16 KiB, room for thousands of points),
+     keep every stroke, report the real stroke count, and say loudly in the
+     transcript when thinning happened.
+  2. **Agent-driven install to hardware failed with "Newton not responding
+     to pings"** — because the tools long-poll only runs while the Egg
+     Freckles *window* is open (ToolStart in Boot, ToolStop in
+     ViewQuitScript). The agent correctly fell back to asking the human to
+     use ZC40. Fix (EF6): make the tools poll **package-wide** — owned by
+     the same install-hook agent as Send to AI, started at boot, surviving
+     window close. This also covers the observed stale-poll 504s after
+     window-close cycles.
+  3. **Loader UX**: ZC40 rename to plain "Loader" finally due; its text
+     entry field is too small to write in, and it needs an on-screen
+     keyboard option (typing package names in ink is painful).
+  4. Armor from the fourth test carries into EF6: every NIE callback wrapped
+     in `try … onexception` so nothing of ours can throw into the
+     InetManagerFSM (`-48803`), plus one retry-after-delay on bind failure
+     (`-60047`).
+
 - **2026-08-04 — Fourth hardware test (photo evidence): NIE link-lifecycle
   fault on EF5 launch.** The human photographed the MP2000 running
   `Egg Freckles 1.0-ef5` showing two errors at once: a modal NIE alert —
