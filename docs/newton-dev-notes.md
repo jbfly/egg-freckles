@@ -1358,3 +1358,50 @@ writes a *failure* note). The answer is a native note filed into an "AI" folder.
 - `SafeRemovePackage` re-instantiates the Notepad base view, so a marker slot on
   `GetRoot().paperroll` does not survive it (twenty-third finding). Uninstall is
   clean either way, but that path cannot prove `RemoveScript` ran.
+
+## 2026-08-04 — EF5: the third hardware test's filing bug, and two icons
+
+Instance `effix`, seeded flash, `NEWTON_FAKE_BACKEND=1 server.py` on 6801 and
+`runtime/raw_pkg_server.py` on 10.42.0.1:18081, real codex for the vision calls.
+Shipped `EggFrecklesEF5:jbfly`, sha256
+`fae447c2eba72b55a894e52cceafc50d565e7b68aec0cc22dd067665b7bb80b7`. Round
+records `runtime/evidence/effix-filing-bug.txt` and `effix-icons.txt`;
+screenshots `runtime/evidence/effix-*.png`.
+
+The human's report, after using EF4 on the MP2000: *"Send to AI works, but when
+it sends the reply it comes back as Unfiled instead of the AI folder. And then
+it seems to file the ORIGINAL note that was sent into AI."*
+
+One line did both halves: `local entry := :FindNewest();` in `:FileReply`, which
+guesses at the entry just written instead of keeping it. Full reasoning and
+evidence in `docs/notes-integration-design.md`, "Third hardware test", and as
+the twenty-fourth and twenty-fifth findings in `docs/newtonscript-eval.md`.
+
+What this round cost, and what is worth remembering:
+
+- **Reproduce first is right, and it can still fail to reproduce.** EF4 was
+  re-installed and driven exactly as the human drove it — a note typed into
+  stock Notes through the UI, left open, envelope tapped — and it filed
+  correctly, twice. The emulator has **one** store (`"Internal/-143364242 "`)
+  and the MP2000 has three, and the rule EF4 relied on is only sound with one.
+  When the emulator will not reproduce a hardware report, the next question is
+  which *precondition* differs, not which code path.
+- The fix was measured before it was written: `IsSoupEntry(note)` is nil before
+  `NewNote` and true after, on the same frame. One `ns_eval` line, two minutes,
+  and it turned a redesign into a four-line edit.
+- **Installing a new identity does not remove the old one.** EF4 and EF5 were
+  both active for a while: `routeScripts` had `len=4`, two "Send to AI" items,
+  and `NotesRoute` dispatches to the *first* entry carrying an `aiHook` — so a
+  tap would have run EF4's code while EF5 was the thing under test. Two tools
+  clients on one broker also raised repeating modal `-48221` alerts, and a modal
+  alert makes `ns_eval` time out rather than answer. Reseeding the flash and
+  installing only the new package was quicker than unpicking it.
+- `GetPkgRef("EggFrecklesEF4:jbfly", GetStores()[0])` returned nil for a package
+  that was demonstrably active, and `SafeRemovePackage` from the eval task threw
+  `-48221`. Not chased; reseeding is the reliable scrub.
+- `einstein --help` inside the container **starts the emulator** and takes the
+  control socket with it: the next `ns_eval` got `ConnectionRefused`. A
+  `podman restart` fixed it. Do not probe the binary's CLI in a live instance.
+- The tools long poll stopped answering (four `504`s) after a session of window
+  closes and three ink sends, and came back after a restart — the documented
+  stale-client behaviour, not a regression.

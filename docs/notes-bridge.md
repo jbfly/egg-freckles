@@ -215,6 +215,14 @@ local note := notes:MakeTextNote(text, nil);
 notes:NewNote(note, nil, nil);
 ```
 
+**`NewNote` returns nil, but the entry is not lost — it is `note`.** Measured on
+the ROM in the EF5 round: `IsSoupEntry(note)` is nil before the call and true
+after, on the same frame, so anything you want on that entry (a `labels` folder
+tag, its `EntryUniqueID`) is reachable without re-querying. Two later rounds
+read "returns nil" as "so search for it afterwards", and that search is what
+filed the wrong note on real hardware (`docs/newtonscript-eval.md`,
+twenty-fourth finding).
+
 N4-N9 sent that code through the emulator-only `/newtonscript` queued
 evaluator. Calls that executed produced healthy array-backed notes, including
 IDs `5`, `6`, and `10`, but later byte-equivalent requests returned `queued`

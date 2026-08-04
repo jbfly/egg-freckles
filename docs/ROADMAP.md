@@ -7,6 +7,53 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — Third hardware test: "Send to AI" filed the wrong note, fixed
+  in `EggFrecklesEF5:jbfly` (v1.0-ef5); Egg Freckles now has an icon.** The
+  human ran EF4 on the physical MP2000 and reported: *"Send to AI works, but
+  when it sends the reply it comes back as Unfiled instead of the AI folder. And
+  then it seems to file the ORIGINAL note that was sent into AI."* Round record
+  [`runtime/evidence/effix-filing-bug.txt`](../runtime/evidence/effix-filing-bug.txt)
+  and [`effix-icons.txt`](../runtime/evidence/effix-icons.txt); the current-state
+  write-up is the last section of
+  [`docs/notes-integration-design.md`](notes-integration-design.md), "Third
+  hardware test". Isolated instance `effix`, real codex for the vision calls.
+  - **Root cause: one line, `local entry := :FindNewest();` in `:FileReply`.**
+    EF4 wrote the reply note and then went looking for it again by highest
+    `_uniqueID` in the Notes union soup, and filed whatever came back. That is a
+    guess at identity. `_uniqueID` is allocated **per member soup** — measured on
+    the ROM, two soups on one store both start at 0 — so on a union soup
+    spanning more than one store the maximum is not the newest entry. The
+    MP2000 has three stores; Einstein has one, which is why l2build passed and
+    why re-running EF4 here under hardware-shaped conditions passed again. Not
+    reproducible in the emulator; the twenty-fourth finding in
+    `docs/newtonscript-eval.md`.
+  - **Fix: stop searching.** `NewNote` turns the frame `MakeTextNote` returned
+    into the soup entry (`"before=n after=y uid=3 lab=set"`), and a `labels` slot
+    set before the add rides into the store with it — so the reply is filed as
+    part of being created and the source note is never written to. `:SaveNote`
+    had the same defect cosmetically and was fixed with it; `:FindNewest` stays
+    for **Ask Note**, where naming the newest note is the job.
+  - **Proved on all three note kinds plus a repeat send**, `uid:folder` over the
+    whole soup each time: text `3:- 4:AI`, second send of the same note
+    `3:- 4:AI 5:AI`, sketch `7:- 8:AI`, mixed `9:- 10:AI`. Every source note kept
+    its folder; only replies carry `'AI`.
+  - **Icons, both of them, from one 20x14 drawing.** A ROM icon could have been
+    borrowed — Duplicate's and Delete's are reachable from the hook — but
+    neither means "send this to an AI", so the egg is drawn; what is borrowed is
+    the *format*, the 16-byte `bits` header copied verbatim off the ROM's own
+    Duplicate icon, which is why none of the binary layout is guessed
+    (twenty-fifth finding). `tntk` evaluates the source at build time, so
+    `MakeBinaryFromHex` ships the binary in the part frame's `icon` slot
+    (Extras) and the route entry's (the picker); both survive a cold restart
+    with the app never opened.
+  - **Regression on `effix`**: chat turn, `Ask Note`, `Save Note`
+    ("Saved note id=11", matching an independent soup read), and the tools
+    channel over curl (`front_app` → `Notepad (paperroll)`, `note_list` →
+    `count=12`). 94 tests pass.
+  - **Still open: hardware.** EF5 has not been installed on the MP2000. Worth
+    capturing there: `{"op":"store_info"}`, which would say what the device's
+    stores actually are and settle the trigger for the record.
+
 - **2026-08-04 — Track L2 built: "Send to AI" is in the stock Notes envelope
   menu, and it works with the app closed.** Ships inside Egg Freckles as
   `EggFrecklesEF4:jbfly` (v1.0-ef4) — still one package, still one Extras icon.

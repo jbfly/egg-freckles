@@ -25,15 +25,15 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef4_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef5_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF4:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef4";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF5:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef5";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF4:jbfly"' in PROJECT
+    assert 'name: "EggFrecklesEF5:jbfly"' in PROJECT
     assert "version: 18" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
@@ -105,9 +105,13 @@ def test_the_newest_note_is_the_last_one_the_store_allocated():
     # Ask is the only caller; the timeStamp-ordered reads are gone by name.
     assert "ReadNote: func()" not in SOURCE
     assert "AskNote: func()" not in SOURCE
-    # Save Note reads back through the same rule instead of a same-minute
-    # tie-break of its own.
-    assert "local entry := :FindNewest();" in SOURCE
+    # Ask is the ONLY caller now. The third hardware test proved this rule
+    # cannot be used to find a note you just wrote (see the filing test below),
+    # so :FileReply and :SaveNote no longer call it at all.
+    assert CODE.count(":FindNewest()") == 1
+    assert "Ask: func()" in SOURCE
+    # Save Note names the entry it created, off the frame NewNote adopted.
+    assert 'return :SetStatus("Saved note id=" & EntryUniqueID(note));' in SOURCE
 
 
 def test_the_tools_client_lives_inside_this_package_now():
@@ -317,14 +321,50 @@ def test_the_route_script_reuses_the_ask_extractor_and_the_ask_transport():
 def test_the_reply_comes_back_as_a_note_filed_in_the_ai_folder():
     assert 'kAIFolder := "AI";' in SOURCE
     assert "try tag := AddFolder(self.aiFolder, 'paperroll)" in SOURCE
-    assert "paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);" in SOURCE
-    # NewNote returns nil, so the entry is read back by highest _uniqueID --
-    # never by date, because the hardware's clock lies.
-    assert "local entry := :FindNewest();" in SOURCE
-    assert "EntryChangeXmit(entry, nil);" in SOURCE
+    # THE THIRD HARDWARE TEST'S BUG. EF4 wrote the note and then went looking
+    # for it again with :FindNewest() -- the highest _uniqueID in the Notes
+    # UNION soup -- and filed whatever came back. `_uniqueID` is allocated per
+    # member soup (measured on the ROM: two soups on one store both start at 0,
+    # runtime/evidence/effix-filing-bug.txt), so on the MP2000's multi-store
+    # Notes soup that named the wrong entry: the reply arrived Unfiled and the
+    # user's source note was filed into AI. The entry is now held, never
+    # searched for, and the label goes in with the data.
+    assert "local note := paperroll:MakeTextNote(body, nil);" in SOURCE
+    assert "if tag <> nil then note.labels := tag;" in SOURCE
+    assert "paperroll:NewNote(note, nil, nil);" in SOURCE
+    assert "if (tag <> nil) and IsSoupEntry(note) then" in SOURCE
+    assert "try EntryChangeXmit(note, nil) onexception |evt.ex| do nil;" in SOURCE
+    # The source note must never be written to on this path.
+    assert "entry.labels := tag;" not in CODE
+    assert "EntryChangeXmit(entry, nil);" not in CODE
     # Exactly one note per tap: a failure has to say so somewhere, and this is
     # the only surface a menu user has.
     assert 'try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;' in SOURCE
+
+
+def test_both_icons_are_one_drawn_bitmap_built_at_package_time():
+    # The human asked for an icon for Extras and one for the menu entry, and
+    # for a ROM icon to be reused if one fitted. The only icons reachable from
+    # the hook are Duplicate and Delete (runtime/evidence/effix-icons.txt), so
+    # this is drawn -- but the 16-byte `bits` header is copied verbatim off the
+    # ROM's own 20x14 Duplicate icon, which is why no part of the binary layout
+    # had to be guessed. tntk evaluates this file to build the package, so
+    # MakeBinaryFromHex runs on the host and the binary is what ships.
+    assert "kIconBits := MakeBinaryFromHex(" in SOURCE
+    assert "\"00000000000400fd00fd008d010b00a1\"" in SOURCE
+    assert ("kAppIcon := {bits: kIconBits, "
+            "bounds: {top: 0, left: 0, bottom: 14, right: 20}};") in SOURCE
+    # 16 header bytes + 14 rows x 4 rowBytes = 72 bytes, as 144 hex characters.
+    hexes = re.findall(r'"([0-9a-f]{16,32})"', SOURCE)
+    assert sum(len(h) for h in hexes) == 144
+    # Used twice: the Extras drawer reads the part frame's slot, the picker
+    # reads the route entry's. A top-level constant may not be read from inside
+    # a function body (tntk segfaults -- the twenty-second finding), so the
+    # menu entry goes through a template slot.
+    assert "icon: kAppIcon," in SOURCE
+    assert "menuIcon: kAppIcon," in SOURCE
+    assert "icon: self.menuIcon," in SOURCE
+    assert "icon: nil," not in SOURCE
 
 
 def test_the_line_scan_avoids_strpos_with_a_carriage_return():

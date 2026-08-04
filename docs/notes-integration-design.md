@@ -405,6 +405,10 @@ conversation.
 
 ## Build result — 2026-08-04, shipped in `EggFrecklesEF4:jbfly`
 
+**Superseded in one respect: read "Third hardware test" at the very end first.**
+The filing described in §3 and repeated below was wrong on real hardware, and
+`EggFrecklesEF5:jbfly` is the current build.
+
 **Status: built, and every `[verify]` above is settled.** Everything below was
 measured on isolated instance `l2build` against
 `NEWTON_FAKE_BACKEND=1 server.py:6801` and `runtime/raw_pkg_server.py` on
@@ -514,3 +518,127 @@ entry by its `aiHook` mark and never calls `RemoveSlot`.
 - **The Ask button stays for now.** §7 says this path eventually retires it;
   retiring it before the human has used "Send to AI" on real hardware would
   remove the working path and leave only the untested one.
+
+---
+
+## Third hardware test — 2026-08-04, and `EggFrecklesEF5:jbfly`
+
+**This section is the current state of the filing behaviour and of the icons.**
+The human installed EF4 on the physical MP2000 and reported:
+
+> "Send to AI works, but when it sends the reply it comes back as Unfiled
+> instead of the AI folder. And then it seems to file the ORIGINAL note that was
+> sent into AI. Not the expected behavior."
+
+Everything else in the feature worked on hardware: the menu item is there, it
+routes the tapped page, the host answers, and a reply note arrives. The defect
+is one line, and it is in the delivery step this design wrote in §3.
+
+Instance `effix`, same host setup as the l2build round, real codex for the
+vision calls. Full transcript:
+[`runtime/evidence/effix-filing-bug.txt`](../runtime/evidence/effix-filing-bug.txt).
+
+### Root cause: an identity was inferred where an identity was in hand
+
+§3 of this design says the entry "is found by re-querying and taking
+`ResetToEnd`", because `NewNote` returns nil. EF4 implemented that with
+`:FindNewest()` — highest `_uniqueID` in the Notes union soup — and then filed
+whatever came back:
+
+```newtonscript
+paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);
+local entry := :FindNewest();     // <- the wrong line
+entry.labels := tag;
+```
+
+`_uniqueID` is allocated **per member soup**, measured on the ROM as two soups
+on one store both starting at 0 (`"A:0,1 B:0 nextA=2 nextB=1"`), so across a
+union soup spanning more than one store the highest ID is not the newest entry.
+The physical MP2000 has three stores (`docs/installed-package-inventory.md:3`,
+Internal plus a 4 MB Ultimate Newton and a 16 MB ATA card alternating in the
+storage-card slot); Einstein has exactly one. That is the whole story of why
+this shipped: with a single store the guess is *always* right, so l2build passed,
+and re-running EF4 on `effix` under hardware-shaped conditions — note typed into
+stock Notes through the UI, note open, envelope tapped — passed again
+(`"…3:AI 4:- 5:AI"`, source unfiled, reply filed). It is not reproducible in the
+emulator, and no emulator round could have caught it.
+
+Which store the device actually had mounted during the test was not captured, so
+the trigger is named as the leading explanation, not as proof. The fix does not
+depend on it.
+
+### The fix: file at creation, keep the entry
+
+Measured before it was written: **`NewNote` turns the frame `MakeTextNote`
+returned into the soup entry** — `"before=n after=y uid=3 lab=set"` — and a
+`labels` slot set on that frame *before* the add goes into the store with it.
+
+```newtonscript
+local note := paperroll:MakeTextNote(body, nil);
+if tag <> nil then note.labels := tag;
+paperroll:NewNote(note, nil, nil);
+if (tag <> nil) and IsSoupEntry(note) then EntryChangeXmit(note, nil);
+```
+
+No search, so no wrong answer to file; the source note is never written to at
+all. `:SaveNote` had the same defect cosmetically (it reported
+`:FindNewest()`'s id as "the note it just saved") and now reads the id off the
+entry it made. `:FindNewest` survives for **Ask Note**, where naming the newest
+note is the job. Recorded as the twenty-fourth finding in
+`docs/newtonscript-eval.md`; §3 above is superseded by this.
+
+Proof, EF5 on a fresh flash, `uid:folder` for every note in the soup:
+
+| Send | Source | After |
+| --- | --- | --- |
+| text note, typed in stock Notes | uid 3 | `0:- 1:- 2:- 3:- 4:AI` |
+| **second send, same note, same session** | uid 3 | `… 3:- 4:AI 5:AI` |
+| sketch note, 6 strokes, stock Sketches | uid 7 | `… 6:- 7:- 8:AI` |
+| mixed note, triangle + "what is this shape" | uid 9 | `… 8:AI 9:- 10:AI` |
+
+Every source note keeps the folder it had; every reply, and only the replies,
+carries `'AI` ([`effix-05-ai-folder.png`](../runtime/evidence/effix-05-ai-folder.png)).
+The vision answers were real: "A simple outline of a house.", "An upside-down
+triangle."
+
+### Icons
+
+The human also asked for "a cute icon for Egg Freckles, and an icon for the Send
+to AI menu entry", reusing an existing icon if one fitted. One 20x14 one-bit egg
+with three freckles now serves both, which is the honest picture for a menu item
+that *is* Egg Freckles reaching into another app.
+
+- **Borrowing was checked first.** The only icons reachable from the hook are
+  the stock Duplicate and Delete entries' (`routeScripts[0].icon` is a plain
+  frame; `entry.icon := list[0].icon` would work in a line). Neither a second
+  sheet of paper nor a wastebasket means "send this to an AI", and
+  Print/Fax/Beam belong to transports, not to this array.
+- **The format was borrowed instead.** The 16-byte `bits` header is copied
+  verbatim off the ROM's own 20x14 Duplicate icon, same `rowBytes`, same bounds;
+  only the 56 pixel bytes are ours, so nothing about the binary layout is
+  guessed (twenty-fifth finding).
+- `MakeBinaryFromHex` is evaluated by `tntk` at build time, and the binary ships
+  in the part frame's `icon` slot (Extras) and, through a `menuIcon` template
+  slot, in the route entry's (the picker).
+
+![the icons](../runtime/evidence/effix-03-icons-zoom.png)
+
+[`effix-01-extras-icon.png`](../runtime/evidence/effix-01-extras-icon.png) is the
+Extras drawer — compare the generic package box that Harness Loader and Harness
+Probe still draw in the same screen —
+and [`effix-02-picker-icon.png`](../runtime/evidence/effix-02-picker-icon.png) is
+the Action picker. Both survive a cold `podman restart` with the app never
+opened, because the hook is still the part frame's `InstallScript`:
+`"len=3 title=Send to AI hook=EggFrecklesEF5:jbfly via=install iconCls=frame
+bitsLen=72 w=20 h=14"`.
+
+### Still open after this round
+
+- **Hardware, again.** EF5 has not been installed on the MP2000; the fix is
+  emulator-proven and reasoned, and the trigger it fixes cannot be reproduced
+  here.
+- Worth capturing on the next hardware session: `{"op":"store_info"}` over the
+  tools channel, which would say what the device's stores actually are and
+  settle §1's trigger for the record.
+- The checked-overview multi-select case is still unprobed, and the Ask button
+  still stays until the human has used "Send to AI" on hardware.

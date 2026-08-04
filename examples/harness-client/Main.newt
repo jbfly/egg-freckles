@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF4:jbfly|;
-kVersion := "1.0-ef4";
+kAppSymbol := '|EggFrecklesEF5:jbfly|;
+kVersion := "1.0-ef5";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -72,6 +72,54 @@ kHookTries := 4;
 // Ink Text leaves this placeholder character (0xF701) in a paragraph's `text`,
 // once per ink word, and the word itself is in `styles` as an 'inkWord binary.
 kInkPlaceholder := 63233;
+
+// ---- the egg ----
+//
+// One 20x14 one-bit drawing serves as both the Extras icon and the icon beside
+// "Send to AI" in the Notes Action picker, which is the honest thing for it to
+// mean: that menu item is Egg Freckles, reaching into somebody else's app.
+//
+// The stock picker entries do carry icons, and the human asked whether one
+// could be borrowed. Only two are reachable from where the hook runs —
+// `GetRoot().paperroll.routeScripts` holds Duplicate and Delete — and neither
+// a second page nor a wastebasket means "send this to an AI"
+// (runtime/evidence/effix-icons.txt §1). So this is drawn, but the *format* is
+// borrowed, which is what made drawing safe: the 16-byte header below is
+// copied byte for byte off the ROM's own Duplicate icon, read out of
+// `routeScripts[0].icon.bits` on this ROM (§2). Same header, same rowBytes: 4,
+// same 20x14 bounds; only the 56 bytes of pixels are ours. Nothing had to be
+// guessed about a structure the books describe loosely.
+//
+// The pixels are 1 = black, most significant bit leftmost, each row padded out
+// to rowBytes. Read the low nibbles as a picture and the egg is visible:
+//
+//         ####            an outline egg, narrow at the top,
+//       ##    ##          with three freckles on its face
+//      #        #
+//     #          #
+//    #    ##      #
+//    #            #
+//   #       ##     #
+//   #              #
+//   #   ##         #
+//   #              #
+//    #      ##     #
+//    #            #
+//     ##        ##
+//       ########
+//
+// tntk runs this file to build the package, so MakeBinaryFromHex is evaluated
+// on the host at build time and the binary is what ships (NEWT/0
+// `MakeBinaryFromHex(hexString, class)`, NewtVM.c:3774). It is a top-level
+// constant, and every use of it below therefore goes through a slot, never a
+// direct read from inside a function body — the twenty-second finding.
+kIconBits := MakeBinaryFromHex(
+    "00000000000400fd00fd008d010b00a1"
+    & "00f00000030c00000402000008010000"
+    & "10c08000100080002030400020004000"
+    & "23004000200040001030400010008000"
+    & "0c03000003fc0000", 'bits);
+kAppIcon := {bits: kIconBits, bounds: {top: 0, left: 0, bottom: 14, right: 20}};
 
 // ===================== the "Send to AI" route script =======================
 //
@@ -190,6 +238,23 @@ noteAgent := {
     // is all filing is on this system: "Setting the value of the labels slot is
     // really the only 'filing' that is done" (Guide:35418-35427). AddFolder is
     // idempotent and returns the existing tag (Ref:38952-38966).
+    //
+    // THE THIRD HARDWARE TEST'S BUG, and why this no longer searches. EF4 wrote
+    // the note and then went looking for it again with `:FindNewest()` — the
+    // highest `_uniqueID` in the Notes *union* soup — and filed whatever came
+    // back. That is a guess, not an identity, and on the MP2000 the guess was
+    // wrong: the reply arrived Unfiled and the user's *source* note was filed
+    // into AI instead. `_uniqueID` is allocated per member soup, measured on
+    // this ROM as two soups on one store both starting at 0
+    // (runtime/evidence/effix-filing-bug.txt §2), so across a union soup that
+    // spans more than one store the highest ID is not the newest entry. The
+    // emulator has exactly one store and could never reproduce it.
+    //
+    // The fix is to stop searching. `MakeTextNote` returns a frame, and
+    // `NewNote` turns *that frame* into the soup entry — measured
+    // `before=n after=y uid=3` (§1) — so the entry is already in hand. The
+    // label is also set before the add, which files the note as part of
+    // creating it and leaves nothing to repair afterwards.
     FileReply: func(reading)
     begin
         try
@@ -201,16 +266,17 @@ noteAgent := {
             local tag := nil;
             try tag := AddFolder(self.aiFolder, 'paperroll)
             onexception |evt.ex| do tag := nil;
-            paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);
-            // NewNote returns nil, so the entry is read back — by highest
-            // _uniqueID, never by date, because the hardware's clock lies
-            // (:FindNewest, and the twentieth finding).
-            local entry := :FindNewest();
-            if (entry <> nil) and (tag <> nil) then
-            begin
-                entry.labels := tag;
-                EntryChangeXmit(entry, nil);
-            end;
+            local note := paperroll:MakeTextNote(body, nil);
+            if note = nil then return nil;
+            // Filed at creation: the slot rides into the store with the entry.
+            if tag <> nil then note.labels := tag;
+            paperroll:NewNote(note, nil, nil);
+            // `note` is the entry now. Xmit only to tell the rest of the system
+            // the entry changed; if some other ROM revision copied the frame
+            // instead of adopting it, this is skipped and the note is still
+            // filed, because the label went in with the data.
+            if (tag <> nil) and IsSoupEntry(note) then
+                try EntryChangeXmit(note, nil) onexception |evt.ex| do nil;
         end
         onexception |evt.ex| do nil;
         return nil;
@@ -323,6 +389,7 @@ mainView := {
     // function bodies, for the tntk reason noted on capBytes above.
     noteAgent: noteAgent,
     menuTitle: kMenuTitle,
+    menuIcon: kAppIcon,
     hookTries: kHookTries,
     winWidth: kWinWidth,
     winHeight: kWinHeight,
@@ -976,6 +1043,16 @@ mainView := {
     // interleave two stores whose ID spaces are independent; there, and only
     // there, EntryModTime breaks the tie.
     //
+    // Be honest about what that tie-break does NOT buy: it fires only when two
+    // IDs are *equal*, so on a union soup spanning two stores this rule can
+    // still name an entry that is not the newest note. That is survivable for
+    // "Ask", which is a heuristic by construction — the worst case is asking
+    // about the wrong page. It was NOT survivable for the two paths that used
+    // it to find a note they had just *written*: on the physical MP2000 it
+    // filed the user's source note into the AI folder and left the reply
+    // unfiled (the third hardware test). :FileReply and :SaveNote therefore no
+    // longer call this at all; they hold on to the entry they created.
+    //
     // Honest cost, stated plainly: A9 could answer with an *older* page you had
     // just drawn on, and this cannot. Between "the note you just made" and "the
     // page you just touched", only the first survives a broken clock, and a
@@ -1297,20 +1374,20 @@ mainView := {
         return :SendInk(body, strokes);
     end,
 
-    // "Save Note": the two-step create proven in note-export N12/N13. The
-    // readback is now :FindNewest() itself — the entry the store just allocated
-    // is by definition the highest ID — which both names the note that was
-    // written and proves the ordering rule on every tap. A9 needed a
-    // same-minute tie-break here; ID ordering has no ties to break.
+    // "Save Note": the two-step create proven in note-export N12/N13. The id in
+    // the status line is read off the frame that was written, not off a search
+    // for it — `NewNote` turns the frame `MakeTextNote` returned into the soup
+    // entry (measured, and see :FileReply for the hardware bug that the search
+    // caused). A9 read this back with :FindNewest(), which is right only while
+    // the Notes union soup has a single member.
     SaveNote: func()
     begin
         if StrLen(self.lastReply) = 0 then return :SetStatus("No reply to save");
         local paperroll := GetRoot().paperroll;
         local note := paperroll:MakeTextNote(self.lastReply, nil);
         paperroll:NewNote(note, nil, nil);
-        local entry := :FindNewest();
-        if entry = nil then return :SetStatus("Saved, but no entry read back");
-        return :SetStatus("Saved note id=" & EntryUniqueID(entry));
+        if not IsSoupEntry(note) then return :SetStatus("Saved, but no entry read back");
+        return :SetStatus("Saved note id=" & EntryUniqueID(note));
     end,
 
     // ---- the "Send to AI" hook into the stock Notes Action menu ----
@@ -1369,7 +1446,11 @@ mainView := {
         agent.askStrokes := [];
         local entry := {
             title: self.menuTitle,
-            icon: nil,
+            // The 20x14 egg. `icon` is the documented optional slot drawn to
+            // the left of the title (Ref:51411-51423), and the two stock
+            // entries beside ours both fill it, so leaving it nil made our
+            // item the only bare one in the picker.
+            icon: self.menuIcon,
             // Our mark, so uninstall removes this entry and nothing else.
             aiHook: self.appSymbol,
             aiVia: via,
@@ -2566,6 +2647,10 @@ mainView := {
 {
     app: kAppSymbol,
     text: kAppLabel,
+    // What Extras draws above "Egg Freckles". A part frame's `icon` slot is a
+    // bitmap frame; without it the ROM falls back to the generic blank-package
+    // picture, which is what every build up to EF4 shipped.
+    icon: kAppIcon,
     theForm: mainView,
 
     // "The InstallScript function in a package part is executed when an

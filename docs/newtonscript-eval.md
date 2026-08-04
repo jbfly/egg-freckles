@@ -1557,3 +1557,100 @@ your `RemoveScript` runs** — which is convenient and is also why this path
 cannot be used to prove that `RemoveScript` ran. And any state a package parks
 on another app's base view frame is lost at least three ways: reset, package
 removal, and (by extension) anything else that re-instantiates that app.
+
+## Twenty-fourth finding: `NewNote` adopts the frame you hand it, and `_uniqueID` is per *soup* (Track L2, third hardware test)
+
+The third hardware test reported that "Send to AI" filed the **wrong note**:
+the reply came back Unfiled and the user's source note ended up in the AI
+folder. One line caused both halves. EF4's `:FileReply` wrote the note and then
+went looking for it again:
+
+```newtonscript
+paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);
+local entry := :FindNewest();     // the highest _uniqueID in the union soup
+entry.labels := tag;              // ... and file whatever that was
+```
+
+`:FindNewest` is a *guess* at identity, and the guess rests on a precondition
+nobody had tested: that the highest `_uniqueID` in the Notes union soup is the
+entry just added. Measured on this ROM — two fresh soups on the **same** store,
+three entries added:
+
+```text
+"A:0,1 B:0 nextA=2 nextB=1"
+```
+
+Every soup starts its own counter at 0 and keeps it, which is exactly what
+`soup:GetNextUid()` promises: "the unique identifier to be assigned to the next
+entry added to *the soup*" (`refs/NewtonProgrammerRef20.txt:33348`). A **union
+soup** is a view over one member soup per store, so its entries carry IDs from
+independent spaces and the maximum is not the newest. The physical MP2000 has
+three stores (`docs/installed-package-inventory.md:3`); Einstein has one
+(`"Internal/-143364242 "`), which is why every emulator round passed and why no
+emulator round could have failed.
+
+The fix does not need to know which store the note went to, because the entry
+never has to be found at all:
+
+```text
+"before=n after=y uid=3 lab=set"
+```
+
+**`NewNote` turns the very frame `MakeTextNote` returned into the soup entry.**
+`IsSoupEntry` is nil before the call and true after, on the same object, and a
+`labels` slot set on that frame *before* the add rides into the store with the
+data — the note is filed as part of being created, with nothing left to repair:
+
+```newtonscript
+local note := paperroll:MakeTextNote(body, nil);
+if tag <> nil then note.labels := tag;
+paperroll:NewNote(note, nil, nil);
+if (tag <> nil) and IsSoupEntry(note) then EntryChangeXmit(note, nil);
+```
+
+The general rule, and the reason this is a finding rather than a bug report:
+**`NewNote` returning `nil` does not mean the entry is unreachable.** Two rounds
+read that as "so re-query for it" (`docs/notes-bridge.md:210-215`, and this
+design's §3), and re-querying is how a *heuristic* got into a path that had an
+identity in hand. `:FindNewest` is still right for "Ask Note", where naming the
+newest note is the actual job. Evidence
+[`runtime/evidence/effix-filing-bug.txt`](../runtime/evidence/effix-filing-bug.txt).
+
+## Twenty-fifth finding: an icon is 16 bytes of ROM header plus your pixels (Track L2, EF5)
+
+A part frame's `icon` slot and a `routeScripts` entry's `icon` slot both take a
+bitmap frame, `{bits: <binary 'bits>, bounds: {top, left, bottom, right}}`
+(`refs/NewtonProgrammerRef20.txt:51411-51423`). The books describe the `bits`
+layout loosely enough to guess wrong, so read it off a ROM icon instead. The
+Duplicate entry in the stock Notes Action picker:
+
+```text
+bounds t=0 l=0 b=14 r=20
+bits=0.0.0.0.0.4.0.253.0.253.0.141.1.11.0.161.127.253.224.0.…  (72 bytes)
+```
+
+72 bytes for 20x14. Fourteen rows of `rowBytes` = 4 (bytes 4-5) is 56 bytes of
+pixels, so the **header is the first 16 bytes**, and the pixels are one bit
+each, most significant bit leftmost, 1 = black, each row padded to `rowBytes`.
+Decode those 56 bytes as a picture and you get two overlapping ruled pages,
+which is what Duplicate draws — so the reading is confirmed by the screen.
+
+Bytes 6-15 do **not** decode as the `Rect` the structure implies, and did not
+have to: ship the same dimensions and the same `rowBytes`, copy those 16 bytes
+verbatim, and replace only the pixels. That is what Egg Freckles' egg is.
+
+Two mechanics make this practical:
+
+- **`tntk` runs the source to build the package**, so NEWT/0's
+  `MakeBinaryFromHex(hexString, class)` (`NEWT0/src/newt_core/NewtVM.c:3774`)
+  evaluates on the host and the binary is what ships. tntk itself knows nothing
+  about icons (`grep -i icon ~/newton-dev/tntk/*.cpp` is empty) and needs not
+  to — a part frame is just NewtonScript. Its part dump confirms the emission:
+  `bits: <Binary, class "bits", length 72>`.
+- The constant must reach a function body through a **slot** (`menuIcon`), never
+  by name, or `tntk` segfaults (twenty-second finding).
+
+Two ROM icons are reachable from a `routeScripts` hook — the Duplicate and
+Delete entries' — and `entry.icon := list[0].icon` would borrow one in a line.
+Nothing else in the picker is: Print/Fax/Beam belong to transports. Evidence
+[`runtime/evidence/effix-icons.txt`](../runtime/evidence/effix-icons.txt).

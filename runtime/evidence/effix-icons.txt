@@ -1,0 +1,103 @@
+EF5 round — icons: the Extras drawer and the "Send to AI" menu entry
+=====================================================================
+
+Date        2026-08-04
+Instance    effix (see effix-filing-bug.txt for the setup)
+Build       EggFrecklesEF5:jbfly
+
+
+1. Can a ROM icon be borrowed for the menu entry?  Asked, and answered no
+--------------------------------------------------------------------------
+
+The human asked for this first: "if you can find an existing icon that would
+make sense we could reuse that rather than recreate one."
+
+What the picker draws comes from three sources, and only one of them is
+reachable from where our hook runs. `GetRoot().paperroll.routeScripts` is the
+app's own array, and every entry in it is a plain frame we can read:
+
+    $ ns_eval '<dump each entry, slot: class>'
+    "len=3 {GetTitle:_function icon:frame routeScript:symbol }
+           {GetTitle:_function icon:frame routeScript:symbol }
+           {title:string icon:weird_immediate aiHook:symbol aiVia:symbol
+            agent:frame routeScript:_function }"
+
+So the two stock entries — Duplicate and Delete, as drawn in the picker — do
+carry `icon` frames, and `entry.icon := list[0].icon` at hook time would have
+worked in one line. Neither means "send this to an AI": one is a second sheet of
+paper, the other a wastebasket. The third entry there is ours, with
+`icon: nil` — `weird_immediate` is how NIL prints — which is why EF4's item was
+the only bare one in the menu.
+
+Print / Fax / Beam above the separator belong to transports, not to this array,
+and are not reachable from a route-script hook.
+
+Decision: draw one. It is also the more honest picture, because that menu item
+is Egg Freckles reaching into somebody else's app, so the thing to show is Egg
+Freckles.
+
+
+2. The bitmap format, taken off the ROM rather than guessed
+-------------------------------------------------------------
+
+Drawing needed the `bits` binary layout, which the books describe loosely. Read
+it off a working ROM icon instead — the Duplicate entry's:
+
+    $ ns_eval '<bounds + every byte of routeScripts[0].icon.bits>'
+    "bounds t=0 l=0 b=14 r=20 cls=frame bits=
+     0.0.0.0.0.4.0.253.0.253.0.141.1.11.0.161.
+     127.253.224.0. 127.253.224.0. 96.12.96.0. ... 127.253.224.0."
+
+72 bytes for a 20x14 icon. 14 rows x 4 bytes of pixels is 56, so the header is
+the first 16 bytes, and bytes 4-5 are rowBytes = 4. The pixels are one bit each,
+most significant bit leftmost, 1 = black, each row padded to rowBytes: decoding
+the rows as a picture gives two overlapping ruled pages, which is exactly what
+Duplicate looks like on screen.
+
+Bytes 6-15 of that header did not decode as the `Rect` the books imply, and they
+did not need to: the icon shipped is the same 20x14 with the same rowBytes, so
+the 16 header bytes are copied verbatim and only the 56 pixel bytes are ours.
+Nothing about the structure is guessed.
+
+The one-liner that proved it before any package was built — the same bytes
+stuffed into a `MakeBinary(..., 'bits)` at runtime and hung on the live entry —
+drew the egg in the picker immediately.
+
+
+3. What ships
+--------------
+
+One 20x14 drawing, used twice. In examples/harness-client/Main.newt:
+
+    kIconBits := MakeBinaryFromHex("00000000000400fd00fd008d010b00a1" & ...,
+                                   'bits);
+    kAppIcon  := {bits: kIconBits, bounds: {top: 0, left: 0, bottom: 14, right: 20}};
+
+  - the part frame's `icon` slot        -> the Extras drawer
+  - the route entry's `icon` slot, via a `menuIcon` template slot (a top-level
+    constant may not be read from inside a function body — the twenty-second
+    finding) -> the Action picker
+
+tntk builds it: NEWT/0 provides `MakeBinaryFromHex(hexString, class)`
+(NEWT0/src/newt_core/NewtVM.c:3774), the file is *evaluated* at build time, and
+the binary is what lands in the package. tntk's own part dump:
+
+    icon: {
+        bits: <Binary, class "bits", length 72>,
+        bounds: { top: 0, left: 0, bottom: 14, right: 20 }
+
+There is no `icon` handling in tntk itself (`grep -i icon ~/newton-dev/tntk/*.cpp`
+is empty) and none is needed — a part frame is just NewtonScript.
+
+On the device, read back after a cold `podman restart` with the app never
+opened:
+
+    "len=3 title=Send to AI hook=EggFrecklesEF5:jbfly via=install
+     iconCls=frame bitsLen=72 w=20 h=14"
+
+Screenshots:
+  effix-01-extras-icon.png   the egg in the Extras drawer, above "Egg Freckles"
+                             (compare the generic package box on Harness Loader
+                             and Harness Probe in the same screen)
+  effix-02-picker-icon.png   the egg beside "Send to AI" in the stock picker
+  effix-03-icons-zoom.png    both, at 6x, so the freckles are visible

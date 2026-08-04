@@ -1,0 +1,187 @@
+EF5 round — the "Send to AI" filing bug from the third hardware test, and the fix
+=================================================================================
+
+Date        2026-08-04
+Instance    effix (isolated; `make emulator-instance-up INSTANCE=effix`, seeded
+            with ~/newton-archive/newton-harness/flash-backups/
+            internal-before-round9-loader-20260725-195622.flash per
+            docs/parallel-emulators.md). Torn down after the round.
+Host        NEWTON_FAKE_BACKEND=1 server.py on 6801 (text answers),
+            runtime/raw_pkg_server.py on 10.42.0.1:18081 (package + /ink +
+            /tools). The vision calls are REAL codex.
+Build       EggFrecklesEF5:jbfly
+            sha256 fae447c2eba72b55a894e52cceafc50d565e7b68aec0cc22dd067665b7bb80b7
+
+The report (human, 2026-08-04, third hardware test):
+
+    "Send to AI works, but when it sends the reply it comes back as Unfiled
+    instead of the AI folder. And then it seems to file the ORIGINAL note that
+    was sent into AI."
+
+
+0. The wrong line
+------------------
+
+examples/harness-client/Main.newt, EF4, :FileReply:
+
+    paperroll:NewNote(paperroll:MakeTextNote(body, nil), nil, nil);
+    local entry := :FindNewest();          <-- the bug
+    if (entry <> nil) and (tag <> nil) then
+    begin
+        entry.labels := tag;               <-- files whatever that returned
+        EntryChangeXmit(entry, nil);
+    end;
+
+`:FindNewest()` is "the entry with the highest `_uniqueID` in the Notes union
+soup". That is a *guess* at which entry was just written, and when the guess is
+wrong this code files the wrong note. Both halves of the reported symptom follow
+from one wrong answer: the entry it named got `labels := 'AI` (the user's source
+note), and the entry it did not name stayed unfiled (the reply).
+
+Nothing else in the client ever writes `labels`, so no other path can produce
+the reported state.
+
+
+1. Why the guess is unsound: `_uniqueID` is allocated per soup
+---------------------------------------------------------------
+
+Measured on this ROM. Two fresh soups on the SAME store, three entries:
+
+    $ ns_eval '... st:CreateSoupXmit("effixA:probe", ix, nil) ... AddXmit ...'
+    "A:0,1 B:0 nextA=2 nextB=1"
+
+Each soup starts its own counter at 0 and keeps it. `soup:GetNextUid()` is
+documented the same way — "the unique identifier to be assigned to the next
+entry added to *the soup*" (refs/NewtonProgrammerRef20.txt:33348).
+
+A union soup is a view over one member soup per store, so across a union soup
+the IDs come from independent spaces and "the highest ID" is not "the newest
+entry". EF4's own comment already knew this (Main.newt, :FindNewest: "a union
+soup can interleave two stores whose ID spaces are independent") and its
+mitigation — an `EntryModTime` tie-break — only fires when two IDs are *equal*,
+which is not the failing case.
+
+The physical MP2000 is a multi-store device: docs/installed-package-inventory.md
+records 83 package payloads "across three stores" — Internal, a 4 MB Ultimate
+Newton card and a 16 MB ATA card, the two cards alternating in the storage-card
+slot beside the WaveLAN card. Whenever a card is in and the store the Notepad
+adds to is not the store the tapped note lives on, the max-ID rule names an
+entry from the other store; the most recently created note on the other store is
+exactly the kind of entry it lands on.
+
+NOT PROVEN, and stated as such: no `store_info` was captured during the third
+hardware test, so which stores were mounted at that moment is unknown. What is
+proven is that the rule is unsound on any multi-store device, that the device is
+one, and that the fix does not depend on knowing which trigger fired.
+
+
+2. Why the emulator round (l2build) passed, and why this one did too
+---------------------------------------------------------------------
+
+    $ ns_eval 'foreach st in GetStores() do ...'
+    "Internal/-143364242 "
+
+One store. With a single member soup the highest `_uniqueID` in the union soup
+IS the entry just added, always, so the precondition EF4 relied on can never
+fail here. EF4 was re-run on this instance under hardware-shaped conditions —
+note typed into stock Notes through the UI, note open, envelope tapped — and
+filed correctly every time:
+
+    before send   "0:- 1:- 2:- 3:AI 4:- "        (4 = the source note)
+    after send    "0:- 1:- 2:- 3:AI 4:- 5:AI "   (5 = the reply)
+
+So this is not reproducible in Einstein as configured, and no emulator round
+could have caught it. That is the finding, not an excuse: an identity was being
+inferred where an identity was available.
+
+
+3. The fix: hold the entry instead of searching for it
+--------------------------------------------------------
+
+Measured first, then written:
+
+    $ ns_eval 'local note := pr:MakeTextNote("PROBE ONE", nil); local b :=
+               IsSoupEntry(note); note.labels := tag; pr:NewNote(note, nil, nil);
+               ...'
+    "before=n after=y uid=3 lab=set"
+
+`NewNote` turns the very frame `MakeTextNote` returned into the soup entry — it
+is not a soup entry before the call and it is one after — and a `labels` slot
+set on that frame *before* the add rides into the store with it:
+
+    $ ns_eval '<dump every Notes entry as uid:folder>'
+    "0:- 1:- 2:- 3:AI "
+
+So :FileReply now files at creation and keeps the entry it made:
+
+    local note := paperroll:MakeTextNote(body, nil);
+    if tag <> nil then note.labels := tag;
+    paperroll:NewNote(note, nil, nil);
+    if (tag <> nil) and IsSoupEntry(note) then EntryChangeXmit(note, nil);
+
+There is no search left on this path, so there is no wrong answer to file. The
+source note is never written to at all.
+
+:SaveNote had the same defect in a cosmetic form — it reported the id of
+whatever :FindNewest() returned as "the note it just saved" — and now reads
+`EntryUniqueID(note)` off the same in-hand entry.
+
+:FindNewest itself is kept and unchanged for "Ask Note", where naming the newest
+note IS the job and a wrong answer costs one wrong question, not a misfiled
+note.
+
+
+4. Proof on EF5, four sends, three note kinds
+-----------------------------------------------
+
+Fresh flash, EF5 the only package installed. `uid:folder` for every entry in the
+Notes soup, before and after each send. `-` is unfiled.
+
+    start                          "0:- 1:- 2:- "
+
+    text note typed in stock Notes (uid 3), envelope -> Send to AI
+      after                        "0:- 1:- 2:- 3:- 4:AI "
+      host log: MSG 'cat sat on the mat' -> TEXT FAKE REPLY ... , POST /ink 200
+
+    SECOND send, same note, same session (state carry-over test)
+      after                        "0:- 1:- 2:- 3:- 4:AI 5:AI "
+      source uid 3 still unfiled
+
+    sketch note, 6 strokes drawn with the stock Sketches tool (uid 7)
+      after                        "... 6:- 7:- 8:AI "
+      real vision call: INK PROMPT ... , POST /ink 200
+      reply text: "uid=8 lab=AI text=re: 6 strokesA simple outline of a house."
+
+    mixed note, triangle + "what is this shape" (uid 9)
+      after                        "... 8:AI 9:- 10:AI "
+      INK PROMPT '... accompanied by this note text: what is this shape'
+      reply text: "uid=10 lab=AI text=re: what is this shapeAn upside-down triangle."
+
+Every source note keeps the folder it had (unfiled); every reply, and only the
+replies, carries 'AI. Screenshot effix-05-ai-folder.png is the AI folder tab
+holding replies and nothing else.
+
+
+5. Regression, EF5, with only Egg Freckles installed
+------------------------------------------------------
+
+    chat        "You: say hello in five words" -> "Agent: FAKE REPLY TO: ..."
+    Ask Note    sent the newest note (a MakeTextNote reply, the class-less item
+                case) and appended the answer to the transcript
+    Save Note   "Saved note id=11", and an independent ns_eval read of the soup
+                shows uid 11 as the new entry  (effix-08-chat-ask-save.png)
+    reboot      `podman restart`, no window opened: the hook is back from
+                InstallScript, icon and all —
+                "len=3 title=Send to AI hook=EggFrecklesEF5:jbfly via=install
+                 iconCls=frame bitsLen=72 w=20 h=14"
+    tools       $ curl -X POST http://10.42.0.1:18081/tools \
+                       -d '{"op":"front_app","args":{}}'
+                {"request_id":"6","status":"result","result":"Notepad (paperroll)"}
+                $ curl ... -d '{"op":"note_list","args":{}}'
+                {"request_id":"7","status":"result","result":"count=12"}
+
+Noise, for the record: before that reboot the tools long poll had stopped
+answering (four `504` timeouts) after a session of window closes and three ink
+sends; the Newton was not polling at all. The reboot cleared it, which is the
+documented behaviour of a stale client (docs/parallel-emulators.md). Nothing in
+this round touched the tools path.
