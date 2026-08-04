@@ -7,6 +7,27 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-04 — second hardware test feedback (MP2000, mars) → Track L.**
+  The human's verdict after real use, verbatim in spirit: (1) **two packages
+  is annoying** — Harness Tools should load with Chat, one install; (2)
+  **naming is dev-cruft** — "Chat A9 2.4"/"ZC40" mean nothing; user-visible
+  names should be the product name (Egg Freckles) and plain words (Loader);
+  internal identity-bump convention stays; (3) **Ask still sends the wrong
+  note** — the cat drawing loses to months-old D&D notes; the device clock
+  had been set to 2008 and was corrected, so `EntryModTime` ordering is
+  poisoned by bad wall-clock history (y2k-fix territory) — ordering must be
+  robust to a wrong clock (candidate: `EntryUniqueID` is monotonic per store
+  regardless of clock); (4) window loads off-center; Up/Dn paging beats
+  nothing but native scroll arrows (eighteenth finding's untried
+  `vApplication` experiment) would be better; Ask/Send/Note button labels
+  confuse; (5) **the real dream is Notes-app integration**: an entry in the
+  Notes Action (envelope) menu — "Send to AI" — with the reply arriving as a
+  new note (maybe into a dedicated folder) or a small popup panel; Avi's
+  Backdrop proves third parties can extend that menu; a floating panel beats
+  a full-screen app because Newton multitasking is painful; (6) **mars must
+  be self-sufficient** — toolchain on mars, one machine runs everything,
+  because future users will have one machine.
+
 - **2026-08-04 — Track A9 done: one "Ask" button, and the cat/D&D bug is
   dead.** Ships as `Chat A9` (`HarnessClientA9:jbfly`, v2.4-a9, package version
   17), building the design the probe entry below wrote. **Ask** means *send the
@@ -916,6 +937,32 @@ retyping error slips.
 - Also practical, not code: retire superseded packages from the physical
   device (A3 once A7 is trusted, old proof payloads) — installed packages
   consume RAM even idle; C5 (`pkg_remove`) makes this agent-assisted later.
+
+## Track L — product-shape fixes from real use (2026-08-04, in flight)
+
+Direct answers to the second hardware test (status log entry above).
+
+- **L1. One package, real name: "Egg Freckles" client.** Fold the
+  harness-tools fixed-op client into the chat package so one ZC40 install
+  delivers both (and the two-NIE-client `Communications` slip noise dies
+  with the second app). User-visible name "Egg Freckles"; loader retitles
+  plain "Loader"; internal identity bumps (EF1, EF2…) keep the -10402 rule.
+  Same round: center the window; clearer button labels; try the eighteenth
+  finding's `vApplication` experiment for native ROM scroll arrows (keep
+  Up/Dn if it misbehaves); make Ask's newest-note ordering robust to a
+  wrong clock (`EntryUniqueID` is allocation-ordered; the 2008-clock
+  history poisons every time-based index).
+- **L2. Notes Action-menu integration (design first).** "Send to AI" in the
+  stock Notes envelope menu via the routing/action API (`routeScripts` /
+  routing-slip territory — `[verify]` against refs; Avi's Backdrop is the
+  existence proof). Reply as a new note, ideally filed into an "AI" folder,
+  or a small `protoFloatNGo` popup. This eventually supersedes the Ask
+  button; the chat app remains as the conversation surface.
+- **L3. Mars self-sufficiency.** Build the Newton toolchain (cDCL + patched
+  tntk, NEWT/0 if cheap) on mars per the alpha recipe, prove
+  `make toolchain-hello`, and document the from-scratch host setup — this
+  doubles as the "how anyone sets this up" guide the public repo needs.
+  Emulator-on-mars deferred until wanted.
 
 ## Sequencing
 
