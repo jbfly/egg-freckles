@@ -698,3 +698,37 @@ stroke count and says `(ink thinned to fit)` when thinning happened. Proven with
 37 strokes drawn, 37 sent, 37 rendered
 ([`ef6round-ink-decimation.txt`](../runtime/evidence/ef6round-ink-decimation.txt)).
 Filing is unchanged and was re-checked: source note unfiled, reply in `AI`.
+
+## EF7 — one deferred prompt, one current route
+
+2026-08-05, built as `EggFrecklesEF7:jbfly` (v1.0-ef7, package version 19),
+SHA-256
+`f471785729f5cab9a69398529805c5ab58e2f580c0fd563ea7816fefb787f296`.
+This is the current source state; EF6's package-wide agent and ink behaviour are
+unchanged.
+
+Two stale-state defects are fixed in `examples/harness-client/Main.newt`:
+
+- **Send while offline no longer discards the typed prompt.** The window holds
+  one decoded prompt while `:Connect` runs, shows `Connecting, will send...`,
+  and consumes it exactly once from the existing `STAT READY` path. A second tap
+  while connecting does not add another turn, and stop/failure clears the slot.
+- **Install replaces every earlier AI route entry.** `:NotesRebuild` now drops
+  every frame with a non-nil `aiHook` before appending EF7's entry, while
+  `RemoveScript` remains scoped to `frame.app`. This distinction is deliberate:
+  stale generations are invalid on install, but uninstall must not remove
+  another package's hook.
+
+**Proven on isolated seeded instance `ef7round`.** Two real Send taps during an
+eight-second delayed handshake produced one raw frame,
+`':01 MSG EF7 offline resend proof*34\r\n'`, and one fake-backend turn
+([`ef7round-prompt-resend.txt`](../runtime/evidence/ef7round-prompt-resend.txt)).
+A live Notes array seeded as `stock, stock, Third Party:KEEP, Old AI` became
+`stock, stock, Third Party:KEEP, EF7 AI`; the installed item and its agent both
+identified as `EggFrecklesEF7:jbfly`. Actual uninstall then left `stock, stock,
+Third Party:KEEP` ([`ef7round-route-sweep.txt`](../runtime/evidence/ef7round-route-sweep.txt)).
+The build and 100-test result are in
+[`ef7round-build.txt`](../runtime/evidence/ef7round-build.txt).
+
+**Hardware remains human-gated.** EF7 was not installed on or exercised against
+the physical MP2000 in this round.

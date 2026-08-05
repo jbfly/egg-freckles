@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF6:jbfly|;
-kVersion := "1.0-ef6";
+kAppSymbol := '|EggFrecklesEF7:jbfly|;
+kVersion := "1.0-ef7";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -383,6 +383,7 @@ mainView := {
     txSeq: 1,
     ready: nil,
     inFlight: nil,
+    pendingPrompt: nil,
     draftSeq: nil,
     stopping: nil,
     // EF6: one retry per connection attempt before a bind failure is shown to
@@ -743,6 +744,7 @@ mainView := {
         self.draftSeq := nil;
         self.pendingParts := nil;
         self.partIndex := 0;
+        self.pendingPrompt := nil;
     end,
 
     // One NIE link, three connections: chat, ink POST, tools long poll. Whoever
@@ -779,9 +781,13 @@ mainView := {
 
     Connect: func()
     begin
+        // ponytail: Stop clears abandoned prompts; a reconnect keeps this one.
+        local pending := self.pendingPrompt;
         :Stop();
+        self.pendingPrompt := pending;
         self.stopping := nil;
-        :SetStatus("Connecting");
+        if pending <> nil then :SetStatus("Connecting, will send...")
+        else :SetStatus("Connecting");
         // If the tools poll (or a live ink POST) still holds the link, reuse it
         // rather than grabbing a second one: a grab that is never matched by a
         // release leaks, and this is the same rule SendInk follows.
@@ -1008,7 +1014,21 @@ mainView := {
         if BeginsWith(line, ":" & seqText & " STAT READY*") then
         begin
             self.ready := true;
-            :SetStatus("Ready");
+            if self.pendingPrompt <> nil then
+            begin
+                local prompt := self.pendingPrompt;
+                // Clear first: duplicate READY frames cannot send it twice.
+                self.pendingPrompt := nil;
+                if self.inFlight then :SetStatus("Turn in flight")
+                else
+                begin
+                    if (StrLen(prompt) = 4) and BeginsWith(prompt, "/new") then self.transcript := ""
+                    else :AppendLine("You: " & prompt);
+                    :ShowTranscript();
+                    :Send(prompt);
+                end;
+            end
+            else :SetStatus("Ready");
         end else if BeginsWith(line, ":" & seqText & " STAT THINKING*") then
             :SetStatus("Thinking")
         else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then
@@ -1107,8 +1127,15 @@ mainView := {
             if StrPos(ascii, SubStr(prompt, index, 1), 0) = nil then
                 return :SetStatus("ASCII only");
         if self.inFlight then return :SetStatus("Turn in flight");
-        // ponytail: an idle link can drop; Send reconnects instead of dead-ending.
-        if not self.ready then return :Connect();
+        // ponytail: hold one tap across reconnect; another tap cannot queue it twice.
+        if not self.ready then
+        begin
+            if self.pendingPrompt <> nil then
+                return :SetStatus("Connecting, will send...");
+            self.pendingPrompt := prompt;
+            :SetStatus("Connecting, will send...");
+            return :Connect();
+        end;
         if (StrLen(prompt) = 4) and BeginsWith(prompt, "/new") then self.transcript := ""
         else :AppendLine("You: " & prompt);
         :ShowTranscript();
@@ -1730,7 +1757,7 @@ mainView := {
         local list := paperroll.routeScripts;
         if not IsArray(list) then return nil;
         foreach item in list do
-            if IsFrame(item) and (item.aiHook = self.appSymbol)
+            if IsFrame(item) and (item.aiHook <> nil)
                 and IsFrame(item.agent) then return item.agent;
         return nil;
     end,
@@ -1773,7 +1800,7 @@ mainView := {
         return nil;
     end,
 
-    // The array without our entry, plus `entry` if one is given. Uninstall goes
+    // On install, the array without ANY stale AI entry, plus `entry`. Uninstall goes
     // through the same shape (in RemoveScript, which cannot call in here — see
     // the part frame). **Never RemoveSlot**: that restores the ROM array
     // exactly, throwing away anything a different package appended after us
@@ -1784,7 +1811,7 @@ mainView := {
         local list := paperroll.routeScripts;
         if IsArray(list) then
             foreach item in list do
-                if not (IsFrame(item) and (item.aiHook = self.appSymbol)) then
+                if not (IsFrame(item) and (item.aiHook <> nil)) then
                     AddArraySlot(rebuilt, item);
         if entry then AddArraySlot(rebuilt, entry);
         return rebuilt;
@@ -2030,6 +2057,7 @@ mainView := {
     Failed: func(message)
     begin
         if self.stopping then return nil;
+        self.pendingPrompt := nil;
         :SetStatus(message);
         // ponytail: let the peer-close FSM settle before InetReleaseLink.
         AddDelayedCall(func(view) try view:Stop() onexception |evt.ex| do nil, [self], 1000);

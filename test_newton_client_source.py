@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef6_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef7_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF6:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef6";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF7:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef7";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF6:jbfly"' in PROJECT
-    assert "version: 18" in PROJECT
+    assert 'name: "EggFrecklesEF7:jbfly"' in PROJECT
+    assert "version: 19" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -404,6 +404,22 @@ def test_send_to_ai_is_hooked_into_the_stock_notes_action_menu():
     # entry InstallScript already made.
     assert "try form:NotesHook(0, 'window) onexception |evt.ex| do nil;" in SOURCE
     assert "if :NotesHooked(paperroll) and (via <> 'install) then return nil;" in SOURCE
+
+
+def test_offline_send_stashes_once_and_resends_from_ready():
+    assert "pendingPrompt: nil," in SOURCE
+    assert 'return :SetStatus("Connecting, will send...");' in SOURCE
+    assert "self.pendingPrompt := prompt;" in SOURCE
+    assert "local prompt := self.pendingPrompt;" in SOURCE
+    assert "self.pendingPrompt := nil;" in SOURCE
+    ready = SOURCE.index("local prompt := self.pendingPrompt;")
+    assert SOURCE.index("self.pendingPrompt := nil;", ready) < SOURCE.index(
+        ":Send(prompt);", ready)
+
+
+def test_install_sweeps_stale_ai_entries_but_uninstall_stays_scoped():
+    assert "if not (IsFrame(item) and (item.aiHook <> nil)) then" in SOURCE
+    assert "if IsFrame(item) and (item.aiHook = frame.app) then" in SOURCE
 
 
 def test_uninstall_removes_our_entry_and_never_the_whole_array():

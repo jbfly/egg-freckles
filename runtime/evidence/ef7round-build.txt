@@ -1,0 +1,18 @@
+EF7 build proof
+===============
+
+Command: make newton-packages
+Compiler package line: Building package EggFrecklesEF7:jbfly
+Compiler part dump:
+
+    text: "Egg Freckles"
+    title: "Egg Freckles 1.0-ef7"
+    appSymbol: '|EggFrecklesEF7:jbfly|
+
+Project: examples/harness-client/egg-freckles.nprj version 19
+Package: examples/harness-client/egg-freckles.pkg
+SHA-256: f471785729f5cab9a69398529805c5ab58e2f580c0fd563ea7816fefb787f296
+Staged package has the same SHA-256.
+
+Runnable check: uv run --with pytest pytest -q
+Result: 100 passed in 15.27s

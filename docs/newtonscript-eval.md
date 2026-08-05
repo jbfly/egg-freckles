@@ -1740,3 +1740,58 @@ converge, because there every *word* is its own item.
 
 Cross-check on the same page, from the host side after the client encoded it:
 `INK BODY bytes=5585 strokes=37 points=1308 bytes_per_point=4.27`.
+
+## Twenty-eighth finding: a UI action that reconnects must retain its payload (EF7)
+
+**Rule: if a button starts an asynchronous prerequisite, store the action's
+payload before starting it and consume it from the existing ready callback.**
+Returning `:Connect()` from `:SendPrompt` retained the connection attempt but
+lost the decoded prompt; four physical Send taps on 2026-08-04 therefore made
+four connect/disconnect pairs and zero prompt frames.
+
+EF7 adds one window-owned `pendingPrompt` slot. `:SendPrompt` sets it before
+`:Connect` and reports `Connecting, will send...` (`Main.newt:1130-1137`). The
+existing `STAT READY` branch clears the slot *before* calling `:Send`, so a
+second READY cannot duplicate the turn (`Main.newt:1014-1029`). A second Send
+tap while connecting sees the occupied slot and queues nothing; `:Stop` and
+`:Failed` clear abandoned state (`Main.newt:742-747,2057-2063`).
+
+On isolated seeded instance `ef7round`, the real Send button was tapped twice
+while the handshake was held for eight seconds. The server-side wire log has
+one prompt frame, not two:
+
+```text
+NEWTON->SERVER b':01 MSG EF7 offline resend proof*34\r\n'
+Prompt-frame count for the exact text: 1
+```
+
+The next frame is `STAT THINKING`, and the screen renders `FAKE REPLY TO: EF7
+offline resend proof ...`. Evidence
+[`ef7round-prompt-resend.txt`](../runtime/evidence/ef7round-prompt-resend.txt)
+and screenshots `ef7round-03-connecting-will-send.png` /
+`ef7round-04-resend-reply.png`.
+
+## Twenty-ninth finding: install-time identity cleanup and uninstall cleanup are different sets (EF7)
+
+A route picker dispatches to the first entry carrying `aiHook`, so removing only
+the current package identity during install leaves an older Egg Freckles entry
+able to win. **Install must replace the whole class of AI hooks; uninstall must
+remove only the package being removed.**
+
+EF7's install rebuild copies every item except frames with non-nil `aiHook`, then
+appends the fresh item (`Main.newt:1803-1817`). Its `RemoveScript` remains
+identity-specific (`item.aiHook = frame.app`, `Main.newt:3122-3151`) and still
+never calls `RemoveSlot`.
+
+Measured on `ef7round`:
+
+```text
+before install: len=4 |stock |stock |Third Party:KEEP |Old AI:AI
+after install:  len=4 |stock |stock |Third Party:KEEP |Send to AI:AI=EggFrecklesEF7:jbfly
+live route:     item=EggFrecklesEF7:jbfly agent=EggFrecklesEF7:jbfly via=install
+after uninstall: len=3 |stock |stock |Third Party:KEEP
+```
+
+Thus install leaves exactly one AI entry and preserves every non-AI entry;
+actual `SafeRemovePackage` then removes only EF7. Evidence
+[`ef7round-route-sweep.txt`](../runtime/evidence/ef7round-route-sweep.txt).

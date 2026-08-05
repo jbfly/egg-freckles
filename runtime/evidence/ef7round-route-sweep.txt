@@ -1,0 +1,27 @@
+EF7 routeScripts sweep — isolated install/uninstall proof
+========================================================
+
+Instance: ef7round (seeded, isolated)
+Package: EggFrecklesEF7:jbfly / Egg Freckles 1.0-ef7
+
+Before install, the live Notes array was seeded with the two stock entries, a
+non-AI third-party marker, and a stale EF6 AI entry:
+
+    "len=4 |stock |stock |Third Party:KEEP |Old AI:AI"
+
+After installing EF7:
+
+    "len=4 |stock |stock |Third Party:KEEP |Send to AI:AI=EggFrecklesEF7:jbfly"
+    "item=EggFrecklesEF7:jbfly agent=EggFrecklesEF7:jbfly via=install"
+
+Exactly one AI entry remains. Both stock entries and Third Party:KEEP are
+unchanged, and the menu item's live agent is the newly installed EF7 agent.
+
+Actual SafeRemovePackage uninstall, against the same array:
+
+    "before uninstall len=4 |stock |stock |Third Party:KEEP |Send to AI:AI=EggFrecklesEF7:jbfly"
+    "removed"
+    "after uninstall len=3 |stock |stock |Third Party:KEEP"
+
+Uninstall removed only EF7's entry. It preserved both stock entries and the
+third-party non-AI entry.
