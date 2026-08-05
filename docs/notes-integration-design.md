@@ -732,3 +732,50 @@ The build and 100-test result are in
 
 **Hardware remains human-gated.** EF7 was not installed on or exercised against
 the physical MP2000 in this round.
+
+## EF8 — two Notes actions, one agent
+
+2026-08-05, built as `EggFrecklesEF8:jbfly` (v1.0-ef8, package version 20),
+SHA-256
+`0358ca86d54ffedd3eaacce781147f01b2bd5b5f7e74bd94e9f65049537a5e4e`.
+**This is the current source state.** EF7's deferred chat prompt and stale-AI
+install sweep remain unchanged.
+
+The former single **Send to AI** entry is now two stock Notes envelope actions:
+
+- **Convert to Text** sends mode `text`. Already-recognised handwriting returns
+  its text directly; native ink uses the deterministic vision prompt that
+  transcribes writing or briefly describes a drawing.
+- **Ask AI** sends mode `ask`. Text keeps the existing model turn, ink gets a
+  short conversational response, and the reply still lands through `FileReply`
+  as a native note in the `AI` folder.
+
+The NSI1 header and transport are unchanged. One optional `M text` / `M ask`
+line precedes the existing optional `H` line; a body without `M` defaults to Ask
+(`Main.newt:1520-1546`, `pkg_publisher.py:339-405`). The host keeps strict enum
+validation, and typed Convert is deliberately model-free.
+
+**The two rows share one agent and one tools poll.** Each row needs a separate
+top-level route function because tntk cannot compile a closure over its mode.
+`NotesTextRoute` and `NotesAskRoute` select their unique `aiMode`, then call the
+same agent frame (`Main.newt:1719-1738,1785-1814`). Live proof says
+`sameAgent=yes endpoint=frame` and has one `Newton tools connected` line
+([`ef8round-menu-routing.txt`](../runtime/evidence/ef8round-menu-routing.txt)).
+
+**Proven on isolated seeded instance `ef8round`.** The stock picker screenshot
+shows both titles with egg icons (`ef8round-01-menu.png`). A handwritten `HI`
+returned `HI`; a six-stroke house returned `A simple outline of a house with a
+short vertical line inside.`; Ask on a triangle returned `That looks like a
+neatly drawn triangle.` All three replies were filed in `AI`, and the wire logs
+show mode `text`, `text`, and `ask`
+([`ef8round-results.txt`](../runtime/evidence/ef8round-results.txt)).
+
+Install changed `stock, stock, Third Party:KEEP, Old AI` into `stock, stock,
+Third Party:KEEP, Convert to Text, Ask AI`. Actual uninstall left `stock, stock,
+Third Party:KEEP`; both fresh rows were removed and nothing else
+([`ef8round-route-sweep.txt`](../runtime/evidence/ef8round-route-sweep.txt)).
+The full 100-test suite and package hash are in
+[`ef8round-build.txt`](../runtime/evidence/ef8round-build.txt).
+
+**Hardware remains human-gated.** EF8 was not installed on or exercised against
+the physical MP2000.

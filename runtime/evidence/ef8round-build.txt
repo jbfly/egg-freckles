@@ -1,0 +1,18 @@
+EF8 build proof
+===============
+
+Source base: task/ef7 at 3913e407250a4b9384b744f614bcc0fd7fe3a012
+Command: make newton-packages
+Compiler package line: Building package EggFrecklesEF8:jbfly
+Compiler part dump:
+
+    text: "Egg Freckles"
+    title: "Egg Freckles 1.0-ef8"
+    appSymbol: '|EggFrecklesEF8:jbfly|
+
+Project: examples/harness-client/egg-freckles.nprj version 20
+Package: examples/harness-client/egg-freckles.pkg
+SHA-256: 0358ca86d54ffedd3eaacce781147f01b2bd5b5f7e74bd94e9f65049537a5e4e
+
+Runnable check: uv run --with pytest pytest -q
+Result: 100 passed in 15.09s

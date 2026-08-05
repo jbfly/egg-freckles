@@ -33,10 +33,16 @@ STATUS_BODY = b"Harness server v1.1 OK\n"
 STAGING_DIR = BASE_DIR / "runtime" / "staging" / "hardware"
 DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "ink-latest.png"
 DEFAULT_NOTE_PATH = BASE_DIR / "runtime" / "evidence" / "notes-latest.json"
-INK_PROMPT = (
+TEXT_INK_PROMPT = (
     "The attached PNG is a sketch or handwriting captured from the 320x480 screen "
     "of a Newton MessagePad. Answer with one short plain sentence under 90 "
     "characters saying what is drawn; if it is writing, transcribe it. "
+    "No preamble, no markdown."
+)
+ASK_INK_PROMPT = (
+    "The attached PNG is a note from a Newton MessagePad user. Respond to what "
+    "the note says or asks in one short plain sentence under 90 characters. "
+    "If it is only a drawing, give a useful brief response about the drawing. "
     "No preamble, no markdown."
 )
 # A mixed note — a drawing with typed words on the same page — arrives as one
@@ -216,9 +222,10 @@ def ask_model(prompt: str, host: str = MODEL_HOST, port: int = MODEL_PORT) -> st
         return answer
 
 
-def interpret(png_path: Path, hint: str = "") -> str:
+def interpret(png_path: Path, hint: str = "", mode: str = "ask") -> str:
     """Return a real vision reading of the rendered ink, or raise RuntimeError."""
-    prompt = INK_PROMPT + (INK_HINT_PROMPT + hint if hint else "")
+    prompt = (TEXT_INK_PROMPT if mode == "text" else ASK_INK_PROMPT)
+    prompt += INK_HINT_PROMPT + hint if hint else ""
     # The same shape as ask_model's NOTE WIRE lines: the log is where an ops
     # failure gets diagnosed (the hardware 502 was codex missing from PATH).
     print(f"INK PROMPT {prompt!r}", flush=True)
@@ -329,12 +336,15 @@ class PublisherHandler(BaseHTTPRequestHandler):
             canvas_width, canvas_height, stroke_count = map(int, header[1:])
             if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0:
                 raise ValueError
-            # NSI1 grammar: the header line, then AT MOST ONE optional
-            # "H <text>" line, then exactly stroke_count "S ..." lines. The tag
-            # stays NSI1 and the header's four fields do not change, because the
-            # physical MP2000 still runs an older client whose bodies have no H
-            # line and must keep parsing.
-            body_lines, hint = lines[1:], ""
+            # NSI1 grammar: header, optional "M <text|ask>", optional
+            # "H <text>", then exactly stroke_count S lines. Old bodies have no
+            # M line, so they keep parsing and default to Ask.
+            body_lines, hint, mode = lines[1:], "", "ask"
+            if body_lines and body_lines[0].startswith("M "):
+                mode = body_lines[0][2:]
+                if mode not in ("text", "ask"):
+                    raise ValueError
+                body_lines = body_lines[1:]
             if body_lines and body_lines[0].startswith("H "):
                 hint = body_lines[0][2:]
                 if not 0 < len(hint) <= INK_HINT_LIMIT or not hint.isprintable():
@@ -376,16 +386,20 @@ class PublisherHandler(BaseHTTPRequestHandler):
         # logged how much geometry a body carried.
         points = sum(len(stroke) for stroke in strokes)
         rate = f" bytes_per_point={length / points:.2f}" if points else ""
-        print(f"INK BODY bytes={length} strokes={stroke_count} points={points}{rate}",
+        print(f"INK BODY mode={mode} bytes={length} strokes={stroke_count} points={points}{rate}",
               flush=True)
         if strokes:
             self.ink_path.parent.mkdir(parents=True, exist_ok=True)
             save_ink_png(self.ink_path, strokes)
         try:
-            # Zero strokes: skip the PNG and the vision call and put the note's
-            # own words to the model as a plain turn. One reply shape either
-            # way, so the client needs no branch at all.
-            reading = interpret(self.ink_path, hint) if strokes else ask_model(hint)
+            # Zero strokes need no PNG: Convert returns the already-usable note
+            # text, while Ask keeps the existing plain model turn.
+            if strokes:
+                reading = interpret(self.ink_path, hint, mode)
+            elif mode == "text":
+                reading = hint
+            else:
+                reading = ask_model(hint)
             status = HTTPStatus.OK
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY

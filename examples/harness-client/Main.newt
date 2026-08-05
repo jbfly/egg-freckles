@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF7:jbfly|;
-kVersion := "1.0-ef7";
+kAppSymbol := '|EggFrecklesEF8:jbfly|;
+kVersion := "1.0-ef8";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -96,11 +96,9 @@ kMaxRaw := 12000;
 // The note's own text rides one optional NSI1 "H" line into the vision prompt.
 kHintBytes := 200;
 
-// ---- "Send to AI" (the stock Notes envelope menu) ----
-// The item the ROM draws at the bottom of the Action picker, and the folder the
-// answer is filed into. Both are user-visible strings, so they carry no round
-// tag (docs/notes-integration-design.md §5).
-kMenuTitle := "Send to AI";
+// ---- the two Egg Freckles entries in the stock Notes envelope menu ----
+kTextMenuTitle := "Convert to Text";
+kAskMenuTitle := "Ask AI";
 kAIFolder := "AI";
 // How many 5-second retries the hook gets if GetRoot().paperroll is not
 // instantiated yet when InstallScript runs at boot (design §5, [verify]).
@@ -111,9 +109,8 @@ kInkPlaceholder := 63233;
 
 // ---- the egg ----
 //
-// One 20x14 one-bit drawing serves as both the Extras icon and the icon beside
-// "Send to AI" in the Notes Action picker, which is the honest thing for it to
-// mean: that menu item is Egg Freckles, reaching into somebody else's app.
+// One 20x14 one-bit drawing serves as the Extras icon and both Notes actions:
+// each menu item is Egg Freckles reaching into somebody else's app.
 //
 // The stock picker entries do carry icons, and the human asked whether one
 // could be borrowed. Only two are reachable from where the hook runs —
@@ -157,7 +154,7 @@ kIconBits := MakeBinaryFromHex(
     & "0c03000003fc0000", 'bits);
 kAppIcon := {bits: kIconBits, bounds: {top: 0, left: 0, bottom: 14, right: 20}};
 
-// ===================== the "Send to AI" route script =======================
+// ===================== the stock Notes route scripts ========================
 //
 // These slots are copied onto a small heap frame whose `_proto` is this
 // package's own base template (`:NotesHook`), so the route script inherits the
@@ -199,7 +196,7 @@ noteAgent := {
     // The Action picker hands us the live soup entry of the note whose envelope
     // was tapped (design §2, evidence §4) — there is no newest-note heuristic
     // on this path and no way to send the wrong page.
-    Route: func(target, targetView)
+    Route: func(target, targetView, mode)
     begin
         if self.inkBusy then return nil;
         if target = nil then return nil;
@@ -235,7 +232,7 @@ noteAgent := {
         // The body is built first because :EncodeInk is what thins the ink, and
         // the label has to be able to say so. `strokes` is the true drawn count
         // either way — EF6 drops no strokes.
-        local body := :EncodeInk(hint);
+        local body := :EncodeInk(hint, mode);
         if body = nil then return nil;
         if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
         else self.aiLabel := "" & strokes & " strokes";
@@ -446,7 +443,8 @@ mainView := {
     // The slots the hook needs. They are slots, not constants read inside the
     // function bodies, for the tntk reason noted on capBytes above.
     noteAgent: noteAgent,
-    menuTitle: kMenuTitle,
+    textMenuTitle: kTextMenuTitle,
+    askMenuTitle: kAskMenuTitle,
     menuIcon: kAppIcon,
     hookTries: kHookTries,
     winWidth: kWinWidth,
@@ -1518,21 +1516,23 @@ mainView := {
         return nil;
     end,
 
-    // NSI1 exactly as the host has always parsed it, plus one optional line:
+    // NSI1 exactly as the host has always parsed it, plus two optional lines:
     //
     //   NSI1 <width> <height> <strokeCount>
+    //   M <text|ask>                              (optional, at most one)
     //   H <text>                                  (optional, at most one)
     //   S <count> <x> <y> <dx> <dy> ...           (one per stroke)
     //
+    // M says which menu item was tapped; an older body with no M stays Ask.
     // The H line carries the note's own paragraph text into the vision prompt,
     // so a mixed page is ONE request with one reply instead of two model calls
     // racing for a transcript that has one column. The header's four fields do
     // not change and H is optional, so a host that grew this still parses the
     // bodies the older client on the physical MP2000 sends.
-    // Both callers (the Ask button and the "Send to AI" route) get the thinning
+    // Both callers (the Ask button and the Notes routes) get the thinning
     // for free by it living here, and they read askThinned/askPoints afterwards
     // to tell the human what happened.
-    EncodeInk: func(hint)
+    EncodeInk: func(hint, mode)
     begin
         :ThinInk();
         local originLeft := self.askLeft;
@@ -1540,6 +1540,8 @@ mainView := {
         if originLeft = nil then originLeft := 0;
         if originTop = nil then originTop := 0;
         local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";
+        if mode = 'text then body := body & "M text\r\n"
+        else if mode = 'ask then body := body & "M ask\r\n";
         if (hint <> nil) and (StrLen(hint) > 0) then body := body & "H " & hint & "\r\n";
         foreach points in self.askStrokes do
         begin
@@ -1604,7 +1606,7 @@ mainView := {
         end;
         local hint := text;
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
-        local body := :EncodeInk(hint);
+        local body := :EncodeInk(hint, 'ask);
         if body = nil then return :SetStatus("Too much ink to send");
         // `strokes` is the count the pen actually drew: EF6 never drops a
         // stroke, so Length(askStrokes) is the truth and not a survivor count.
@@ -1636,7 +1638,7 @@ mainView := {
         return :SetStatus("Saved note id=" & EntryUniqueID(note));
     end,
 
-    // ---- the "Send to AI" hook into the stock Notes Action menu ----
+    // ---- the two Egg Freckles hooks in the stock Notes Action menu ----
     //
     // The Action button "searches its own context for the first routeScripts
     // slot that it finds" (Guide:46271-46280), and for Notes that search ends
@@ -1713,24 +1715,26 @@ mainView := {
         // ponytail: template literals live in the read-only package, so the
         // stroke array has to be re-made in the heap before anything grows it.
         agent.askStrokes := [];
-        local entry := {
-            title: self.menuTitle,
-            // The 20x14 egg. `icon` is the documented optional slot drawn to
-            // the left of the title (Ref:51411-51423), and the two stock
-            // entries beside ours both fill it, so leaving it nil made our
-            // item the only bare one in the picker.
+        local textEntry := {
+            title: self.textMenuTitle,
+            // Both entries use the same 20x14 egg as the stock-sized icon.
             icon: self.menuIcon,
-            // Our mark, so uninstall removes this entry and nothing else.
             aiHook: self.appSymbol,
             aiVia: via,
+            aiMode: 'text,
             agent: agent,
-            // A function, not a symbol: a symbol here is looked up in an
-            // application named by an appSymbol slot, which is for view
-            // definitions (Ref:51442-51454). See :NotesRoute for why it is that
-            // function and not a closure.
-            RouteScript: self.NotesRoute,
+            RouteScript: self.NotesTextRoute,
         };
-        paperroll.routeScripts := :NotesRebuild(paperroll, entry);
+        local askEntry := {
+            title: self.askMenuTitle,
+            icon: self.menuIcon,
+            aiHook: self.appSymbol,
+            aiVia: via,
+            aiMode: 'ask,
+            agent: agent,
+            RouteScript: self.NotesAskRoute,
+        };
+        paperroll.routeScripts := :NotesRebuild(paperroll, textEntry, askEntry);
         // EF6: and this is where the tools long poll now starts. The agent is
         // the only thing in this package that exists at boot without a view, so
         // it is the only correct owner of a channel whose whole point is
@@ -1743,15 +1747,14 @@ mainView := {
         // receiver is not: the L1 -48809 trap was a delayed call landing on a
         // closed view, and this frame has no view to close. The same shape is
         // already proven on hardware — :InkDone has queued
-        // `agent:InkStop()` this way through every "Send to AI" since EF4.
+        // `agent:InkStop()` this way through every Notes route since EF4.
         AddDelayedCall(func(who) try who:ToolStart() onexception |evt.ex| do nil,
             [agent], 3000);
         return nil;
     end,
 
-    // The live agent hanging off the picker entry, or nil. One walk, used by
-    // :NotesHook to retire a previous poll and by :NotesRoute to find where to
-    // send a tapped note.
+    // The shared agent hanging off either picker entry, or nil. One walk lets
+    // :NotesHook retire the previous poll before replacing both entries.
     FindAgent: func(paperroll)
     begin
         local list := paperroll.routeScripts;
@@ -1777,7 +1780,7 @@ mainView := {
     //
     // So it finds the agent the one way that works from anywhere: back through
     // the array the item it was called for lives in.
-    NotesRoute: func(target, targetView)
+    NotesTextRoute: func(target, targetView)
     begin
         local paperroll := nil;
         try paperroll := GetRoot().paperroll
@@ -1786,8 +1789,26 @@ mainView := {
         local list := paperroll.routeScripts;
         if not IsArray(list) then return nil;
         foreach item in list do
-            if IsFrame(item) and (item.aiHook <> nil) and IsFrame(item.agent) then
-                return item.agent:Route(target, targetView);
+            if IsFrame(item) and (item.aiHook <> nil) and (item.aiMode = 'text)
+                and IsFrame(item.agent) then
+                return item.agent:Route(target, targetView, 'text);
+        return nil;
+    end,
+
+    // ponytail: two top-level functions avoid tntk's closure segfault; each
+    // mode has exactly one fresh entry after the install-time stale-AI sweep.
+    NotesAskRoute: func(target, targetView)
+    begin
+        local paperroll := nil;
+        try paperroll := GetRoot().paperroll
+        onexception |evt.ex| do paperroll := nil;
+        if not IsFrame(paperroll) then return nil;
+        local list := paperroll.routeScripts;
+        if not IsArray(list) then return nil;
+        foreach item in list do
+            if IsFrame(item) and (item.aiHook <> nil) and (item.aiMode = 'ask)
+                and IsFrame(item.agent) then
+                return item.agent:Route(target, targetView, 'ask);
         return nil;
     end,
 
@@ -1795,17 +1816,19 @@ mainView := {
     begin
         local list := paperroll.routeScripts;
         if not IsArray(list) then return nil;
+        local found := 0;
         foreach item in list do
-            if IsFrame(item) and (item.aiHook = self.appSymbol) then return true;
-        return nil;
+            if IsFrame(item) and (item.aiHook = self.appSymbol)
+                and ((item.aiMode = 'text) or (item.aiMode = 'ask)) then found := found + 1;
+        return found = 2;
     end,
 
-    // On install, the array without ANY stale AI entry, plus `entry`. Uninstall goes
+    // On install, the array without ANY stale AI entry, plus both fresh entries. Uninstall goes
     // through the same shape (in RemoveScript, which cannot call in here — see
     // the part frame). **Never RemoveSlot**: that restores the ROM array
     // exactly, throwing away anything a different package appended after us
     // (design §1; evidence §6 measured the restore).
-    NotesRebuild: func(paperroll, entry)
+    NotesRebuild: func(paperroll, textEntry, askEntry)
     begin
         local rebuilt := [];
         local list := paperroll.routeScripts;
@@ -1813,7 +1836,8 @@ mainView := {
             foreach item in list do
                 if not (IsFrame(item) and (item.aiHook <> nil)) then
                     AddArraySlot(rebuilt, item);
-        if entry then AddArraySlot(rebuilt, entry);
+        if textEntry then AddArraySlot(rebuilt, textEntry);
+        if askEntry then AddArraySlot(rebuilt, askEntry);
         return rebuilt;
     end,
 
@@ -3094,8 +3118,8 @@ mainView := {
 
     // "The InstallScript function in a package part is executed when an
     // application or auto part is activated on the Newton or whenever the
-    // Newton is reset" (Guide:5209-5210) — which is exactly what the "Send to
-    // AI" hook needs, because the slot it writes is RAM and a reset rebuilds
+    // Newton is reset" (Guide:5209-5210) — which is exactly what the two Notes
+    // hooks need, because the slot they write is RAM and a reset rebuilds
     // the Notepad's view frame without it (evidence §6). It is deliberately one
     // line: "the system executes a deep clone of the InstallScript function …
     // keep [it] as small as possible … If you need to execute a lot of code,

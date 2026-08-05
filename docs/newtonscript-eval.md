@@ -1795,3 +1795,47 @@ after uninstall: len=3 |stock |stock |Third Party:KEEP
 Thus install leaves exactly one AI entry and preserves every non-AI entry;
 actual `SafeRemovePackage` then removes only EF7. Evidence
 [`ef7round-route-sweep.txt`](../runtime/evidence/ef7round-route-sweep.txt).
+
+## Thirtieth finding: route choice needs a top-level function per mode (EF8)
+
+A picker entry does not pass its own frame to `RouteScript`, and tntk still
+segfaults if a nested function reads the entry or an enclosing mode local. With
+two AI entries, walking `paperroll.routeScripts` for the first `aiHook` is
+therefore ambiguous. **Use one top-level route function per mode, and let each
+function find the unique fresh entry carrying that mode.**
+
+EF8 stores `aiMode: 'text` / `'ask` on the two frames and assigns
+`NotesTextRoute` / `NotesAskRoute` (`Main.newt:1719-1738,1785-1814`). Both
+functions use neither `self` nor a closure; each finds its mode's entry and
+calls the same agent with the tapped mode. The entries deliberately share that
+agent. On isolated `ef8round`:
+
+```text
+sameAgent=yes endpoint=frame stopping=
+Newton tools connected 10.42.0.1:35582
+```
+
+One heap agent means one `ToolStart`, one tools endpoint, and one long poll; the
+second menu row does not create a second poll. Tapping Convert and Ask produced
+`INK BODY mode=text ...` and `INK BODY mode=ask ...` respectively. Evidence
+[`ef8round-menu-routing.txt`](../runtime/evidence/ef8round-menu-routing.txt).
+
+## Thirty-first finding: a NewtonScript symbol's display text is not a wire token (EF8)
+
+**Serialize protocol enums as literal strings, not by concatenating a symbol.**
+NewtonScript rendered `'text` as `text` but `'ask` as `Ask`; an early isolated
+Ask tap therefore sent `M Ask`, correctly failed the host's lowercase enum
+validation, and filed `(not sent) The host sent no reading`.
+
+The final encoder branches on the symbol and emits literal `M text` or `M ask`
+(`Main.newt:1543-1545`). The host accepts only those two values, defaults a
+mode-less older NSI1 body to Ask, and logs the selected mode
+(`pkg_publisher.py:339-349,389-405`). The clean final round recorded both 200s:
+
+```text
+INK BODY mode=text bytes=532 strokes=6 points=102 bytes_per_point=5.22
+INK BODY mode=ask bytes=931 strokes=3 points=197 bytes_per_point=4.73
+```
+
+Pinned by `test_newton_client_source.py::test_nsi1_carries_the_tapped_mode_without_changing_its_tag`
+and `test_pkg_publisher.py::PublisherTest::test_ink_hint_line_is_optional_and_reaches_the_prompt`.

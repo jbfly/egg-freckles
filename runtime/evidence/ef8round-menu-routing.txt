@@ -1,0 +1,39 @@
+EF8 two-entry Notes menu and independent routing
+================================================
+
+Instance: ef8round, isolated podman project and state volume, seeded from
+internal-before-round9-loader-20260725-195622.flash. No physical Newton and no
+shared newton-harness_emulator_1 operation was used.
+
+The live installed route array says both items carry the egg bitmap frame and
+share the current package identity:
+
+    "len=5 |stock |stock |Third Party:KEEP |Convert to Text:AI=EggFrecklesEF8:jbfly:text:install:icon=frame |Ask AI:AI=EggFrecklesEF8:jbfly:ask:install:icon=frame"
+
+Screenshot ef8round-01-menu.png is the stock Notes envelope picker. Tesseract's
+raw boxes read:
+
+    x=198 y=143 text=Convertto; x=261 y=143 text=Text
+    x=198 y=161 text=askar
+
+The screenshot itself shows the egg icon beside both full labels, "Convert to
+Text" and "Ask AI". The same two rows remain visible on the handwritten,
+drawing, and Ask taps in ef8round-03-handwriting-menu.png,
+ef8round-06-drawing-menu.png, and ef8round-09-ask-menu.png.
+
+The taps selected different wire modes:
+
+    handwriting Convert: INK BODY mode=text bytes=30 strokes=0 points=0
+    drawing Convert:    INK BODY mode=text bytes=532 strokes=6 points=102 bytes_per_point=5.22
+    drawing Ask:        INK BODY mode=ask bytes=931 strokes=3 points=197 bytes_per_point=4.73
+
+Thus the selected row, not array order, determines the mode. Client source uses
+two top-level functions because tntk cannot compile a closure over the entry:
+NotesTextRoute sends 'text and NotesAskRoute sends 'ask (Main.newt:1783-1812).
+Both entries point at one agent frame:
+
+    "sameAgent=yes endpoint=frame stopping="
+    Newton tools connected 10.42.0.1:35582
+
+There is one live tools endpoint and one host-side tools connection after
+install, preserving the EF6 single-poll invariant.

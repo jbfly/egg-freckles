@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef7_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef8_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF7:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef7";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF8:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef8";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF7:jbfly"' in PROJECT
-    assert "version: 19" in PROJECT
+    assert 'name: "EggFrecklesEF8:jbfly"' in PROJECT
+    assert "version: 20" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -328,7 +328,7 @@ def test_ink_is_decimated_never_truncated():
     assert "local target := self.maxPoints - (2 * count);" in SOURCE
     assert "if (since >= stride) or (at = size - 1) then" in SOURCE
     # Every encode thins first, so both callers inherit it.
-    encode = SOURCE.index("EncodeInk: func(hint)")
+    encode = SOURCE.index("EncodeInk: func(hint, mode)")
     assert SOURCE.index(":ThinInk();", encode) < SOURCE.index("local body :=", encode)
     # And the human is told, in the transcript and in the reply note.
     assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
@@ -339,11 +339,11 @@ def test_ink_is_decimated_never_truncated():
     assert ':SetStatus("Sending " & strokes & " strokes");' in SOURCE
 
 
-def test_nsi1_grows_one_optional_hint_line_and_keeps_its_tag():
-    # The mixed-note rule: ONE request carrying both. The header's four fields
-    # do not change and H is optional, because the physical MP2000 still runs
-    # an older client whose bodies have no H line.
+def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
+    # M and H are optional, so an older client body still parses as Ask.
     assert r'local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";' in SOURCE
+    assert r'body := body & "M text\r\n"' in SOURCE
+    assert r'body := body & "M ask\r\n"' in SOURCE
     assert r'body := body & "H " & hint & "\r\n";' in SOURCE
     assert "kHintBytes := 200;" in SOURCE
     assert "if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);" in SOURCE
@@ -382,26 +382,24 @@ def test_the_ink_overlay_shares_the_chat_link():
     assert ':AppendLine("Ink: " & reading);' in SOURCE
 
 
-def test_send_to_ai_is_hooked_into_the_stock_notes_action_menu():
-    # Track L2. The item is an extra frame on GetRoot().paperroll.routeScripts,
-    # which is RAM and dies on every reset -- so it is re-applied from the part
-    # frame's InstallScript, "executed ... whenever the Newton is reset".
-    assert 'kMenuTitle := "Send to AI";' in SOURCE
+def test_two_notes_actions_share_one_agent_and_route_their_own_modes():
+    assert 'kTextMenuTitle := "Convert to Text";' in SOURCE
+    assert 'kAskMenuTitle := "Ask AI";' in SOURCE
     assert "InstallScript: func(partFrame)" in SOURCE
-    assert "try partFrame.theForm:NotesHook(4, 'install)" in SOURCE
-    assert "paperroll.routeScripts := :NotesRebuild(paperroll, entry);" in SOURCE
-    assert "title: self.menuTitle," in SOURCE
-    # RouteScript uses neither self nor a closure: tntk segfaults on a nested
-    # function that reads an enclosing local (twenty-second finding), and the
-    # ROM does not say what self is when it fires the item. It walks back
-    # through the array the item lives in instead.
-    assert "RouteScript: self.NotesRoute," in SOURCE
-    assert "NotesRoute: func(target, targetView)" in SOURCE
-    assert "return item.agent:Route(target, targetView);" in SOURCE
+    assert "paperroll.routeScripts := :NotesRebuild(paperroll, textEntry, askEntry);" in SOURCE
+    assert "aiMode: 'text," in SOURCE
+    assert "aiMode: 'ask," in SOURCE
+    assert "RouteScript: self.NotesTextRoute," in SOURCE
+    assert "RouteScript: self.NotesAskRoute," in SOURCE
+    assert "NotesTextRoute: func(target, targetView)" in SOURCE
+    assert "NotesAskRoute: func(target, targetView)" in SOURCE
+    assert "return item.agent:Route(target, targetView, 'text);" in SOURCE
+    assert "return item.agent:Route(target, targetView, 'ask);" in SOURCE
+    # One heap agent owns both entries and therefore exactly one tools poll.
+    assert SOURCE.count("local agent := {_proto: self};") == 1
+    assert SOURCE.count("who:ToolStart() onexception") == 1
     for closure in ("func(target, targetView) agent:", "func() agent.", "func() kAppSymbol"):
         assert closure not in SOURCE
-    # The window is a fallback, not the mechanism, and it never overwrites an
-    # entry InstallScript already made.
     assert "try form:NotesHook(0, 'window) onexception |evt.ex| do nil;" in SOURCE
     assert "if :NotesHooked(paperroll) and (via <> 'install) then return nil;" in SOURCE
 
@@ -502,7 +500,7 @@ def test_both_icons_are_one_drawn_bitmap_built_at_package_time():
     # menu entry goes through a template slot.
     assert "icon: kAppIcon," in SOURCE
     assert "menuIcon: kAppIcon," in SOURCE
-    assert "icon: self.menuIcon," in SOURCE
+    assert SOURCE.count("icon: self.menuIcon,") == 2
     assert "icon: nil," not in SOURCE
 
 

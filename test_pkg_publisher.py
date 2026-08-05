@@ -148,25 +148,27 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    mixed = b"NSI1 320 480 1\r\nH feed the cat\r\nS 2 10 20 20 30\r\n"
+                    mixed = b"NSI1 320 480 1\r\nM text\r\nH feed the cat\r\nS 2 10 20 20 30\r\n"
                     with mock.patch.object(pkg_publisher, "interpret",
                                            return_value="A cat.") as vision:
                         status, _, response, _ = self.fetch(port, "/ink", "POST", mixed)
                     self.assertEqual((status, response), (200, b"INK A cat.\r\n"))
-                    self.assertEqual(vision.call_args.args[1], "feed the cat")
+                    self.assertEqual(vision.call_args.args[1:], ("feed the cat", "text"))
 
                     # No H line is still valid: the physical MP2000 runs an
                     # older client that has never sent one.
                     with mock.patch.object(pkg_publisher, "interpret",
                                            return_value="A line.") as vision:
                         self.fetch(port, "/ink", "POST", b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\n")
-                    self.assertEqual(vision.call_args.args[1], "")
+                    self.assertEqual(vision.call_args.args[1:], ("", "ask"))
 
                     for bad in (
                         b"NSI1 320 480 1\r\nH \r\nS 2 10 20 20 30\r\n",            # empty hint
                         b"NSI1 320 480 1\r\nH " + b"x" * 201 + b"\r\nS 2 10 20 20 30\r\n",
                         b"NSI1 320 480 1\r\nH one\r\nH two\r\nS 2 10 20 20 30\r\n",  # two H lines
                         b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\nH trailing\r\n",     # H after S
+                        b"NSI1 320 480 1\r\nM nope\r\nS 2 10 20 20 30\r\n",       # unknown mode
+                        b"NSI1 320 480 1\r\nH one\r\nM text\r\nS 2 10 20 20 30\r\n", # M after H
                     ):
                         status, _, response, _ = self.fetch(port, "/ink", "POST", bad)
                         self.assertEqual((status, response), (400, b"invalid ink\n"), bad)
@@ -199,6 +201,16 @@ class PublisherTest(unittest.TestCase):
                         status, _, response, _ = self.fetch(port, "/ink", "POST", body)
                     self.assertEqual((status, response),
                                      (502, b"INK No reading: model down\r\n"))
+
+                    # Convert to Text on an already-typed note is deterministic:
+                    # return its usable text without spending a model call.
+                    text_body = b"NSI1 320 480 0\r\nM text\r\nH exact words\r\n"
+                    with mock.patch.object(pkg_publisher, "ask_model") as model, \
+                            mock.patch.object(pkg_publisher, "interpret") as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", text_body)
+                    self.assertEqual((status, response), (200, b"INK exact words\r\n"))
+                    model.assert_not_called()
+                    vision.assert_not_called()
 
                     # A zero-stroke body with no H line asks nothing.
                     status, _, response, _ = self.fetch(
@@ -239,14 +251,14 @@ class PublisherTest(unittest.TestCase):
                              "A wavy line with a ? dash.")
         argv = run.call_args.args[0]
         self.assertEqual(argv[:2], ["codex", "exec"])
-        self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.INK_PROMPT])
+        self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.ASK_INK_PROMPT])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
-        # The H line's text is appended to the same prompt, in the same argv slot.
+        # Each mode selects its own prompt; H remains context in the same argv slot.
         with mock.patch.object(subprocess, "run", return_value=done) as run:
-            pkg_publisher.interpret(Path("/tmp/ink.png"), "feed the cat")
+            pkg_publisher.interpret(Path("/tmp/ink.png"), "feed the cat", "text")
         self.assertEqual(run.call_args.args[0][-1],
-                         pkg_publisher.INK_PROMPT
+                         pkg_publisher.TEXT_INK_PROMPT
                          + pkg_publisher.INK_HINT_PROMPT + "feed the cat")
 
         failed = subprocess.CompletedProcess([], 1, stdout=b"", stderr=b"boom")

@@ -1,0 +1,29 @@
+EF8 routeScripts install sweep and uninstall scope
+===================================================
+
+Instance: ef8round (seeded, isolated).
+
+Before install, Notes held two stock routes, a non-AI third-party marker, and a
+stale earlier-generation AI route:
+
+    "len=4 |stock |stock |Third Party:KEEP |Old AI:AI"
+
+After installing EggFrecklesEF8:jbfly:
+
+    "len=5 |stock |stock |Third Party:KEEP |Convert to Text:AI=EggFrecklesEF8:jbfly:text:install:icon=frame |Ask AI:AI=EggFrecklesEF8:jbfly:ask:install:icon=frame"
+
+Exactly the two fresh EF8 AI entries remain. Both stock entries and
+Third Party:KEEP are unchanged.
+
+Immediately before actual SafeRemovePackage:
+
+    "len=5 |stock |stock |Third Party:KEEP |Convert to Text:AI=EggFrecklesEF8:jbfly |Ask AI:AI=EggFrecklesEF8:jbfly"
+
+After uninstall:
+
+    "removed"
+    "len=3 |stock |stock |Third Party:KEEP"
+
+RemoveScript therefore removed both EF8 entries and nothing else. Screenshot
+ef8round-11-after-uninstall.png shows the stock envelope menu without Convert
+to Text or Ask AI.
