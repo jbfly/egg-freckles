@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF12:jbfly|;
-kVersion := "1.0-ef12";
+kAppSymbol := '|EggFrecklesEF13DIAG2:jbfly|;
+kVersion := "1.0-ef13diag2";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -430,6 +430,7 @@ mainView := {
     askTop: nil,
     askThinned: nil,
     askPartCapped: nil,
+    memExpanded: nil,
     inkBody: nil,
     inkBodies: nil,
     inkPartIndex: 0,
@@ -1290,6 +1291,7 @@ mainView := {
         self.askTop := nil;
         self.askThinned := nil;
         self.askPartCapped := nil;
+        self.memExpanded := nil;
         local items := 0;
         foreach item in data do
         begin
@@ -1350,7 +1352,14 @@ mainView := {
     // that looks plausible and is wrong.
     CollectInk: func(item)
     begin
+        local first := not self.memExpanded;
+        if first then :MemLog("expand-first-before");
         local bundle := ExpandInk(item, 0);
+        if first then
+        begin
+            self.memExpanded := true;
+            :MemLog("expand-first-after");
+        end;
         if bundle = nil then return nil;
         local strokes := CountStrokes(bundle);
         if (strokes = nil) or (strokes < 1) then return nil;
@@ -1607,8 +1616,10 @@ mainView := {
 
     EncodeInkPages: func(hint, mode)
     begin
+        :MemLog("parts-before");
         local parts := :InkParts();
         local total := Length(parts);
+        :MemLog("parts-after n=" & total);
         // Text-only Notes routes still use /ink so the answer is filed by the
         // route agent. The host accepts this zero-stroke NSI1 + H shape.
         if total < 1 then
@@ -1627,23 +1638,37 @@ mainView := {
             total := self.maxInkParts;
             self.askPartCapped := true;
         end;
+        :MemLog("bodies-before");
         local bodies := [];
         local sent := 0;
         local index := 0;
         while index < total do
         begin
+            :MemLog("body-" & (index + 1) & "-before");
             local partHint := nil;
             if index = 0 then partHint := hint;
             local encoded := :EncodeInk(parts[index].strokes, parts[index].top,
                 partHint, mode, index + 1, total);
             if encoded = nil then return nil;
             AddArraySlot(bodies, encoded.body);
+            :MemLog("body-" & (index + 1) & "-after bytes=" & StrLen(encoded.body));
             sent := sent + encoded.points;
             if encoded.thinned then self.askThinned := true;
             index := index + 1;
         end;
         self.askPoints := sent;
+        :MemLog("bodies-after n=" & Length(bodies));
         return bodies;
+    end,
+
+    // Stats returns free NewtonScript-heap bytes and Print writes the labelled
+    // sample to Einstein's Inspector result log. Do not call GC here: the point
+    // is to measure the live retained pipeline exactly as the user runs it.
+    MemLog: func(phase)
+    begin
+        local free := Stats();
+        Print("EF13MEM " & phase & " free=" & free);
+        return free;
     end,
 
     ClampAt: func(value, limit)
@@ -1665,11 +1690,18 @@ mainView := {
     begin
         if self.inFlight then return :SetStatus("Turn in flight");
         if self.inkBusy then return :SetStatus("Ask in flight");
+        :MemLog("query-before");
         local entry := :FindNewest();
+        :MemLog("query-after");
         if entry = nil then return :SetStatus("No note found");
+        :MemLog("soup-data-before");
         local data := GetSysEntryData(entry, 'data);
         if not IsArray(data) then return :SetStatus("Newest note is empty");
+        :MemLog("soup-data-after items=" & Length(data));
+        :MemLog("collect-before");
         :CollectNote(data);
+        :MemLog("collect-after strokes=" & Length(self.askStrokes)
+            & " raw=" & self.askRaw);
         local text := :Clean(self.askText);
         local strokes := Length(self.askStrokes);
         if strokes = 0 then
@@ -1682,8 +1714,10 @@ mainView := {
         end;
         local hint := text;
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
+        :MemLog("encode-before");
         local body := :EncodeInkPages(hint, 'ask);
         if body = nil then return :SetStatus("Too much ink to send");
+        :MemLog("encode-after bodies=" & Length(body));
         // `strokes` is the count the pen actually drew: EF6 never drops a
         // stroke, so Length(askStrokes) is the truth and not a survivor count.
         if StrLen(text) > 0 then :AppendLine("Note: " & text)
@@ -1696,6 +1730,7 @@ mainView := {
         if self.askThinned then :AppendLine("Note: ink thinned to fit ("
             & self.askRaw & " points sent as " & self.askPoints & ")");
         :ShowTranscript();
+        :MemLog("send-before");
         return :SendInk(body, strokes);
     end,
 
@@ -1937,6 +1972,7 @@ mainView := {
     begin
         if IsArray(body) then self.inkBodies := body
         else self.inkBodies := [body];
+        :MemLog("send-retained bodies=" & Length(self.inkBodies));
         self.inkPartIndex := 0;
         self.inkPartAck := nil;
         self.inkBody := self.inkBodies[0];
@@ -2078,6 +2114,7 @@ mainView := {
 
     InkPost: func()
     begin
+        :MemLog("post-before");
         local body := self.inkBody;
         self.inkBody := nil;
         if body = nil then return nil;
@@ -2099,6 +2136,7 @@ mainView := {
         local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
             & "Content-Type: application/x-newton-strokes\r\nContent-Length: "
             & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
+        :MemLog("post-request-after bytes=" & StrLen(request));
         try self.inkEndpoint:output(request, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)

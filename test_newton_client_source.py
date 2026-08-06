@@ -25,15 +25,15 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef12_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef13_diagnostic_identity_is_named_for_a_human():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF12:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef12";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF13DIAG2:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef13diag2";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF12:jbfly"' in PROJECT
+    assert 'name: "EggFrecklesEF13DIAG2:jbfly"' in PROJECT
     assert "version: 24" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
