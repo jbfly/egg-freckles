@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef12_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef13_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF12:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef12";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF13:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef13";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF12:jbfly"' in PROJECT
-    assert "version: 24" in PROJECT
+    assert 'name: "EggFrecklesEF13:jbfly"' in PROJECT
+    assert "version: 25" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -279,10 +279,13 @@ def test_the_two_converters_disagree_and_both_are_pinned():
     assert "AddArraySlot(points, array[index + 1] + box.top);" in SOURCE
     assert "local bundle := ExpandInk(item, 0);" in SOURCE
     assert "local strokes := CountStrokes(bundle);" in SOURCE
-    assert "GetStrokePointsArray(GetStroke(bundle, index), 0);" in SOURCE
-    # SwapPairs is the y,x -> x,y conversion, and the only one.
-    assert "points[index] := flat[index + 1];" in SOURCE
-    assert "points[index + 1] := flat[index];" in SOURCE
+    # EF13 never materializes the whole flat point array. It reads only the
+    # evenly-spaced points that can survive kMaxRaw, directly as x/y.
+    assert "GetStrokePointsArray" not in CODE
+    assert "local raw := CountPoints(stroke);" in SOURCE
+    assert "GetStrokePoint(stroke, at, point, 0);" in SOURCE
+    assert "AddArraySlot(points, point.x + dx);" in SOURCE
+    assert "AddArraySlot(points, point.y + dy);" in SOURCE
     # Ink Text hides inside a paragraph: no data item, an 'inkWord in styles.
     assert "InkConvert(style, 'ink2)" in SOURCE
     assert "GetInkWordInfo(style)" in SOURCE
@@ -335,8 +338,7 @@ def test_ink_is_decimated_and_part_cap_is_reported_honestly():
     assert "ThinPartAt: func(strokes, budget)" in SOURCE
     assert ":ThinPartAt(strokes, self.maxPoints)" in SOURCE
     # And the human is told, in the transcript and in the reply note.
-    assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
-    assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
+    assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit");' in SOURCE
     assert 'self.aiLabel := self.aiLabel & " (ink thinned to fit)";' in SOURCE
     # The count reported is the true drawn count, not a survivor count.
     assert "local strokes := Length(self.askStrokes);" in SOURCE
@@ -354,39 +356,46 @@ def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
 
 
 
-def test_long_ink_is_split_by_per_image_legibility_budgets_and_sent_in_order():
-    # CollectNote walks the whole soup array in stored reading order; no visible
-    # view or geometric page band filters capture. EF12 flushes before the next
-    # whole stroke would exceed 64 strokes or 1600 points in one rendered PNG.
+def test_long_ink_is_streamed_by_per_image_budgets_and_released_in_order():
     collect = SOURCE.index("CollectNote: func(data)")
-    parts = SOURCE.index("InkParts: func()")
+    count = SOURCE.index("InkPartCount: func()")
+    page = SOURCE.index("EncodeInkPage: func(hint, mode, part, total)")
     assert "foreach item in data do" in SOURCE[collect:SOURCE.index("CollectPara: func", collect)]
-    assert "targetView" not in SOURCE[collect:parts]
+    assert "targetView" not in SOURCE[collect:count]
     assert "kPageHeight" not in SOURCE
     assert "pageHeight:" not in SOURCE
-    assert "foreach points in self.askStrokes do" in SOURCE[parts:SOURCE.index("EncodeInk: func", parts)]
-    assert "(Length(strokes) + 1) > self.maxStrokes" in SOURCE
-    assert "(count + size) > self.maxPoints" in SOURCE
-    assert "AddArraySlot(parts, {top: top, strokes: strokes});" in SOURCE
-    assert "local fitted := :ThinPartAt(strokes, budget);" in SOURCE
+    assert "foreach stroke in self.askStrokes do" in SOURCE[count:page]
+    assert "(strokes + 1) > self.maxStrokes" in SOURCE
+    assert "(points + size) > self.maxPoints" in SOURCE
+    assert "PrepareInkPages: func(hint, mode)" in SOURCE
+    assert "EncodeNextInkPage: func()" in SOURCE
+    assert "self.askStrokes[release] := nil;" in SOURCE
+    assert "inkBodies" not in CODE
     assert 'body := body & "P " & :SeqText(part) & " "' in SOURCE
     assert "if total > 1 then" in SOURCE
-    assert "EncodeInkPages: func(hint, mode)" in SOURCE
     assert "self.inkPartIndex := self.inkPartIndex + 1;" in SOURCE
+    assert "self.inkBody := :EncodeNextInkPage();" in SOURCE
     assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
     assert "return :InkOpen();" in SOURCE[SOURCE.index("InkNext: func()"):]
-    # One-page notes stay on one body with no P line and one POST.
     assert "if total > 1 then body := body" in SOURCE
     assert "POST /ink HTTP/1.0" in SOURCE
 
 
+def test_collection_bounds_one_dense_ink_item_before_full_point_expansion():
+    assert "if Length(item.ink) > (self.maxRaw * 6) then" in SOURCE
+    assert "if Length(self.askStrokes) >= self.maxItems then" in SOURCE
+    assert "CollectInkStroke: func(stroke, box, dx, dy)" in SOURCE
+    assert "local room := self.maxRaw - self.askPoints;" in SOURCE
+    assert "if keep < raw then self.askThinned := true;" in SOURCE
+    assert "GetStrokePointsArray" not in CODE
+
 def test_notes_route_encodes_text_only_as_one_zero_stroke_ink_body():
     route = SOURCE.index("Route: func(target, targetView, mode)")
-    encode = SOURCE.index("EncodeInkPages: func(hint, mode)")
-    assert SOURCE.index(":EncodeInkPages(hint, mode);", route) < SOURCE.index(":SendInk(body, strokes);", route)
+    encode = SOURCE.index("PrepareInkPages: func(hint, mode)")
+    assert SOURCE.index(":PrepareInkPages(hint, mode);", route) < SOURCE.index(":SendInk(body, strokes);", route)
     block = SOURCE[encode:SOURCE.index("ClampAt: func", encode)]
     assert ":EncodeInk([], 0, hint, mode, 1, 1);" in block
-    assert "return [empty.body];" in block
+    assert "return empty.body;" in block
     assert 'local body := "NSI1 320 480 " & Length(fitted.strokes) & "\\r\\n";' in SOURCE
     assert 'body := body & "M ask\\r\\n"' in SOURCE
     assert 'body := body & "H " & hint & "\\r\\n";' in SOURCE
@@ -399,29 +408,29 @@ def test_notes_route_encodes_text_only_as_one_zero_stroke_ink_body():
 def test_multipart_watchdog_is_rearmed_and_total_is_protocol_safe():
     assert "kMaxInkParts := 99;" in SOURCE
     assert "maxInkParts: kMaxInkParts," in SOURCE
-    cap = SOURCE.index("if total > self.maxInkParts then")
-    cap_block = SOURCE[cap:SOURCE.index("local bodies := []", cap)]
-    assert "total := self.maxInkParts;" in cap_block
+    cap = SOURCE.index("if parts > self.maxInkParts then")
+    cap_block = SOURCE[cap:SOURCE.index("return parts;", cap)]
+    assert "parts := self.maxInkParts;" in cap_block
     assert "self.askPartCapped := true;" in cap_block
     assert "self.askThinned := true;" not in cap_block
-    assert 'kInkCapNotice := "Note too long - first 99 pages sent";' in SOURCE
-    assert "if self.askPartCapped then :AppendLine(self.inkCapNotice);" in SOURCE
-    assert 'self.aiLabel := self.aiLabel & " (first 99 pages sent)";' in SOURCE
+    assert 'kInkCapNotice := "Note too long";' in SOURCE
+    assert 'self.inkCapNotice & " - first " & self.inkTotalParts & " pages sent"' in SOURCE
+    assert "if self.askPartCapped then :AppendLine(:CapNotice());" in SOURCE
+    assert 'self.aiLabel := self.aiLabel & " (" & :CapNotice() & ")";' in SOURCE
     assert "ArmInkWatch: func()" in SOURCE
-    assert SOURCE.count(":ArmInkWatch();") == 3  # initial send + two INKP handlers
+    assert SOURCE.count(":ArmInkWatch();") == 3
     assert "self.inkSeq := self.inkSeq + 1;" in SOURCE[SOURCE.index("ArmInkWatch: func()"):]
     assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
     for method in ("ArmInkWatch: func()", "InkDropped: func()", "InkNext: func()"):
         block = SOURCE[SOURCE.index(method):]
         assert block.index("if not self.inkBusy then return nil;") < block.index("end,")
 
-
 def test_oversize_ink_body_retries_at_half_budget():
     assert "kMaxInkBody := 16384;" in SOURCE
     assert "maxInkBody: kMaxInkBody," in SOURCE
     assert "EncodeInkAt: func(strokes, originTop, hint, mode, part, total, budget)" in SOURCE
     encode = SOURCE.index("EncodeInk: func(strokes, originTop, hint, mode, part, total)")
-    block = SOURCE[encode:SOURCE.index("EncodeInkPages: func", encode)]
+    block = SOURCE[encode:SOURCE.index("EncodeInkPage: func", encode)]
     assert "if StrLen(encoded.body) > self.maxInkBody then" in block
     assert "total, self.maxPoints div 2);" in block
     assert "encoded.thinned := true;" in block
