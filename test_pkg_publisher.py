@@ -15,6 +15,8 @@ from unittest import mock
 
 import pkg_publisher
 
+CLIENT_SOURCE = (Path(__file__).parent / "examples/harness-client/Main.newt").read_text()
+
 
 class PublisherTest(unittest.TestCase):
     def test_page_package_headers_and_404(self) -> None:
@@ -185,7 +187,12 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    body = b"NSI1 320 480 0\r\nH what is a newton\r\n"
+                    # This is the exact shape EncodeInkPages now builds for
+                    # Notes-menu Ask AI: EncodeInk([], 0, hint, 'ask, 1, 1).
+                    self.assertIn(":EncodeInk([], 0, hint, mode, 1, 1);", CLIENT_SOURCE)
+                    self.assertIn('body := body & "M ask\\r\\n"', CLIENT_SOURCE)
+                    self.assertIn('body := body & "H " & hint & "\\r\\n";', CLIENT_SOURCE)
+                    body = b"NSI1 320 480 0\r\nM ask\r\nH what is a newton\r\n"
                     with mock.patch.object(pkg_publisher, "ask_model",
                                            return_value="A 1990s PDA.") as model, \
                             mock.patch.object(pkg_publisher, "interpret") as vision:

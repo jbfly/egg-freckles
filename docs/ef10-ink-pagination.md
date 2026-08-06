@@ -1,36 +1,38 @@
-# EF10 — paginate Notes ink by per-image legibility budget
+# EF10 ink pagination — EF11 reviewed correction
 
-Date: 2026-08-06. Package identity: `EggFrecklesEF10:jbfly` (`1.0-ef10`, package version 22).
-Emulator evidence only; nothing in this round was installed on the physical MP2000.
+Date: 2026-08-06. EF10 originally shipped as `EggFrecklesEF10:jbfly` (`1.0-ef10`, package version 22). The reviewed correction is `EggFrecklesEF11:jbfly` (`1.0-ef11`, package version 23; `examples/harness-client/Main.newt:10-13`, `egg-freckles.nprj:8-10`). Nothing in either round was installed on the physical MP2000.
 
-## Why EF9's page height was the wrong budget
+## Why image budgets replaced page height
 
-`CollectNote` already walks the complete stored note data array in reading order (`examples/harness-client/Main.newt:1282-1300`). EF9 then grouped those strokes only by 428-pixel note-space bands. That fixed later-page Y clamping, but one dense screen-height band still became one PNG no matter how many strokes or points it contained. Conversely, sparse ink in separate geometric bands spent multiple model calls even when one image budget was enough (`docs/ef9-ink-pagination.md`, "Fix").
+`CollectNote` walks the complete stored note data array in reading order (`examples/harness-client/Main.newt:1278-1305`). EF9 grouped those strokes only by 428-pixel note-space bands, so one dense screen-height band still became one PNG while sparse ink in separate bands spent extra calls (`docs/ef9-ink-pagination.md`, "Fix").
 
-The renderer's actual constraints are per image. The host accepts at most 16,384 body bytes (`pkg_publisher.py:328-331`), and the existing measured-safe point budget remains `kMaxPoints = 1600` (`examples/harness-client/Main.newt:69-85`). The new stroke budget is 64: the densest measured real screen-height handwriting page had 37 strokes, so 64 leaves useful headroom for normal writing while honestly refusing to claim that hundreds of tiny strokes remain legible in one 320×480 render (`examples/harness-client/Main.newt:86-96`; `runtime/evidence/ef6round-ink-decimation.txt`).
+The renderer budgets are 64 strokes and 1,600 points per image (`Main.newt:66-84`). Sixty-four is above the measured 37-stroke dense real page (`runtime/evidence/ef6round-ink-decimation.txt`). One soup item is not one stroke: an `'ink2` item expands through `CountStrokes` (`Main.newt:1340-1356`), which is why the multipart stream has a separate 99-part wire backstop.
 
-## Fix
+`InkParts` flushes before the next whole stroke would exceed either image budget (`Main.newt:1517-1551`). `ThinPartAt` preserves every stroke's first and last point when an individual part or stroke exceeds its point budget (`Main.newt:1476-1515`). Each encoded part subtracts its own minimum Y and the note's left origin before clamping to 320×480 (`Main.newt:1553-1587`).
 
-`InkParts` now walks `askStrokes` in stored reading order and flushes the current part before adding a whole stroke that would exceed either 64 strokes or 1,600 points (`examples/harness-client/Main.newt:1518-1552`). It never splits or drops a stroke. A single pathological stroke above 1,600 raw points is still handled by the existing endpoint-preserving thinning pass, now named `ThinPart` (`Main.newt:1480-1516`).
+## EF11 review fixes
 
-Each part keeps EF9's independent thinning and canvas normalization: `EncodeInk` subtracts that part's minimum Y and the note's existing left origin before clamping to the 320×480 canvas (`Main.newt:1554-1586`). The one-part path still omits `P`; multipart bodies still use `P KK NN` (`Main.newt:1561-1566,1589-1610`).
+1. **Text-only Notes routes no longer disappear.** `Route` sends non-empty text through `EncodeInkPages`; with no strokes, the encoder now calls `EncodeInk([], 0, hint, mode, 1, 1)` and returns one zero-stroke body (`Main.newt:194-246,1604-1616`). If encoding still fails, the route calls `InkDone` so the promised failure note is filed instead of returning silently (`Main.newt:231-246`). The host accepts zero strokes only with a non-empty hint and answers Ask mode through the model (`pkg_publisher.py:328-370,425-434`). The host test pins the exact client-built `M ask` plus `H` shape (`test_pkg_publisher.py:181-225`).
+2. **Each part gets a full watchdog budget.** `SendInk` arms one ticket, and both `INKP` handlers call `ArmInkWatch`; incrementing `inkSeq` invalidates every older delayed call (`Main.newt:250-270,1931-1966,2112-2118`). The next HTTP endpoint still opens on the same NIE `linkID` (`Main.newt:2131-2162`).
+3. **The client never emits part 100.** `kMaxInkParts = 99` matches the host's `total <= 99` validation (`Main.newt:79-84,1618-1642`; `pkg_publisher.py:348-355`). If the backstop fires, `askThinned` makes the existing warning visible in the app transcript or route reply label (`Main.newt:240,1618-1625,1691-1692`).
+4. **Body overflow retries one part, not the whole note.** `EncodeInk` measures the finished body; above 16,384 bytes it reruns `EncodeInkAt` with `maxPoints div 2`, marks the part thinned, and only rejects it if the second body is still too large (`Main.newt:1556-1601`; host cap `pkg_publisher.py:328-331`).
+5. **Uninstall identity is measured.** EF11 removal left exactly `Duplicate/newtDuplicateScript` and `Delete/newtDeleteScript`, not merely an array of length two (`runtime/evidence/ef10round-fix-uninstall-routes.txt`).
 
-The proven transport did not change. Intermediate `INKP` closes one HTTP/1.0 endpoint, then `InkNext` opens the next endpoint on the same `linkID`; it does not grab a second NIE link (`Main.newt:2072-2122`). Both the Notes-menu agent and app window still recognize `INKP` (`test_newton_client_source.py`, `test_long_ink_is_split_by_per_image_legibility_budgets_and_sent_in_order`).
+## Emulator evidence
 
-The host needed no code change. It already accepts totals through 99, renders each part separately, stores readings in sequence, and joins them only on the final part (`pkg_publisher.py:348-355,402-452`). The host test now sends four parts and verifies four PNG names plus `INK FIRST SECOND THIRD FOURTH`, proving there is no three-part cap (`test_pkg_publisher.py:223-256`).
+All new evidence used isolated instance `ef10round-fix`, seeded from `internal-before-round9-loader-20260725-195622.flash`. Image parts went through the real `pkg_publisher.py` image interpreter; the zero-stroke Ask used real `server.py` with `fake=False` (`runtime/evidence/ef10round-fix-chat-host.log`).
 
-## Emulator proof
+- **Zero-stroke Ask AI:** the client built one 60-byte body with zero strokes; the host logged `mode=ask ... strokes=0`, returned `ZERO STROKE OK`, and the agent filed that exact text in AI (`ef10round-fix-zero-route-start.txt`, `ef10round-fix-zero-host.log`, `ef10round-fix-zero-reply.txt`, screenshot `ef10round-fix-zero-reply.png`).
+- **Exact boundaries:** 63 and 64 strokes stayed in one part; 65 became 64+1. Totals 1,599 and 1,600 stayed together; 1,601 across two strokes became 1+1. One 1,601-point stroke stayed in one part and thinned to 801 points (`ef10round-fix-boundaries.txt`).
+- **99-part backstop:** a controlled installed-client probe forced one stroke per part and requested 100 parts. It returned 99 bodies, set `askThinned=yes`, emitted `P 99 99`, emitted no `P 100`, and reported 198 of 200 points sent (`ef10round-fix-backstop.txt`).
+- **Body re-thin:** a controlled installed-client probe raised the local point budget to 2,000 to construct an actual 18,229-byte body above the real 16,384-byte cap. `EncodeInk` retried at half budget and returned a 6,240-byte body with 668 points, `retried=yes`, `thinned=yes` (`ef10round-fix-body-rethin.txt`).
+- **Four-part client stream:** one 36-stroke/6,120-point note produced four parts of 9 strokes/1,530 points. The host rendered four PNGs and returned four ordered readings; the filed note read `ALPHA ALPHA ALPHA ALPHA`. The watchdog sequence advanced from 2 after initial arming to 5 after three `INKP` acknowledgements (`ef10round-fix-many-probe.txt`, `ef10round-fix-many-route-start.txt`, `ef10round-fix-many-host.log`, `ef10round-fix-many-reply.txt`, renders `ef10round-fix-many-part-01.png` through `-04.png`).
+- **Build and tests:** tntk built EF11/package version 23 (`ef10round-fix-build.log`), and the full suite passed 105 tests (`ef10round-fix-full-tests.txt`). Package SHA-256 is recorded in `ef10round-fix-package-sha256.txt`.
 
-Isolated instance `ef10round`, seeded from `internal-before-round9-loader-20260725-195622.flash`; the host was the real `pkg_publisher.py` image-interpretation path, not a fake chat backend.
+## Earlier EF10 budget proofs
 
-- **Point-budget proof matching the hardware failure shape:** uid 3 held 27 strokes and 2,430 raw points between Y=110 and Y=302—under the 64-stroke cap, over the 1,600-point cap, and wholly inside one EF9 band. EF10 emitted two parts: part 1 had 18 strokes and 1,530 raw/sent points; part 2 had 9 strokes and 900 raw/sent points. Neither part needed thinning (`runtime/evidence/ef10round-pointsplit-seed.txt`, `ef10round-pointsplit-probe.txt`).
-- **Real ordered point-split interpretation:** the host rendered `ef10round-pointsplit-part-01.png` and `ef10round-pointsplit-part-02.png`, logging 1,530 and 900 points respectively, and the filed AI note read exactly `ALPHA BRAVO ALPHA` in order (`ef10round-pointsplit-host.log`, `ef10round-pointsplit-reply.txt`, screenshot `ef10round-pointsplit-reply.png`).
-- **Independent stroke-budget proof:** uid 5 contained 128 stored strokes between Y=110 and Y=302, so EF9's 428-pixel rule would have emitted one over-budget image. EF10 reported `ef9Bands=1 parts=2 part1=64st/128pt/top110 part2=64st/128pt/top260` (`runtime/evidence/ef10round-seed-dense-note.txt`, `ef10round-pagination-probe.txt`). The host rendered two PNGs and filed `ALPHA BRAVO ALPHA` in order (`ef10round-dense-host.log`, `ef10round-dense-reply.txt`, `ef10round-dense-part-01.png`, `ef10round-dense-part-02.png`).
-- **Short fast path:** uid 7 reported `strokes=9 rawPoints=25 parts=1`; the host logged one 211-byte body with no `part=` field and filed `ALPHA` (`ef10round-short-probe.txt`, `ef10round-short-host.log`, `ef10round-short-reply.txt`, render `ef10round-short-part.png`).
-- **Transport/agent invariants:** the two EF10 menu entries shared one agent, and `POST /tools` ping returned `pong` (`ef10round-sweep-ef10-initial.txt`, `ef10round-tools-ping.json`).
-- **Install/uninstall:** installing EF10 over installed EF9 left exactly four routes—two stock plus two EF10—with one shared agent, not accumulated EF9 routes (`ef10round-sweep-ef9.txt`, `ef10round-sweep-ef10.txt`). Removing EF10 left `routes=2` while `EF9=installed EF10=missing`, proving the generation sweep and identity-scoped uninstall remain intact (`ef10round-sweep-uninstall.txt`, `ef10round-sweep-final.txt`, `ef10round-sweep-package-refs-final.txt`).
-- **Build and tests:** the package rebuilt as identity EF10/version 22 (`ef10round-build.log`); the full suite passed `102 passed` (`ef10round-full-tests.txt`). Package SHA-256 is recorded in `ef10round-package-sha256.txt`.
+The original point-budget proof used 27 strokes/2,430 points in one EF9 band and filed `ALPHA BRAVO ALPHA` (`ef10round-pointsplit-probe.txt`, `ef10round-pointsplit-host.log`, `ef10round-pointsplit-reply.txt`). The independent stroke-budget proof used 128 strokes and filed the same ordered text (`ef10round-pagination-probe.txt`, `ef10round-dense-host.log`, `ef10round-dense-reply.txt`). The one-part ink path filed `ALPHA` (`ef10round-short-probe.txt`, `ef10round-short-host.log`, `ef10round-short-reply.txt`).
 
 ## Deferred
 
-Physical MP2000 validation remains human-gated. EF10 was not deployed to Mars or installed on hardware.
+Physical MP2000 validation remains human-gated. EF11 was not deployed to Mars or installed on hardware.

@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef10_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef11_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF10:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef10";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF11:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef11";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF10:jbfly"' in PROJECT
-    assert "version: 22" in PROJECT
+    assert 'name: "EggFrecklesEF11:jbfly"' in PROJECT
+    assert "version: 23" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -328,10 +328,10 @@ def test_ink_is_decimated_never_truncated():
     # stroke kept. The 1600-point budget is no longer shared by the whole note.
     assert "ThinPart: func(strokes)" in SOURCE
     assert "local stride := (total div target) + 1;" in SOURCE
-    assert "local target := self.maxPoints - (2 * count);" in SOURCE
+    assert "local target := budget - (2 * count);" in SOURCE
     assert "if (since >= stride) or (at = size - 1) then" in SOURCE
-    encode = SOURCE.index("EncodeInk: func(strokes, originTop, hint, mode, part, total)")
-    assert SOURCE.index(":ThinPart(strokes);", encode) < SOURCE.index("local body :=", encode)
+    assert "ThinPartAt: func(strokes, budget)" in SOURCE
+    assert ":ThinPartAt(strokes, self.maxPoints)" in SOURCE
     # And the human is told, in the transcript and in the reply note.
     assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
     assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
@@ -354,7 +354,7 @@ def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
 
 def test_long_ink_is_split_by_per_image_legibility_budgets_and_sent_in_order():
     # CollectNote walks the whole soup array in stored reading order; no visible
-    # view or geometric page band filters capture. EF10 flushes before the next
+    # view or geometric page band filters capture. EF11 flushes before the next
     # whole stroke would exceed 64 strokes or 1600 points in one rendered PNG.
     collect = SOURCE.index("CollectNote: func(data)")
     parts = SOURCE.index("InkParts: func()")
@@ -366,7 +366,7 @@ def test_long_ink_is_split_by_per_image_legibility_budgets_and_sent_in_order():
     assert "(Length(strokes) + 1) > self.maxStrokes" in SOURCE
     assert "(count + size) > self.maxPoints" in SOURCE
     assert "AddArraySlot(parts, {top: top, strokes: strokes});" in SOURCE
-    assert "local fitted := :ThinPart(strokes);" in SOURCE
+    assert "local fitted := :ThinPartAt(strokes, budget);" in SOURCE
     assert 'body := body & "P " & :SeqText(part) & " "' in SOURCE
     assert "if total > 1 then" in SOURCE
     assert "EncodeInkPages: func(hint, mode)" in SOURCE
@@ -376,6 +376,47 @@ def test_long_ink_is_split_by_per_image_legibility_budgets_and_sent_in_order():
     # One-page notes stay on one body with no P line and one POST.
     assert "if total > 1 then body := body" in SOURCE
     assert "POST /ink HTTP/1.0" in SOURCE
+
+
+def test_notes_route_encodes_text_only_as_one_zero_stroke_ink_body():
+    route = SOURCE.index("Route: func(target, targetView, mode)")
+    encode = SOURCE.index("EncodeInkPages: func(hint, mode)")
+    assert SOURCE.index(":EncodeInkPages(hint, mode);", route) < SOURCE.index(":SendInk(body, strokes);", route)
+    block = SOURCE[encode:SOURCE.index("ClampAt: func", encode)]
+    assert ":EncodeInk([], 0, hint, mode, 1, 1);" in block
+    assert "return [empty.body];" in block
+    assert 'local body := "NSI1 320 480 " & Length(fitted.strokes) & "\\r\\n";' in SOURCE
+    assert 'body := body & "M ask\\r\\n"' in SOURCE
+    assert 'body := body & "H " & hint & "\\r\\n";' in SOURCE
+    # A last-resort encoding failure files a visible failure note, never silence.
+    assert 'self.inkGotReply := nil;' in SOURCE[route:SOURCE.index("HandleInkLine: func", route)]
+    assert ':SetStatus("Ink could not fit");' in SOURCE
+    assert "return :InkDone();" in SOURCE[route:SOURCE.index("HandleInkLine: func", route)]
+
+
+def test_multipart_watchdog_is_rearmed_and_total_is_protocol_safe():
+    assert "kMaxInkParts := 99;" in SOURCE
+    assert "maxInkParts: kMaxInkParts," in SOURCE
+    assert "if total > self.maxInkParts then" in SOURCE
+    assert "total := self.maxInkParts;" in SOURCE
+    assert "self.askThinned := true;" in SOURCE
+    assert "ArmInkWatch: func()" in SOURCE
+    assert SOURCE.count(":ArmInkWatch();") == 3  # initial send + two INKP handlers
+    assert "self.inkSeq := self.inkSeq + 1;" in SOURCE[SOURCE.index("ArmInkWatch: func()"):]
+    assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
+
+
+def test_oversize_ink_body_retries_at_half_budget():
+    assert "kMaxInkBody := 16384;" in SOURCE
+    assert "maxInkBody: kMaxInkBody," in SOURCE
+    assert "EncodeInkAt: func(strokes, originTop, hint, mode, part, total, budget)" in SOURCE
+    encode = SOURCE.index("EncodeInk: func(strokes, originTop, hint, mode, part, total)")
+    block = SOURCE[encode:SOURCE.index("EncodeInkPages: func", encode)]
+    assert "if StrLen(encoded.body) > self.maxInkBody then" in block
+    assert "total, self.maxPoints div 2);" in block
+    assert "encoded.retried := true;" in block
+    assert "encoded.thinned := true;" in block
+    assert "if StrLen(encoded.body) > self.maxInkBody then return nil;" in block
 
 def test_the_capture_canvas_is_gone_multi_stroke_defect_and_all():
     # The InkPad-derived canvas dropped all but the first stroke when drawing

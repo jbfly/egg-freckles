@@ -1,0 +1,5 @@
+" strokes63=1parts/63 strokes64=1parts/64 strokes65=2parts/64,1"
+"points1599=1parts/2"
+"points1600=1parts/2"
+"points1601=2parts/1,1"
+"single1601=1part/raw1601/sent801/thinned=yes"

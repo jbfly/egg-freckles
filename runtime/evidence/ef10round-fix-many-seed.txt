@@ -1,0 +1,1 @@
+"uid=5 strokes=36 rawExpected=6120 minY=110 maxY=332"

@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF10:jbfly|;
-kVersion := "1.0-ef10";
+kAppSymbol := '|EggFrecklesEF11:jbfly|;
+kVersion := "1.0-ef11";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -63,25 +63,11 @@ kScanLimit := 16;
 // nothing at all. Dropping strokes is the worst possible failure for a vision
 // call: the picture stays plausible and becomes wrong.
 //
-// EF6 keeps every stroke and thins the points inside it (:ThinInk). The budget
-// below is what the host will actually accept, worked out rather than guessed:
-//
-//   host cap on the /ink body      16384 bytes  (pkg_publisher.py:323,
-//                                                `not 0 < length <= 16384`)
-//   - header "NSI1 320 480 NNN\r\n"   -20
-//   - the optional H line, kHintBytes + "H " + CRLF
-//                                     -204
-//   - one "S <count>\r\n" per stroke, 8 bytes x kMaxItems
-//                                   -2048
-//                                  ------
-//   left for point text             14112 bytes
-//
-// A point costs " <dx> <dy>" — measured 4-6 bytes on real thinned handwriting
-// (see the round record), 8 bytes as a pessimistic bound once thinning has
-// multiplied the deltas up. 14112 / 8 = 1764, so 1600 points fits even at the
-// pessimistic rate and leaves ~1.3 KB spare; at the measured rate it uses less
-// than half the cap. That is 4x A9's budget, and the thinning pass means the
-// budget now costs resolution instead of costing strokes.
+// EF6 keeps every stroke and thins points inside it. 1600 is the measured
+// per-image legibility budget; the independent host body cap is 16384 bytes
+// (`pkg_publisher.py:330`). Delta text can be wider after thinning, so EF11
+// measures the encoded body and retries that part at half budget if necessary
+// (`EncodeInk`), spending resolution rather than dropping a stroke.
 kMaxPoints := 1600;
 // The densest measured real screen-height page had 37 strokes
 // (runtime/evidence/ef6round-ink-decimation.txt). 64 leaves honest headroom
@@ -90,10 +76,12 @@ kMaxPoints := 1600;
 // ponytail: fixed because the renderer and canvas are fixed; revisit only with
 // measured image-interpretation evidence from a different rendering path.
 kMaxStrokes := 64;
-// Every stroke is one item in the note's `data`, so 64 was itself a stroke cap
-// on long handwriting. 256 is past any page a human can fill and still bounded,
-// which is what the twelfth finding asks for.
+// One 'ink2 data item can expand into hundreds of strokes through CountStrokes;
+// kMaxItems bounds the soup walk, not the stroke count. The multipart encoder
+// therefore has its own two-digit wire backstop and reports any loss visibly.
 kMaxItems := 256;
+kMaxInkParts := 99;
+kMaxInkBody := 16384;
 // The ceiling on points read out of the soup *before* thinning, so a pathological
 // note cannot fill the NewtonScript heap while we are still collecting. Past it a
 // stroke is kept as its two endpoints rather than dropped — the shape degrades,
@@ -240,7 +228,12 @@ noteAgent := {
         // the label has to be able to say so. `strokes` is the true drawn count
         // either way — EF6 drops no strokes.
         local body := :EncodeInkPages(hint, mode);
-        if body = nil then return nil;
+        if body = nil then
+        begin
+            self.inkGotReply := nil;
+            :SetStatus("Ink could not fit");
+            return :InkDone();
+        end;
         if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
         else self.aiLabel := "" & strokes & " strokes";
         if self.askThinned then
@@ -259,6 +252,7 @@ noteAgent := {
         if BeginsWith(line, "INKP ") then
         begin
             self.inkPartAck := true;
+            :ArmInkWatch();
             return nil;
         end;
         if not BeginsWith(line, "INK ") then return nil;
@@ -412,6 +406,8 @@ mainView := {
     scanLimit: kScanLimit,
     maxPoints: kMaxPoints,
     maxStrokes: kMaxStrokes,
+    maxInkParts: kMaxInkParts,
+    maxInkBody: kMaxInkBody,
     maxItems: kMaxItems,
     maxRaw: kMaxRaw,
     hintBytes: kHintBytes,
@@ -1480,14 +1476,14 @@ mainView := {
     // Fit one image part's point budget by thinning every stroke, never by
     // dropping one. Parts are formed by the legibility budgets below; this pass
     // still handles a single pathological stroke that exceeds kMaxPoints.
-    ThinPart: func(strokes)
+    ThinPartAt: func(strokes, budget)
     begin
         local total := 0;
         foreach points in strokes do total := total + (Length(points) div 2);
-        if total <= self.maxPoints then
+        if total <= budget then
             return {strokes: strokes, points: total, thinned: nil};
         local count := Length(strokes);
-        local target := self.maxPoints - (2 * count);
+        local target := budget - (2 * count);
         if target < count then target := count;
         local stride := (total div target) + 1;
         local thinned := [];
@@ -1514,6 +1510,9 @@ mainView := {
         end;
         return {strokes: thinned, points: kept, thinned: true};
     end,
+
+    ThinPart: func(strokes)
+        :ThinPartAt(strokes, self.maxPoints),
 
     // CollectNote already walks strokes in the note's stored reading order. Fill
     // each rendered image until the next whole stroke would exceed either
@@ -1551,11 +1550,12 @@ mainView := {
         return parts;
     end,
 
-    // One NSI1 image part. P mirrors MSGP's two-digit index/total fields; it is absent
-    // on the single-page fast path, preserving EF8's one POST and one model call.
-    EncodeInk: func(strokes, originTop, hint, mode, part, total)
+    // One NSI1 image part. P mirrors MSGP's two-digit index/total fields; it is
+    // absent on the single-part fast path. Encoding is separated from the body
+    // cap retry so the retry thins this part only, never the whole note.
+    EncodeInkAt: func(strokes, originTop, hint, mode, part, total, budget)
     begin
-        local fitted := :ThinPart(strokes);
+        local fitted := :ThinPartAt(strokes, budget);
         local originLeft := self.askLeft;
         if originLeft = nil then originLeft := 0;
         local body := "NSI1 320 480 " & Length(fitted.strokes) & "\r\n";
@@ -1581,16 +1581,48 @@ mainView := {
                 index := index + 2;
             end;
             body := body & line & "\r\n";
-            if StrLen(body) > 16384 then return nil;
         end;
-        return {body: body, points: fitted.points, thinned: fitted.thinned};
+        return {body: body, points: fitted.points, thinned: fitted.thinned,
+            retried: nil};
+    end,
+
+    EncodeInk: func(strokes, originTop, hint, mode, part, total)
+    begin
+        local encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
+            total, self.maxPoints);
+        if StrLen(encoded.body) > self.maxInkBody then
+        begin
+            encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
+                total, self.maxPoints div 2);
+            encoded.retried := true;
+            encoded.thinned := true;
+        end;
+        if StrLen(encoded.body) > self.maxInkBody then return nil;
+        return encoded;
     end,
 
     EncodeInkPages: func(hint, mode)
     begin
         local parts := :InkParts();
         local total := Length(parts);
-        if total < 1 then return nil;
+        // Text-only Notes routes still use /ink so the answer is filed by the
+        // route agent. The host accepts this zero-stroke NSI1 + H shape.
+        if total < 1 then
+        begin
+            if (hint = nil) or (StrLen(hint) < 1) then return nil;
+            local empty := :EncodeInk([], 0, hint, mode, 1, 1);
+            if empty = nil then return nil;
+            self.askPoints := 0;
+            return [empty.body];
+        end;
+        // P uses two-digit indices and the host rejects totals above 99. This is
+        // the only content backstop: normal notes are never capped. If it fires,
+        // askThinned makes the existing raw-versus-sent warning visible.
+        if total > self.maxInkParts then
+        begin
+            total := self.maxInkParts;
+            self.askThinned := true;
+        end;
         local bodies := [];
         local sent := 0;
         local index := 0;
@@ -1906,14 +1938,22 @@ mainView := {
         self.inkBusy := true;
         self.inkGotReply := nil;
         self.inkBindRetried := nil;
-        self.inkSeq := self.inkSeq + 1;
         if Length(self.inkBodies) > 1 then
             :SetStatus("Sending page 1/" & Length(self.inkBodies))
         else :SetStatus("Sending " & strokes & " strokes");
-        AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
-            [self, self.inkSeq], 150000);
+        :ArmInkWatch();
         if self.linkID then return :InkOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
+        return nil;
+    end,
+
+    // A multipart stream gets one full vision-call budget per part. Incrementing
+    // the ticket makes every earlier delayed call harmless.
+    ArmInkWatch: func()
+    begin
+        self.inkSeq := self.inkSeq + 1;
+        AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
+            [self, self.inkSeq], 150000);
         return nil;
     end,
 
@@ -2074,6 +2114,7 @@ mainView := {
         if BeginsWith(line, "INKP ") then
         begin
             self.inkPartAck := true;
+            :ArmInkWatch();
             return nil;
         end;
         if not BeginsWith(line, "INK ") then return nil;
