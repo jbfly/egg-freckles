@@ -1,0 +1,1 @@
+90ee54e8cb66c8681c4963dad0eaa9386354713831862c4a20eb7d8bbcbbe683  examples/harness-client/egg-freckles.pkg

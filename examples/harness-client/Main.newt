@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF11:jbfly|;
-kVersion := "1.0-ef11";
+kAppSymbol := '|EggFrecklesEF12:jbfly|;
+kVersion := "1.0-ef12";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -95,6 +95,7 @@ kHintBytes := 200;
 kTextMenuTitle := "Convert to Text";
 kAskMenuTitle := "Ask AI";
 kAIFolder := "AI";
+kInkCapNotice := "Note too long - first 99 pages sent";
 // How many 5-second retries the hook gets if GetRoot().paperroll is not
 // instantiated yet when InstallScript runs at boot (design §5, [verify]).
 kHookTries := 4;
@@ -176,6 +177,7 @@ noteAgent := {
     // ponytail: tntk segfaults on a top-level constant inside a function body
     // (the same trap the transcript caps hit), so the folder name is a slot.
     aiFolder: kAIFolder,
+    inkCapNotice: kInkCapNotice,
 
     SetStatus: func(message)
     begin
@@ -236,6 +238,8 @@ noteAgent := {
         end;
         if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
         else self.aiLabel := "" & strokes & " strokes";
+        if self.askPartCapped then
+            self.aiLabel := self.aiLabel & " (first 99 pages sent)";
         if self.askThinned then
             self.aiLabel := self.aiLabel & " (ink thinned to fit)";
         // Everything from here is the Ask button's asynchronous POST, unchanged:
@@ -425,6 +429,7 @@ mainView := {
     askLeft: nil,
     askTop: nil,
     askThinned: nil,
+    askPartCapped: nil,
     inkBody: nil,
     inkBodies: nil,
     inkPartIndex: 0,
@@ -1284,6 +1289,7 @@ mainView := {
         self.askLeft := nil;
         self.askTop := nil;
         self.askThinned := nil;
+        self.askPartCapped := nil;
         local items := 0;
         foreach item in data do
         begin
@@ -1582,8 +1588,7 @@ mainView := {
             end;
             body := body & line & "\r\n";
         end;
-        return {body: body, points: fitted.points, thinned: fitted.thinned,
-            retried: nil};
+        return {body: body, points: fitted.points, thinned: fitted.thinned};
     end,
 
     EncodeInk: func(strokes, originTop, hint, mode, part, total)
@@ -1594,7 +1599,6 @@ mainView := {
         begin
             encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
                 total, self.maxPoints div 2);
-            encoded.retried := true;
             encoded.thinned := true;
         end;
         if StrLen(encoded.body) > self.maxInkBody then return nil;
@@ -1616,12 +1620,12 @@ mainView := {
             return [empty.body];
         end;
         // P uses two-digit indices and the host rejects totals above 99. This is
-        // the only content backstop: normal notes are never capped. If it fires,
-        // askThinned makes the existing raw-versus-sent warning visible.
+        // the only content backstop: normal notes are never capped. Whole parts
+        // are omitted here, so report truncation distinctly from point thinning.
         if total > self.maxInkParts then
         begin
             total := self.maxInkParts;
-            self.askThinned := true;
+            self.askPartCapped := true;
         end;
         local bodies := [];
         local sent := 0;
@@ -1688,6 +1692,7 @@ mainView := {
         // thinning notice only survives in the transcript. Say it plainly and
         // with both numbers: the human asked to be told when the device is not
         // sending everything it read.
+        if self.askPartCapped then :AppendLine(self.inkCapNotice);
         if self.askThinned then :AppendLine("Note: ink thinned to fit ("
             & self.askRaw & " points sent as " & self.askPoints & ")");
         :ShowTranscript();
@@ -1951,6 +1956,7 @@ mainView := {
     // the ticket makes every earlier delayed call harmless.
     ArmInkWatch: func()
     begin
+        if not self.inkBusy then return nil;
         self.inkSeq := self.inkSeq + 1;
         AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
             [self, self.inkSeq], 150000);
@@ -2130,6 +2136,7 @@ mainView := {
 
     InkDropped: func()
     begin
+        if not self.inkBusy then return nil;
         if self.inkPartAck and ((self.inkPartIndex + 1) < Length(self.inkBodies)) then
         begin
             self.inkPartIndex := self.inkPartIndex + 1;
@@ -2151,6 +2158,7 @@ mainView := {
     // hardware-proven -16009 failure.
     InkNext: func()
     begin
+        if not self.inkBusy then return nil;
         if self.inkEndpoint then
         begin
             try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
