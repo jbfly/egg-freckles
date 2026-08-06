@@ -1,0 +1,1 @@
+"uid=3 strokes=27 rawPoints=2430 ef9Bands=1 parts=2 part1=18st/raw1530/sent1530/thinned=no/top110 part2=9st/raw900/sent900/thinned=no/top260"
