@@ -228,26 +228,30 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    page1 = b"NSI1 320 480 1\r\nM text\r\nP 01 02\r\nS 2 10 20 20 30\r\n"
-                    page2 = b"NSI1 320 480 1\r\nM text\r\nP 02 02\r\nS 2 30 40 20 30\r\n"
+                    pages = [
+                        (f"NSI1 320 480 1\r\nM text\r\nP {index:02d} 04\r\n"
+                         f"S 2 {index * 10} 20 20 30\r\n").encode()
+                        for index in range(1, 5)
+                    ]
+                    readings = ["FIRST", "SECOND", "THIRD", "FOURTH"]
                     with mock.patch.object(pkg_publisher, "interpret",
-                                           side_effect=["FIRST PAGE", "SECOND PAGE"]) as vision:
-                        status, _, response, _ = self.fetch(port, "/ink", "POST", page1)
-                        self.assertEqual((status, response), (200, b"INKP 01 02\r\n"))
-                        status, _, response, _ = self.fetch(port, "/ink", "POST", page2)
-                    self.assertEqual((status, response),
-                                     (200, b"INK FIRST PAGE SECOND PAGE\r\n"))
+                                           side_effect=readings) as vision:
+                        for index, page in enumerate(pages, 1):
+                            status, _, response, _ = self.fetch(port, "/ink", "POST", page)
+                            expected = (f"INKP {index:02d} 04\r\n".encode() if index < 4
+                                        else b"INK FIRST SECOND THIRD FOURTH\r\n")
+                            self.assertEqual((status, response), (200, expected))
                     self.assertEqual(
                         [call.args[0].name for call in vision.call_args_list],
-                        ["ink-part-01.png", "ink-part-02.png"],
+                        [f"ink-part-{index:02d}.png" for index in range(1, 5)],
                     )
-                    self.assertTrue((Path(tmp) / "ink-part-01.png").exists())
-                    self.assertTrue((Path(tmp) / "ink-part-02.png").exists())
+                    for index in range(1, 5):
+                        self.assertTrue((Path(tmp) / f"ink-part-{index:02d}.png").exists())
                     self.assertEqual(server.ink_parts, {})
 
                     # A missing first part is rejected before any model call.
                     with mock.patch.object(pkg_publisher, "interpret") as vision:
-                        status, _, response, _ = self.fetch(port, "/ink", "POST", page2)
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", pages[1])
                     self.assertEqual((status, response), (400, b"invalid ink part\n"))
                     vision.assert_not_called()
                 finally:

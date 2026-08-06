@@ -7,6 +7,8 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-06 — EF10: ink pagination follows image legibility, not page height.** Ships as `EggFrecklesEF10:jbfly` (v1.0-ef10, package version 22), sha256 `32eda78c6f8a…`. A part flushes before its next whole stroke would exceed 64 strokes or 1,600 points; the proven `P`/`INKP`/`INK` transport is unchanged. Isolated `ef10round` real-image proof split one 128-stroke, single-band note into two 64-stroke PNGs and filed `ALPHA BRAVO ALPHA`; the short one-body path filed `ALPHA`. Install over EF9 swept stale routes, `/tools` ping returned `pong`, and uninstall left two stock routes. Full suite: 102 passed. Evidence and design: `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
+
 - **2026-08-04 — EF6: ink is decimated instead of truncated, the tools poll is
   package-wide, and every NIE callback is armored.** Ships as
   `EggFrecklesEF6:jbfly` (v1.0-ef6), sha256 `7cce547b…`, still one package and
@@ -1195,10 +1197,11 @@ switches to Claude, the same MCP server plugs in. Steps:
     (design)".
   - **The InkPad-derived canvas is deleted** when this ships, and its
     multi-stroke bug with it, unfixed.
-  - **Superseded by EF9 (2026-08-06):** real multi-page hardware notes exceeded
-    the useful one-image budget. EF9 sends ordered page-height `P KK NN` `/ink`
-    bodies and preserves the one-POST short path; diagnosis and emulator proof
-    are in `docs/ef9-ink-pagination.md`.
+  - **Superseded by EF10 (2026-08-06):** EF9 fixed later-page clamping but still
+    put every dense screen-height band through one image. EF10 groups ordered
+    strokes by 64-stroke/1,600-point per-image budgets and preserves the same
+    multipart and short paths; proof is in `docs/ef10-ink-pagination.md`
+    (EF9 diagnosis/history: `docs/ef9-ink-pagination.md`).
 
 ## Track F — the harness panel (Chat A4/A7; 2–3 sessions)
 

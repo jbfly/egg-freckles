@@ -1,0 +1,1 @@
+"uid=5 strokes=128 rawPoints=256 ef9Bands=1 parts=2 part1=64st/128pt/top110 part2=64st/128pt/top260"

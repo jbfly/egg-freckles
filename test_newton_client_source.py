@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef9_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef10_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF9:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef9";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF10:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef10";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF9:jbfly"' in PROJECT
-    assert "version: 21" in PROJECT
+    assert 'name: "EggFrecklesEF10:jbfly"' in PROJECT
+    assert "version: 22" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -316,20 +316,22 @@ def test_ink_is_decimated_never_truncated():
     # (pkg_publisher.py) at a pessimistic 8 bytes per point; measured on the
     # wire it is 4.27 (runtime/evidence/ef6round-ink-decimation.txt).
     assert "kMaxPoints := 1600;" in SOURCE
+    assert "kMaxStrokes := 64;" in SOURCE
+    assert "maxStrokes: kMaxStrokes," in SOURCE
     assert "kMaxItems := 256;" in SOURCE
     assert "kMaxRaw := 12000;" in SOURCE
     assert "maxRaw: kMaxRaw," in SOURCE
     # The refusal is gone. Nothing anywhere may drop a stroke for being late.
     assert "if (self.askPoints + count) > self.maxPoints then" not in CODE
     assert "askTruncated" not in SOURCE
-    # One linear pass per page, integer stride, first and last point of every
+    # One linear pass per part, integer stride, first and last point of every
     # stroke kept. The 1600-point budget is no longer shared by the whole note.
-    assert "ThinPage: func(strokes)" in SOURCE
+    assert "ThinPart: func(strokes)" in SOURCE
     assert "local stride := (total div target) + 1;" in SOURCE
     assert "local target := self.maxPoints - (2 * count);" in SOURCE
     assert "if (since >= stride) or (at = size - 1) then" in SOURCE
     encode = SOURCE.index("EncodeInk: func(strokes, originTop, hint, mode, part, total)")
-    assert SOURCE.index(":ThinPage(strokes);", encode) < SOURCE.index("local body :=", encode)
+    assert SOURCE.index(":ThinPart(strokes);", encode) < SOURCE.index("local body :=", encode)
     # And the human is told, in the transcript and in the reply note.
     assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
     assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
@@ -350,19 +352,21 @@ def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
 
 
 
-def test_long_ink_is_paginated_in_note_space_and_sent_in_order():
-    # CollectNote walks the whole soup array; no visible view or current-page
-    # filter appears in the capture path. EF9 bands that complete geometry into
-    # 428px note-space pages and gives every page its own ThinPage call.
+def test_long_ink_is_split_by_per_image_legibility_budgets_and_sent_in_order():
+    # CollectNote walks the whole soup array in stored reading order; no visible
+    # view or geometric page band filters capture. EF10 flushes before the next
+    # whole stroke would exceed 64 strokes or 1600 points in one rendered PNG.
     collect = SOURCE.index("CollectNote: func(data)")
-    pages = SOURCE.index("InkPages: func()")
+    parts = SOURCE.index("InkParts: func()")
     assert "foreach item in data do" in SOURCE[collect:SOURCE.index("CollectPara: func", collect)]
-    assert "targetView" not in SOURCE[collect:pages]
-    assert "kPageHeight := 428;" in SOURCE
-    assert "pageHeight: kPageHeight," in SOURCE
-    assert "Floor((points[1] - originTop) div self.pageHeight)" in SOURCE
-    assert "top: originTop + (page * self.pageHeight)" in SOURCE
-    assert "local fitted := :ThinPage(strokes);" in SOURCE
+    assert "targetView" not in SOURCE[collect:parts]
+    assert "kPageHeight" not in SOURCE
+    assert "pageHeight:" not in SOURCE
+    assert "foreach points in self.askStrokes do" in SOURCE[parts:SOURCE.index("EncodeInk: func", parts)]
+    assert "(Length(strokes) + 1) > self.maxStrokes" in SOURCE
+    assert "(count + size) > self.maxPoints" in SOURCE
+    assert "AddArraySlot(parts, {top: top, strokes: strokes});" in SOURCE
+    assert "local fitted := :ThinPart(strokes);" in SOURCE
     assert 'body := body & "P " & :SeqText(part) & " "' in SOURCE
     assert "if total > 1 then" in SOURCE
     assert "EncodeInkPages: func(hint, mode)" in SOURCE

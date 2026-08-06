@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF9:jbfly|;
-kVersion := "1.0-ef9";
+kAppSymbol := '|EggFrecklesEF10:jbfly|;
+kVersion := "1.0-ef10";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -16,9 +16,6 @@ kAppLabel := "Egg Freckles";
 // hardcoded, so it lands in the middle of whatever screen the ROM reports.
 kWinWidth := 304;
 kWinHeight := 428;
-// Long Notes entries are one scrolling data array. Split that note-space into
-// screen-height pages instead of crushing every stroke into one 480px PNG.
-kPageHeight := 428;
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -86,6 +83,13 @@ kScanLimit := 16;
 // than half the cap. That is 4x A9's budget, and the thinning pass means the
 // budget now costs resolution instead of costing strokes.
 kMaxPoints := 1600;
+// The densest measured real screen-height page had 37 strokes
+// (runtime/evidence/ef6round-ink-decimation.txt). 64 leaves honest headroom
+// for normal handwriting without pretending a 320x480 image stays legible with
+// hundreds of tiny strokes; it also bounds the per-stroke NSI1 line overhead.
+// ponytail: fixed because the renderer and canvas are fixed; revisit only with
+// measured image-interpretation evidence from a different rendering path.
+kMaxStrokes := 64;
 // Every stroke is one item in the note's `data`, so 64 was itself a stroke cap
 // on long handwriting. 256 is past any page a human can fill and still bounded,
 // which is what the twelfth finding asks for.
@@ -407,10 +411,10 @@ mainView := {
     // threw -48200 (the same trap as capBytes/TranscriptTail in A2).
     scanLimit: kScanLimit,
     maxPoints: kMaxPoints,
+    maxStrokes: kMaxStrokes,
     maxItems: kMaxItems,
     maxRaw: kMaxRaw,
     hintBytes: kHintBytes,
-    pageHeight: kPageHeight,
     placeholder: kInkPlaceholder,
     // What the last Ask read out of the newest note: its paragraph text, its
     // strokes as flat x,y arrays in the note's own space, and the top-left of
@@ -1473,10 +1477,10 @@ mainView := {
         return nil;
     end,
 
-    // Fit one page's point budget by thinning every stroke, never by dropping
-    // one. EF8 applied this budget to the whole scrolling note; EF9 applies it
-    // independently to each 428px page so three pages get three legible budgets.
-    ThinPage: func(strokes)
+    // Fit one image part's point budget by thinning every stroke, never by
+    // dropping one. Parts are formed by the legibility budgets below; this pass
+    // still handles a single pathological stroke that exceeds kMaxPoints.
+    ThinPart: func(strokes)
     begin
         local total := 0;
         foreach points in strokes do total := total + (Length(points) div 2);
@@ -1511,45 +1515,47 @@ mainView := {
         return {strokes: thinned, points: kept, thinned: true};
     end,
 
-    // CollectNote walks the complete soup data array. Page assignment therefore
-    // uses note-space Y, not the current Notes viewBounds or visible screen.
-    InkPages: func()
+    // CollectNote already walks strokes in the note's stored reading order. Fill
+    // each rendered image until the next whole stroke would exceed either
+    // legibility budget, then start another image. A stroke is never split or
+    // dropped; an individually oversized stroke is thinned by :ThinPart.
+    InkParts: func()
     begin
-        local originTop := self.askTop;
-        if originTop = nil then originTop := 0;
-        local maxPage := 0;
+        local parts := [];
+        local strokes := [];
+        local count := 0;
+        local top := nil;
         foreach points in self.askStrokes do
-            if Length(points) > 1 then
-            begin
-                local page := Floor((points[1] - originTop) div self.pageHeight);
-                if page < 0 then page := 0;
-                if page > maxPage then maxPage := page;
-            end;
-        local buckets := Array(maxPage + 1, nil);
-        foreach points in self.askStrokes do
-            if Length(points) > 1 then
-            begin
-                local page := Floor((points[1] - originTop) div self.pageHeight);
-                if page < 0 then page := 0;
-                if buckets[page] = nil then buckets[page] := [];
-                AddArraySlot(buckets[page], points);
-            end;
-        local pages := [];
-        local page := 0;
-        while page <= maxPage do
         begin
-            if buckets[page] <> nil then AddArraySlot(pages,
-                {top: originTop + (page * self.pageHeight), strokes: buckets[page]});
-            page := page + 1;
+            local size := Length(points) div 2;
+            if (Length(strokes) > 0) and
+                (((Length(strokes) + 1) > self.maxStrokes) or
+                 ((count + size) > self.maxPoints)) then
+            begin
+                AddArraySlot(parts, {top: top, strokes: strokes});
+                strokes := [];
+                count := 0;
+                top := nil;
+            end;
+            AddArraySlot(strokes, points);
+            count := count + size;
+            local at := 1;
+            while at < Length(points) do
+            begin
+                if (top = nil) or (points[at] < top) then top := points[at];
+                at := at + 2;
+            end;
         end;
-        return pages;
+        if Length(strokes) > 0 then
+            AddArraySlot(parts, {top: top, strokes: strokes});
+        return parts;
     end,
 
-    // One NSI1 page. P mirrors MSGP's two-digit index/total fields; it is absent
+    // One NSI1 image part. P mirrors MSGP's two-digit index/total fields; it is absent
     // on the single-page fast path, preserving EF8's one POST and one model call.
     EncodeInk: func(strokes, originTop, hint, mode, part, total)
     begin
-        local fitted := :ThinPage(strokes);
+        local fitted := :ThinPart(strokes);
         local originLeft := self.askLeft;
         if originLeft = nil then originLeft := 0;
         local body := "NSI1 320 480 " & Length(fitted.strokes) & "\r\n";
@@ -1582,18 +1588,18 @@ mainView := {
 
     EncodeInkPages: func(hint, mode)
     begin
-        local pages := :InkPages();
-        local total := Length(pages);
+        local parts := :InkParts();
+        local total := Length(parts);
         if total < 1 then return nil;
         local bodies := [];
         local sent := 0;
         local index := 0;
         while index < total do
         begin
-            local pageHint := nil;
-            if index = 0 then pageHint := hint;
-            local encoded := :EncodeInk(pages[index].strokes, pages[index].top,
-                pageHint, mode, index + 1, total);
+            local partHint := nil;
+            if index = 0 then partHint := hint;
+            local encoded := :EncodeInk(parts[index].strokes, parts[index].top,
+                partHint, mode, index + 1, total);
             if encoded = nil then return nil;
             AddArraySlot(bodies, encoded.body);
             sent := sent + encoded.points;
