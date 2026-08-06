@@ -1,0 +1,9 @@
+INK BODY mode=text part=1/3 bytes=220 strokes=9 points=25 bytes_per_point=8.80
+INK PROMPT 'The attached PNG is a sketch or handwriting captured from the 320x480 screen of a Newton MessagePad. Answer with one short plain sentence under 90 characters saying what is drawn; if it is writing, transcribe it. No preamble, no markdown.'
+10.42.0.1 - - [06/Aug/2026 18:15:23] "POST /ink HTTP/1.0" 200 -
+INK BODY mode=text part=2/3 bytes=281 strokes=9 points=37 bytes_per_point=7.59
+INK PROMPT 'The attached PNG is a sketch or handwriting captured from the 320x480 screen of a Newton MessagePad. Answer with one short plain sentence under 90 characters saying what is drawn; if it is writing, transcribe it. No preamble, no markdown.'
+10.42.0.1 - - [06/Aug/2026 18:15:32] "POST /ink HTTP/1.0" 200 -
+INK BODY mode=text part=3/3 bytes=337 strokes=14 points=42 bytes_per_point=8.02
+INK PROMPT 'The attached PNG is a sketch or handwriting captured from the 320x480 screen of a Newton MessagePad. Answer with one short plain sentence under 90 characters saying what is drawn; if it is writing, transcribe it. No preamble, no markdown.'
+10.42.0.1 - - [06/Aug/2026 18:15:42] "POST /ink HTTP/1.0" 200 -

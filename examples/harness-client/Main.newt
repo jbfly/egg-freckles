@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF8:jbfly|;
-kVersion := "1.0-ef8";
+kAppSymbol := '|EggFrecklesEF9:jbfly|;
+kVersion := "1.0-ef9";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -16,6 +16,9 @@ kAppLabel := "Egg Freckles";
 // hardcoded, so it lands in the middle of whatever screen the ROM reports.
 kWinWidth := 304;
 kWinHeight := 428;
+// Long Notes entries are one scrolling data array. Split that note-space into
+// screen-height pages instead of crushing every stroke into one 480px PNG.
+kPageHeight := 428;
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -232,7 +235,7 @@ noteAgent := {
         // The body is built first because :EncodeInk is what thins the ink, and
         // the label has to be able to say so. `strokes` is the true drawn count
         // either way — EF6 drops no strokes.
-        local body := :EncodeInk(hint, mode);
+        local body := :EncodeInkPages(hint, mode);
         if body = nil then return nil;
         if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
         else self.aiLabel := "" & strokes & " strokes";
@@ -249,6 +252,11 @@ noteAgent := {
     // The reply arrives on the same connection as one "INK <text>" line.
     HandleInkLine: func(line)
     begin
+        if BeginsWith(line, "INKP ") then
+        begin
+            self.inkPartAck := true;
+            return nil;
+        end;
         if not BeginsWith(line, "INK ") then return nil;
         self.inkGotReply := true;
         :FileReply(SubStr(line, 4, StrLen(line) - 6));
@@ -402,6 +410,7 @@ mainView := {
     maxItems: kMaxItems,
     maxRaw: kMaxRaw,
     hintBytes: kHintBytes,
+    pageHeight: kPageHeight,
     placeholder: kInkPlaceholder,
     // What the last Ask read out of the newest note: its paragraph text, its
     // strokes as flat x,y arrays in the note's own space, and the top-left of
@@ -417,6 +426,9 @@ mainView := {
     askTop: nil,
     askThinned: nil,
     inkBody: nil,
+    inkBodies: nil,
+    inkPartIndex: 0,
+    inkPartAck: nil,
     inkBusy: nil,
     // Which send the 150 s watchdog belongs to; see SendInk.
     inkSeq: 0,
@@ -1461,40 +1473,26 @@ mainView := {
         return nil;
     end,
 
-    // Fit the point budget by thinning every stroke, never by dropping one.
-    //
-    // One pass, integer stride, no curve maths: keep the first point, then every
-    // stride'th point, and always the last point so the stroke still ends where
-    // the pen lifted. Cost is O(points) — each point is looked at once and
-    // copied at most once — which is what keeps a 3 s host heartbeat alive
-    // through a big note (twelfth finding).
-    //
-    // Why the target is not simply maxPoints: a stroke keeps at most
-    // floor((size-1)/stride) + 1 strided points plus, at worst, one more for the
-    // forced last point, i.e. under size/stride + 2. Summed over `count`
-    // strokes that is under total/stride + 2*count, and stride is chosen strictly
-    // greater than total/target, so the result is under target + 2*count. Taking
-    // target := maxPoints - 2*count therefore puts the sum under maxPoints, which
-    // is the bound the byte arithmetic on kMaxPoints was computed against.
-    ThinInk: func()
+    // Fit one page's point budget by thinning every stroke, never by dropping
+    // one. EF8 applied this budget to the whole scrolling note; EF9 applies it
+    // independently to each 428px page so three pages get three legible budgets.
+    ThinPage: func(strokes)
     begin
-        local total := self.askPoints;
-        if total <= self.maxPoints then return nil;
-        local count := Length(self.askStrokes);
+        local total := 0;
+        foreach points in strokes do total := total + (Length(points) div 2);
+        if total <= self.maxPoints then
+            return {strokes: strokes, points: total, thinned: nil};
+        local count := Length(strokes);
         local target := self.maxPoints - (2 * count);
-        // A note with so many strokes that the headroom eats the whole budget
-        // still gets a sane stride rather than a division by zero.
         if target < count then target := count;
         local stride := (total div target) + 1;
+        local thinned := [];
         local kept := 0;
-        local index := 0;
-        while index < count do
+        foreach points in strokes do
         begin
-            local points := self.askStrokes[index];
             local size := Length(points) div 2;
             local out := [];
             local at := 0;
-            // Seeded at stride so the very first point is always kept.
             local since := stride;
             while at < size do
             begin
@@ -1507,43 +1505,60 @@ mainView := {
                 else since := since + 1;
                 at := at + 1;
             end;
-            self.askStrokes[index] := out;
+            AddArraySlot(thinned, out);
             kept := kept + (Length(out) div 2);
-            index := index + 1;
         end;
-        self.askPoints := kept;
-        self.askThinned := true;
-        return nil;
+        return {strokes: thinned, points: kept, thinned: true};
     end,
 
-    // NSI1 exactly as the host has always parsed it, plus two optional lines:
-    //
-    //   NSI1 <width> <height> <strokeCount>
-    //   M <text|ask>                              (optional, at most one)
-    //   H <text>                                  (optional, at most one)
-    //   S <count> <x> <y> <dx> <dy> ...           (one per stroke)
-    //
-    // M says which menu item was tapped; an older body with no M stays Ask.
-    // The H line carries the note's own paragraph text into the vision prompt,
-    // so a mixed page is ONE request with one reply instead of two model calls
-    // racing for a transcript that has one column. The header's four fields do
-    // not change and H is optional, so a host that grew this still parses the
-    // bodies the older client on the physical MP2000 sends.
-    // Both callers (the Ask button and the Notes routes) get the thinning
-    // for free by it living here, and they read askThinned/askPoints afterwards
-    // to tell the human what happened.
-    EncodeInk: func(hint, mode)
+    // CollectNote walks the complete soup data array. Page assignment therefore
+    // uses note-space Y, not the current Notes viewBounds or visible screen.
+    InkPages: func()
     begin
-        :ThinInk();
-        local originLeft := self.askLeft;
         local originTop := self.askTop;
-        if originLeft = nil then originLeft := 0;
         if originTop = nil then originTop := 0;
-        local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";
+        local maxPage := 0;
+        foreach points in self.askStrokes do
+            if Length(points) > 1 then
+            begin
+                local page := Floor((points[1] - originTop) div self.pageHeight);
+                if page < 0 then page := 0;
+                if page > maxPage then maxPage := page;
+            end;
+        local buckets := Array(maxPage + 1, nil);
+        foreach points in self.askStrokes do
+            if Length(points) > 1 then
+            begin
+                local page := Floor((points[1] - originTop) div self.pageHeight);
+                if page < 0 then page := 0;
+                if buckets[page] = nil then buckets[page] := [];
+                AddArraySlot(buckets[page], points);
+            end;
+        local pages := [];
+        local page := 0;
+        while page <= maxPage do
+        begin
+            if buckets[page] <> nil then AddArraySlot(pages,
+                {top: originTop + (page * self.pageHeight), strokes: buckets[page]});
+            page := page + 1;
+        end;
+        return pages;
+    end,
+
+    // One NSI1 page. P mirrors MSGP's two-digit index/total fields; it is absent
+    // on the single-page fast path, preserving EF8's one POST and one model call.
+    EncodeInk: func(strokes, originTop, hint, mode, part, total)
+    begin
+        local fitted := :ThinPage(strokes);
+        local originLeft := self.askLeft;
+        if originLeft = nil then originLeft := 0;
+        local body := "NSI1 320 480 " & Length(fitted.strokes) & "\r\n";
         if mode = 'text then body := body & "M text\r\n"
         else if mode = 'ask then body := body & "M ask\r\n";
+        if total > 1 then body := body & "P " & :SeqText(part) & " "
+            & :SeqText(total) & "\r\n";
         if (hint <> nil) and (StrLen(hint) > 0) then body := body & "H " & hint & "\r\n";
-        foreach points in self.askStrokes do
+        foreach points in fitted.strokes do
         begin
             local line := "S " & (Length(points) div 2);
             local x := 0;
@@ -1560,14 +1575,33 @@ mainView := {
                 index := index + 2;
             end;
             body := body & line & "\r\n";
-            // ponytail: one HTTP request only; multipart belongs to a later
-            // stage. :ThinInk has already put the point count under kMaxPoints,
-            // whose arithmetic (see the constant) leaves this unreachable at any
-            // plausible bytes-per-point; it stays as the last-resort guard so a
-            // pathological body is refused rather than rejected by the host.
             if StrLen(body) > 16384 then return nil;
         end;
-        return body;
+        return {body: body, points: fitted.points, thinned: fitted.thinned};
+    end,
+
+    EncodeInkPages: func(hint, mode)
+    begin
+        local pages := :InkPages();
+        local total := Length(pages);
+        if total < 1 then return nil;
+        local bodies := [];
+        local sent := 0;
+        local index := 0;
+        while index < total do
+        begin
+            local pageHint := nil;
+            if index = 0 then pageHint := hint;
+            local encoded := :EncodeInk(pages[index].strokes, pages[index].top,
+                pageHint, mode, index + 1, total);
+            if encoded = nil then return nil;
+            AddArraySlot(bodies, encoded.body);
+            sent := sent + encoded.points;
+            if encoded.thinned then self.askThinned := true;
+            index := index + 1;
+        end;
+        self.askPoints := sent;
+        return bodies;
     end,
 
     ClampAt: func(value, limit)
@@ -1606,7 +1640,7 @@ mainView := {
         end;
         local hint := text;
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
-        local body := :EncodeInk(hint, 'ask);
+        local body := :EncodeInkPages(hint, 'ask);
         if body = nil then return :SetStatus("Too much ink to send");
         // `strokes` is the count the pen actually drew: EF6 never drops a
         // stroke, so Length(askStrokes) is the truth and not a survivor count.
@@ -1700,6 +1734,9 @@ mainView := {
         agent.linkID := nil;
         agent.endpoint := nil;
         agent.inkEndpoint := nil;
+        agent.inkBodies := nil;
+        agent.inkPartIndex := 0;
+        agent.inkPartAck := nil;
         agent.inkBusy := nil;
         // The tools channel's mutable state, as own slots, for the same reason:
         // nothing here may be read or written through the read-only template.
@@ -1855,12 +1892,18 @@ mainView := {
     // ("(not sent) The host did not answer" while the host had answered).
     SendInk: func(body, strokes)
     begin
-        self.inkBody := body;
+        if IsArray(body) then self.inkBodies := body
+        else self.inkBodies := [body];
+        self.inkPartIndex := 0;
+        self.inkPartAck := nil;
+        self.inkBody := self.inkBodies[0];
         self.inkBusy := true;
         self.inkGotReply := nil;
         self.inkBindRetried := nil;
         self.inkSeq := self.inkSeq + 1;
-        :SetStatus("Sending " & strokes & " strokes");
+        if Length(self.inkBodies) > 1 then
+            :SetStatus("Sending page 1/" & Length(self.inkBodies))
+        else :SetStatus("Sending " & strokes & " strokes");
         AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
             [self, self.inkSeq], 150000);
         if self.linkID then return :InkOpen();
@@ -1991,7 +2034,7 @@ mainView := {
             _parent: self,
             form: 'string,
             termination: {endSequence: "\r\n"},
-            discardAfter: 256,
+            discardAfter: 1024,
             // ponytail: the vision call measures ~9 s; the input spec waits for
             // it asynchronously, so the app stays live the whole time.
             reqTimeout: 150000,
@@ -2022,6 +2065,11 @@ mainView := {
     // line, so the transcript is the one place answers appear.
     HandleInkLine: func(line)
     begin
+        if BeginsWith(line, "INKP ") then
+        begin
+            self.inkPartAck := true;
+            return nil;
+        end;
         if not BeginsWith(line, "INK ") then return nil;
         self.inkGotReply := true;
         local reading := SubStr(line, 4, StrLen(line) - 6);
@@ -2035,15 +2083,43 @@ mainView := {
 
     InkDropped: func()
     begin
+        if self.inkPartAck and ((self.inkPartIndex + 1) < Length(self.inkBodies)) then
+        begin
+            self.inkPartIndex := self.inkPartIndex + 1;
+            self.inkBody := self.inkBodies[self.inkPartIndex];
+            self.inkPartAck := nil;
+            :SetStatus("Sending page " & (self.inkPartIndex + 1) & "/"
+                & Length(self.inkBodies));
+            AddDelayedCall(func(view) try view:InkNext() onexception |evt.ex| do nil,
+                [self], 1000);
+            return nil;
+        end;
         self.inkBusy := nil;
         if not self.inkGotReply then :SetStatus("The host sent no reading");
         return :InkDone();
+    end,
+
+    // Each HTTP/1.0 part closes its connection. Dispose only that endpoint and
+    // open the next one on the same linkID; grabbing a second NIE link is the
+    // hardware-proven -16009 failure.
+    InkNext: func()
+    begin
+        if self.inkEndpoint then
+        begin
+            try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.inkEndpoint := nil;
+        end;
+        return :InkOpen();
     end,
 
     InkFailed: func(message)
     begin
         self.inkBusy := nil;
         self.inkBody := nil;
+        self.inkBodies := nil;
         :SetStatus(message);
         return :InkDone();
     end,

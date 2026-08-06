@@ -1195,10 +1195,10 @@ switches to Claude, the same MCP server plugs in. Steps:
     (design)".
   - **The InkPad-derived canvas is deleted** when this ships, and its
     multi-stroke bug with it, unfixed.
-  - **The multi-part `/ink` POST is NOT needed** and stays unbuilt. The probe
-    note's 9 items and 279 points encode to roughly 1.1 KB against the 16 KiB
-    cap (`pkg_publisher.py:313`); `?part=k&of=n` remains specified-but-unwritten
-    in `docs/ink-client-design.md` until a real drawing exceeds it.
+  - **Superseded by EF9 (2026-08-06):** real multi-page hardware notes exceeded
+    the useful one-image budget. EF9 sends ordered page-height `P KK NN` `/ink`
+    bodies and preserves the one-POST short path; diagnosis and emulator proof
+    are in `docs/ef9-ink-pagination.md`.
 
 ## Track F — the harness panel (Chat A4/A7; 2–3 sessions)
 

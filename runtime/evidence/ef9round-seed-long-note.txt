@@ -1,0 +1,1 @@
+"uid=4 items=32 pointsClass=polygonshape firstTop=110 lastTop=986"

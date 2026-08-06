@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef8_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef9_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF8:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef8";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF9:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef9";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF8:jbfly"' in PROJECT
-    assert "version: 20" in PROJECT
+    assert 'name: "EggFrecklesEF9:jbfly"' in PROJECT
+    assert "version: 21" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -322,14 +322,14 @@ def test_ink_is_decimated_never_truncated():
     # The refusal is gone. Nothing anywhere may drop a stroke for being late.
     assert "if (self.askPoints + count) > self.maxPoints then" not in CODE
     assert "askTruncated" not in SOURCE
-    # One linear pass, integer stride, first and last point of every stroke kept.
-    assert "ThinInk: func()" in SOURCE
+    # One linear pass per page, integer stride, first and last point of every
+    # stroke kept. The 1600-point budget is no longer shared by the whole note.
+    assert "ThinPage: func(strokes)" in SOURCE
     assert "local stride := (total div target) + 1;" in SOURCE
     assert "local target := self.maxPoints - (2 * count);" in SOURCE
     assert "if (since >= stride) or (at = size - 1) then" in SOURCE
-    # Every encode thins first, so both callers inherit it.
-    encode = SOURCE.index("EncodeInk: func(hint, mode)")
-    assert SOURCE.index(":ThinInk();", encode) < SOURCE.index("local body :=", encode)
+    encode = SOURCE.index("EncodeInk: func(strokes, originTop, hint, mode, part, total)")
+    assert SOURCE.index(":ThinPage(strokes);", encode) < SOURCE.index("local body :=", encode)
     # And the human is told, in the transcript and in the reply note.
     assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
     assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
@@ -341,13 +341,37 @@ def test_ink_is_decimated_never_truncated():
 
 def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
     # M and H are optional, so an older client body still parses as Ask.
-    assert r'local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";' in SOURCE
+    assert r'local body := "NSI1 320 480 " & Length(fitted.strokes) & "\r\n";' in SOURCE
     assert r'body := body & "M text\r\n"' in SOURCE
     assert r'body := body & "M ask\r\n"' in SOURCE
     assert r'body := body & "H " & hint & "\r\n";' in SOURCE
     assert "kHintBytes := 200;" in SOURCE
     assert "if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);" in SOURCE
 
+
+
+def test_long_ink_is_paginated_in_note_space_and_sent_in_order():
+    # CollectNote walks the whole soup array; no visible view or current-page
+    # filter appears in the capture path. EF9 bands that complete geometry into
+    # 428px note-space pages and gives every page its own ThinPage call.
+    collect = SOURCE.index("CollectNote: func(data)")
+    pages = SOURCE.index("InkPages: func()")
+    assert "foreach item in data do" in SOURCE[collect:SOURCE.index("CollectPara: func", collect)]
+    assert "targetView" not in SOURCE[collect:pages]
+    assert "kPageHeight := 428;" in SOURCE
+    assert "pageHeight: kPageHeight," in SOURCE
+    assert "Floor((points[1] - originTop) div self.pageHeight)" in SOURCE
+    assert "top: originTop + (page * self.pageHeight)" in SOURCE
+    assert "local fitted := :ThinPage(strokes);" in SOURCE
+    assert 'body := body & "P " & :SeqText(part) & " "' in SOURCE
+    assert "if total > 1 then" in SOURCE
+    assert "EncodeInkPages: func(hint, mode)" in SOURCE
+    assert "self.inkPartIndex := self.inkPartIndex + 1;" in SOURCE
+    assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
+    assert "return :InkOpen();" in SOURCE[SOURCE.index("InkNext: func()"):]
+    # One-page notes stay on one body with no P line and one POST.
+    assert "if total > 1 then body := body" in SOURCE
+    assert "POST /ink HTTP/1.0" in SOURCE
 
 def test_the_capture_canvas_is_gone_multi_stroke_defect_and_all():
     # The InkPad-derived canvas dropped all but the first stroke when drawing

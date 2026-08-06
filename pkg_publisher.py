@@ -336,14 +336,23 @@ class PublisherHandler(BaseHTTPRequestHandler):
             canvas_width, canvas_height, stroke_count = map(int, header[1:])
             if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0:
                 raise ValueError
-            # NSI1 grammar: header, optional "M <text|ask>", optional
-            # "H <text>", then exactly stroke_count S lines. Old bodies have no
-            # M line, so they keep parsing and default to Ask.
-            body_lines, hint, mode = lines[1:], "", "ask"
+            # NSI1 grammar: header, optional M mode, optional P part/total,
+            # optional H text, then exactly stroke_count S lines. P mirrors the
+            # chat MSGP index protocol; single-page EF8 bodies have no P line.
+            body_lines, hint, mode, part = lines[1:], "", "ask", None
             if body_lines and body_lines[0].startswith("M "):
                 mode = body_lines[0][2:]
                 if mode not in ("text", "ask"):
                     raise ValueError
+                body_lines = body_lines[1:]
+            if body_lines and body_lines[0].startswith("P "):
+                fields = body_lines[0].split()
+                if len(fields) != 3:
+                    raise ValueError
+                part_index, part_total = map(int, fields[1:])
+                if not 1 <= part_index <= part_total <= 99:
+                    raise ValueError
+                part = (part_index, part_total)
                 body_lines = body_lines[1:]
             if body_lines and body_lines[0].startswith("H "):
                 hint = body_lines[0][2:]
@@ -386,16 +395,38 @@ class PublisherHandler(BaseHTTPRequestHandler):
         # logged how much geometry a body carried.
         points = sum(len(stroke) for stroke in strokes)
         rate = f" bytes_per_point={length / points:.2f}" if points else ""
-        print(f"INK BODY mode={mode} bytes={length} strokes={stroke_count} points={points}{rate}",
-              flush=True)
+        part_text = f" part={part[0]}/{part[1]}" if part else ""
+        print(f"INK BODY mode={mode}{part_text} bytes={length} strokes={stroke_count} "
+              f"points={points}{rate}", flush=True)
+
+        # ponytail: one ordered multipart stream is enough because the Newton
+        # sends the next page only after INKP closes this HTTP/1.0 response.
+        key = self.client_address[0]
+        if part:
+            index, total = part
+            with self.server.ink_lock:
+                current = self.server.ink_parts.get(key)
+                if index == 1:
+                    current = {"total": total, "mode": mode, "readings": []}
+                    self.server.ink_parts[key] = current
+                elif (current is None or current["total"] != total
+                      or current["mode"] != mode or len(current["readings"]) + 1 != index):
+                    self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink part\n",
+                                     "text/plain; charset=us-ascii")
+                    return
+
+        png_path = self.ink_path
+        if part:
+            png_path = self.ink_path.with_name(
+                f"{self.ink_path.stem}-part-{part[0]:02d}{self.ink_path.suffix}")
         if strokes:
-            self.ink_path.parent.mkdir(parents=True, exist_ok=True)
-            save_ink_png(self.ink_path, strokes)
+            png_path.parent.mkdir(parents=True, exist_ok=True)
+            save_ink_png(png_path, strokes)
         try:
             # Zero strokes need no PNG: Convert returns the already-usable note
             # text, while Ask keeps the existing plain model turn.
             if strokes:
-                reading = interpret(self.ink_path, hint, mode)
+                reading = interpret(png_path, hint, mode)
             elif mode == "text":
                 reading = hint
             else:
@@ -403,6 +434,24 @@ class PublisherHandler(BaseHTTPRequestHandler):
             status = HTTPStatus.OK
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
+            if part:
+                with self.server.ink_lock:
+                    self.server.ink_parts.pop(key, None)
+
+        if part and status == HTTPStatus.OK:
+            index, total = part
+            with self.server.ink_lock:
+                current = self.server.ink_parts[key]
+                current["readings"].append(reading)
+                if index < total:
+                    response = f"INKP {index:02d} {total:02d}\r\n"
+                else:
+                    response = f"INK {ascii_line(' '.join(current['readings']), 900)}\r\n"
+                    del self.server.ink_parts[key]
+            self._send_bytes(status, response.encode("ascii"),
+                             "text/plain; charset=us-ascii")
+            return
+
         # ponytail: "INK " prefix is all the client needs to tell the body
         # apart from the HTTP header lines its endpoint also delivers.
         self._send_bytes(status, f"INK {reading}\r\n".encode("ascii"),
@@ -563,6 +612,8 @@ class PublisherServer(ThreadingHTTPServer):
 
     def __init__(self, address: tuple[str, int], handler: type[PublisherHandler]) -> None:
         self.tools = ToolBroker()
+        self.ink_lock = threading.Lock()
+        self.ink_parts: dict[str, dict[str, object]] = {}
         super().__init__(address, handler)
 
 

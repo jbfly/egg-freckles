@@ -220,6 +220,40 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
+    def test_ink_parts_are_ordered_rendered_separately_and_concatenated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ink_path = Path(tmp) / "ink.png"
+            with pkg_publisher.make_server("127.0.0.1", 0, ink_path=ink_path) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                try:
+                    page1 = b"NSI1 320 480 1\r\nM text\r\nP 01 02\r\nS 2 10 20 20 30\r\n"
+                    page2 = b"NSI1 320 480 1\r\nM text\r\nP 02 02\r\nS 2 30 40 20 30\r\n"
+                    with mock.patch.object(pkg_publisher, "interpret",
+                                           side_effect=["FIRST PAGE", "SECOND PAGE"]) as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", page1)
+                        self.assertEqual((status, response), (200, b"INKP 01 02\r\n"))
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", page2)
+                    self.assertEqual((status, response),
+                                     (200, b"INK FIRST PAGE SECOND PAGE\r\n"))
+                    self.assertEqual(
+                        [call.args[0].name for call in vision.call_args_list],
+                        ["ink-part-01.png", "ink-part-02.png"],
+                    )
+                    self.assertTrue((Path(tmp) / "ink-part-01.png").exists())
+                    self.assertTrue((Path(tmp) / "ink-part-02.png").exists())
+                    self.assertEqual(server.ink_parts, {})
+
+                    # A missing first part is rejected before any model call.
+                    with mock.patch.object(pkg_publisher, "interpret") as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", page2)
+                    self.assertEqual((status, response), (400, b"invalid ink part\n"))
+                    vision.assert_not_called()
+                finally:
+                    server.shutdown()
+                    thread.join()
+
     def test_ink_render(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ink_path = Path(tmp) / "ink.png"
