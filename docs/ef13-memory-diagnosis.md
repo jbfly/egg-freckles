@@ -202,3 +202,26 @@ shell (or `env PATH="$HOME/.local/bin:$PATH"`), else interpret 502s.
 
 Durable-hardening follow-up (not yet done): make `interpret()` resolve codex by
 absolute path / explicit PATH so a bare-shell restart can't reintroduce this.
+
+## PATH-restart 502 permanently closed (commit f3c18db)
+
+The codex-missing-from-PATH 502 had hit twice because interpret() called codex
+by bare name, depending on the launch shell's PATH. Fixed in the code so no
+launch method can reintroduce it:
+
+- `pkg_publisher._codex_bin()` resolves codex to an ABSOLUTE path each call:
+  `NEWTON_CODEX_BIN` override → `~/.local/bin/codex` → `shutil.which("codex")`,
+  else raises a legible RuntimeError naming all three (no more bare errno 2).
+  interpret() uses that absolute path as argv[0]. Commit `f3c18db`,
+  pkg_publisher.py sha `2e9b728d98f8`; `.pkg` unchanged (`d14f183fe611`).
+- Tests: focused suite 50 → 51 passed (`uv run --with pytest pytest -q
+  test_pkg_publisher.py test_newton_client_source.py`); existing subprocess
+  boundary test updated to pin the absolute argv[0].
+
+Proven on mars UNDER A BARE PATH (the exact failure condition):
+`env PATH=/usr/local/sbin:/usr/local/bin:/usr/bin python3 -c "import
+pkg_publisher; print(pkg_publisher._codex_bin())"` ->
+`/home/jbfly/.codex/packages/.../bin/codex`. Live server (pid 375664) is
+running with that bare PATH and still serves `d14f183f`; publisher `2e9b728d`.
+
+Restart requirement REMOVED: raw_pkg_server no longer needs a login shell.
