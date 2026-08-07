@@ -1,0 +1,38 @@
+EF7 prompt stash-and-resend — isolated wire proof
+===================================================
+
+Instance: ef7round (seeded, isolated)
+Package: EggFrecklesEF7:jbfly / Egg Freckles 1.0-ef7
+Test: set the live prompt field to "EF7 offline resend proof", stop the link,
+then tap the real Send button twice while a proxy held the handshake for 8 s.
+Screenshot ef7round-03-connecting-will-send.png shows the typed prompt and
+"Connecting, will send..."; ef7round-04-resend-reply.png shows the fake reply.
+
+Raw server-side wire log (Newton -> TCP server):
+    2026-08-05T09:01:40.820587 ACCEPT delay=8s
+    2026-08-05T09:01:48.828775 NEWTON->SERVER b'~NEWTONCLI 1\r\n:00 HELLO NEWTON1 1.0-ef7*FE\r\n'
+    2026-08-05T09:01:49.248517 NEWTON->SERVER b':01 MSG EF7 offline resend proof*34\r\n'
+    2026-08-05T09:01:49.250400 SERVER->NEWTON b':01 STAT THINKING*39\r\n'
+    2026-08-05T09:01:50.052446 SERVER->NEWTON b':02 TEXT FAKE REPLY TO: EF7 offline resend proof -- the quick brown fox jumps over the lazy dog 0123456789.*61\r\n'
+
+Prompt-frame count for the exact text: 1
+
+Server session state (one user turn):
+{
+  "version": 1,
+  "thread_id": "fake-thread-1",
+  "created_at": "2026-08-05T08:01:48+00:00",
+  "history": [
+    {
+      "role": "user",
+      "content": "EF7 offline resend proof",
+      "ts": "2026-08-05T08:01:50+00:00"
+    },
+    {
+      "role": "assistant",
+      "content": "FAKE REPLY TO: EF7 offline resend proof -- the quick brown fox jumps over the lazy dog 0123456789.",
+      "ts": "2026-08-05T08:01:50+00:00"
+    }
+  ],
+  "updated_at": "2026-08-05T08:01:50+00:00"
+}

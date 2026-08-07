@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF6:jbfly|;
-kVersion := "1.0-ef6";
+kAppSymbol := '|EggFrecklesEF13:jbfly|;
+kVersion := "1.0-ef13";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -63,30 +63,25 @@ kScanLimit := 16;
 // nothing at all. Dropping strokes is the worst possible failure for a vision
 // call: the picture stays plausible and becomes wrong.
 //
-// EF6 keeps every stroke and thins the points inside it (:ThinInk). The budget
-// below is what the host will actually accept, worked out rather than guessed:
-//
-//   host cap on the /ink body      16384 bytes  (pkg_publisher.py:323,
-//                                                `not 0 < length <= 16384`)
-//   - header "NSI1 320 480 NNN\r\n"   -20
-//   - the optional H line, kHintBytes + "H " + CRLF
-//                                     -204
-//   - one "S <count>\r\n" per stroke, 8 bytes x kMaxItems
-//                                   -2048
-//                                  ------
-//   left for point text             14112 bytes
-//
-// A point costs " <dx> <dy>" — measured 4-6 bytes on real thinned handwriting
-// (see the round record), 8 bytes as a pessimistic bound once thinning has
-// multiplied the deltas up. 14112 / 8 = 1764, so 1600 points fits even at the
-// pessimistic rate and leaves ~1.3 KB spare; at the measured rate it uses less
-// than half the cap. That is 4x A9's budget, and the thinning pass means the
-// budget now costs resolution instead of costing strokes.
+// EF6 keeps every stroke and thins points inside it. 1600 is the measured
+// per-image legibility budget; the independent host body cap is 16384 bytes
+// (`pkg_publisher.py:330`). Delta text can be wider after thinning, so EF11
+// measures the encoded body and retries that part at half budget if necessary
+// (`EncodeInk`), spending resolution rather than dropping a stroke.
 kMaxPoints := 1600;
-// Every stroke is one item in the note's `data`, so 64 was itself a stroke cap
-// on long handwriting. 256 is past any page a human can fill and still bounded,
-// which is what the twelfth finding asks for.
+// The densest measured real screen-height page had 37 strokes
+// (runtime/evidence/ef6round-ink-decimation.txt). 64 leaves honest headroom
+// for normal handwriting without pretending a 320x480 image stays legible with
+// hundreds of tiny strokes; it also bounds the per-stroke NSI1 line overhead.
+// ponytail: fixed because the renderer and canvas are fixed; revisit only with
+// measured image-interpretation evidence from a different rendering path.
+kMaxStrokes := 64;
+// One 'ink2 data item can expand into hundreds of strokes through CountStrokes;
+// kMaxItems bounds the soup walk, not the stroke count. The multipart encoder
+// therefore has its own two-digit wire backstop and reports any loss visibly.
 kMaxItems := 256;
+kMaxInkParts := 99;
+kMaxInkBody := 16384;
 // The ceiling on points read out of the soup *before* thinning, so a pathological
 // note cannot fill the NewtonScript heap while we are still collecting. Past it a
 // stroke is kept as its two endpoints rather than dropped — the shape degrades,
@@ -96,12 +91,11 @@ kMaxRaw := 12000;
 // The note's own text rides one optional NSI1 "H" line into the vision prompt.
 kHintBytes := 200;
 
-// ---- "Send to AI" (the stock Notes envelope menu) ----
-// The item the ROM draws at the bottom of the Action picker, and the folder the
-// answer is filed into. Both are user-visible strings, so they carry no round
-// tag (docs/notes-integration-design.md §5).
-kMenuTitle := "Send to AI";
+// ---- the two Egg Freckles entries in the stock Notes envelope menu ----
+kTextMenuTitle := "Convert to Text";
+kAskMenuTitle := "Ask AI";
 kAIFolder := "AI";
+kInkCapNotice := "Note too long";
 // How many 5-second retries the hook gets if GetRoot().paperroll is not
 // instantiated yet when InstallScript runs at boot (design §5, [verify]).
 kHookTries := 4;
@@ -111,9 +105,8 @@ kInkPlaceholder := 63233;
 
 // ---- the egg ----
 //
-// One 20x14 one-bit drawing serves as both the Extras icon and the icon beside
-// "Send to AI" in the Notes Action picker, which is the honest thing for it to
-// mean: that menu item is Egg Freckles, reaching into somebody else's app.
+// One 20x14 one-bit drawing serves as the Extras icon and both Notes actions:
+// each menu item is Egg Freckles reaching into somebody else's app.
 //
 // The stock picker entries do carry icons, and the human asked whether one
 // could be borrowed. Only two are reachable from where the hook runs —
@@ -157,7 +150,7 @@ kIconBits := MakeBinaryFromHex(
     & "0c03000003fc0000", 'bits);
 kAppIcon := {bits: kIconBits, bounds: {top: 0, left: 0, bottom: 14, right: 20}};
 
-// ===================== the "Send to AI" route script =======================
+// ===================== the stock Notes route scripts ========================
 //
 // These slots are copied onto a small heap frame whose `_proto` is this
 // package's own base template (`:NotesHook`), so the route script inherits the
@@ -184,6 +177,7 @@ noteAgent := {
     // ponytail: tntk segfaults on a top-level constant inside a function body
     // (the same trap the transcript caps hit), so the folder name is a slot.
     aiFolder: kAIFolder,
+    inkCapNotice: kInkCapNotice,
 
     SetStatus: func(message)
     begin
@@ -199,7 +193,7 @@ noteAgent := {
     // The Action picker hands us the live soup entry of the note whose envelope
     // was tapped (design §2, evidence §4) — there is no newest-note heuristic
     // on this path and no way to send the wrong page.
-    Route: func(target, targetView)
+    Route: func(target, targetView, mode)
     begin
         if self.inkBusy then return nil;
         if target = nil then return nil;
@@ -231,16 +225,22 @@ noteAgent := {
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
         // An empty page has nothing to ask about. Say nothing rather than
         // filing a note that says nothing.
-        if (strokes = 0) and (StrLen(hint) = 0) then return nil;
-        // The body is built first because :EncodeInk is what thins the ink, and
-        // the label has to be able to say so. `strokes` is the true drawn count
-        // either way — EF6 drops no strokes.
-        local body := :EncodeInk(hint);
-        if body = nil then return nil;
+        if (strokes = 0) and (StrLen(hint) = 0)
+            and not self.askPartCapped then return nil;
+        // The first body is built before sending. Later parts may also need the
+        // half-budget retry, so the final reply path adds the thinning notice.
+        local body := :PrepareInkPages(hint, mode);
+        if body = nil then
+        begin
+            self.inkGotReply := nil;
+            if self.askPartCapped then :SetStatus(:CapNotice())
+            else :SetStatus("Ink could not fit");
+            return :InkDone();
+        end;
         if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
         else self.aiLabel := "" & strokes & " strokes";
-        if self.askThinned then
-            self.aiLabel := self.aiLabel & " (ink thinned to fit)";
+        if self.askPartCapped then
+            self.aiLabel := self.aiLabel & " (" & :CapNotice() & ")";
         // Everything from here is the Ask button's asynchronous POST, unchanged:
         // the route script returns nil now and the answer lands in InputScript
         // ~9 s later. A synchronous wait would freeze Notes for that whole time
@@ -252,8 +252,16 @@ noteAgent := {
     // The reply arrives on the same connection as one "INK <text>" line.
     HandleInkLine: func(line)
     begin
+        if BeginsWith(line, "INKP ") then
+        begin
+            self.inkPartAck := true;
+            :ArmInkWatch();
+            return nil;
+        end;
         if not BeginsWith(line, "INK ") then return nil;
         self.inkGotReply := true;
+        if self.askThinned then
+            self.aiLabel := self.aiLabel & " (ink thinned to fit)";
         :FileReply(SubStr(line, 4, StrLen(line) - 6));
         return nil;
     end,
@@ -268,6 +276,8 @@ noteAgent := {
             self.inkGotReply := true;
             local why := self.aiStatus;
             if why = nil then why := "no answer from the host";
+            if self.askThinned then
+                self.aiLabel := self.aiLabel & " (ink thinned to fit)";
             try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;
         end;
         AddDelayedCall(func(agent) try agent:InkStop() onexception |evt.ex| do nil,
@@ -383,6 +393,7 @@ mainView := {
     txSeq: 1,
     ready: nil,
     inFlight: nil,
+    pendingPrompt: nil,
     draftSeq: nil,
     stopping: nil,
     // EF6: one retry per connection attempt before a bind failure is shown to
@@ -401,6 +412,9 @@ mainView := {
     // threw -48200 (the same trap as capBytes/TranscriptTail in A2).
     scanLimit: kScanLimit,
     maxPoints: kMaxPoints,
+    maxStrokes: kMaxStrokes,
+    maxInkParts: kMaxInkParts,
+    maxInkBody: kMaxInkBody,
     maxItems: kMaxItems,
     maxRaw: kMaxRaw,
     hintBytes: kHintBytes,
@@ -418,7 +432,14 @@ mainView := {
     askLeft: nil,
     askTop: nil,
     askThinned: nil,
+    askPartCapped: nil,
     inkBody: nil,
+    inkHint: nil,
+    inkMode: nil,
+    inkTotalParts: 1,
+    inkStrokeIndex: 0,
+    inkPartIndex: 0,
+    inkPartAck: nil,
     inkBusy: nil,
     // Which send the 150 s watchdog belongs to; see SendInk.
     inkSeq: 0,
@@ -445,7 +466,8 @@ mainView := {
     // The slots the hook needs. They are slots, not constants read inside the
     // function bodies, for the tntk reason noted on capBytes above.
     noteAgent: noteAgent,
-    menuTitle: kMenuTitle,
+    textMenuTitle: kTextMenuTitle,
+    askMenuTitle: kAskMenuTitle,
     menuIcon: kAppIcon,
     hookTries: kHookTries,
     winWidth: kWinWidth,
@@ -743,6 +765,7 @@ mainView := {
         self.draftSeq := nil;
         self.pendingParts := nil;
         self.partIndex := 0;
+        self.pendingPrompt := nil;
     end,
 
     // One NIE link, three connections: chat, ink POST, tools long poll. Whoever
@@ -779,9 +802,13 @@ mainView := {
 
     Connect: func()
     begin
+        // ponytail: Stop clears abandoned prompts; a reconnect keeps this one.
+        local pending := self.pendingPrompt;
         :Stop();
+        self.pendingPrompt := pending;
         self.stopping := nil;
-        :SetStatus("Connecting");
+        if pending <> nil then :SetStatus("Connecting, will send...")
+        else :SetStatus("Connecting");
         // If the tools poll (or a live ink POST) still holds the link, reuse it
         // rather than grabbing a second one: a grab that is never matched by a
         // release leaks, and this is the same rule SendInk follows.
@@ -1008,7 +1035,21 @@ mainView := {
         if BeginsWith(line, ":" & seqText & " STAT READY*") then
         begin
             self.ready := true;
-            :SetStatus("Ready");
+            if self.pendingPrompt <> nil then
+            begin
+                local prompt := self.pendingPrompt;
+                // Clear first: duplicate READY frames cannot send it twice.
+                self.pendingPrompt := nil;
+                if self.inFlight then :SetStatus("Turn in flight")
+                else
+                begin
+                    if (StrLen(prompt) = 4) and BeginsWith(prompt, "/new") then self.transcript := ""
+                    else :AppendLine("You: " & prompt);
+                    :ShowTranscript();
+                    :Send(prompt);
+                end;
+            end
+            else :SetStatus("Ready");
         end else if BeginsWith(line, ":" & seqText & " STAT THINKING*") then
             :SetStatus("Thinking")
         else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then
@@ -1107,8 +1148,15 @@ mainView := {
             if StrPos(ascii, SubStr(prompt, index, 1), 0) = nil then
                 return :SetStatus("ASCII only");
         if self.inFlight then return :SetStatus("Turn in flight");
-        // ponytail: an idle link can drop; Send reconnects instead of dead-ending.
-        if not self.ready then return :Connect();
+        // ponytail: hold one tap across reconnect; another tap cannot queue it twice.
+        if not self.ready then
+        begin
+            if self.pendingPrompt <> nil then
+                return :SetStatus("Connecting, will send...");
+            self.pendingPrompt := prompt;
+            :SetStatus("Connecting, will send...");
+            return :Connect();
+        end;
         if (StrLen(prompt) = 4) and BeginsWith(prompt, "/new") then self.transcript := ""
         else :AppendLine("You: " & prompt);
         :ShowTranscript();
@@ -1247,11 +1295,13 @@ mainView := {
         self.askLeft := nil;
         self.askTop := nil;
         self.askThinned := nil;
+        self.askPartCapped := nil;
         local items := 0;
         foreach item in data do
         begin
             items := items + 1;
-            if items > self.maxItems then self.askThinned := true
+            if items > self.maxItems then self.askPartCapped := true
+            else if self.askPartCapped then nil
             else if item.viewStationery = 'para then :CollectPara(item)
             else if item.viewStationery = 'poly then :CollectPoly(item)
             else if item.viewStationery = 'pict then nil
@@ -1436,40 +1486,26 @@ mainView := {
         return nil;
     end,
 
-    // Fit the point budget by thinning every stroke, never by dropping one.
-    //
-    // One pass, integer stride, no curve maths: keep the first point, then every
-    // stride'th point, and always the last point so the stroke still ends where
-    // the pen lifted. Cost is O(points) — each point is looked at once and
-    // copied at most once — which is what keeps a 3 s host heartbeat alive
-    // through a big note (twelfth finding).
-    //
-    // Why the target is not simply maxPoints: a stroke keeps at most
-    // floor((size-1)/stride) + 1 strided points plus, at worst, one more for the
-    // forced last point, i.e. under size/stride + 2. Summed over `count`
-    // strokes that is under total/stride + 2*count, and stride is chosen strictly
-    // greater than total/target, so the result is under target + 2*count. Taking
-    // target := maxPoints - 2*count therefore puts the sum under maxPoints, which
-    // is the bound the byte arithmetic on kMaxPoints was computed against.
-    ThinInk: func()
+    // Fit one image part's point budget by thinning every stroke, never by
+    // dropping one. Parts are formed by the legibility budgets below; this pass
+    // still handles a single pathological stroke that exceeds kMaxPoints.
+    ThinPartAt: func(strokes, budget)
     begin
-        local total := self.askPoints;
-        if total <= self.maxPoints then return nil;
-        local count := Length(self.askStrokes);
-        local target := self.maxPoints - (2 * count);
-        // A note with so many strokes that the headroom eats the whole budget
-        // still gets a sane stride rather than a division by zero.
+        local total := 0;
+        foreach points in strokes do total := total + (Length(points) div 2);
+        if total <= budget then
+            return {strokes: strokes, points: total, thinned: nil};
+        local count := Length(strokes);
+        local target := budget - (2 * count);
         if target < count then target := count;
         local stride := (total div target) + 1;
+        local thinned := [];
         local kept := 0;
-        local index := 0;
-        while index < count do
+        foreach points in strokes do
         begin
-            local points := self.askStrokes[index];
             local size := Length(points) div 2;
             local out := [];
             local at := 0;
-            // Seeded at stride so the very first point is always kept.
             local since := stride;
             while at < size do
             begin
@@ -1482,41 +1518,67 @@ mainView := {
                 else since := since + 1;
                 at := at + 1;
             end;
-            self.askStrokes[index] := out;
+            AddArraySlot(thinned, out);
             kept := kept + (Length(out) div 2);
-            index := index + 1;
         end;
-        self.askPoints := kept;
-        self.askThinned := true;
-        return nil;
+        return {strokes: thinned, points: kept, thinned: true};
     end,
 
-    // NSI1 exactly as the host has always parsed it, plus one optional line:
-    //
-    //   NSI1 <width> <height> <strokeCount>
-    //   H <text>                                  (optional, at most one)
-    //   S <count> <x> <y> <dx> <dy> ...           (one per stroke)
-    //
-    // The H line carries the note's own paragraph text into the vision prompt,
-    // so a mixed page is ONE request with one reply instead of two model calls
-    // racing for a transcript that has one column. The header's four fields do
-    // not change and H is optional, so a host that grew this still parses the
-    // bodies the older client on the physical MP2000 sends.
-    // Both callers (the Ask button and the "Send to AI" route) get the thinning
-    // for free by it living here, and they read askThinned/askPoints afterwards
-    // to tell the human what happened.
-    EncodeInk: func(hint)
+    ThinPart: func(strokes)
+        :ThinPartAt(strokes, self.maxPoints),
+
+    // Count the same whole-stroke partitions the sender will encode, without
+    // allocating a second tree of part arrays. The total is needed for P before
+    // part 1 goes out; the bodies themselves stay lazy.
+    InkPartCount: func()
     begin
-        :ThinInk();
-        local originLeft := self.askLeft;
-        local originTop := self.askTop;
-        if originLeft = nil then originLeft := 0;
-        if originTop = nil then originTop := 0;
-        local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";
-        if (hint <> nil) and (StrLen(hint) > 0) then body := body & "H " & hint & "\r\n";
-        foreach points in self.askStrokes do
+        local parts := 0;
+        local strokes := 0;
+        local points := 0;
+        foreach stroke in self.askStrokes do
         begin
-            local line := "S " & (Length(points) div 2);
+            local size := Length(stroke) div 2;
+            if (strokes > 0) and (((strokes + 1) > self.maxStrokes)
+                or ((points + size) > self.maxPoints)) then
+            begin
+                parts := parts + 1;
+                strokes := 0;
+                points := 0;
+            end;
+            strokes := strokes + 1;
+            points := points + size;
+        end;
+        if strokes > 0 then parts := parts + 1;
+        if parts > self.maxInkParts then
+        begin
+            parts := self.maxInkParts;
+            self.askPartCapped := true;
+        end;
+        return parts;
+    end,
+
+    // One NSI1 image part. P mirrors MSGP's two-digit index/total fields; it is
+    // absent on the single-part fast path. Encoding is separated from the body
+    // cap retry so the retry thins this part only, never the whole note.
+    EncodeInkAt: func(strokes, originTop, hint, mode, part, total, budget)
+    begin
+        local fitted := :ThinPartAt(strokes, budget);
+        local originLeft := self.askLeft;
+        if originLeft = nil then originLeft := 0;
+        // Apple explicitly warns that & allocates and recopies large strings.
+        // Clone makes the literal writable; StrMunger grows it in place.
+        local body := Clone("NSI1 320 480 ");
+        StrMunger(body, 536870911, nil, "" & Length(fitted.strokes) & "\r\n", 0, nil);
+        if mode = 'text then StrMunger(body, 536870911, nil, "M text\r\n", 0, nil)
+        else if mode = 'ask then StrMunger(body, 536870911, nil, "M ask\r\n", 0, nil);
+        if total > 1 then StrMunger(body, 536870911, nil,
+            "P " & :SeqText(part) & " " & :SeqText(total) & "\r\n", 0, nil);
+        if (hint <> nil) and (StrLen(hint) > 0) then
+            StrMunger(body, 536870911, nil, "H " & hint & "\r\n", 0, nil);
+        foreach points in fitted.strokes do
+        begin
+            local line := Clone("S ");
+            StrMunger(line, 536870911, nil, "" & (Length(points) div 2), 0, nil);
             local x := 0;
             local y := 0;
             local index := 0;
@@ -1524,22 +1586,108 @@ mainView := {
             begin
                 local nextX := :ClampAt(points[index] - originLeft, 319);
                 local nextY := :ClampAt(points[index + 1] - originTop, 479);
-                if index = 0 then line := line & " " & nextX & " " & nextY
-                else line := line & " " & (nextX - x) & " " & (nextY - y);
+                local pair := nil;
+                if index = 0 then pair := " " & nextX & " " & nextY
+                else pair := " " & (nextX - x) & " " & (nextY - y);
+                StrMunger(line, 536870911, nil, pair, 0, nil);
                 x := nextX;
                 y := nextY;
                 index := index + 2;
             end;
-            body := body & line & "\r\n";
-            // ponytail: one HTTP request only; multipart belongs to a later
-            // stage. :ThinInk has already put the point count under kMaxPoints,
-            // whose arithmetic (see the constant) leaves this unreachable at any
-            // plausible bytes-per-point; it stays as the last-resort guard so a
-            // pathological body is refused rather than rejected by the host.
-            if StrLen(body) > 16384 then return nil;
+            StrMunger(line, 536870911, nil, "\r\n", 0, nil);
+            StrMunger(body, 536870911, nil, line, 0, nil);
         end;
-        return body;
+        return {body: body, points: fitted.points, thinned: fitted.thinned};
     end,
+
+    EncodeInk: func(strokes, originTop, hint, mode, part, total)
+    begin
+        local encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
+            total, self.maxPoints);
+        if StrLen(encoded.body) > self.maxInkBody then
+        begin
+            encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
+                total, self.maxPoints div 2);
+            encoded.thinned := true;
+        end;
+        if StrLen(encoded.body) > self.maxInkBody then return nil;
+        return encoded;
+    end,
+
+    // Build exactly one body, then clear the source stroke references it used.
+    // The next body is not allocated until INKP has acknowledged this one.
+    EncodeInkPage: func(hint, mode, part, total)
+    begin
+        local start := self.inkStrokeIndex;
+        local index := start;
+        local strokes := [];
+        local count := 0;
+        local top := nil;
+        while index < Length(self.askStrokes) do
+        begin
+            local points := self.askStrokes[index];
+            local size := Length(points) div 2;
+            if (Length(strokes) > 0) and
+                (((Length(strokes) + 1) > self.maxStrokes) or
+                 ((count + size) > self.maxPoints)) then break;
+            AddArraySlot(strokes, points);
+            count := count + size;
+            local at := 1;
+            while at < Length(points) do
+            begin
+                if (top = nil) or (points[at] < top) then top := points[at];
+                at := at + 2;
+            end;
+            index := index + 1;
+        end;
+        if Length(strokes) < 1 then return nil;
+        local partHint := nil;
+        if part = 1 then partHint := hint;
+        // The stream owns exactly one body now, so this is a safe collection
+        // point: reclaim the previous HTTP/body scratch before allocating next.
+        GC();
+        local encoded := :EncodeInk(strokes, top, partHint, mode, part, total);
+        if encoded = nil then return nil;
+        local release := start;
+        while release < index do
+        begin
+            self.askStrokes[release] := nil;
+            release := release + 1;
+        end;
+        self.inkStrokeIndex := index;
+        self.askPoints := self.askPoints + encoded.points;
+        if encoded.thinned then self.askThinned := true;
+        return encoded.body;
+    end,
+
+    PrepareInkPages: func(hint, mode)
+    begin
+        local total := :InkPartCount();
+        self.inkHint := hint;
+        self.inkMode := mode;
+        self.inkTotalParts := total;
+        self.inkStrokeIndex := 0;
+        self.askPoints := 0;
+        // Text-only Notes routes still use /ink so the answer is filed by the
+        // route agent. The host accepts this zero-stroke NSI1 + H shape.
+        if total < 1 then
+        begin
+            if (hint = nil) or (StrLen(hint) < 1) then return nil;
+            local empty := :EncodeInk([], 0, hint, mode, 1, 1);
+            if empty = nil then return nil;
+            self.inkTotalParts := 1;
+            return empty.body;
+        end;
+        return :EncodeInkPage(hint, mode, 1, total);
+    end,
+
+    EncodeNextInkPage: func()
+        :EncodeInkPage(self.inkHint, self.inkMode, self.inkPartIndex + 1,
+            self.inkTotalParts),
+
+    CapNotice: func()
+        if self.inkTotalParts < 1 then self.inkCapNotice & " - no pages fit"
+        else self.inkCapNotice & " - first " & self.inkTotalParts & " pages sent",
 
     ClampAt: func(value, limit)
     begin
@@ -1551,8 +1699,8 @@ mainView := {
 
     // "Ask": one button whose meaning is "send the newest note, whatever kind it
     // is". Text only goes down the chat path exactly as before, so a long note
-    // still splits into MSGP parts; anything drawn goes out as one /ink POST,
-    // carrying the page's text on the H line when it has both. There is
+    // still splits into MSGP parts; anything drawn goes out as a streamed /ink
+    // sequence, carrying the page's text on part 1's H line when it has both. There is
     // deliberately no second "Ask Sketch" to choose between and no silent skip:
     // on hardware 2026-08-03 the human drew a cat, tapped "Ask Note", and got an
     // answer about an older text note.
@@ -1569,6 +1717,11 @@ mainView := {
         local strokes := Length(self.askStrokes);
         if strokes = 0 then
         begin
+            if self.askPartCapped then
+            begin
+                self.inkTotalParts := 0;
+                return :SetStatus(:CapNotice());
+            end;
             if StrLen(text) = 0 then return :SetStatus("Newest note is empty");
             if not self.ready then return :Connect();
             :AppendLine("Note: " & text);
@@ -1577,18 +1730,19 @@ mainView := {
         end;
         local hint := text;
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
-        local body := :EncodeInk(hint);
-        if body = nil then return :SetStatus("Too much ink to send");
+        local body := :PrepareInkPages(hint, 'ask);
+        if body = nil then
+        begin
+            if self.askPartCapped then return :SetStatus(:CapNotice());
+            return :SetStatus("Too much ink to send");
+        end;
         // `strokes` is the count the pen actually drew: EF6 never drops a
         // stroke, so Length(askStrokes) is the truth and not a survivor count.
         if StrLen(text) > 0 then :AppendLine("Note: " & text)
         else :AppendLine("Note: " & strokes & " strokes");
-        // The status line is overwritten by "Thinking..." a moment later, so the
-        // thinning notice only survives in the transcript. Say it plainly and
-        // with both numbers: the human asked to be told when the device is not
-        // sending everything it read.
-        if self.askThinned then :AppendLine("Note: ink thinned to fit ("
-            & self.askRaw & " points sent as " & self.askPoints & ")");
+        // A part-cap is known before sending. Point thinning may happen on a
+        // later part, so its exact count is appended when the final reply lands.
+        if self.askPartCapped then :AppendLine(:CapNotice());
         :ShowTranscript();
         return :SendInk(body, strokes);
     end,
@@ -1609,7 +1763,7 @@ mainView := {
         return :SetStatus("Saved note id=" & EntryUniqueID(note));
     end,
 
-    // ---- the "Send to AI" hook into the stock Notes Action menu ----
+    // ---- the two Egg Freckles hooks in the stock Notes Action menu ----
     //
     // The Action button "searches its own context for the first routeScripts
     // slot that it finds" (Guide:46271-46280), and for Notes that search ends
@@ -1671,6 +1825,12 @@ mainView := {
         agent.linkID := nil;
         agent.endpoint := nil;
         agent.inkEndpoint := nil;
+        agent.inkHint := nil;
+        agent.inkMode := nil;
+        agent.inkTotalParts := 1;
+        agent.inkStrokeIndex := 0;
+        agent.inkPartIndex := 0;
+        agent.inkPartAck := nil;
         agent.inkBusy := nil;
         // The tools channel's mutable state, as own slots, for the same reason:
         // nothing here may be read or written through the read-only template.
@@ -1686,24 +1846,26 @@ mainView := {
         // ponytail: template literals live in the read-only package, so the
         // stroke array has to be re-made in the heap before anything grows it.
         agent.askStrokes := [];
-        local entry := {
-            title: self.menuTitle,
-            // The 20x14 egg. `icon` is the documented optional slot drawn to
-            // the left of the title (Ref:51411-51423), and the two stock
-            // entries beside ours both fill it, so leaving it nil made our
-            // item the only bare one in the picker.
+        local textEntry := {
+            title: self.textMenuTitle,
+            // Both entries use the same 20x14 egg as the stock-sized icon.
             icon: self.menuIcon,
-            // Our mark, so uninstall removes this entry and nothing else.
             aiHook: self.appSymbol,
             aiVia: via,
+            aiMode: 'text,
             agent: agent,
-            // A function, not a symbol: a symbol here is looked up in an
-            // application named by an appSymbol slot, which is for view
-            // definitions (Ref:51442-51454). See :NotesRoute for why it is that
-            // function and not a closure.
-            RouteScript: self.NotesRoute,
+            RouteScript: self.NotesTextRoute,
         };
-        paperroll.routeScripts := :NotesRebuild(paperroll, entry);
+        local askEntry := {
+            title: self.askMenuTitle,
+            icon: self.menuIcon,
+            aiHook: self.appSymbol,
+            aiVia: via,
+            aiMode: 'ask,
+            agent: agent,
+            RouteScript: self.NotesAskRoute,
+        };
+        paperroll.routeScripts := :NotesRebuild(paperroll, textEntry, askEntry);
         // EF6: and this is where the tools long poll now starts. The agent is
         // the only thing in this package that exists at boot without a view, so
         // it is the only correct owner of a channel whose whole point is
@@ -1716,21 +1878,20 @@ mainView := {
         // receiver is not: the L1 -48809 trap was a delayed call landing on a
         // closed view, and this frame has no view to close. The same shape is
         // already proven on hardware — :InkDone has queued
-        // `agent:InkStop()` this way through every "Send to AI" since EF4.
+        // `agent:InkStop()` this way through every Notes route since EF4.
         AddDelayedCall(func(who) try who:ToolStart() onexception |evt.ex| do nil,
             [agent], 3000);
         return nil;
     end,
 
-    // The live agent hanging off the picker entry, or nil. One walk, used by
-    // :NotesHook to retire a previous poll and by :NotesRoute to find where to
-    // send a tapped note.
+    // The shared agent hanging off either picker entry, or nil. One walk lets
+    // :NotesHook retire the previous poll before replacing both entries.
     FindAgent: func(paperroll)
     begin
         local list := paperroll.routeScripts;
         if not IsArray(list) then return nil;
         foreach item in list do
-            if IsFrame(item) and (item.aiHook = self.appSymbol)
+            if IsFrame(item) and (item.aiHook <> nil)
                 and IsFrame(item.agent) then return item.agent;
         return nil;
     end,
@@ -1750,7 +1911,7 @@ mainView := {
     //
     // So it finds the agent the one way that works from anywhere: back through
     // the array the item it was called for lives in.
-    NotesRoute: func(target, targetView)
+    NotesTextRoute: func(target, targetView)
     begin
         local paperroll := nil;
         try paperroll := GetRoot().paperroll
@@ -1759,8 +1920,26 @@ mainView := {
         local list := paperroll.routeScripts;
         if not IsArray(list) then return nil;
         foreach item in list do
-            if IsFrame(item) and (item.aiHook <> nil) and IsFrame(item.agent) then
-                return item.agent:Route(target, targetView);
+            if IsFrame(item) and (item.aiHook <> nil) and (item.aiMode = 'text)
+                and IsFrame(item.agent) then
+                return item.agent:Route(target, targetView, 'text);
+        return nil;
+    end,
+
+    // ponytail: two top-level functions avoid tntk's closure segfault; each
+    // mode has exactly one fresh entry after the install-time stale-AI sweep.
+    NotesAskRoute: func(target, targetView)
+    begin
+        local paperroll := nil;
+        try paperroll := GetRoot().paperroll
+        onexception |evt.ex| do paperroll := nil;
+        if not IsFrame(paperroll) then return nil;
+        local list := paperroll.routeScripts;
+        if not IsArray(list) then return nil;
+        foreach item in list do
+            if IsFrame(item) and (item.aiHook <> nil) and (item.aiMode = 'ask)
+                and IsFrame(item.agent) then
+                return item.agent:Route(target, targetView, 'ask);
         return nil;
     end,
 
@@ -1768,25 +1947,28 @@ mainView := {
     begin
         local list := paperroll.routeScripts;
         if not IsArray(list) then return nil;
+        local found := 0;
         foreach item in list do
-            if IsFrame(item) and (item.aiHook = self.appSymbol) then return true;
-        return nil;
+            if IsFrame(item) and (item.aiHook = self.appSymbol)
+                and ((item.aiMode = 'text) or (item.aiMode = 'ask)) then found := found + 1;
+        return found = 2;
     end,
 
-    // The array without our entry, plus `entry` if one is given. Uninstall goes
+    // On install, the array without ANY stale AI entry, plus both fresh entries. Uninstall goes
     // through the same shape (in RemoveScript, which cannot call in here — see
     // the part frame). **Never RemoveSlot**: that restores the ROM array
     // exactly, throwing away anything a different package appended after us
     // (design §1; evidence §6 measured the restore).
-    NotesRebuild: func(paperroll, entry)
+    NotesRebuild: func(paperroll, textEntry, askEntry)
     begin
         local rebuilt := [];
         local list := paperroll.routeScripts;
         if IsArray(list) then
             foreach item in list do
-                if not (IsFrame(item) and (item.aiHook = self.appSymbol)) then
+                if not (IsFrame(item) and (item.aiHook <> nil)) then
                     AddArraySlot(rebuilt, item);
-        if entry then AddArraySlot(rebuilt, entry);
+        if textEntry then AddArraySlot(rebuilt, textEntry);
+        if askEntry then AddArraySlot(rebuilt, askEntry);
         return rebuilt;
     end,
 
@@ -1804,16 +1986,29 @@ mainView := {
     // ("(not sent) The host did not answer" while the host had answered).
     SendInk: func(body, strokes)
     begin
+        self.inkPartIndex := 0;
+        self.inkPartAck := nil;
         self.inkBody := body;
         self.inkBusy := true;
         self.inkGotReply := nil;
         self.inkBindRetried := nil;
-        self.inkSeq := self.inkSeq + 1;
-        :SetStatus("Sending " & strokes & " strokes");
-        AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
-            [self, self.inkSeq], 150000);
+        if self.inkTotalParts > 1 then
+            :SetStatus("Sending page 1/" & self.inkTotalParts)
+        else :SetStatus("Sending " & strokes & " strokes");
+        :ArmInkWatch();
         if self.linkID then return :InkOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
+        return nil;
+    end,
+
+    // A multipart stream gets one full vision-call budget per part. Incrementing
+    // the ticket makes every earlier delayed call harmless.
+    ArmInkWatch: func()
+    begin
+        if not self.inkBusy then return nil;
+        self.inkSeq := self.inkSeq + 1;
+        AddDelayedCall(func(view, seq) try view:InkExpired(seq) onexception |evt.ex| do nil,
+            [self, self.inkSeq], 150000);
         return nil;
     end,
 
@@ -1940,7 +2135,7 @@ mainView := {
             _parent: self,
             form: 'string,
             termination: {endSequence: "\r\n"},
-            discardAfter: 256,
+            discardAfter: 1024,
             // ponytail: the vision call measures ~9 s; the input spec waits for
             // it asynchronously, so the app stays live the whole time.
             reqTimeout: 150000,
@@ -1950,9 +2145,11 @@ mainView := {
                 try self._parent:InkDropped() onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink input exception");
-        local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
-            & "Content-Type: application/x-newton-strokes\r\nContent-Length: "
-            & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
+        local request := Clone("POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
+            & "Content-Type: application/x-newton-strokes\r\nContent-Length: ");
+        StrMunger(request, 536870911, nil, "" & StrLen(body)
+            & "\r\nConnection: close\r\n\r\n", 0, nil);
+        StrMunger(request, 536870911, nil, body, 0, nil);
         try self.inkEndpoint:output(request, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
@@ -1971,9 +2168,17 @@ mainView := {
     // line, so the transcript is the one place answers appear.
     HandleInkLine: func(line)
     begin
+        if BeginsWith(line, "INKP ") then
+        begin
+            self.inkPartAck := true;
+            :ArmInkWatch();
+            return nil;
+        end;
         if not BeginsWith(line, "INK ") then return nil;
         self.inkGotReply := true;
         local reading := SubStr(line, 4, StrLen(line) - 6);
+        if self.askThinned then :AppendLine("Note: ink thinned to fit ("
+            & self.askRaw & " points sent as " & self.askPoints & ")");
         :AppendLine("Ink: " & reading);
         :AppendLine("");
         :ShowTranscript();
@@ -1984,15 +2189,52 @@ mainView := {
 
     InkDropped: func()
     begin
+        if not self.inkBusy then return nil;
+        if self.inkPartAck and ((self.inkPartIndex + 1) < self.inkTotalParts) then
+        begin
+            self.inkPartIndex := self.inkPartIndex + 1;
+            self.inkPartAck := nil;
+            :SetStatus("Sending page " & (self.inkPartIndex + 1) & "/"
+                & self.inkTotalParts);
+            AddDelayedCall(func(view) try view:InkNext() onexception |evt.ex| do nil,
+                [self], 1000);
+            return nil;
+        end;
         self.inkBusy := nil;
         if not self.inkGotReply then :SetStatus("The host sent no reading");
         return :InkDone();
+    end,
+
+    // Each HTTP/1.0 part closes its connection. Dispose only that endpoint,
+    // then build the next body after its request storage can be collected, and
+    // open the next connection on the same linkID. Grabbing a second NIE link
+    // is the hardware-proven -16009 failure.
+    InkNext: func()
+    begin
+        if not self.inkBusy then return nil;
+        if self.inkEndpoint then
+        begin
+            try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.inkEndpoint := nil;
+        end;
+        self.inkBody := :EncodeNextInkPage();
+        if self.inkBody = nil then
+        begin
+            self.askPartCapped := true;
+            self.inkTotalParts := self.inkPartIndex;
+            return :InkFailed(:CapNotice());
+        end;
+        return :InkOpen();
     end,
 
     InkFailed: func(message)
     begin
         self.inkBusy := nil;
         self.inkBody := nil;
+        self.askStrokes := nil;
         :SetStatus(message);
         return :InkDone();
     end,
@@ -2016,6 +2258,10 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
+        self.inkBody := nil;
+        self.inkHint := nil;
+        self.inkMode := nil;
+        self.askStrokes := nil;
         :ReleaseLink();
         return nil;
     end,
@@ -2030,6 +2276,7 @@ mainView := {
     Failed: func(message)
     begin
         if self.stopping then return nil;
+        self.pendingPrompt := nil;
         :SetStatus(message);
         // ponytail: let the peer-close FSM settle before InetReleaseLink.
         AddDelayedCall(func(view) try view:Stop() onexception |evt.ex| do nil, [self], 1000);
@@ -3066,8 +3313,8 @@ mainView := {
 
     // "The InstallScript function in a package part is executed when an
     // application or auto part is activated on the Newton or whenever the
-    // Newton is reset" (Guide:5209-5210) — which is exactly what the "Send to
-    // AI" hook needs, because the slot it writes is RAM and a reset rebuilds
+    // Newton is reset" (Guide:5209-5210) — which is exactly what the two Notes
+    // hooks need, because the slot they write is RAM and a reset rebuilds
     // the Notepad's view frame without it (evidence §6). It is deliberately one
     // line: "the system executes a deep clone of the InstallScript function …
     // keep [it] as small as possible … If you need to execute a lot of code,

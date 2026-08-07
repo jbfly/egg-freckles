@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef6_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef13_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF6:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef6";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF13:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef13";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF6:jbfly"' in PROJECT
-    assert "version: 18" in PROJECT
+    assert 'name: "EggFrecklesEF13:jbfly"' in PROJECT
+    assert "version: 25" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -306,7 +306,7 @@ def test_the_note_origin_comes_off_and_every_point_is_clamped():
     assert "local at := Floor(value);" in SOURCE
 
 
-def test_ink_is_decimated_never_truncated():
+def test_ink_is_decimated_and_part_cap_is_reported_honestly():
     # The fifth hardware test: a handwritten sentence arrived at the host as its
     # first three words, because A9's kMaxPoints := 400 was spent by whichever
     # strokes were read first and :AddStroke then REFUSED every later stroke.
@@ -316,38 +316,125 @@ def test_ink_is_decimated_never_truncated():
     # (pkg_publisher.py) at a pessimistic 8 bytes per point; measured on the
     # wire it is 4.27 (runtime/evidence/ef6round-ink-decimation.txt).
     assert "kMaxPoints := 1600;" in SOURCE
+    assert "kMaxStrokes := 64;" in SOURCE
+    assert "maxStrokes: kMaxStrokes," in SOURCE
     assert "kMaxItems := 256;" in SOURCE
     assert "kMaxRaw := 12000;" in SOURCE
     assert "maxRaw: kMaxRaw," in SOURCE
-    # The refusal is gone. Nothing anywhere may drop a stroke for being late.
+    # The old silent point refusal is gone. The protocol backstop is separate,
+    # explicit truncation state; it must never masquerade as point thinning.
     assert "if (self.askPoints + count) > self.maxPoints then" not in CODE
-    assert "askTruncated" not in SOURCE
-    # One linear pass, integer stride, first and last point of every stroke kept.
-    assert "ThinInk: func()" in SOURCE
+    assert "askPartCapped: nil," in SOURCE
+    assert "self.askPartCapped := nil;" in SOURCE
+    # One linear pass per part, integer stride, first and last point of every
+    # stroke kept. The 1600-point budget is no longer shared by the whole note.
+    assert "ThinPart: func(strokes)" in SOURCE
     assert "local stride := (total div target) + 1;" in SOURCE
-    assert "local target := self.maxPoints - (2 * count);" in SOURCE
+    assert "local target := budget - (2 * count);" in SOURCE
     assert "if (since >= stride) or (at = size - 1) then" in SOURCE
-    # Every encode thins first, so both callers inherit it.
-    encode = SOURCE.index("EncodeInk: func(hint)")
-    assert SOURCE.index(":ThinInk();", encode) < SOURCE.index("local body :=", encode)
-    # And the human is told, in the transcript and in the reply note.
+    assert "ThinPartAt: func(strokes, budget)" in SOURCE
+    assert ":ThinPartAt(strokes, self.maxPoints)" in SOURCE
+    # The final handlers report thinning after every streamed page has encoded.
     assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
     assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
     assert 'self.aiLabel := self.aiLabel & " (ink thinned to fit)";' in SOURCE
+    route = SOURCE[SOURCE.index("Route: func(target, targetView, mode)"):
+                   SOURCE.index("HandleInkLine: func(line)")]
+    assert "if self.askThinned" not in route
     # The count reported is the true drawn count, not a survivor count.
     assert "local strokes := Length(self.askStrokes);" in SOURCE
     assert ':SetStatus("Sending " & strokes & " strokes");' in SOURCE
 
 
-def test_nsi1_grows_one_optional_hint_line_and_keeps_its_tag():
-    # The mixed-note rule: ONE request carrying both. The header's four fields
-    # do not change and H is optional, because the physical MP2000 still runs
-    # an older client whose bodies have no H line.
-    assert r'local body := "NSI1 320 480 " & Length(self.askStrokes) & "\r\n";' in SOURCE
-    assert r'body := body & "H " & hint & "\r\n";' in SOURCE
+def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
+    # M and H are optional, so an older client body still parses as Ask.
+    assert 'local body := Clone("NSI1 320 480 ");' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "M text\\r\\n", 0, nil)' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "M ask\\r\\n", 0, nil)' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "H " & hint & "\\r\\n", 0, nil);' in SOURCE
+    assert 'StrMunger(line, 536870911, nil, pair, 0, nil);' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, line, 0, nil);' in SOURCE
     assert "kHintBytes := 200;" in SOURCE
     assert "if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);" in SOURCE
 
+
+
+def test_long_ink_is_streamed_by_per_image_budgets_and_released_in_order():
+    collect = SOURCE.index("CollectNote: func(data)")
+    count = SOURCE.index("InkPartCount: func()")
+    page = SOURCE.index("EncodeInkPage: func(hint, mode, part, total)")
+    assert "foreach item in data do" in SOURCE[collect:SOURCE.index("CollectPara: func", collect)]
+    assert "targetView" not in SOURCE[collect:count]
+    assert "kPageHeight" not in SOURCE
+    assert "pageHeight:" not in SOURCE
+    assert "foreach stroke in self.askStrokes do" in SOURCE[count:page]
+    assert "(strokes + 1) > self.maxStrokes" in SOURCE
+    assert "(points + size) > self.maxPoints" in SOURCE
+    assert "PrepareInkPages: func(hint, mode)" in SOURCE
+    assert "EncodeNextInkPage: func()" in SOURCE
+    assert "self.askStrokes[release] := nil;" in SOURCE
+    assert SOURCE.index("GC();", page) < SOURCE.index("local encoded := :EncodeInk", page)
+    assert "inkBodies" not in CODE
+    assert '"P " & :SeqText(part) & " " & :SeqText(total)' in SOURCE
+    assert "if total > 1 then" in SOURCE
+    assert "self.inkPartIndex := self.inkPartIndex + 1;" in SOURCE
+    dropped = SOURCE[SOURCE.index("InkDropped: func()"):SOURCE.index("InkNext: func()")]
+    next_part = SOURCE[SOURCE.index("InkNext: func()"):SOURCE.index("InkFailed: func(")]
+    assert ":EncodeNextInkPage()" not in dropped
+    assert next_part.index("self.inkEndpoint:Dispose()") < next_part.index(":EncodeNextInkPage()")
+    assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
+    assert "return :InkOpen();" in SOURCE[SOURCE.index("InkNext: func()"):]
+    assert "if total > 1 then StrMunger(body" in SOURCE
+    assert "POST /ink HTTP/1.0" in SOURCE
+
+
+def test_notes_route_encodes_text_only_as_one_zero_stroke_ink_body():
+    route = SOURCE.index("Route: func(target, targetView, mode)")
+    encode = SOURCE.index("PrepareInkPages: func(hint, mode)")
+    assert SOURCE.index(":PrepareInkPages(hint, mode);", route) < SOURCE.index(":SendInk(body, strokes);", route)
+    block = SOURCE[encode:SOURCE.index("ClampAt: func", encode)]
+    assert ":EncodeInk([], 0, hint, mode, 1, 1);" in block
+    assert "return empty.body;" in block
+    assert 'local body := Clone("NSI1 320 480 ");' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "M ask\\r\\n", 0, nil)' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "H " & hint & "\\r\\n", 0, nil);' in SOURCE
+    # A last-resort encoding failure files a visible failure note, never silence.
+    assert 'self.inkGotReply := nil;' in SOURCE[route:SOURCE.index("HandleInkLine: func", route)]
+    assert ':SetStatus("Ink could not fit");' in SOURCE
+    assert "return :InkDone();" in SOURCE[route:SOURCE.index("HandleInkLine: func", route)]
+
+
+def test_multipart_watchdog_is_rearmed_and_total_is_protocol_safe():
+    assert "kMaxInkParts := 99;" in SOURCE
+    assert "maxInkParts: kMaxInkParts," in SOURCE
+    cap = SOURCE.index("if parts > self.maxInkParts then")
+    cap_block = SOURCE[cap:SOURCE.index("return parts;", cap)]
+    assert "parts := self.maxInkParts;" in cap_block
+    assert "self.askPartCapped := true;" in cap_block
+    assert "self.askThinned := true;" not in cap_block
+    assert 'kInkCapNotice := "Note too long";' in SOURCE
+    assert 'self.inkCapNotice & " - first " & self.inkTotalParts & " pages sent"' in SOURCE
+    assert "if self.askPartCapped then :AppendLine(:CapNotice());" in SOURCE
+    assert 'self.aiLabel := self.aiLabel & " (" & :CapNotice() & ")";' in SOURCE
+    assert "ArmInkWatch: func()" in SOURCE
+    assert SOURCE.count(":ArmInkWatch();") == 3
+    assert "self.inkSeq := self.inkSeq + 1;" in SOURCE[SOURCE.index("ArmInkWatch: func()"):]
+    assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
+    for method in ("ArmInkWatch: func()", "InkDropped: func()", "InkNext: func()"):
+        block = SOURCE[SOURCE.index(method):]
+        assert block.index("if not self.inkBusy then return nil;") < block.index("end,")
+
+def test_oversize_ink_body_retries_at_half_budget():
+    assert "kMaxInkBody := 16384;" in SOURCE
+    assert "maxInkBody: kMaxInkBody," in SOURCE
+    assert "EncodeInkAt: func(strokes, originTop, hint, mode, part, total, budget)" in SOURCE
+    encode = SOURCE.index("EncodeInk: func(strokes, originTop, hint, mode, part, total)")
+    block = SOURCE[encode:SOURCE.index("EncodeInkPage: func", encode)]
+    assert "if StrLen(encoded.body) > self.maxInkBody then" in block
+    assert "total, self.maxPoints div 2);" in block
+    assert "encoded.thinned := true;" in block
+    assert "retried:" not in SOURCE
+    assert "if StrLen(encoded.body) > self.maxInkBody then return nil;" in block
 
 def test_the_capture_canvas_is_gone_multi_stroke_defect_and_all():
     # The InkPad-derived canvas dropped all but the first stroke when drawing
@@ -382,28 +469,42 @@ def test_the_ink_overlay_shares_the_chat_link():
     assert ':AppendLine("Ink: " & reading);' in SOURCE
 
 
-def test_send_to_ai_is_hooked_into_the_stock_notes_action_menu():
-    # Track L2. The item is an extra frame on GetRoot().paperroll.routeScripts,
-    # which is RAM and dies on every reset -- so it is re-applied from the part
-    # frame's InstallScript, "executed ... whenever the Newton is reset".
-    assert 'kMenuTitle := "Send to AI";' in SOURCE
+def test_two_notes_actions_share_one_agent_and_route_their_own_modes():
+    assert 'kTextMenuTitle := "Convert to Text";' in SOURCE
+    assert 'kAskMenuTitle := "Ask AI";' in SOURCE
     assert "InstallScript: func(partFrame)" in SOURCE
-    assert "try partFrame.theForm:NotesHook(4, 'install)" in SOURCE
-    assert "paperroll.routeScripts := :NotesRebuild(paperroll, entry);" in SOURCE
-    assert "title: self.menuTitle," in SOURCE
-    # RouteScript uses neither self nor a closure: tntk segfaults on a nested
-    # function that reads an enclosing local (twenty-second finding), and the
-    # ROM does not say what self is when it fires the item. It walks back
-    # through the array the item lives in instead.
-    assert "RouteScript: self.NotesRoute," in SOURCE
-    assert "NotesRoute: func(target, targetView)" in SOURCE
-    assert "return item.agent:Route(target, targetView);" in SOURCE
+    assert "paperroll.routeScripts := :NotesRebuild(paperroll, textEntry, askEntry);" in SOURCE
+    assert "aiMode: 'text," in SOURCE
+    assert "aiMode: 'ask," in SOURCE
+    assert "RouteScript: self.NotesTextRoute," in SOURCE
+    assert "RouteScript: self.NotesAskRoute," in SOURCE
+    assert "NotesTextRoute: func(target, targetView)" in SOURCE
+    assert "NotesAskRoute: func(target, targetView)" in SOURCE
+    assert "return item.agent:Route(target, targetView, 'text);" in SOURCE
+    assert "return item.agent:Route(target, targetView, 'ask);" in SOURCE
+    # One heap agent owns both entries and therefore exactly one tools poll.
+    assert SOURCE.count("local agent := {_proto: self};") == 1
+    assert SOURCE.count("who:ToolStart() onexception") == 1
     for closure in ("func(target, targetView) agent:", "func() agent.", "func() kAppSymbol"):
         assert closure not in SOURCE
-    # The window is a fallback, not the mechanism, and it never overwrites an
-    # entry InstallScript already made.
     assert "try form:NotesHook(0, 'window) onexception |evt.ex| do nil;" in SOURCE
     assert "if :NotesHooked(paperroll) and (via <> 'install) then return nil;" in SOURCE
+
+
+def test_offline_send_stashes_once_and_resends_from_ready():
+    assert "pendingPrompt: nil," in SOURCE
+    assert 'return :SetStatus("Connecting, will send...");' in SOURCE
+    assert "self.pendingPrompt := prompt;" in SOURCE
+    assert "local prompt := self.pendingPrompt;" in SOURCE
+    assert "self.pendingPrompt := nil;" in SOURCE
+    ready = SOURCE.index("local prompt := self.pendingPrompt;")
+    assert SOURCE.index("self.pendingPrompt := nil;", ready) < SOURCE.index(
+        ":Send(prompt);", ready)
+
+
+def test_install_sweeps_stale_ai_entries_but_uninstall_stays_scoped():
+    assert "if not (IsFrame(item) and (item.aiHook <> nil)) then" in SOURCE
+    assert "if IsFrame(item) and (item.aiHook = frame.app) then" in SOURCE
 
 
 def test_uninstall_removes_our_entry_and_never_the_whole_array():
@@ -486,7 +587,7 @@ def test_both_icons_are_one_drawn_bitmap_built_at_package_time():
     # menu entry goes through a template slot.
     assert "icon: kAppIcon," in SOURCE
     assert "menuIcon: kAppIcon," in SOURCE
-    assert "icon: self.menuIcon," in SOURCE
+    assert SOURCE.count("icon: self.menuIcon,") == 2
     assert "icon: nil," not in SOURCE
 
 

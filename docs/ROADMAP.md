@@ -7,6 +7,12 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-06 — EF12: final pre-hardware ink hardening is emulator-proven.** Ships as `EggFrecklesEF12:jbfly` (v1.0-ef12, package version 24), sha256 `90ee54e8cb66…`. First-line `inkBusy` guards on watchdog re-arm, endpoint-drop advance, and delayed next-part open prevent an aborted stream from resurrecting. The 99-part wire backstop now reports `Note too long - first 99 pages sent` through separate `askPartCapped` state, never the point-thinning warning. A forced late-ACK abort left sequence/index/endpoint unchanged; real-backend four-part and zero-stroke routes still filed exact ordered replies. Evidence, source citations, build, and 105-test result: `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
+
+- **2026-08-06 — EF11: cross-vendor EF10 corrections are emulator-proven.** Ships as `EggFrecklesEF11:jbfly` (v1.0-ef11, package version 23), sha256 `dfb2b2899193…`. Text-only Ask AI routes again emit one zero-stroke NSI1 body; each `INKP` re-arms the 150 s watchdog; totals stop visibly at the two-digit 99-part wire backstop; an over-16-KiB body retries only that part at half point budget. Real-backend evidence filed `ZERO STROKE OK`, and a four-part real-image client stream filed `ALPHA ALPHA ALPHA ALPHA`; exact boundary, body retry, uninstall identity, build, and 105-test evidence are in `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
+
+- **2026-08-06 — EF10: ink pagination follows image legibility, not page height.** Ships as `EggFrecklesEF10:jbfly` (v1.0-ef10, package version 22), sha256 `32eda78c6f8a…`. A part flushes before its next whole stroke would exceed 64 strokes or 1,600 points; the proven `P`/`INKP`/`INK` transport is unchanged. Isolated `ef10round` real-image proof split one 128-stroke, single-band note into two 64-stroke PNGs and filed `ALPHA BRAVO ALPHA`; the short one-body path filed `ALPHA`. Install over EF9 swept stale routes, `/tools` ping returned `pong`, and uninstall left two stock routes. Full suite: 102 passed. Evidence and design: `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
+
 - **2026-08-04 — EF6: ink is decimated instead of truncated, the tools poll is
   package-wide, and every NIE callback is armored.** Ships as
   `EggFrecklesEF6:jbfly` (v1.0-ef6), sha256 `7cce547b…`, still one package and
@@ -260,18 +266,18 @@ agent can complete one task and verify it.
     fallback ships as insurance and never overwrites an InstallScript entry.
   - **The wrong-note bug is gone by construction on this path.** The route
     script is handed the live soup entry of the page whose envelope was tapped,
-    so there is no newest-note heuristic to poison. Three routes proven: a
-    text-only note (zero-stroke `NSI1` + `H` line, answered from the text — a
-    new host branch in `pkg_publisher.py`), a six-stroke house sketch (real
-    vision: *"A simple outline of a house with a pitched roof."*), and a mixed
-    page as **one** POST carrying both. The answer comes back as a native note
-    filed in an "AI" folder.
-  - **One defect found and fixed, older than this track.** The 150 s ink
-    watchdog was not per-send, so an earlier send's timer could land inside a
-    later one and tear its endpoint down — the first mixed-note attempt filed
-    "(not sent) The host did not answer" while the host had answered. `inkSeq`
-    now tickets each send. On the Ask button this only ever showed a wrong
-    status line, which is why it survived A9 and L1.
+    so there is no newest-note heuristic to poison. L2 proved text-only, sketch,
+    and mixed routes, but EF9/EF10 later regressed the client-side zero-stroke
+    encoder to a silent nil. EF11 restores the zero-stroke `NSI1` + `H` body and
+    files `ZERO STROKE OK` through Ask AI (`runtime/evidence/ef10round-fix-zero-host.log`,
+    `ef10round-fix-zero-reply.txt`); sketch and mixed behavior remain as proved
+    in `runtime/evidence/l2build-round.txt`.
+  - **The watchdog now covers each multipart call.** L2 first ticketed each
+    send so an older send's timer could not kill a later one, but EF9/EF10 armed
+    only once for the whole multipart stream. EF11 increments `inkSeq` on every
+    `INKP`; the four-part client proof advanced 2 → 5 and filed all four readings
+    (`runtime/evidence/ef10round-fix-many-route-start.txt`,
+    `ef10round-fix-many-reply.txt`).
   - **New toolchain rule, and it explains an old one.** `tntk` **segfaults** on
     any nested `func` that reads an enclosing function's local — i.e. on a
     closure — and since it compiles the whole `.newt` file as one function body,
@@ -1195,10 +1201,11 @@ switches to Claude, the same MCP server plugs in. Steps:
     (design)".
   - **The InkPad-derived canvas is deleted** when this ships, and its
     multi-stroke bug with it, unfixed.
-  - **The multi-part `/ink` POST is NOT needed** and stays unbuilt. The probe
-    note's 9 items and 279 points encode to roughly 1.1 KB against the 16 KiB
-    cap (`pkg_publisher.py:313`); `?part=k&of=n` remains specified-but-unwritten
-    in `docs/ink-client-design.md` until a real drawing exceeds it.
+  - **Superseded by EF10 (2026-08-06):** EF9 fixed later-page clamping but still
+    put every dense screen-height band through one image. EF10 groups ordered
+    strokes by 64-stroke/1,600-point per-image budgets and preserves the same
+    multipart and short paths; proof is in `docs/ef10-ink-pagination.md`
+    (EF9 diagnosis/history: `docs/ef9-ink-pagination.md`).
 
 ## Track F — the harness panel (Chat A4/A7; 2–3 sessions)
 

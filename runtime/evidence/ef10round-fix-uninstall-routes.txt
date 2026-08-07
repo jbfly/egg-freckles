@@ -1,0 +1,1 @@
+"routes=2 route0=Duplicate/newtDuplicateScript route1=Delete/newtDeleteScript"

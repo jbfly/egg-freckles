@@ -7,9 +7,11 @@
 > client** as a hideable overlay, deleting `examples/ink-capture`. The pen-up
 > defect is **RESOLVED** (Stage 5) and the doubled `Encode()` origin is
 > **RESOLVED and measured on the wire** ("Track F2 result", the last section).
-> Remaining gaps: nothing here is installed on physical hardware yet, and the
-> multi-part `/ink` POST is still unbuilt. See `docs/ROADMAP.md` Tracks E and
-> F2.
+> EF12, the final hardening of the reviewed EF10/EF11 path, groups native Notes ink into ordered
+> per-image stroke/point-budget POSTs while preserving the one-POST short path (`docs/ef10-ink-pagination.md`;
+> EF9 fixed-height history: `docs/ef9-ink-pagination.md`). The
+> remaining gap is physical-hardware validation. See `docs/ROADMAP.md` Tracks E
+> and F2.
 >
 > **Superseded in part (2026-08-04): the capture canvas is being retired.**
 > Hardware testing found it drops all but the first stroke when drawing

@@ -1,0 +1,40 @@
+EF9 ink pagination — isolated emulator result
+==============================================
+
+Identity: EggFrecklesEF9:jbfly, Egg Freckles 1.0-ef9, package version 21
+Hardware: NOT tested; isolated Einstein instance ef9round only
+
+Diagnosis:
+- CollectNote walks the source entry's complete data array up to kMaxItems=256;
+  it does not filter by visible view or current page.
+- EF8 shared one 1600-point budget across the whole note and clamped all Y to
+  one 480px PNG. EF6 measured 2569 -> 1308 points on one dense page; a similar
+  three-page note computes stride 6 before later pages collapse to Y=479.
+
+Long native note proof:
+- uid=4, 32 polygonShape frames, Y=110..986
+- installed agent: strokes=32 rawPoints=104 pages=3 tops=110,538,966
+- host: ordered part 1/3, 2/3, 3/3; all POST /ink returned 200
+- filed AI reply: ALPHA BRAVO CHARLIE
+- renders: ef9round-13-page-01.png, -14-page-02.png, -15-page-03.png
+
+Short fast path:
+- uid=6, strokes=9, pages=1
+- one 211-byte /ink body, no part field
+- filed AI reply: ALPHA
+- render: ef9round-16-short-page.png
+
+Invariants and package lifecycle:
+- sameAgent=yes; /tools ping -> pong
+- stale EF8 routes were replaced by exactly two EF9 routes
+- EF9 uninstall: EF9=missing, EF8=installed, final routes=two stock entries
+
+Tests:
+- test_newton_client_source.py: 35 passed
+- test_pkg_publisher.py: 12 passed
+- full suite: 102 passed
+
+Package SHA-256:
+f7de62f9f70583db542868d2d6453886ec9329e167c5a1d36909c4b6b0a3d1fb  examples/harness-client/egg-freckles.pkg
+
+Deferred: append Ask replies to the source note; EF8 new-reply-note behavior remains.

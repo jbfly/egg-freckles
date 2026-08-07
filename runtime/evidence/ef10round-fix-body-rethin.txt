@@ -1,0 +1,1 @@
+"initialBytes=18229 cap=16384 finalBytes=6240 sentPoints=668 retried=yes thinned=yes"

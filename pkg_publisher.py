@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import struct
 import subprocess
@@ -33,10 +34,16 @@ STATUS_BODY = b"Harness server v1.1 OK\n"
 STAGING_DIR = BASE_DIR / "runtime" / "staging" / "hardware"
 DEFAULT_INK_PATH = BASE_DIR / "runtime" / "evidence" / "ink-latest.png"
 DEFAULT_NOTE_PATH = BASE_DIR / "runtime" / "evidence" / "notes-latest.json"
-INK_PROMPT = (
+TEXT_INK_PROMPT = (
     "The attached PNG is a sketch or handwriting captured from the 320x480 screen "
     "of a Newton MessagePad. Answer with one short plain sentence under 90 "
     "characters saying what is drawn; if it is writing, transcribe it. "
+    "No preamble, no markdown."
+)
+ASK_INK_PROMPT = (
+    "The attached PNG is a note from a Newton MessagePad user. Respond to what "
+    "the note says or asks in one short plain sentence under 90 characters. "
+    "If it is only a drawing, give a useful brief response about the drawing. "
     "No preamble, no markdown."
 )
 # A mixed note — a drawing with typed words on the same page — arrives as one
@@ -159,7 +166,7 @@ class ToolBroker:
 
 PAGE_BODY = (
     b"<!doctype html><html><body>"
-    b"<h1>Newton Harness Client</h1>"
+    b"<h1>Egg Freckles EF13</h1>"
     b"<p><a href=\"/egg-freckles.pkg\">Download package</a></p>"
     b"</body></html>"
 )
@@ -216,9 +223,30 @@ def ask_model(prompt: str, host: str = MODEL_HOST, port: int = MODEL_PORT) -> st
         return answer
 
 
-def interpret(png_path: Path, hint: str = "") -> str:
+def _codex_bin() -> str:
+    """Return an absolute executable path for the Codex CLI."""
+    override = os.environ.get("NEWTON_CODEX_BIN")
+    if override:
+        path = Path(override).expanduser()
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path.resolve())
+
+    local = Path.home() / ".local" / "bin" / "codex"
+    if local.is_file() and os.access(local, os.X_OK):
+        return str(local.resolve())
+
+    found = shutil.which("codex")
+    if found:
+        return str(Path(found).resolve())
+
+    checked = f"NEWTON_CODEX_BIN={override!r}, {local}, and PATH"
+    raise RuntimeError(f"codex CLI not found or executable; checked {checked}")
+
+
+def interpret(png_path: Path, hint: str = "", mode: str = "ask") -> str:
     """Return a real vision reading of the rendered ink, or raise RuntimeError."""
-    prompt = INK_PROMPT + (INK_HINT_PROMPT + hint if hint else "")
+    prompt = (TEXT_INK_PROMPT if mode == "text" else ASK_INK_PROMPT)
+    prompt += INK_HINT_PROMPT + hint if hint else ""
     # The same shape as ask_model's NOTE WIRE lines: the log is where an ops
     # failure gets diagnosed (the hardware 502 was codex missing from PATH).
     print(f"INK PROMPT {prompt!r}", flush=True)
@@ -226,7 +254,7 @@ def interpret(png_path: Path, hint: str = "") -> str:
     # Measured ~9 s, well inside the client's timeout, so no job queue or polling.
     with tempfile.TemporaryDirectory(prefix="newton-ink-") as tmp:
         proc = subprocess.run(
-            ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
+            [_codex_bin(), "exec", "--sandbox", "read-only", "--skip-git-repo-check",
              "--cd", tmp, "--json", "-i", str(png_path), "--", prompt],
             cwd=tmp, stdin=subprocess.DEVNULL, capture_output=True,
             timeout=INK_TIMEOUT, check=False,
@@ -329,12 +357,24 @@ class PublisherHandler(BaseHTTPRequestHandler):
             canvas_width, canvas_height, stroke_count = map(int, header[1:])
             if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0:
                 raise ValueError
-            # NSI1 grammar: the header line, then AT MOST ONE optional
-            # "H <text>" line, then exactly stroke_count "S ..." lines. The tag
-            # stays NSI1 and the header's four fields do not change, because the
-            # physical MP2000 still runs an older client whose bodies have no H
-            # line and must keep parsing.
-            body_lines, hint = lines[1:], ""
+            # NSI1 grammar: header, optional M mode, optional P part/total,
+            # optional H text, then exactly stroke_count S lines. P mirrors the
+            # chat MSGP index protocol; single-page EF8 bodies have no P line.
+            body_lines, hint, mode, part = lines[1:], "", "ask", None
+            if body_lines and body_lines[0].startswith("M "):
+                mode = body_lines[0][2:]
+                if mode not in ("text", "ask"):
+                    raise ValueError
+                body_lines = body_lines[1:]
+            if body_lines and body_lines[0].startswith("P "):
+                fields = body_lines[0].split()
+                if len(fields) != 3:
+                    raise ValueError
+                part_index, part_total = map(int, fields[1:])
+                if not 1 <= part_index <= part_total <= 99:
+                    raise ValueError
+                part = (part_index, part_total)
+                body_lines = body_lines[1:]
             if body_lines and body_lines[0].startswith("H "):
                 hint = body_lines[0][2:]
                 if not 0 < len(hint) <= INK_HINT_LIMIT or not hint.isprintable():
@@ -376,19 +416,63 @@ class PublisherHandler(BaseHTTPRequestHandler):
         # logged how much geometry a body carried.
         points = sum(len(stroke) for stroke in strokes)
         rate = f" bytes_per_point={length / points:.2f}" if points else ""
-        print(f"INK BODY bytes={length} strokes={stroke_count} points={points}{rate}",
-              flush=True)
+        part_text = f" part={part[0]}/{part[1]}" if part else ""
+        print(f"INK BODY mode={mode}{part_text} bytes={length} strokes={stroke_count} "
+              f"points={points}{rate}", flush=True)
+
+        # ponytail: one ordered multipart stream is enough because the Newton
+        # sends the next page only after INKP closes this HTTP/1.0 response.
+        key = self.client_address[0]
+        if part:
+            index, total = part
+            with self.server.ink_lock:
+                current = self.server.ink_parts.get(key)
+                if index == 1:
+                    current = {"total": total, "mode": mode, "readings": []}
+                    self.server.ink_parts[key] = current
+                elif (current is None or current["total"] != total
+                      or current["mode"] != mode or len(current["readings"]) + 1 != index):
+                    self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink part\n",
+                                     "text/plain; charset=us-ascii")
+                    return
+
+        png_path = self.ink_path
+        if part:
+            png_path = self.ink_path.with_name(
+                f"{self.ink_path.stem}-part-{part[0]:02d}{self.ink_path.suffix}")
         if strokes:
-            self.ink_path.parent.mkdir(parents=True, exist_ok=True)
-            save_ink_png(self.ink_path, strokes)
+            png_path.parent.mkdir(parents=True, exist_ok=True)
+            save_ink_png(png_path, strokes)
         try:
-            # Zero strokes: skip the PNG and the vision call and put the note's
-            # own words to the model as a plain turn. One reply shape either
-            # way, so the client needs no branch at all.
-            reading = interpret(self.ink_path, hint) if strokes else ask_model(hint)
+            # Zero strokes need no PNG: Convert returns the already-usable note
+            # text, while Ask keeps the existing plain model turn.
+            if strokes:
+                reading = interpret(png_path, hint, mode)
+            elif mode == "text":
+                reading = hint
+            else:
+                reading = ask_model(hint)
             status = HTTPStatus.OK
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
+            if part:
+                with self.server.ink_lock:
+                    self.server.ink_parts.pop(key, None)
+
+        if part and status == HTTPStatus.OK:
+            index, total = part
+            with self.server.ink_lock:
+                current = self.server.ink_parts[key]
+                current["readings"].append(reading)
+                if index < total:
+                    response = f"INKP {index:02d} {total:02d}\r\n"
+                else:
+                    response = f"INK {ascii_line(' '.join(current['readings']), 900)}\r\n"
+                    del self.server.ink_parts[key]
+            self._send_bytes(status, response.encode("ascii"),
+                             "text/plain; charset=us-ascii")
+            return
+
         # ponytail: "INK " prefix is all the client needs to tell the body
         # apart from the HTTP header lines its endpoint also delivers.
         self._send_bytes(status, f"INK {reading}\r\n".encode("ascii"),
@@ -549,6 +633,8 @@ class PublisherServer(ThreadingHTTPServer):
 
     def __init__(self, address: tuple[str, int], handler: type[PublisherHandler]) -> None:
         self.tools = ToolBroker()
+        self.ink_lock = threading.Lock()
+        self.ink_parts: dict[str, dict[str, object]] = {}
         super().__init__(address, handler)
 
 

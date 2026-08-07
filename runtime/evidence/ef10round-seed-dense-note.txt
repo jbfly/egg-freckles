@@ -1,0 +1,1 @@
+"uid=5 strokes=128 minY=110 maxY=302"

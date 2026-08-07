@@ -15,8 +15,30 @@ from unittest import mock
 
 import pkg_publisher
 
+CLIENT_SOURCE = (Path(__file__).parent / "examples/harness-client/Main.newt").read_text()
+
 
 class PublisherTest(unittest.TestCase):
+    def test_codex_binary_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            override = Path(tmp) / "codex"
+            override.write_text("#!/bin/sh\n")
+            override.chmod(0o700)
+            with mock.patch.dict(
+                pkg_publisher.os.environ, {"NEWTON_CODEX_BIN": str(override)}, clear=True
+            ):
+                self.assertEqual(pkg_publisher._codex_bin(), str(override.resolve()))
+
+            home = Path(tmp) / "home"
+            local = home / ".local" / "bin" / "codex"
+            with mock.patch.dict(pkg_publisher.os.environ, {}, clear=True), \
+                    mock.patch.object(pkg_publisher.Path, "home", return_value=home), \
+                    mock.patch.object(pkg_publisher.shutil, "which", return_value=None):
+                with self.assertRaises(RuntimeError) as raised:
+                    pkg_publisher._codex_bin()
+            self.assertIn(str(local), str(raised.exception))
+            self.assertIn("PATH", str(raised.exception))
+
     def test_page_package_headers_and_404(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             package_path = Path(tmp) / "examples" / "harness-client" / "egg-freckles.pkg"
@@ -148,25 +170,27 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    mixed = b"NSI1 320 480 1\r\nH feed the cat\r\nS 2 10 20 20 30\r\n"
+                    mixed = b"NSI1 320 480 1\r\nM text\r\nH feed the cat\r\nS 2 10 20 20 30\r\n"
                     with mock.patch.object(pkg_publisher, "interpret",
                                            return_value="A cat.") as vision:
                         status, _, response, _ = self.fetch(port, "/ink", "POST", mixed)
                     self.assertEqual((status, response), (200, b"INK A cat.\r\n"))
-                    self.assertEqual(vision.call_args.args[1], "feed the cat")
+                    self.assertEqual(vision.call_args.args[1:], ("feed the cat", "text"))
 
                     # No H line is still valid: the physical MP2000 runs an
                     # older client that has never sent one.
                     with mock.patch.object(pkg_publisher, "interpret",
                                            return_value="A line.") as vision:
                         self.fetch(port, "/ink", "POST", b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\n")
-                    self.assertEqual(vision.call_args.args[1], "")
+                    self.assertEqual(vision.call_args.args[1:], ("", "ask"))
 
                     for bad in (
                         b"NSI1 320 480 1\r\nH \r\nS 2 10 20 20 30\r\n",            # empty hint
                         b"NSI1 320 480 1\r\nH " + b"x" * 201 + b"\r\nS 2 10 20 20 30\r\n",
                         b"NSI1 320 480 1\r\nH one\r\nH two\r\nS 2 10 20 20 30\r\n",  # two H lines
                         b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\nH trailing\r\n",     # H after S
+                        b"NSI1 320 480 1\r\nM nope\r\nS 2 10 20 20 30\r\n",       # unknown mode
+                        b"NSI1 320 480 1\r\nH one\r\nM text\r\nS 2 10 20 20 30\r\n", # M after H
                     ):
                         status, _, response, _ = self.fetch(port, "/ink", "POST", bad)
                         self.assertEqual((status, response), (400, b"invalid ink\n"), bad)
@@ -183,7 +207,12 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    body = b"NSI1 320 480 0\r\nH what is a newton\r\n"
+                    # This is the exact shape PrepareInkPages now builds for
+                    # Notes-menu Ask AI: EncodeInk([], 0, hint, 'ask, 1, 1).
+                    self.assertIn(":EncodeInk([], 0, hint, mode, 1, 1);", CLIENT_SOURCE)
+                    self.assertIn('StrMunger(body, 536870911, nil, "M ask\\r\\n", 0, nil)', CLIENT_SOURCE)
+                    self.assertIn('StrMunger(body, 536870911, nil, "H " & hint & "\\r\\n", 0, nil);', CLIENT_SOURCE)
+                    body = b"NSI1 320 480 0\r\nM ask\r\nH what is a newton\r\n"
                     with mock.patch.object(pkg_publisher, "ask_model",
                                            return_value="A 1990s PDA.") as model, \
                             mock.patch.object(pkg_publisher, "interpret") as vision:
@@ -200,10 +229,58 @@ class PublisherTest(unittest.TestCase):
                     self.assertEqual((status, response),
                                      (502, b"INK No reading: model down\r\n"))
 
+                    # Convert to Text on an already-typed note is deterministic:
+                    # return its usable text without spending a model call.
+                    text_body = b"NSI1 320 480 0\r\nM text\r\nH exact words\r\n"
+                    with mock.patch.object(pkg_publisher, "ask_model") as model, \
+                            mock.patch.object(pkg_publisher, "interpret") as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", text_body)
+                    self.assertEqual((status, response), (200, b"INK exact words\r\n"))
+                    model.assert_not_called()
+                    vision.assert_not_called()
+
                     # A zero-stroke body with no H line asks nothing.
                     status, _, response, _ = self.fetch(
                         port, "/ink", "POST", b"NSI1 320 480 0\r\n")
                     self.assertEqual((status, response), (400, b"invalid ink\n"))
+                finally:
+                    server.shutdown()
+                    thread.join()
+
+    def test_ink_parts_are_ordered_rendered_separately_and_concatenated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ink_path = Path(tmp) / "ink.png"
+            with pkg_publisher.make_server("127.0.0.1", 0, ink_path=ink_path) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                try:
+                    pages = [
+                        (f"NSI1 320 480 1\r\nM text\r\nP {index:02d} 04\r\n"
+                         f"S 2 {index * 10} 20 20 30\r\n").encode()
+                        for index in range(1, 5)
+                    ]
+                    readings = ["FIRST", "SECOND", "THIRD", "FOURTH"]
+                    with mock.patch.object(pkg_publisher, "interpret",
+                                           side_effect=readings) as vision:
+                        for index, page in enumerate(pages, 1):
+                            status, _, response, _ = self.fetch(port, "/ink", "POST", page)
+                            expected = (f"INKP {index:02d} 04\r\n".encode() if index < 4
+                                        else b"INK FIRST SECOND THIRD FOURTH\r\n")
+                            self.assertEqual((status, response), (200, expected))
+                    self.assertEqual(
+                        [call.args[0].name for call in vision.call_args_list],
+                        [f"ink-part-{index:02d}.png" for index in range(1, 5)],
+                    )
+                    for index in range(1, 5):
+                        self.assertTrue((Path(tmp) / f"ink-part-{index:02d}.png").exists())
+                    self.assertEqual(server.ink_parts, {})
+
+                    # A missing first part is rejected before any model call.
+                    with mock.patch.object(pkg_publisher, "interpret") as vision:
+                        status, _, response, _ = self.fetch(port, "/ink", "POST", pages[1])
+                    self.assertEqual((status, response), (400, b"invalid ink part\n"))
+                    vision.assert_not_called()
                 finally:
                     server.shutdown()
                     thread.join()
@@ -224,7 +301,8 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
-    def test_interpret_call_boundary(self) -> None:
+    @mock.patch.object(pkg_publisher, "_codex_bin", return_value="/opt/codex")
+    def test_interpret_call_boundary(self, _codex) -> None:
         """The real-backend edge: argv shape, JSON pick, cleanup, failure. No tokens spent."""
         events = (
             b'{"type":"thread.started","thread_id":"t1"}\n'
@@ -238,15 +316,15 @@ class PublisherTest(unittest.TestCase):
             self.assertEqual(pkg_publisher.interpret(Path("/tmp/ink.png")),
                              "A wavy line with a ? dash.")
         argv = run.call_args.args[0]
-        self.assertEqual(argv[:2], ["codex", "exec"])
-        self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.INK_PROMPT])
+        self.assertEqual(argv[:2], ["/opt/codex", "exec"])
+        self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.ASK_INK_PROMPT])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
-        # The H line's text is appended to the same prompt, in the same argv slot.
+        # Each mode selects its own prompt; H remains context in the same argv slot.
         with mock.patch.object(subprocess, "run", return_value=done) as run:
-            pkg_publisher.interpret(Path("/tmp/ink.png"), "feed the cat")
+            pkg_publisher.interpret(Path("/tmp/ink.png"), "feed the cat", "text")
         self.assertEqual(run.call_args.args[0][-1],
-                         pkg_publisher.INK_PROMPT
+                         pkg_publisher.TEXT_INK_PROMPT
                          + pkg_publisher.INK_HINT_PROMPT + "feed the cat")
 
         failed = subprocess.CompletedProcess([], 1, stdout=b"", stderr=b"boom")

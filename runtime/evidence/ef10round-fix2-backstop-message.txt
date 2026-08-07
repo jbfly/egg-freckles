@@ -1,0 +1,1 @@
+"parts=99 capped=yes thinned=no lastP99=yes notice=Note too long - first 99 pages sent"

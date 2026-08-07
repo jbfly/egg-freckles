@@ -1,0 +1,4 @@
+[newton] ts=2026-08-06T20:28:57+00:00 serving on 0.0.0.0:6801 fake=False state=/tmp/ef10round-fix2-state
+[newton] ts=2026-08-06T20:31:42+00:00 connect ('127.0.0.1', 48886)
+[newton] ts=2026-08-06T20:31:42+00:00 codex argv: codex exec --sandbox read-only --skip-git-repo-check --cd /tmp/newton-codex-faqt9wo3 --json --output-schema /home/jbfly/git/newton-harness-worktrees/ef9/response_schema.json
+[newton] ts=2026-08-06T20:31:52+00:00 disconnect ('127.0.0.1', 48886)

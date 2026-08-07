@@ -1,0 +1,69 @@
+EF8 Convert to Text and Ask AI results
+======================================
+
+All three actions were real taps in the stock Notes envelope menu on isolated
+instance ef8round. Replies landed through the existing FileReply path as native
+text notes filed in AI.
+
+1. Handwriting -> transcription
+
+The stock Notes recognizer stored the four drawn H/I strokes as one paragraph:
+
+    "uid=3 n=1 stat=para cls=frame text=HI"
+
+Convert to Text sent:
+
+    INK BODY mode=text bytes=30 strokes=0 points=0
+    "POST /ink HTTP/1.0" 200
+
+The filed reply was usable text:
+
+    "uid=4 label=AI text=re: HI
+
+    HI"
+
+Screenshots: ef8round-02-handwriting.png, ef8round-03-handwriting-menu.png,
+ef8round-04-handwriting-result.png.
+
+2. Drawing -> description
+
+A house drawn with the stock Sketches recognizer was native ink2:
+
+    "uid=5 n=1 ink=ink2"
+
+Convert to Text sent mode=text and the deterministic transcription/description
+prompt:
+
+    INK BODY mode=text bytes=532 strokes=6 points=102 bytes_per_point=5.22
+    INK PROMPT '... saying what is drawn; if it is writing, transcribe it. ...'
+    "POST /ink HTTP/1.0" 200
+
+The filed reply was:
+
+    "uid=6 label=AI text=re: 6 strokes
+
+    A simple outline of a house with a short vertical line inside."
+
+Screenshots: ef8round-05-drawing.png, ef8round-06-drawing-menu.png,
+ef8round-07-drawing-result.png.
+
+3. Ask AI -> existing conversational reply path
+
+A triangle drawn with the same stock Sketches tool was native ink2:
+
+    "uid=7 n=1 ink=ink2"
+
+Ask AI sent mode=ask and the conversational prompt:
+
+    INK BODY mode=ask bytes=931 strokes=3 points=197 bytes_per_point=4.73
+    INK PROMPT '... Respond to what the note says or asks ...'
+    "POST /ink HTTP/1.0" 200
+
+The answer used the same FileReply/AI-folder behaviour as the former Send to AI:
+
+    "uid=8 label=AI text=re: 3 strokes
+
+    That looks like a neatly drawn triangle."
+
+Screenshots: ef8round-08-ask-source.png, ef8round-09-ask-menu.png,
+ef8round-10-ask-result.png.
