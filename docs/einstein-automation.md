@@ -156,6 +156,19 @@ The shortest complete path is to copy the proven Cocoa/CLI idea into FLTK as a t
 
 6. **Return an accepted/queued result, not a false synchronous success.** Einstein’s install and NewtonScript methods enqueue Newton events ([`TPlatformManager.cpp:640-689`](https://github.com/pguyot/Einstein/blob/f5544a039fc3964e18b217ccffa030c6bf1e4044/Emulator/Platform/TPlatformManager.cpp#L640-L689)); they do not report NewtonOS completion. Verification should use existing flash/package evidence or an app-specific readiness signal.
 
+### Current eval safety boundary (2026-08-07)
+
+The socket was later extended with one global result file, but it still has no
+request ID or cancellation. `runtime/ns_eval.py` now wraps that path in a
+per-container single-flight lock and persistent poison marker: overlap is
+rejected before the socket, and any timeout/ambiguous exit blocks later evals
+until `podman inspect` proves the isolated container restarted. See
+`docs/emulator-nseval-wedge.md`, “Option A — implemented host-side guard.”
+Large-note and soup-touching behavior is proved through the installed app with
+bounded `emulator.client` UI actions and `/ink` POST counts, not through eval.
+A correlated C++ channel is documented there as Option B, a future goal only if
+programmatic eval becomes load-bearing.
+
 For package-specific launch, use the package’s known root symbol. The current examples already have stable symbols; for an arbitrary third-party package, inspect its project/source or package metadata before issuing `GetRoot().|symbol|:Open()`.
 
 ## What would need building
