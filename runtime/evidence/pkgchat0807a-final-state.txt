@@ -1,0 +1,8 @@
+branch=release/pkg-write-fix
+commit=4fc2fb34cce2b1f5b092318c2d1207a6cca9ac0d
+project_exists=no
+server_pid=1784039
+server_log:
+[newton] ts=2026-08-07T14:52:09+00:00 serving on 0.0.0.0:6801 fake=False state=/tmp/pkgchat0807a-server-state
+shared:
+running healthy

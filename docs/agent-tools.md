@@ -231,6 +231,144 @@ is the screenshot returned by `emulator_screen`. This proves the plumbing, not
 a real Egg Freckles chat turn in which the agent itself selects these tools and
 generates valid source; that chat-agent behavior remains separate work.
 
+## Real Egg Freckles turn attempt — stopped before the agent, 2026-08-07
+
+A host-path validation attempt used `release/pkg-write-fix @ 4fc2fb34`, isolated
+instance `pkgchat0807a`, the known-good EF13 seed flash (SHA-256
+`8f37d609d46711ea2ce1d748ed52fbd4b3f4f88fd86e6c90b654fb21fdb1508a`),
+and a real host `server.py` with a temporary Codex home whose `newton` MCP entry
+pointed at this worktree's `newton_mcp.py`. The branch-paired Egg Freckles EF20
+package launched and displayed its normal prompt window
+([`pkgchat0807a-04-egg-recovery.png`](../runtime/evidence/pkgchat0807a-04-egg-recovery.png)).
+
+The turn itself did **not** start. `emulator_text` returned `{"ok":true}`, but
+the NewtonScript prompt field remained empty; tapping **Send** displayed
+"Type a prompt first", and the complete server log contains only its startup
+line — no Newton connection
+([`pkgchat0807a-06-sent.png`](../runtime/evidence/pkgchat0807a-06-sent.png),
+[`pkgchat0807a-server.log`](../runtime/evidence/pkgchat0807a-server.log)). The
+status log records every bounded step, the one recovery (installing the client;
+the EF13 flash is a seed, not a client-package snapshot), and teardown
+([`pkgchat0807a-status.log`](../runtime/evidence/pkgchat0807a-status.log)). No
+workspace project was created, so none of `create_project`, `write_source`,
+`build_pkg`, or `emulator_install` was selected by the chat agent. The real-turn
+gate therefore remains open; this is a prompt-entry automation blocker, not a
+regression of the already-passed direct-MCP plumbing proof.
+
+## Mars deployment prepared — not applied, 2026-08-07
+
+Mars was reported at `590b6ab`; live SSH verification failed with
+`ssh: connect to host 10.13.13.12 port 22: Connection timed out`. Do not call
+Mars deployed until the following preflight runs there. `tntk` does **not**
+need to be on `PATH`: `build_pkg` resolves `bwrap` with `shutil.which`, invokes
+`make`, and the copied project Makefile calls
+`$HOME/newton-dev/prefix/bin/tntk` while setting `LD_LIBRARY_PATH` itself
+(`newton_mcp.py:364-377`; `examples/hello/Makefile:1-11`). Podman is
+separate and still required for `emulator_*` instance resolution.
+
+Prepare the release bundle on the validated host, then let the human copy and
+apply it:
+
+```sh
+# alpha / validated host
+cd ~/git/newton-harness-worktrees/rel-pkgwrite
+test "$(git rev-parse HEAD)" = 4fc2fb34cce2b1f5b092318c2d1207a6cca9ac0d
+git bundle create /tmp/pkg-write-fix-4fc2fb34.bundle release/pkg-write-fix
+sha256sum /tmp/pkg-write-fix-4fc2fb34.bundle
+scp /tmp/pkg-write-fix-4fc2fb34.bundle mars:/tmp/
+
+# mars — human-gated; abort on any failed assertion
+cd ~/git/newton-harness
+test -z "$(git status --porcelain)"
+test "$(git rev-parse HEAD)" = 590b6ab
+{
+  git rev-parse HEAD
+  sha256sum examples/harness-client/egg-freckles.pkg pkg_publisher.py
+  pgrep -af '^python3( -u)? runtime/raw_pkg_server.py$'
+  ss -ltnp | grep ':18081 '
+} | tee /tmp/mars-pkg-write-predeploy.txt
+test "$(pgrep -fc '^python3( -u)? runtime/raw_pkg_server.py$')" = 1
+git bundle verify /tmp/pkg-write-fix-4fc2fb34.bundle
+git branch backup/mars-before-pkg-write-590b6ab 590b6ab
+git fetch /tmp/pkg-write-fix-4fc2fb34.bundle \
+  release/pkg-write-fix:refs/heads/release/pkg-write-fix
+git switch --detach 4fc2fb34cce2b1f5b092318c2d1207a6cca9ac0d
+mkdir -p runtime/agent-workspace
+
+command -v bwrap
+command -v make
+test -x "$HOME/newton-dev/prefix/bin/tntk"
+test -f "$HOME/newton-dev/ntk-platform-files/Newton 2.1"
+command -v podman                    # required for install/launch/screenshot
+podman info --format '{{.Host.Security.Rootless}}' | grep -x true
+codex mcp get newton                 # must name ~/git/newton-harness/newton_mcp.py
+                                    # and approval mode "approve"
+uv run --with pytest pytest -q
+```
+
+The checkout update changes **both** `examples/harness-client/egg-freckles.pkg`
+and `pkg_publisher.py` relative to `590b6ab`; keep them paired. At `4fc2fb34`
+their SHA-256 values are `91381832725a2563…` and `538d6fa41b65373c…`.
+`runtime/raw_pkg_server.py` imports the publisher at process start, so restart
+that one listener after the tests and verify the served package before any
+human uses Egg Freckles:
+
+```sh
+cd ~/git/newton-harness
+old_pid=$(pgrep -f '^python3( -u)? runtime/raw_pkg_server.py$')
+test -n "$old_pid" && test "$(printf '%s\n' "$old_pid" | wc -l)" = 1
+kill "$old_pid"
+for _ in $(seq 1 20); do
+  kill -0 "$old_pid" 2>/dev/null || break
+  sleep 1
+done
+! kill -0 "$old_pid" 2>/dev/null
+mkdir -p runtime/logs
+nohup python3 -u runtime/raw_pkg_server.py \
+  >runtime/logs/raw-pkg-server.log 2>&1 &
+echo $! >/tmp/mars-raw-pkg-server.pid
+for _ in $(seq 1 20); do
+  curl -fsS http://10.42.0.1:18081/status && break
+  sleep 1
+done
+curl -fsS http://10.42.0.1:18081/egg-freckles.pkg | sha256sum | \
+  grep '^91381832725a2563dcf6c635c3f7f98306a5d1214d1bdafd183757d5c5d4e0bd '
+sha256sum pkg_publisher.py | \
+  grep '^538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566 '
+```
+
+The host chat server on 6801 need not restart: a new Codex process and MCP
+subprocess start per turn, and a new session reads the updated
+`agent_prompt.txt`. On Egg Freckles use `/new pkg-write` before the first
+package-authoring request. If Mars has no rootless Podman, stop before the
+publisher restart and leave the old checkout running: create/write/build could
+work, but emulator install/launch cannot, so the requested end-to-end surface
+is not deployable there. The MCP surface deliberately has no physical-hardware
+deployment tool.
+
+Rollback restores the saved checkout and restarts the same publisher process.
+It deliberately leaves the confined workspace in place so generated source and
+packages are not destroyed:
+
+```sh
+cd ~/git/newton-harness
+git switch --detach backup/mars-before-pkg-write-590b6ab
+old_pid=$(cat /tmp/mars-raw-pkg-server.pid)
+kill "$old_pid" 2>/dev/null || true
+for _ in $(seq 1 20); do
+  kill -0 "$old_pid" 2>/dev/null || break
+  sleep 1
+done
+nohup python3 -u runtime/raw_pkg_server.py \
+  >runtime/logs/raw-pkg-server.log 2>&1 &
+sha256sum examples/harness-client/egg-freckles.pkg pkg_publisher.py
+cat /tmp/mars-pkg-write-predeploy.txt
+```
+
+This procedure does not merge `master`, install on the MessagePad, or touch
+ZC40. The publisher restart is host-only but hardware-facing, which is why the
+entire apply sequence remains human-gated.
+
 ## The live demo (D3) — 2026-08-03
 
 Isolated emulator instance `d3demo`, flash seeded from

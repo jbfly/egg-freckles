@@ -1,0 +1,79 @@
+[2026-08-07T15:50:39+01:00] BEFORE identity/project/instance preflight
+[2026-08-07T15:50:39+01:00] AFTER identity/project/instance preflight: all unused
+[2026-08-07T15:50:39+01:00] BEFORE isolated instance up
+[2026-08-07T15:50:41+01:00] AFTER isolated instance up
+[2026-08-07T15:50:41+01:00] BEFORE health wait
+[2026-08-07T15:50:41+01:00] health poll 1: starting
+[2026-08-07T15:50:46+01:00] health poll 2: starting
+[2026-08-07T15:50:51+01:00] health poll 3: starting
+[2026-08-07T15:50:56+01:00] health poll 4: healthy
+[2026-08-07T15:50:56+01:00] AFTER health wait: healthy
+[2026-08-07T15:51:09+01:00] BEFORE seed hash check
+[2026-08-07T15:51:09+01:00] AFTER seed hash check: EF13 proof flash matched
+[2026-08-07T15:51:09+01:00] BEFORE isolated stop for seed
+newton-harness-pkgchat0807a_emulator_1
+[2026-08-07T15:51:10+01:00] AFTER isolated stop for seed
+[2026-08-07T15:51:10+01:00] BEFORE seed copy
+[2026-08-07T15:51:10+01:00] AFTER seed copy
+[2026-08-07T15:51:10+01:00] BEFORE isolated restart
+newton-harness-pkgchat0807a_emulator_1
+[2026-08-07T15:51:10+01:00] AFTER isolated restart
+[2026-08-07T15:51:10+01:00] BEFORE post-seed health wait
+[2026-08-07T15:51:10+01:00] post-seed health poll 1: starting
+[2026-08-07T15:51:15+01:00] post-seed health poll 2: starting
+[2026-08-07T15:51:20+01:00] post-seed health poll 3: starting
+[2026-08-07T15:51:25+01:00] post-seed health poll 4: healthy
+[2026-08-07T15:51:25+01:00] AFTER post-seed health wait: healthy
+[2026-08-07T15:51:25+01:00] BEFORE post-seed status/screen
+[2026-08-07T15:51:26+01:00] AFTER post-seed status/screen
+[2026-08-07T15:51:41+01:00] BEFORE close EF13 boot slip
+[2026-08-07T15:51:42+01:00] AFTER close EF13 boot slip
+[2026-08-07T15:51:44+01:00] BEFORE bare-screen capture
+[2026-08-07T15:51:44+01:00] AFTER bare-screen capture
+[2026-08-07T15:52:09+01:00] BEFORE host server prerequisites
+[2026-08-07T15:52:09+01:00] AFTER host server prerequisites: bwrap/make/tntk/10.42.0.1 ready, 6801 free
+[2026-08-07T15:52:09+01:00] BEFORE temporary Codex home setup
+[2026-08-07T15:52:09+01:00] AFTER temporary Codex home setup
+[2026-08-07T15:52:09+01:00] BEFORE host server start
+[2026-08-07T15:52:09+01:00] AFTER host server start pid=1784039
+[2026-08-07T15:52:09+01:00] BEFORE host server readiness wait
+[2026-08-07T15:52:09+01:00] server readiness poll 1: waiting
+[2026-08-07T15:52:10+01:00] server readiness poll 2: listening
+[2026-08-07T15:52:10+01:00] AFTER host server readiness wait: ready
+[2026-08-07T15:52:18+01:00] BEFORE Egg Freckles EF13 launch
+[2026-08-07T15:52:18+01:00] AFTER Egg Freckles EF13 launch queued
+[2026-08-07T15:52:21+01:00] BEFORE Egg Freckles launch screen/status
+[2026-08-07T15:52:22+01:00] AFTER Egg Freckles launch screen/status
+[2026-08-07T15:53:00+01:00] RECOVERY BEGIN: EF13 proof flash is a seed; install branch-paired Egg Freckles package
+[2026-08-07T15:53:00+01:00] BEFORE recovery package/source pairing check
+[2026-08-07T15:53:00+01:00] AFTER recovery package/source pairing check
+[2026-08-07T15:53:00+01:00] BEFORE close -48809 alert
+[2026-08-07T15:53:00+01:00] AFTER close -48809 alert
+[2026-08-07T15:53:00+01:00] BEFORE recovery Egg Freckles install
+[2026-08-07T15:53:00+01:00] AFTER recovery Egg Freckles install queued
+[2026-08-07T15:53:05+01:00] BEFORE recovery Egg Freckles launch
+[2026-08-07T15:53:05+01:00] AFTER recovery Egg Freckles launch queued
+[2026-08-07T15:53:09+01:00] BEFORE recovery verdict screen/status
+[2026-08-07T15:53:09+01:00] AFTER recovery verdict screen/status
+[2026-08-07T15:53:09+01:00] RECOVERY END
+[2026-08-07T15:53:35+01:00] BEFORE focus prompt field
+[2026-08-07T15:53:35+01:00] AFTER focus prompt field
+[2026-08-07T15:53:35+01:00] BEFORE type real chat prompt
+[2026-08-07T15:53:41+01:00] AFTER type real chat prompt
+[2026-08-07T15:53:43+01:00] BEFORE typed-prompt screen/status
+[2026-08-07T15:53:43+01:00] AFTER typed-prompt screen/status
+[2026-08-07T15:53:58+01:00] BEFORE prompt length verification
+[2026-08-07T15:53:58+01:00] AFTER prompt length verification
+[2026-08-07T15:54:10+01:00] BEFORE real Egg Freckles Send tap
+[2026-08-07T15:54:10+01:00] AFTER real Egg Freckles Send tap
+[2026-08-07T15:54:13+01:00] BEFORE post-send screen/server check
+[2026-08-07T15:54:14+01:00] AFTER post-send screen/server check
+[2026-08-07T15:56:12+01:00] BEFORE validation cleanup: capture final state
+[2026-08-07T15:56:12+01:00] AFTER validation cleanup capture
+[2026-08-07T15:56:12+01:00] BEFORE host server stop
+[2026-08-07T15:56:13+01:00] AFTER host server stop
+[2026-08-07T15:56:13+01:00] BEFORE isolated instance teardown
+[2026-08-07T15:56:15+01:00] AFTER isolated instance teardown
+[2026-08-07T15:56:15+01:00] BEFORE temporary Codex/server state cleanup
+[2026-08-07T15:56:15+01:00] AFTER temporary Codex/server state cleanup
+[2026-08-07T15:56:15+01:00] FINAL: shared emulator untouched; no agent project created; validation stopped after one recovery

@@ -1,0 +1,13 @@
+/tmp/pkg-write-fix-4fc2fb34.bundle is okay
+The bundle contains this ref:
+4fc2fb34cce2b1f5b092318c2d1207a6cca9ac0d refs/heads/release/pkg-write-fix
+The bundle records a complete history.
+The bundle uses this hash algorithm: sha1
+440603c0dc0664bfa1037d7d7791421003154234aa593af5666c57c04d57025f  /tmp/pkg-write-fix-4fc2fb34.bundle
+size=16965632
+paired branch hashes:
+91381832725a2563dcf6c635c3f7f98306a5d1214d1bdafd183757d5c5d4e0bd  examples/harness-client/egg-freckles.pkg
+538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566  pkg_publisher.py
+mars-base-to-release paired-file delta:
+examples/harness-client/egg-freckles.pkg
+pkg_publisher.py

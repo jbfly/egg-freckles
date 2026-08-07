@@ -166,7 +166,14 @@ and [`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launc
 
 This proof called the plumbing directly. A real Egg Freckles chat turn in which
 the agent itself chooses `create_project`/`write_source`, generates valid
-NewtonScript, and completes the loop remains to be proven separately.
+NewtonScript, and completes the loop remains to be proven separately. The
+2026-08-07 `pkgchat0807a` attempt did not reach the agent: the branch-paired
+EF20 client launched, but `emulator_text` left its NewtonScript prompt field
+empty; **Send** displayed "Type a prompt first" and `server.py` logged no
+connection. The one-recovery limit then stopped the round. Evidence:
+`runtime/evidence/pkgchat0807a-status.log`, `pkgchat0807a-06-sent.png`, and
+`pkgchat0807a-server.log`. Treat this as a prompt-entry automation blocker, not
+a failure of steps 3-8, which were not invoked in that round.
 
 ## Proven 2026-08-03 (Track G2)
 

@@ -1,0 +1,3 @@
+/usr/bin/bwrap
+/usr/bin/make
+/home/jbfly/newton-dev/prefix/bin/tntk

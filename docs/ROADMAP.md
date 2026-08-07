@@ -1263,14 +1263,19 @@ is glue + a runbook:
   records that `scripts/newton-round.sh` does **not** fit a new app on an
   isolated instance (it drives the shared container and needs a `kVersion` tag
   the scaffold lacks), so a new app bumps its identity by hand.
-- **G2. Done 2026-08-03 — gate passed.** codex built `Dice1:jbfly`
+- **G2. Done 2026-08-03 — historical gate passed.** codex built `Dice1:jbfly`
   ("NewtonDice") into `examples/dice` on isolated instance `gloop` in six MCP
   calls with no intervention and no failed build, and the screenshots show the
   app working. Status log entry above; `docs/agent-dev-loop.md`
   "Proven 2026-08-03"; `runtime/evidence/gloop-*`.
-  **Still open:** the hardware half — the human installing it on the MP2000 via
-  ZC40 after a `store_info` free-space check. Physical staging and installation
-  are both outside the agent surface (`docs/agent-tools.md` rail 4).
+  **Still open:** (1) the confined-workspace path through a real Egg Freckles
+  turn, and (2) the hardware half. Direct MCP proved the confined plumbing on
+  2026-08-07, but `pkgchat0807a` stopped before the agent because emulator text
+  injection left the client prompt empty; **Send** said "Type a prompt first"
+  and `server.py` logged no connection (`runtime/evidence/pkgchat0807a-*`).
+  The human hardware install remains via ZC40 after a `store_info` free-space
+  check; physical staging and installation are outside the agent surface
+  (`docs/agent-tools.md` rail 4).
 
 ## Track H — backlog (not scheduled)
 

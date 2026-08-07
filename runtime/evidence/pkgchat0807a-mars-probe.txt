@@ -1,0 +1,21 @@
+Mars package-authoring deployment probe — 2026-08-07
+
+Known starting point supplied by the operator:
+  repo commit: 590b6ab
+  bwrap: present
+  make: present
+  tntk: not on PATH
+
+Two read-only SSH probes were attempted with BatchMode and a 10-second connect timeout.
+Both returned exactly:
+  ssh: connect to host 10.13.13.12 port 22: Connection timed out
+
+No Mars file, service, process, package, emulator, or hardware state was changed.
+
+Local source evidence settling the tntk question:
+- newton_mcp.py tool_build_pkg resolves bwrap with shutil.which and runs make.
+- create_project copies examples/hello/Makefile.
+- examples/hello/Makefile defaults TNTK to $(HOME)/newton-dev/prefix/bin/tntk
+  and sets LD_LIBRARY_PATH=$(HOME)/newton-dev/prefix/lib for the invocation.
+Therefore tntk does not need to be on PATH. Rootless Podman remains separately
+required for emulator instance lookup/install/launch/screenshot.
