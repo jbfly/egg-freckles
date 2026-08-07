@@ -7,6 +7,8 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-07 — EF21: the full-screen app uses the ROM scroll arrows.** Ships as `EggFrecklesEF21:jbfly` (v1.0-ef21, package version 33). The two native callbacks reuse A8’s bounded row window; the custom Up/Dn buttons are deleted. On isolated instance `ef21arrows`, `emulator.client tap 309 446` moved `scrollRow` 0→10 and changed 612 transcript pixels; `tap 309 468` returned 10→0 and reproduced the bottom screenshot exactly. The older “can never reach” finding remains true only for floating roots, which ROM routing excludes. Package sha256 `6652fb0b2e28…`; 113 tests pass; paired publisher sha256 `538d6fa41b65…`. Evidence and build record: `docs/ef21-native-scroll.md`. Hardware remains human-gated.
+
 - **2026-08-06 — EF12: final pre-hardware ink hardening is emulator-proven.** Ships as `EggFrecklesEF12:jbfly` (v1.0-ef12, package version 24), sha256 `90ee54e8cb66…`. First-line `inkBusy` guards on watchdog re-arm, endpoint-drop advance, and delayed next-part open prevent an aborted stream from resurrecting. The 99-part wire backstop now reports `Note too long - first 99 pages sent` through separate `askPartCapped` state, never the point-thinning warning. A forced late-ACK abort left sequence/index/endpoint unchanged; real-backend four-part and zero-stroke routes still filed exact ordered replies. Evidence, source citations, build, and 105-test result: `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
 
 - **2026-08-06 — EF11: cross-vendor EF10 corrections are emulator-proven.** Ships as `EggFrecklesEF11:jbfly` (v1.0-ef11, package version 23), sha256 `dfb2b2899193…`. Text-only Ask AI routes again emit one zero-stroke NSI1 body; each `INKP` re-arms the 150 s watchdog; totals stop visibly at the two-digit 99-part wire backstop; an over-16-KiB body retries only that part at half point budget. Real-backend evidence filed `ZERO STROKE OK`, and a four-part real-image client stream filed `ALPHA ALPHA ALPHA ALPHA`; exact boundary, body retry, uninstall identity, build, and 105-test evidence are in `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
@@ -591,8 +593,8 @@ agent can complete one task and verify it.
   each item is one non-wrapping line, so the row conversion is still mine
   (`:13934-14066`). Since every design needs the row array, the row array **is**
   the fix and the windowing is three lines.
-  **New ROM finding, measured**: the Newton's own scroll arrows can never reach
-  this app. They go to "the frontmost view that has [`vApplication`] set"
+  **Historical floating-root finding, superseded for the full-screen app by EF21:** the Newton's own scroll arrows could not reach
+  this floating app. They go to "the frontmost view that has [`vApplication`] set"
   (`refs:3193-3199`, `vApplication` = 4), and the live float window's
   `viewFlags` read **576** = `vFloating` + `vClickable` through `ns_eval` —
   bit 4 clear. Tapping the arrows changed nothing, so the two

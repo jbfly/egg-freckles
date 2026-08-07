@@ -21,12 +21,8 @@ the chat window should be simplified:
 2. **Drop the Ask + Save Note buttons.** They are redundant once note actions
    live in the stock Notes menu. (Chat A9, commit `a45b661`, already removed
    `ReadNote`/`AskNote` and the `Ink` button; this finishes the job.)
-3. **Native scroll arrows.**
-   - Tension: prior ROM investigation found the native scroller protos "buy
-     nothing" and the ROM's own scroll arrows "can never reach" the transcript,
-     which is why A8 shipped a **custom** scroller
-     (`docs/ROADMAP.md:570-590`, `docs/newton-dev-notes.md:1122`). Implement with
-     eyes open; the custom scroller may have to stay.
+3. **Native scroll arrows — done in EF21.**
+   - The prior failure was specific to the floating root. Full-screen `protoApp` receives `ViewScrollUpScript` / `ViewScrollDownScript`; emulator taps moved the transcript row window 0→10→0, so EF21 removed the custom Up/Dn buttons (`docs/ef21-native-scroll.md`).
 4. **(maybe) Ask replies into the same source note.** File the AI answer back
    into the note it came from, instead of a new note in the AI folder. This is
    also the item deferred in `docs/ef10-ink-pagination.md` ("appending Ask
@@ -64,7 +60,7 @@ Battery wins over passive push.
 
 - **Section A.1-A.3 are source-complete.** The client now opens as a full-screen
   `protoApp`, the redundant Ask/Save panel buttons are gone, and the measured
-  failed ROM-arrow path remains replaced by the proven custom Up/Dn row scroller.
+  EF21 supersedes the failed floating-window ROM-arrow path: the full-screen root uses the native arrows and the custom Up/Dn controls are gone.
   **A.4 remains a follow-up:** Ask replies are not filed back into the source note.
 - **Section B is source-complete in EF14.** `InstallScript` only installs the
   Notes routes (`examples/harness-client/Main.newt:1848-1937,3374-3376`), and
