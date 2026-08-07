@@ -255,28 +255,28 @@ NS-eval wedge is diagnosed in `docs/emulator-nseval-wedge.md`; its correlated,
 single-flight control-channel fix is proposed there but not implemented.
 
 
-## EF16 source follow-up — fixed-buffer page encoding
+## EF16 regression and EF17 rollback — fixed-buffer page encoding
 
-New physical-hardware evidence after server-side interpretation became concurrent
-showed six multipart requests arriving about 16–17 seconds apart, while each
-`INKP` acknowledgement was immediate. That moves the remaining latency to the
-Newton page build/send path rather than server vision.
+EF16 attempted to replace the repeatedly grown `StrMunger` body with
+`MakeBinary((kMaxInkBody + 1) * 2, 'string)` plus `StuffUniChar`. That assumed
+the first untouched zero character terminated the NewtonScript string. The
+Newton Programmer's Reference only promises a binary object of the requested
+byte length (`MakeBinary`) and in-place two-byte writes (`StuffUniChar`); it does
+not promise C-string termination.
 
-EF16 keeps EF13's one-body-at-a-time stream and unchanged 1,600-point / 64-stroke
-partitions, but replaces the repeatedly grown `StrMunger` body with one
-zero-filled `MakeBinary((kMaxInkBody + 1) * 2, 'string)` buffer. `PutInkText`
-writes each Unicode character once with `StuffUniChar`; the untouched next
-character remains the string terminator. Accumulated body construction is O(n)
-instead of repeated growth/copying, and the fixed allocation is 32,770 bytes at
-the existing 16 KiB wire cap versus the measured 180–191.6 KB transient for a
-roughly 6 KB EF13 body. Only the current page exists, and acknowledged stroke
-references are still released before the next page, so the memory-safety shape is
-unchanged.
+A bounded emulator probe confirmed the mismatch: after
+`b := MakeBinary(10, 'string); StuffUniChar(b, 0, 65)`, `StrLen(b)` returned
+**4**, not 1. At the production allocation, `StrLen(body)` therefore remains
+16,384 even when the encoded NSI1 prefix is shorter. `InkPost` then appends that
+capacity-sized, NUL-padded object to the HTTP request before calling `output`.
+On the physical MP2000 EF16 produced no `/ink` request at all, twice, while chat
+continued to work; the failure is therefore this ink-only pre-POST encoder path.
 
-`Ticks()` instrumentation prints `INKTIME page N/T build X ms` around
-`EncodeInk` and `INKTIME page N/T send X ms` from `InkPost` through the
-close-delimited response. Source: `examples/harness-client/Main.newt`; API
-evidence: `refs/NewtonProgrammerRef20.txt:50562-50569,64399-64412,69761-69799`.
-Hardware validation remains gated: compare those per-page values with the observed
-16–17 second spacing; the expected result is a large build-time drop without an
-increase in page count or memory failure.
+EF17 reverts only `EncodeInkAt` to EF15's hardware-proven writable
+`Clone("NSI1 ...")` plus `StrMunger` construction. EF14 radio ownership, EF15
+full-screen progress and close-delimited `STATUS` handling, EF16
+`XmitSoupChange(..., 'entryAdded, ...)`, and EF16 `INKTIME` instrumentation all
+remain. The O(n) optimization is abandoned until a correctly sized NewtonScript
+string can be produced without relying on embedded zeroes. Hardware validation
+remains gated: install EF17, invoke both Notes envelope actions on an ink note,
+confirm `/ink` POSTs and the five-second idle radio disconnect.

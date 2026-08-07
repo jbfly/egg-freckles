@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF16:jbfly|;
-kVersion := "1.0-ef16";
+kAppSymbol := '|EggFrecklesEF17:jbfly|;
+kVersion := "1.0-ef17";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -1595,22 +1595,6 @@ mainView := {
         return parts;
     end,
 
-    // Append text into a fixed-capacity Unicode string. The offset is in
-    // characters; StuffUniChar takes a byte offset. Returning nil preserves the
-    // existing 16 KiB body backstop without growing or copying the destination.
-    PutInkText: func(body, offset, text)
-    begin
-        local count := StrLen(text);
-        if (offset + count) > self.maxInkBody then return nil;
-        local index := 0;
-        while index < count do
-        begin
-            StuffUniChar(body, (offset + index) * 2, text[index]);
-            index := index + 1;
-        end;
-        return offset + count;
-    end,
-
     // One NSI1 image part. P mirrors MSGP's two-digit index/total fields; it is
     // absent on the single-part fast path. Encoding is separated from the body
     // cap retry so the retry thins this part only, never the whole note.
@@ -1619,60 +1603,38 @@ mainView := {
         local fitted := :ThinPartAt(strokes, budget);
         local originLeft := self.askLeft;
         if originLeft = nil then originLeft := 0;
-        // One zero-filled, fixed-capacity Unicode string per streamed page.
-        // EF13 measured up to 191.6 KB of transient growth for a ~6 KB body;
-        // this buffer is 32,770 bytes including its untouched terminator.
-        local body := MakeBinary((self.maxInkBody + 1) * 2, 'string);
-        local offset := :PutInkText(body, 0, "NSI1 320 480 ");
-        if offset <> nil then offset := :PutInkText(body, offset,
-            "" & Length(fitted.strokes) & "\r\n");
-        if (offset <> nil) and (mode = 'text) then
-            offset := :PutInkText(body, offset, "M text\r\n")
-        else if (offset <> nil) and (mode = 'ask) then
-            offset := :PutInkText(body, offset, "M ask\r\n");
-        if (offset <> nil) and (total > 1) then
-            offset := :PutInkText(body, offset, "P " & :SeqText(part) & " "
-                & :SeqText(total) & "\r\n");
-        if (offset <> nil) and (hint <> nil) and (StrLen(hint) > 0) then
-            offset := :PutInkText(body, offset, "H " & hint & "\r\n");
+        // Apple explicitly warns that & allocates and recopies large strings.
+        // Clone makes the literal writable; StrMunger grows it in place.
+        local body := Clone("NSI1 320 480 ");
+        StrMunger(body, 536870911, nil, "" & Length(fitted.strokes) & "\r\n", 0, nil);
+        if mode = 'text then StrMunger(body, 536870911, nil, "M text\r\n", 0, nil)
+        else if mode = 'ask then StrMunger(body, 536870911, nil, "M ask\r\n", 0, nil);
+        if total > 1 then StrMunger(body, 536870911, nil,
+            "P " & :SeqText(part) & " " & :SeqText(total) & "\r\n", 0, nil);
+        if (hint <> nil) and (StrLen(hint) > 0) then
+            StrMunger(body, 536870911, nil, "H " & hint & "\r\n", 0, nil);
         foreach points in fitted.strokes do
         begin
-            if offset = nil then break;
-            offset := :PutInkText(body, offset, "S "
-                & (Length(points) div 2));
+            local line := Clone("S ");
+            StrMunger(line, 536870911, nil, "" & (Length(points) div 2), 0, nil);
             local x := 0;
             local y := 0;
             local index := 0;
-            while (offset <> nil) and ((index + 1) < Length(points)) do
+            while (index + 1) < Length(points) do
             begin
                 local nextX := :ClampAt(points[index] - originLeft, 319);
                 local nextY := :ClampAt(points[index + 1] - originTop, 479);
-                offset := :PutInkText(body, offset, " ");
-                if offset <> nil then
-                begin
-                    if index = 0 then
-                    begin
-                        offset := :PutInkText(body, offset, "" & nextX);
-                        if offset <> nil then offset := :PutInkText(body, offset,
-                            " " & nextY);
-                    end
-                    else
-                    begin
-                        offset := :PutInkText(body, offset, "" & (nextX - x));
-                        if offset <> nil then offset := :PutInkText(body, offset,
-                            " " & (nextY - y));
-                    end;
-                end;
+                local pair := nil;
+                if index = 0 then pair := " " & nextX & " " & nextY
+                else pair := " " & (nextX - x) & " " & (nextY - y);
+                StrMunger(line, 536870911, nil, pair, 0, nil);
                 x := nextX;
                 y := nextY;
                 index := index + 2;
             end;
-            if offset <> nil then offset := :PutInkText(body, offset, "\r\n");
+            StrMunger(line, 536870911, nil, "\r\n", 0, nil);
+            StrMunger(body, 536870911, nil, line, 0, nil);
         end;
-        if offset = nil then return {body: nil, points: fitted.points,
-            thinned: fitted.thinned};
-        // MakeBinary supplied zeroes, so the first untouched Unicode character
-        // terminates the string without a resize or copy.
         return {body: body, points: fitted.points, thinned: fitted.thinned};
     end,
 

@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef16_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef17_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF16:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef16";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF17:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef17";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF16:jbfly"' in PROJECT
-    assert "version: 28" in PROJECT
+    assert 'name: "EggFrecklesEF17:jbfly"' in PROJECT
+    assert "version: 29" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -363,15 +363,16 @@ def test_ink_is_decimated_and_part_cap_is_reported_honestly():
 
 def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
     # M and H are optional, so an older client body still parses as Ask.
-    assert "PutInkText: func(body, offset, text)" in SOURCE
-    assert "MakeBinary((self.maxInkBody + 1) * 2, 'string)" in SOURCE
-    assert "StuffUniChar(body, (offset + index) * 2, text[index]);" in SOURCE
-    assert ':PutInkText(body, offset, "M text\\r\\n")' in SOURCE
-    assert ':PutInkText(body, offset, "M ask\\r\\n")' in SOURCE
-    assert ':PutInkText(body, offset, "H " & hint & "\\r\\n")' in SOURCE
-    encoder = SOURCE[SOURCE.index("PutInkText: func"):
+    encoder = SOURCE[SOURCE.index("EncodeInkAt: func"):
                      SOURCE.index("EncodeInk: func(")]
-    assert "StrMunger(" not in encoder
+    assert 'local body := Clone("NSI1 320 480 ");' in encoder
+    assert 'StrMunger(body, 536870911, nil, "M text\\r\\n", 0, nil)' in encoder
+    assert 'StrMunger(body, 536870911, nil, "M ask\\r\\n", 0, nil)' in encoder
+    assert 'StrMunger(body, 536870911, nil, "H " & hint & "\\r\\n", 0, nil);' in encoder
+    # EF16 used MakeBinary(..., 'string) as if zero bytes terminated a string.
+    # Newton keeps the binary's allocated length, padding the POST body with NULs.
+    assert "MakeBinary(" not in encoder
+    assert "StuffUniChar(" not in encoder
     assert "kHintBytes := 200;" in SOURCE
     assert "if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);" in SOURCE
 
@@ -393,8 +394,8 @@ def test_long_ink_is_streamed_by_per_image_budgets_and_released_in_order():
     assert "self.askStrokes[release] := nil;" in SOURCE
     assert SOURCE.index("GC();", page) < SOURCE.index("local encoded := :EncodeInk", page)
     assert "inkBodies" not in CODE
-    assert 'offset, "P " & :SeqText(part) & " "' in SOURCE
-    assert "(offset <> nil) and (total > 1)" in SOURCE
+    assert '"P " & :SeqText(part) & " " & :SeqText(total)' in SOURCE
+    assert "if total > 1 then StrMunger(body" in SOURCE
     assert "self.inkPartIndex := self.inkPartIndex + 1;" in SOURCE
     dropped = SOURCE[SOURCE.index("InkDropped: func()"):SOURCE.index("InkNext: func()")]
     next_part = SOURCE[SOURCE.index("InkNext: func()"):SOURCE.index("InkFailed: func(")]
@@ -408,7 +409,7 @@ def test_long_ink_is_streamed_by_per_image_budgets_and_released_in_order():
     ink_post = SOURCE[ink_post_at:SOURCE.index("HandleInkLine: func(line)", ink_post_at)]
     assert ':SetStatus("Thinking...");' not in ink_post
     assert "return :InkOpen();" in SOURCE[SOURCE.index("InkNext: func()"):]
-    assert "(offset <> nil) and (total > 1)" in SOURCE
+    assert "if total > 1 then StrMunger(body" in SOURCE
     assert "POST /ink HTTP/1.0" in SOURCE
 
 
@@ -419,9 +420,8 @@ def test_notes_route_encodes_text_only_as_one_zero_stroke_ink_body():
     block = SOURCE[encode:SOURCE.index("ClampAt: func", encode)]
     assert ":EncodeInk([], 0, hint, mode, 1, 1);" in block
     assert "return empty.body;" in block
-    assert "MakeBinary((self.maxInkBody + 1) * 2, 'string)" in SOURCE
-    assert ':PutInkText(body, offset, "M ask\\r\\n")' in SOURCE
-    assert ':PutInkText(body, offset, "H " & hint & "\\r\\n")' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "M ask\\r\\n", 0, nil)' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "H " & hint & "\\r\\n", 0, nil);' in SOURCE
     # A last-resort encoding failure files a visible failure note, never silence.
     assert 'self.inkGotReply := nil;' in SOURCE[route:SOURCE.index("HandleInkLine: func", route)]
     assert ':SetStatus("Ink could not fit");' in SOURCE
