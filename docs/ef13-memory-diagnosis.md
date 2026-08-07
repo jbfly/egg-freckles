@@ -180,3 +180,25 @@ Rollback (one-step, staged on mars):
 - EF12 pkg `egg-freckles.EF12.bak.pkg` = `90ee54e8cb66`, publisher
   `pkg_publisher.EF12.bak.py` = `5def2cd4f3e2` — restore both, restart server.
 - Older: EF9 `egg-freckles.EF9.bak.pkg` = `f7de62f9f705`.
+
+## Hardware test #1 — memory fix WORKS; interpret 502 was a PATH regression
+
+First physical-Newton run (~332 strokes): server log shows the streaming fix
+working — `INK BODY mode=text part=1/6 bytes=6275 strokes=64 points=1287`,
+parts streamed one at a time, **no OOM** (EF12 aborted before body-4). The
+Newton showed "No reading"; server returned `POST /ink ... 502`.
+
+Root cause: `interpret()` execs `codex` (`/home/jbfly/.local/bin/codex`), which
+is only on the LOGIN-shell PATH. `raw_pkg_server` had been restarted from a
+bare non-interactive ssh shell whose PATH lacked `~/.local/bin`, so the
+subprocess raised errno 2 (no such file) -> RuntimeError -> 502. This is the
+exact failure the EF13 source comment already flags ("the hardware 502 was
+codex missing from PATH").
+
+Fix: relaunch with `~/.local/bin` on PATH. Verified pid 372370 PATH now
+includes `/home/jbfly/.local/bin` and `codex` is executable. HTTP still serves
+`d14f183f`. **Restart requirement:** always launch raw_pkg_server from a login
+shell (or `env PATH="$HOME/.local/bin:$PATH"`), else interpret 502s.
+
+Durable-hardening follow-up (not yet done): make `interpret()` resolve codex by
+absolute path / explicit PATH so a bare-shell restart can't reintroduce this.
