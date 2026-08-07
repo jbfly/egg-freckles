@@ -279,13 +279,10 @@ def test_the_two_converters_disagree_and_both_are_pinned():
     assert "AddArraySlot(points, array[index + 1] + box.top);" in SOURCE
     assert "local bundle := ExpandInk(item, 0);" in SOURCE
     assert "local strokes := CountStrokes(bundle);" in SOURCE
-    # EF13 never materializes the whole flat point array. It reads only the
-    # evenly-spaced points that can survive kMaxRaw, directly as x/y.
-    assert "local keep := Min(raw, Min(room, self.maxPoints));" in SOURCE
-    assert "local raw := CountPoints(stroke);" in SOURCE
-    assert "GetStrokePoint(stroke, at, point, 0);" in SOURCE
-    assert "AddArraySlot(points, point.x + dx);" in SOURCE
-    assert "AddArraySlot(points, point.y + dy);" in SOURCE
+    assert "GetStrokePointsArray(GetStroke(bundle, index), 0);" in SOURCE
+    # SwapPairs is the y,x -> x,y conversion, and the only one.
+    assert "points[index] := flat[index + 1];" in SOURCE
+    assert "points[index + 1] := flat[index];" in SOURCE
     # Ink Text hides inside a paragraph: no data item, an 'inkWord in styles.
     assert "InkConvert(style, 'ink2)" in SOURCE
     assert "GetInkWordInfo(style)" in SOURCE
@@ -337,9 +334,13 @@ def test_ink_is_decimated_and_part_cap_is_reported_honestly():
     assert "if (since >= stride) or (at = size - 1) then" in SOURCE
     assert "ThinPartAt: func(strokes, budget)" in SOURCE
     assert ":ThinPartAt(strokes, self.maxPoints)" in SOURCE
-    # And the human is told, in the transcript and in the reply note.
-    assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit");' in SOURCE
+    # The final handlers report thinning after every streamed page has encoded.
+    assert 'if self.askThinned then :AppendLine("Note: ink thinned to fit ("' in SOURCE
+    assert '& self.askRaw & " points sent as " & self.askPoints & ")");' in SOURCE
     assert 'self.aiLabel := self.aiLabel & " (ink thinned to fit)";' in SOURCE
+    route = SOURCE[SOURCE.index("Route: func(target, targetView, mode)"):
+                   SOURCE.index("HandleInkLine: func(line)")]
+    assert "if self.askThinned" not in route
     # The count reported is the true drawn count, not a survivor count.
     assert "local strokes := Length(self.askStrokes);" in SOURCE
     assert ':SetStatus("Sending " & strokes & " strokes");' in SOURCE
@@ -377,24 +378,15 @@ def test_long_ink_is_streamed_by_per_image_budgets_and_released_in_order():
     assert '"P " & :SeqText(part) & " " & :SeqText(total)' in SOURCE
     assert "if total > 1 then" in SOURCE
     assert "self.inkPartIndex := self.inkPartIndex + 1;" in SOURCE
-    assert "self.inkBody := :EncodeNextInkPage();" in SOURCE
+    dropped = SOURCE[SOURCE.index("InkDropped: func()"):SOURCE.index("InkNext: func()")]
+    next_part = SOURCE[SOURCE.index("InkNext: func()"):SOURCE.index("InkFailed: func(")]
+    assert ":EncodeNextInkPage()" not in dropped
+    assert next_part.index("self.inkEndpoint:Dispose()") < next_part.index(":EncodeNextInkPage()")
     assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
     assert "return :InkOpen();" in SOURCE[SOURCE.index("InkNext: func()"):]
     assert "if total > 1 then StrMunger(body" in SOURCE
     assert "POST /ink HTTP/1.0" in SOURCE
 
-
-def test_collection_bounds_one_dense_ink_item_before_full_point_expansion():
-    assert "kMaxInkItemBytes := 32768;" in SOURCE
-    assert "maxInkItemBytes: kMaxInkItemBytes," in SOURCE
-    assert "if Length(item.ink) > self.maxInkItemBytes then" in SOURCE
-    assert "kMaxRawStrokes := 512;" in SOURCE
-    assert "maxRawStrokes: kMaxRawStrokes," in SOURCE
-    assert "if Length(self.askStrokes) >= self.maxRawStrokes then" in SOURCE
-    assert "CollectInkStroke: func(stroke, box, dx, dy)" in SOURCE
-    assert "local room := self.maxRaw - self.askPoints;" in SOURCE
-    assert "if keep < raw then self.askThinned := true;" in SOURCE
-    assert "local keep := Min(raw, Min(room, self.maxPoints));" in SOURCE
 
 def test_notes_route_encodes_text_only_as_one_zero_stroke_ink_body():
     route = SOURCE.index("Route: func(target, targetView, mode)")

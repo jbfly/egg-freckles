@@ -128,3 +128,27 @@ setup, inside `EncodeInkAt` while concatenating body 4.
   `1.0-ef13diag2`; the shipped EF12 identity was not reused.
 - Emulator instances only: `ef13diag` and clean confirmation `ef13clean`.
 - No hardware, Mars, loader, deployment, or transport-format changes.
+
+
+## Source implementation status (2026-08-07)
+
+Commit `ddcdf29` was reviewed as an unproven draft. Its lazy page-count and
+`StrMunger` body construction were retained, but two source problems were
+corrected before release: the previous HTTP endpoint is now disposed before the
+next page is encoded, and speculative collection-time `CountPoints` /
+`GetStrokePoint` sampling plus a 32 KiB item refusal were removed because the
+diagnosis above does not identify collection or one large `ExpandInk` item as
+the trigger. The proven EF12 collection path remains intact.
+
+The finished source owns one body at a time: count partitions, encode part 1,
+POST it, dispose the closed endpoint/request, run `GC()`, encode the next part,
+and release each encoded part's stroke references. `StrMunger` replaces the
+per-point immutable body and HTTP-request concatenation. The 99-part wire cap
+and any later encode failure use a computed `Note too long - first N pages sent`
+message; Notes routes file that outcome instead of silently aborting.
+
+Source-only verification: `test_newton_client_source.py` passed 38 tests and
+`test_pkg_publisher.py` passed 12 tests. The rebuilt EF13 package SHA-256 is
+`d14f183fe611aa1cb26ca317fe608fd7a1314335dc17f313199673b38873ac56`;
+the package and `pkg_publisher.py` ship in the same commit. **Emulator prove
+remains PENDING.**
