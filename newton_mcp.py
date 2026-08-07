@@ -373,14 +373,14 @@ def tool_build_pkg(arguments: dict) -> dict:
         bwrap, "--ro-bind", "/", "/",
         "--bind", str(AGENT_WORKSPACE), str(AGENT_WORKSPACE),
         "--unshare-net", "--die-with-parent", "--chdir", str(REPO_ROOT),
-        "make", "-C", str(path),
+        "make", "-B", "-C", str(path),
     ]
     code, output = run_make(command)
     pkg = path / f"{path.name}.pkg"
     if not pkg.exists():
         candidates = sorted(path.glob("*.pkg"))
         pkg = candidates[-1] if candidates else pkg
-    if code != 0 or not pkg.exists():
+    if code != 0 or "Uncaught exception:" in output or not pkg.exists():
         return text_result(f"build failed (make exited {code})\n{tail(output)}",
                            is_error=True)
     relative = pkg.relative_to(AGENT_WORKSPACE)

@@ -177,10 +177,31 @@ def test_build_pkg_allows_only_sandboxed_agent_workspace(monkeypatch, tmp_path):
     assert result["isError"] is False
     assert seen["args"][:5] == ["/usr/bin/bwrap", "--ro-bind", "/", "/", "--bind"]
     assert "--unshare-net" in seen["args"]
-    assert seen["args"][-3:] == ["make", "-C", str(project)]
+    assert seen["args"][-4:] == ["make", "-B", "-C", str(project)]
     assert "/agent-workspace/my-app/my-app.pkg" in result["content"][0]["text"]
     assert "Loader filename: my-app.pkg" in result["content"][0]["text"]
     assert (staging / "my-app.pkg").read_bytes() == b"pkg"
+
+
+def test_build_pkg_does_not_publish_tntk_exception(monkeypatch, tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    project = workspace / "bad-app"
+    project.mkdir(parents=True)
+    staging = tmp_path / "hardware"
+
+    def fake_make(args):
+        (project / "bad-app.pkg").write_bytes(b"package0partial")
+        return 0, "Uncaught exception: kNErrUndefinedVariable"
+
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+    monkeypatch.setattr(newton_mcp, "HARDWARE_STAGING", staging)
+    monkeypatch.setattr(newton_mcp, "run_make", fake_make)
+    monkeypatch.setattr(newton_mcp.shutil, "which", lambda name: "/usr/bin/bwrap")
+
+    result = newton_mcp.call_tool("build_pkg", {"dir": str(project)})
+
+    assert result["isError"] is True
+    assert not (staging / "bad-app.pkg").exists()
 
 
 def test_build_pkg_refuses_workspace_symlink_escape(monkeypatch, tmp_path):

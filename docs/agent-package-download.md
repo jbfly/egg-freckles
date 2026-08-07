@@ -35,11 +35,13 @@ human-gated.
 
 ## Implemented publication fix
 
-After a successful sandboxed build, `tool_build_pkg` copies the selected `.pkg`
+`tool_build_pkg` forces a rebuild and treats `tntk`'s misleading zero-exit
+`Uncaught exception:` output as failure. After a genuinely successful sandboxed
+build, it copies the selected `.pkg`
 under the same basename to `runtime/staging/hardware/` and returns
 `Loader filename: <name>.pkg` (`newton_mcp.py`, `tool_build_pkg`). The copy uses
 a temporary sibling followed by `Path.replace`, so `dual_send.py` cannot read a
-partially copied package. A failed `make` returns before publication. The
+partially copied package. A failed `make` or compiler exception returns before publication. The
 focused test pins both the returned name and copied bytes
 (`test_newton_mcp.py`, `test_build_pkg_allows_only_sandboxed_agent_workspace`).
 

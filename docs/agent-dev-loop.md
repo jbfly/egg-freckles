@@ -65,8 +65,8 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
    rule").
 
 5. **Build with the host toolchain.** `build_pkg` accepts only the dedicated
-   workspace and runs its Makefile in a no-network bubblewrap sandbox where `/`
-   is read-only and only `runtime/agent-workspace/` is writable:
+   workspace and forces its Makefile target in a no-network bubblewrap sandbox
+   where `/` is read-only and only `runtime/agent-workspace/` is writable:
 
    ```json
    build_pkg {"dir": "runtime/agent-workspace/<name>-r1"}
