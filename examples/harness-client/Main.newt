@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF13:jbfly|;
-kVersion := "1.0-ef13";
+kAppSymbol := '|EggFrecklesEF14:jbfly|;
+kVersion := "1.0-ef14";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -280,6 +280,7 @@ noteAgent := {
                 self.aiLabel := self.aiLabel & " (ink thinned to fit)";
             try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;
         end;
+        :ArmRadioIdle();
         AddDelayedCall(func(agent) try agent:InkStop() onexception |evt.ex| do nil,
             [self], 1000);
         return nil;
@@ -394,6 +395,7 @@ mainView := {
     ready: nil,
     inFlight: nil,
     pendingPrompt: nil,
+    pendingPromptLabel: nil,
     draftSeq: nil,
     stopping: nil,
     // EF6: one retry per connection attempt before a bind failure is shown to
@@ -462,6 +464,10 @@ mainView := {
     toolOutcome: nil,
     toolValue: nil,
     toolPort: 18081,
+    // A send holds the radio through its reply; this ticket makes old idle
+    // callbacks harmless when a new send starts before they fire.
+    radioHeld: nil,
+    radioSeq: 0,
     // ---- "Send to AI" state ----
     // The slots the hook needs. They are slots, not constants read inside the
     // function bodies, for the tntk reason noted on capBytes above.
@@ -533,28 +539,25 @@ mainView := {
         try form:NotesHook(0, 'window) onexception |evt.ex| do nil;
     end,
 
-    // EF6: the window no longer stops the tools poll, because it no longer owns
-    // it. Closing Egg Freckles tears down the chat endpoint and releases the
-    // chat's own NIE link; the package-level agent's poll is untouched.
+    // The window may own a send-triggered tools poll. Closing it always drops
+    // every endpoint and the shared NIE link.
     ViewQuitScript: func()
     begin
+        self.radioHeld := nil;
+        self.toolStopping := true;
+        :ToolStop();
         self.stopping := true;
         :Stop();
         inherited:?ViewQuitScript();
     end,
 
-    // EF6: no ToolStart here either. The fifth hardware test's agent-driven
-    // install failed with "Newton not responding to pings" for one reason: the
-    // human had the Egg Freckles window closed, and the tools long poll only
-    // ever ran between Boot and ViewQuitScript. A device-management channel that
-    // requires an app to be open is not a device-management channel. It is owned
-    // by the install-hook agent now (see :NotesHook), started at boot by
-    // InstallScript, and it survives every open and close of this window.
+    // Battery rule: opening the app is not data to send. The first Send/Ask
+    // acquires NIE and starts the tools poll; idle teardown returns to this state.
     Boot: func()
     begin
         :Wire();
         :ShowTranscript();
-        :Connect();
+        :SetStatus("Radio off");
     end,
 
     // ponytail: custom template slots do not survive instantiation and a child's
@@ -740,6 +743,34 @@ mainView := {
             & SubStr(digits, BAND(sum, 15), 1) & "\r\n";
     end,
 
+    RadioHold: func()
+    begin
+        self.radioHeld := true;
+        self.radioSeq := self.radioSeq + 1;
+        self.stopping := nil;
+        return nil;
+    end,
+
+    ArmRadioIdle: func()
+    begin
+        if not self.radioHeld then return nil;
+        self.radioSeq := self.radioSeq + 1;
+        AddDelayedCall(func(who, seq) try who:RadioExpired(seq) onexception |evt.ex| do nil,
+            [self, self.radioSeq], 5000);
+        return nil;
+    end,
+
+    RadioExpired: func(seq)
+    begin
+        if (seq <> self.radioSeq) or not self.radioHeld then return nil;
+        if self.inFlight or self.inkBusy or (self.toolID <> nil) then return nil;
+        self.radioHeld := nil;
+        self.toolStopping := true;
+        :ToolStop();
+        :Stop();
+        return nil;
+    end,
+
     Stop: func()
     begin
         self.stopping := true;
@@ -766,6 +797,7 @@ mainView := {
         self.pendingParts := nil;
         self.partIndex := 0;
         self.pendingPrompt := nil;
+        self.pendingPromptLabel := nil;
     end,
 
     // One NIE link, three connections: chat, ink POST, tools long poll. Whoever
@@ -804,8 +836,11 @@ mainView := {
     begin
         // ponytail: Stop clears abandoned prompts; a reconnect keeps this one.
         local pending := self.pendingPrompt;
+        local label := self.pendingPromptLabel;
         :Stop();
         self.pendingPrompt := pending;
+        self.pendingPromptLabel := label;
+        :RadioHold();
         self.stopping := nil;
         if pending <> nil then :SetStatus("Connecting, will send...")
         else :SetStatus("Connecting");
@@ -838,6 +873,7 @@ mainView := {
 
     OpenSession: func()
     begin
+        :ToolStart();
         local address := self.serverAddress;
         local callName := "Instantiate";
         // EF6 armor: every one of the callback bodies below is invoked *by the
@@ -1016,6 +1052,7 @@ mainView := {
             self.partIndex := 0;
             self.inFlight := nil;
             self.ready := true;
+            :ArmRadioIdle();
             return :SetStatus(line);
         end;
         if (StrLen(line) < 9) or not BeginsWith(line, ":") then return nil;
@@ -1038,18 +1075,25 @@ mainView := {
             if self.pendingPrompt <> nil then
             begin
                 local prompt := self.pendingPrompt;
+                local label := self.pendingPromptLabel;
                 // Clear first: duplicate READY frames cannot send it twice.
                 self.pendingPrompt := nil;
+                self.pendingPromptLabel := nil;
                 if self.inFlight then :SetStatus("Turn in flight")
                 else
                 begin
                     if (StrLen(prompt) = 4) and BeginsWith(prompt, "/new") then self.transcript := ""
+                    else if label <> nil then :AppendLine(label & prompt)
                     else :AppendLine("You: " & prompt);
                     :ShowTranscript();
                     :Send(prompt);
                 end;
             end
-            else :SetStatus("Ready");
+            else
+            begin
+                :SetStatus("Ready");
+                :ArmRadioIdle();
+            end;
         end else if BeginsWith(line, ":" & seqText & " STAT THINKING*") then
             :SetStatus("Thinking")
         else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then
@@ -1058,6 +1102,7 @@ mainView := {
             self.inFlight := nil;
             self.responseText := "ERROR: " & SubStr(line, 15, star - 15);
             :SetStatus(self.responseText);
+            :ArmRadioIdle();
         end else if BeginsWith(line, ":" & seqText & " TEXT ") then
         begin
             if StrLen(self.responseText) > 0 then
@@ -1074,6 +1119,7 @@ mainView := {
             self.ready := true;
             self.inFlight := nil;
             :SetStatus("Ready");
+            :ArmRadioIdle();
         end;
         return nil;
     end,
@@ -1109,7 +1155,14 @@ mainView := {
 
     Send: func(text)
     begin
-        if StrLen(text) > self.maxPrompt then return :SetStatus("Prompt too long");
+        if StrLen(text) > self.maxPrompt then
+        begin
+            :SetStatus("Prompt too long");
+            :ArmRadioIdle();
+            return nil;
+        end;
+        :RadioHold();
+        :ToolStart();
         self.ready := nil;
         self.inFlight := true;
         self.responseText := "";
@@ -1154,6 +1207,7 @@ mainView := {
             if self.pendingPrompt <> nil then
                 return :SetStatus("Connecting, will send...");
             self.pendingPrompt := prompt;
+            self.pendingPromptLabel := nil;
             :SetStatus("Connecting, will send...");
             return :Connect();
         end;
@@ -1171,7 +1225,12 @@ mainView := {
         local field := :PromptField();
         if field then
             try SetValue(field, 'text, "") onexception |evt.ex| do nil;
-        if not self.ready then return :SetStatus("Offline");
+        if not self.ready then
+        begin
+            self.pendingPrompt := "/new";
+            self.pendingPromptLabel := nil;
+            return :Connect();
+        end;
         return :Send("/new");
     end,
 
@@ -1723,7 +1782,12 @@ mainView := {
                 return :SetStatus(:CapNotice());
             end;
             if StrLen(text) = 0 then return :SetStatus("Newest note is empty");
-            if not self.ready then return :Connect();
+            if not self.ready then
+            begin
+                self.pendingPrompt := text;
+                self.pendingPromptLabel := "Note: ";
+                return :Connect();
+            end;
             :AppendLine("Note: " & text);
             :ShowTranscript();
             return :Send(text);
@@ -1798,17 +1862,17 @@ mainView := {
             return nil;
         end;
         if :NotesHooked(paperroll) and (via <> 'install) then return nil;
-        // EF6: exactly one tools poll may exist. InstallScript runs on every
-        // reset AND on every activation, so a package replacement can land here
-        // while a previous agent is still polling. Stop that one before the new
-        // one starts — the flag first, because it is a plain slot write that
-        // cannot throw, and it is what stops the retry loop even if the method
-        // call below cannot be made.
+        // Activation may replace an agent while its send is still active. Retire
+        // that endpoint before publishing the fresh route entries; no new poll
+        // starts here.
         local previous := :FindAgent(paperroll);
         if previous then
         begin
+            previous.radioHeld := nil;
             previous.toolStopping := true;
             try previous:ToolStop() onexception |evt.ex| do nil;
+            try previous:InkStop() onexception |evt.ex| do nil;
+            try previous:Stop() onexception |evt.ex| do nil;
         end;
         // The agent is a heap frame whose proto is this template, so it
         // inherits every method the Ask button uses. Its own copies of the
@@ -1843,6 +1907,8 @@ mainView := {
         agent.toolID := nil;
         agent.toolOutcome := nil;
         agent.toolValue := nil;
+        agent.radioHeld := nil;
+        agent.radioSeq := 0;
         // ponytail: template literals live in the read-only package, so the
         // stroke array has to be re-made in the heap before anything grows it.
         agent.askStrokes := [];
@@ -1866,21 +1932,8 @@ mainView := {
             RouteScript: self.NotesAskRoute,
         };
         paperroll.routeScripts := :NotesRebuild(paperroll, textEntry, askEntry);
-        // EF6: and this is where the tools long poll now starts. The agent is
-        // the only thing in this package that exists at boot without a view, so
-        // it is the only correct owner of a channel whose whole point is
-        // answering while nobody is looking at the Newton.
-        //
-        // A delayed call rather than a straight :ToolStart() because
-        // InstallScript must stay short ("keep [it] as small as possible",
-        // Ref:2818-2826) and because at reset the NIE stack is still coming up.
-        // AddDelayedCall with a *frame* receiver is safe where one with a view
-        // receiver is not: the L1 -48809 trap was a delayed call landing on a
-        // closed view, and this frame has no view to close. The same shape is
-        // already proven on hardware — :InkDone has queued
-        // `agent:InkStop()` this way through every Notes route since EF4.
-        AddDelayedCall(func(who) try who:ToolStart() onexception |evt.ex| do nil,
-            [agent], 3000);
+        // Battery rule: InstallScript only installs the Notes routes. The agent
+        // starts networking from Route -> SendInk, never merely from boot/reset.
         return nil;
     end,
 
@@ -1986,6 +2039,7 @@ mainView := {
     // ("(not sent) The host did not answer" while the host had answered).
     SendInk: func(body, strokes)
     begin
+        :RadioHold();
         self.inkPartIndex := 0;
         self.inkPartAck := nil;
         self.inkBody := body;
@@ -2038,6 +2092,7 @@ mainView := {
 
     InkOpen: func()
     begin
+        :ToolStart();
         if self.inkEndpoint then return nil;
         self.inkEndpoint := {_proto: self.endpointClass, _parent: self,
             ExceptionHandler: func(error)
@@ -2244,6 +2299,7 @@ mainView := {
     // goes away — the NIE link belongs to the chat session.
     InkDone: func()
     begin
+        :ArmRadioIdle();
         AddDelayedCall(func(view) try view:InkStop() onexception |evt.ex| do nil, [self], 1000);
         return nil;
     end,
@@ -2270,6 +2326,7 @@ mainView := {
     begin
         if self.stopping then return nil;
         :SetStatus("Offline");
+        :ArmRadioIdle();
         :Stop();
     end,
 
@@ -2277,7 +2334,9 @@ mainView := {
     begin
         if self.stopping then return nil;
         self.pendingPrompt := nil;
+        self.pendingPromptLabel := nil;
         :SetStatus(message);
+        :ArmRadioIdle();
         // ponytail: let the peer-close FSM settle before InetReleaseLink.
         AddDelayedCall(func(view) try view:Stop() onexception |evt.ex| do nil, [self], 1000);
     end,
@@ -2298,21 +2357,10 @@ mainView := {
     //   3. its retry loop watches toolStopping, not the chat's stopping slot,
     //      so a chat reconnect does not silently kill the tools channel.
     //
-    // EF6 moved the *owner*. Every method below is unchanged, but the frame they
-    // run on is the package-level install-hook agent (:NotesHook), not the
-    // window. The fifth hardware test is the reason: an agent trying to install
-    // a package to the MP2000 got "Newton not responding to pings" purely
-    // because the human had this window closed, and the same window-close cycles
-    // left stale 504s behind them. InstallScript runs at every reset, so the
-    // poll restarts itself after a crash or a battery pull with nobody touching
-    // the device — which is the other half of that cure.
-    //
-    // Link ownership follows the owner. The agent grabs its own NIE link and
-    // holds it for as long as the poll lives; :ReleaseLink on the agent sees a
-    // live toolEndpoint and returns without releasing, so an ink POST from
-    // "Send to AI" borrows the agent's link and hands it back without ever
-    // dropping it. The chat window grabs separately and releases on close.
-    // Two clients, one physical link — which is what InetGrabLink refcounts.
+    // EF14 changes only the lifecycle: InstallScript creates the package-level
+    // Notes agent but does not start networking. Connect/InkOpen starts this poll
+    // on the already-held NIE link, and RadioExpired stops every endpoint after
+    // the active send/reply round has been idle for five seconds.
     //
     // Why one package at all: two apps meant two NIE clients fighting over the
     // single broker slot, which is what raised the cosmetic Communications
@@ -2321,7 +2369,8 @@ mainView := {
 
     ToolStart: func()
     begin
-        if self.toolStopping then return nil;
+        if not self.radioHeld then return nil;
+        self.toolStopping := nil;
         if self.toolEndpoint then return nil;
         if self.linkID then return :ToolOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'ToolGrabbed);
@@ -2555,11 +2604,13 @@ mainView := {
                 onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :ToolRetry();
+        :ArmRadioIdle();
         return nil;
     end,
 
     ToolDispatch: func(line)
     begin
+        :RadioHold();
         local tokens := StrTokenize(line, " \r\n");
         local marker := call tokens with ();
         local requestID := call tokens with ();
@@ -2697,7 +2748,7 @@ mainView := {
         // whose `stopping` no view instance can ever write. Kept as a belt: the
         // one thing that must stop this loop is toolStopping, which :NotesHook
         // and RemoveScript both set.
-        if self.stopping then return nil;
+        if self.stopping or not self.radioHeld then return nil;
         self.toolStopping := nil;
         return :ToolStart();
     end,

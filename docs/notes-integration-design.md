@@ -645,6 +645,12 @@ bitsLen=72 w=20 h=14"`.
 
 ## EF6 — the agent grew a second job: it owns the `/tools` poll
 
+**Superseded by EF14:** the agent still owns tools during a Notes send, but
+`InstallScript` no longer starts the poll. `Route -> SendInk -> InkOpen` starts
+it on demand, and the five-second idle callback stops every endpoint and
+releases NIE. The EF6 measurements below remain historical evidence, not the
+current battery lifecycle (`docs/chat-ui-and-radio-lifecycle-plan.md` §B).
+
 2026-08-04, shipped in `EggFrecklesEF6:jbfly` (v1.0-ef6). This changes the
 ownership section above ("Build result", points 2 and 3), so read it as the
 current state of what the hook creates.

@@ -50,7 +50,7 @@ Everything else is reference you open only when the task lands on it:
 | `docs/install-paths.md` | You are about to get a `.pkg` onto a Newton, real or emulated. |
 | `docs/dev-harness.md` | You need the containers, ports, security boundary, or the full emulator control API. This was the old `README.md`; the README is now the public front door. |
 | `docs/ink-client-design.md` | Ink. Built and emulator-proven end to end; results appended after the design, and **read "A9 result" first — it is the current state**. Track A9 deleted the capture canvas (it dropped all but the first stroke) and moved capture into stock Notes: one **Ask** button reads the newest note's strokes out of the soup and POSTs them, with the page's text on an optional `NSI1` `H` line. Earlier sections ("Stage 5 result", "Track F2 result") describe the canvas that no longer exists. EF12 is the final hardening of the reviewed EF10/EF11 path: per-image stroke/point budgets, zero-stroke Notes routes, per-part watchdogs, and body/part backstops; see `docs/ef10-ink-pagination.md` (EF9 fixed-height history: `docs/ef9-ink-pagination.md`). Still open: physical-hardware validation. See `docs/ROADMAP.md` Tracks E, F and A9. |
-| `docs/notes-integration-design.md` | You touch "Send to AI", the entry in the **stock Notes envelope menu** (ROADMAP Track L2). **Read its LAST section, "EF6 — the agent grew a second job", first — that is the current state.** The human used it on the MP2000 on 2026-08-04 and it filed the wrong note: `EggFrecklesEF5:jbfly` fixes that (the reply entry is held, not searched for) and adds the egg icon to Extras and to the menu item. The "Build result" section above it settles every `[verify]` in the design but its §3 filing is superseded. EF6 then gave that same agent the `/tools` long poll, so the channel answers with the app closed. Evidence `runtime/evidence/effix-*`, `l2build-*` and `ef6round-*`; findings twenty, twenty-two to twenty-seven in `docs/newtonscript-eval.md`. Neither fix is on hardware. |
+| `docs/notes-integration-design.md` | You touch "Send to AI", the entry in the **stock Notes envelope menu** (ROADMAP Track L2). **For current radio ownership read `docs/chat-ui-and-radio-lifecycle-plan.md` §B and `docs/newton-client-notes.md`; EF14 supersedes EF6's always-on poll.** The human used it on the MP2000 on 2026-08-04 and it filed the wrong note: `EggFrecklesEF5:jbfly` fixes that (the reply entry is held, not searched for) and adds the egg icon to Extras and to the menu item. The "Build result" section above it settles every `[verify]` in the design but its §3 filing is superseded. EF6 historically gave that agent an always-on `/tools` poll; EF14 now starts it only for an active send and closes it after idle. Evidence `runtime/evidence/effix-*`, `l2build-*` and `ef6round-*`; findings twenty, twenty-two to twenty-seven in `docs/newtonscript-eval.md`. Neither fix is on hardware. |
 | `docs/notes-bridge.md`, `docs/client-network-port.md`, `docs/unna-survey.md` | Narrow topics named by their titles. |
 
 ## Ground truth vs plans — read this before trusting any doc
@@ -200,8 +200,8 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-As of 2026-08-06 the *source* client is `EggFrecklesEF12:jbfly` — user-visible
-name **"Egg Freckles"**, title "Egg Freckles 1.0-ef12", package version 24, and
+As of 2026-08-07 the *source* client is `EggFrecklesEF14:jbfly` — user-visible
+name **"Egg Freckles"**, title "Egg Freckles 1.0-ef14", package version 26, and
 since EF5 it has an Extras icon of its own: a little egg with freckles, the same
 one that now sits beside "Send to AI" in the Notes menu. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
@@ -212,9 +212,10 @@ supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
   eight ops live in `examples/harness-client/Main.newt` under `Tool*` names
   (`ToolStart`, `ToolPoll`, `ToolDispatch`, `ToolStop`). There is nothing
   separate for the human to install. **Since EF6 that channel is owned by the
-  package-level install-hook agent, not by the window**, so `POST /tools`
-  answers with Egg Freckles closed and after a reset — an agent can drive the
-  device without asking anybody to open an app (ROADMAP status log, EF6);
+  package-level Notes agent, started only by an active chat/ink send**. It stays
+  up through that reply, then the five-second idle callback stops every endpoint;
+  unsolicited host tools while the Newton is idle are deliberately unavailable
+  (radio lifecycle plan §B, EF14);
 - it splits a prompt over 227 characters into `MSGP` frames that the host
   reassembles (ROADMAP Track F1, `docs/phase3-protocol.md` "Extension: `MSGP`");
 - it puts **"Send to AI" into the stock Notes Action (envelope) menu** (Track

@@ -62,7 +62,12 @@ Battery wins over passive push.
 
 ## Status / sequencing
 
-- All of the above is **decided, not built.**
-- Sequence: land the EF13 ink out-of-memory fix (in progress) first, then do
-  this as its own round. Do not edit `Main.newt` for this while an ink worker is
-  mid-edit on the branch.
+- **Section B is source-complete in EF14.** `InstallScript` only installs the
+  Notes routes (`examples/harness-client/Main.newt:1848-1937,3374-3376`), and
+  opening the app leaves the radio off (`Main.newt:554-561`). Chat and ink sends
+  start the tools poll on their already-held NIE link (`Main.newt:835-876,
+  2040-2096`); completed chat, ink, and tool replies arm a ticketed five-second
+  idle teardown (`Main.newt:746-770,2300-2304,2590-2608`).
+- Source assertion: `test_newton_client_source.py:149-193`. The clean EF14
+  package build and full host suite pass; emulator and physical-hardware proof
+  remain deliberately pending.

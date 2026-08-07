@@ -5,7 +5,7 @@
             files: [],
         }
     ],
-    name: "EggFrecklesEF13:jbfly",
-    version: 25,
+    name: "EggFrecklesEF14:jbfly",
+    version: 26,
     platform: "Newton 2.1"
 }
