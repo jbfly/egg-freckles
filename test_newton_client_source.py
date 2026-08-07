@@ -193,6 +193,14 @@ def test_radio_stays_off_until_send_and_closes_after_idle():
     stop = SOURCE.index("Stop: func()", radio_expired)
     assert ":ToolStop();" in SOURCE[radio_expired:stop]
     assert ":Stop();" in SOURCE[radio_expired:stop]
+    # Three-second host heartbeats must not perpetually postpone a five-second
+    # idle close. A heartbeat in flight gets one same-ticket retry.
+    dispatch = SOURCE.index("ToolDispatch: func(line)")
+    retry = SOURCE.index("ToolRetry: func()", dispatch)
+    assert 'if not StrEqual(requestID, "0") then :RadioHold();' in SOURCE[dispatch:retry]
+    reply_sent = SOURCE.index("ToolReplySent: func()")
+    assert "if not heartbeat then :ArmRadioIdle();" in SOURCE[reply_sent:dispatch]
+    assert '[self, seq], 1000);' in SOURCE[radio_expired:stop]
 
     # The package-level Notes agent has independent mutable lifecycle state and
     # package removal still stops any active send-triggered poll.

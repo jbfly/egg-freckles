@@ -816,7 +816,17 @@ mainView := {
     RadioExpired: func(seq)
     begin
         if (seq <> self.radioSeq) or not self.radioHeld then return nil;
-        if self.inFlight or self.inkBusy or (self.toolID <> nil) then return nil;
+        if self.inFlight or self.inkBusy then return nil;
+        if self.toolID <> nil then
+        begin
+            // Host heartbeats are not activity. If one happens to be in its
+            // callback at expiry, retry this same ticket after it settles.
+            if StrEqual(self.toolID, "0") then
+                AddDelayedCall(func(who, ticket)
+                        try who:RadioExpired(ticket) onexception |evt.ex| do nil,
+                    [self, seq], 1000);
+            return nil;
+        end;
         self.radioHeld := nil;
         self.toolStopping := true;
         :ToolStop();
@@ -2692,6 +2702,7 @@ mainView := {
     ToolReplySent: func()
     begin
         if self.toolStopping then return nil;
+        local heartbeat := StrEqual(self.toolID, "0");
         self.toolID := nil;
         self.toolOutcome := nil;
         self.toolValue := nil;
@@ -2706,19 +2717,19 @@ mainView := {
                 onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do :ToolRetry();
-        :ArmRadioIdle();
+        if not heartbeat then :ArmRadioIdle();
         return nil;
     end,
 
     ToolDispatch: func(line)
     begin
-        :RadioHold();
         local tokens := StrTokenize(line, " \r\n");
         local marker := call tokens with ();
         local requestID := call tokens with ();
         local op := call tokens with ();
         local argument := call tokens with ();
         if marker = nil or requestID = nil or op = nil then return nil;
+        if not StrEqual(requestID, "0") then :RadioHold();
         self.toolID := requestID;
         try
         begin

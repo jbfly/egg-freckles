@@ -18,6 +18,19 @@ armor, and arms the existing ticketed five-second idle path
 chat/ink, and only then allows the endpoint-presence guard to release the link
 (`examples/harness-client/Main.newt:811-881`).
 
+The first emulator pass exposed a second teardown blocker: each three-second
+host heartbeat arrived as `TOOLS 0 ping`, and `ToolDispatch` treated it as real
+activity while `ToolReplySent` armed a fresh idle ticket. The five-second timer
+therefore could never win. EF20 excludes request ID `0` from both activity
+refreshes; if the existing timer lands during a heartbeat callback, it retries
+the same ticket one second later rather than disposing inside that callback
+(`examples/harness-client/Main.newt:804-827,2687-2724,2708-2720`).
+
+The isolated EF13 proof flash then completed all eight `/ink` POSTs and logged
+the active tools endpoint disconnect; `ss -tnp` showed no connection on port
+18081 after idle (`runtime/evidence/ef20-part1-publisher.log`,
+`runtime/evidence/ef20-emulator.log`).
+
 Regression coverage pins the terminal Notes transition, idle arming, and the
 all-endpoint `RadioExpired` shutdown in
 `test_newton_client_source.py:185-196`. The focused source and publisher suites
