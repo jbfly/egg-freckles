@@ -165,7 +165,7 @@ class ToolBroker:
 
 PAGE_BODY = (
     b"<!doctype html><html><body>"
-    b"<h1>Newton Harness Client</h1>"
+    b"<h1>Egg Freckles EF13</h1>"
     b"<p><a href=\"/egg-freckles.pkg\">Download package</a></p>"
     b"</body></html>"
 )

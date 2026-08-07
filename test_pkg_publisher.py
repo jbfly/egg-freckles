@@ -187,11 +187,11 @@ class PublisherTest(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever)
                 thread.start()
                 try:
-                    # This is the exact shape EncodeInkPages now builds for
+                    # This is the exact shape PrepareInkPages now builds for
                     # Notes-menu Ask AI: EncodeInk([], 0, hint, 'ask, 1, 1).
                     self.assertIn(":EncodeInk([], 0, hint, mode, 1, 1);", CLIENT_SOURCE)
-                    self.assertIn('body := body & "M ask\\r\\n"', CLIENT_SOURCE)
-                    self.assertIn('body := body & "H " & hint & "\\r\\n";', CLIENT_SOURCE)
+                    self.assertIn('StrMunger(body, 536870911, nil, "M ask\\r\\n", 0, nil)', CLIENT_SOURCE)
+                    self.assertIn('StrMunger(body, 536870911, nil, "H " & hint & "\\r\\n", 0, nil);', CLIENT_SOURCE)
                     body = b"NSI1 320 480 0\r\nM ask\r\nH what is a newton\r\n"
                     with mock.patch.object(pkg_publisher, "ask_model",
                                            return_value="A 1990s PDA.") as model, \

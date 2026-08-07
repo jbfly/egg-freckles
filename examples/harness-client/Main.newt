@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF13DIAG2:jbfly|;
-kVersion := "1.0-ef13diag2";
+kAppSymbol := '|EggFrecklesEF13:jbfly|;
+kVersion := "1.0-ef13";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -80,8 +80,12 @@ kMaxStrokes := 64;
 // kMaxItems bounds the soup walk, not the stroke count. The multipart encoder
 // therefore has its own two-digit wire backstop and reports any loss visibly.
 kMaxItems := 256;
+// Separate from soup items: one ink2 item can contain many strokes.
+kMaxRawStrokes := 512;
 kMaxInkParts := 99;
 kMaxInkBody := 16384;
+// Bound one compressed ink object before ExpandInk can create an unbounded transient.
+kMaxInkItemBytes := 32768;
 // The ceiling on points read out of the soup *before* thinning, so a pathological
 // note cannot fill the NewtonScript heap while we are still collecting. Past it a
 // stroke is kept as its two endpoints rather than dropped — the shape degrades,
@@ -95,7 +99,7 @@ kHintBytes := 200;
 kTextMenuTitle := "Convert to Text";
 kAskMenuTitle := "Ask AI";
 kAIFolder := "AI";
-kInkCapNotice := "Note too long - first 99 pages sent";
+kInkCapNotice := "Note too long";
 // How many 5-second retries the hook gets if GetRoot().paperroll is not
 // instantiated yet when InstallScript runs at boot (design §5, [verify]).
 kHookTries := 4;
@@ -225,21 +229,23 @@ noteAgent := {
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
         // An empty page has nothing to ask about. Say nothing rather than
         // filing a note that says nothing.
-        if (strokes = 0) and (StrLen(hint) = 0) then return nil;
+        if (strokes = 0) and (StrLen(hint) = 0)
+            and not self.askPartCapped then return nil;
         // The body is built first because :EncodeInk is what thins the ink, and
         // the label has to be able to say so. `strokes` is the true drawn count
         // either way — EF6 drops no strokes.
-        local body := :EncodeInkPages(hint, mode);
+        local body := :PrepareInkPages(hint, mode);
         if body = nil then
         begin
             self.inkGotReply := nil;
-            :SetStatus("Ink could not fit");
+            if self.askPartCapped then :SetStatus(:CapNotice())
+            else :SetStatus("Ink could not fit");
             return :InkDone();
         end;
         if StrLen(text) > 0 then self.aiLabel := :OneLine(text, 40)
         else self.aiLabel := "" & strokes & " strokes";
         if self.askPartCapped then
-            self.aiLabel := self.aiLabel & " (first 99 pages sent)";
+            self.aiLabel := self.aiLabel & " (" & :CapNotice() & ")";
         if self.askThinned then
             self.aiLabel := self.aiLabel & " (ink thinned to fit)";
         // Everything from here is the Ask button's asynchronous POST, unchanged:
@@ -412,7 +418,9 @@ mainView := {
     maxStrokes: kMaxStrokes,
     maxInkParts: kMaxInkParts,
     maxInkBody: kMaxInkBody,
+    maxInkItemBytes: kMaxInkItemBytes,
     maxItems: kMaxItems,
+    maxRawStrokes: kMaxRawStrokes,
     maxRaw: kMaxRaw,
     hintBytes: kHintBytes,
     placeholder: kInkPlaceholder,
@@ -430,9 +438,11 @@ mainView := {
     askTop: nil,
     askThinned: nil,
     askPartCapped: nil,
-    memExpanded: nil,
     inkBody: nil,
-    inkBodies: nil,
+    inkHint: nil,
+    inkMode: nil,
+    inkTotalParts: 1,
+    inkStrokeIndex: 0,
     inkPartIndex: 0,
     inkPartAck: nil,
     inkBusy: nil,
@@ -1291,12 +1301,12 @@ mainView := {
         self.askTop := nil;
         self.askThinned := nil;
         self.askPartCapped := nil;
-        self.memExpanded := nil;
         local items := 0;
         foreach item in data do
         begin
             items := items + 1;
-            if items > self.maxItems then self.askThinned := true
+            if items > self.maxItems then self.askPartCapped := true
+            else if self.askPartCapped then nil
             else if item.viewStationery = 'para then :CollectPara(item)
             else if item.viewStationery = 'poly then :CollectPoly(item)
             else if item.viewStationery = 'pict then nil
@@ -1352,23 +1362,62 @@ mainView := {
     // that looks plausible and is wrong.
     CollectInk: func(item)
     begin
-        local first := not self.memExpanded;
-        if first then :MemLog("expand-first-before");
-        local bundle := ExpandInk(item, 0);
-        if first then
+        // A single compressed item can be larger than the whole safe raw-point
+        // budget. Refuse to expand that transient object; earlier pages still
+        // send and the normal note-too-long notice reports the cap.
+        if Length(item.ink) > self.maxInkItemBytes then
         begin
-            self.memExpanded := true;
-            :MemLog("expand-first-after");
+            self.askPartCapped := true;
+            return nil;
         end;
+        local bundle := ExpandInk(item, 0);
         if bundle = nil then return nil;
         local strokes := CountStrokes(bundle);
         if (strokes = nil) or (strokes < 1) then return nil;
         for index := 0 to strokes - 1 do
         begin
-            local flat := GetStrokePointsArray(GetStroke(bundle, index), 0);
-            if IsArray(flat) then :AddStroke(:SwapPairs(flat), item.viewBounds);
+            if Length(self.askStrokes) >= self.maxRawStrokes then
+            begin
+                self.askPartCapped := true;
+                return nil;
+            end;
+            :CollectInkStroke(GetStroke(bundle, index), item.viewBounds, 0, 0);
         end;
         return nil;
+    end,
+
+    // Read only the points that can survive the raw ceiling. The old
+    // GetStrokePointsArray call materialized every point before AddStroke could
+    // notice kMaxRaw, which is the physical-device OOM path EF13 removes.
+    CollectInkStroke: func(stroke, box, dx, dy)
+    begin
+        local raw := CountPoints(stroke);
+        if (raw = nil) or (raw < 1) then return nil;
+        local room := self.maxRaw - self.askPoints;
+        // Normal handwriting stays on the ROM's efficient bulk path, but no
+        // single bulk array can exceed one image budget.
+        if (raw <= self.maxPoints) and (raw <= room) then
+        begin
+            local flat := GetStrokePointsArray(stroke, 0);
+            if not IsArray(flat) then return nil;
+            return :StoreStroke(:OffsetPairs(:SwapPairs(flat), dx, dy), box, raw);
+        end;
+        local keep := Min(raw, Min(room, self.maxPoints));
+        if keep < 2 then keep := Min(raw, 2);
+        if keep < raw then self.askThinned := true;
+        local points := [];
+        local point := {x: 0, y: 0};
+        local out := 0;
+        while out < keep do
+        begin
+            local at := 0;
+            if keep > 1 then at := (out * (raw - 1)) div (keep - 1);
+            GetStrokePoint(stroke, at, point, 0);
+            AddArraySlot(points, point.x + dx);
+            AddArraySlot(points, point.y + dy);
+            out := out + 1;
+        end;
+        return :StoreStroke(points, box, raw);
     end,
 
     // 'inkWord (Ink Text mode) adds no data item: the words live in the
@@ -1405,10 +1454,8 @@ mainView := {
                     if bundle then strokes := CountStrokes(bundle);
                     if strokes then for index := 0 to strokes - 1 do
                     begin
-                        local flat := GetStrokePointsArray(GetStroke(bundle, index), 0);
-                        if IsArray(flat) then
-                            :AddStroke(:OffsetPairs(:SwapPairs(flat),
-                                box.left + advance, box.top), box);
+                        :CollectInkStroke(GetStroke(bundle, index), box,
+                            box.left + advance, box.top);
                     end;
                 end;
                 advance := advance + width + 8;
@@ -1416,8 +1463,7 @@ mainView := {
         return nil;
     end,
 
-    // y,x -> x,y. Both point-array producers on this ROM (GetPointsArray and
-    // GetStrokePointsArray) are y-then-x; everything downstream of here is x,y.
+    // Point arrays are y,x on this ROM; the encoder consumes x,y.
     SwapPairs: func(flat)
     begin
         local count := Length(flat);
@@ -1460,8 +1506,37 @@ mainView := {
     // is told stays true.
     AddStroke: func(points, box)
     begin
-        local count := Length(points) div 2;
-        if count < 1 then return nil;
+        local raw := Length(points) div 2;
+        if raw < 1 then return nil;
+        if Length(self.askStrokes) >= self.maxRawStrokes then
+        begin
+            self.askPartCapped := true;
+            return nil;
+        end;
+        local room := self.maxRaw - self.askPoints;
+        local keep := raw;
+        if keep > room then keep := room;
+        if keep < 2 then keep := Min(raw, 2);
+        if keep < raw then
+        begin
+            local sampled := [];
+            local out := 0;
+            while out < keep do
+            begin
+                local at := 0;
+                if keep > 1 then at := (out * (raw - 1)) div (keep - 1);
+                AddArraySlot(sampled, points[at * 2]);
+                AddArraySlot(sampled, points[at * 2 + 1]);
+                out := out + 1;
+            end;
+            points := sampled;
+            self.askThinned := true;
+        end;
+        return :StoreStroke(points, box, raw);
+    end,
+
+    StoreStroke: func(points, box, raw)
+    begin
         if box then
         begin
             if (self.askLeft = nil) or (box.left < self.askLeft) then
@@ -1469,22 +1544,9 @@ mainView := {
             if (self.askTop = nil) or (box.top < self.askTop) then
                 self.askTop := box.top;
         end;
-        self.askRaw := self.askRaw + count;
-        if self.askRaw > self.maxRaw then
-        begin
-            local ends := [points[0], points[1]];
-            if count > 1 then
-            begin
-                AddArraySlot(ends, points[(count - 1) * 2]);
-                AddArraySlot(ends, points[(count - 1) * 2 + 1]);
-            end;
-            AddArraySlot(self.askStrokes, ends);
-            self.askPoints := self.askPoints + (Length(ends) div 2);
-            self.askThinned := true;
-            return nil;
-        end;
+        self.askRaw := self.askRaw + raw;
         AddArraySlot(self.askStrokes, points);
-        self.askPoints := self.askPoints + count;
+        self.askPoints := self.askPoints + (Length(points) div 2);
         return nil;
     end,
 
@@ -1529,39 +1591,33 @@ mainView := {
     ThinPart: func(strokes)
         :ThinPartAt(strokes, self.maxPoints),
 
-    // CollectNote already walks strokes in the note's stored reading order. Fill
-    // each rendered image until the next whole stroke would exceed either
-    // legibility budget, then start another image. A stroke is never split or
-    // dropped; an individually oversized stroke is thinned by :ThinPart.
-    InkParts: func()
+    // Count the same whole-stroke partitions the sender will encode, without
+    // allocating a second tree of part arrays. The total is needed for P before
+    // part 1 goes out; the bodies themselves stay lazy.
+    InkPartCount: func()
     begin
-        local parts := [];
-        local strokes := [];
-        local count := 0;
-        local top := nil;
-        foreach points in self.askStrokes do
+        local parts := 0;
+        local strokes := 0;
+        local points := 0;
+        foreach stroke in self.askStrokes do
         begin
-            local size := Length(points) div 2;
-            if (Length(strokes) > 0) and
-                (((Length(strokes) + 1) > self.maxStrokes) or
-                 ((count + size) > self.maxPoints)) then
+            local size := Length(stroke) div 2;
+            if (strokes > 0) and (((strokes + 1) > self.maxStrokes)
+                or ((points + size) > self.maxPoints)) then
             begin
-                AddArraySlot(parts, {top: top, strokes: strokes});
-                strokes := [];
-                count := 0;
-                top := nil;
+                parts := parts + 1;
+                strokes := 0;
+                points := 0;
             end;
-            AddArraySlot(strokes, points);
-            count := count + size;
-            local at := 1;
-            while at < Length(points) do
-            begin
-                if (top = nil) or (points[at] < top) then top := points[at];
-                at := at + 2;
-            end;
+            strokes := strokes + 1;
+            points := points + size;
         end;
-        if Length(strokes) > 0 then
-            AddArraySlot(parts, {top: top, strokes: strokes});
+        if strokes > 0 then parts := parts + 1;
+        if parts > self.maxInkParts then
+        begin
+            parts := self.maxInkParts;
+            self.askPartCapped := true;
+        end;
         return parts;
     end,
 
@@ -1573,15 +1629,20 @@ mainView := {
         local fitted := :ThinPartAt(strokes, budget);
         local originLeft := self.askLeft;
         if originLeft = nil then originLeft := 0;
-        local body := "NSI1 320 480 " & Length(fitted.strokes) & "\r\n";
-        if mode = 'text then body := body & "M text\r\n"
-        else if mode = 'ask then body := body & "M ask\r\n";
-        if total > 1 then body := body & "P " & :SeqText(part) & " "
-            & :SeqText(total) & "\r\n";
-        if (hint <> nil) and (StrLen(hint) > 0) then body := body & "H " & hint & "\r\n";
+        // Apple explicitly warns that & allocates and recopies large strings.
+        // Clone makes the literal writable; StrMunger grows it in place.
+        local body := Clone("NSI1 320 480 ");
+        StrMunger(body, 536870911, nil, "" & Length(fitted.strokes) & "\r\n", 0, nil);
+        if mode = 'text then StrMunger(body, 536870911, nil, "M text\r\n", 0, nil)
+        else if mode = 'ask then StrMunger(body, 536870911, nil, "M ask\r\n", 0, nil);
+        if total > 1 then StrMunger(body, 536870911, nil,
+            "P " & :SeqText(part) & " " & :SeqText(total) & "\r\n", 0, nil);
+        if (hint <> nil) and (StrLen(hint) > 0) then
+            StrMunger(body, 536870911, nil, "H " & hint & "\r\n", 0, nil);
         foreach points in fitted.strokes do
         begin
-            local line := "S " & (Length(points) div 2);
+            local line := Clone("S ");
+            StrMunger(line, 536870911, nil, "" & (Length(points) div 2), 0, nil);
             local x := 0;
             local y := 0;
             local index := 0;
@@ -1589,13 +1650,16 @@ mainView := {
             begin
                 local nextX := :ClampAt(points[index] - originLeft, 319);
                 local nextY := :ClampAt(points[index + 1] - originTop, 479);
-                if index = 0 then line := line & " " & nextX & " " & nextY
-                else line := line & " " & (nextX - x) & " " & (nextY - y);
+                local pair := nil;
+                if index = 0 then pair := " " & nextX & " " & nextY
+                else pair := " " & (nextX - x) & " " & (nextY - y);
+                StrMunger(line, 536870911, nil, pair, 0, nil);
                 x := nextX;
                 y := nextY;
                 index := index + 2;
             end;
-            body := body & line & "\r\n";
+            StrMunger(line, 536870911, nil, "\r\n", 0, nil);
+            StrMunger(body, 536870911, nil, line, 0, nil);
         end;
         return {body: body, points: fitted.points, thinned: fitted.thinned};
     end,
@@ -1614,12 +1678,60 @@ mainView := {
         return encoded;
     end,
 
-    EncodeInkPages: func(hint, mode)
+    // Build exactly one body, then clear the source stroke references it used.
+    // The next body is not allocated until INKP has acknowledged this one.
+    EncodeInkPage: func(hint, mode, part, total)
     begin
-        :MemLog("parts-before");
-        local parts := :InkParts();
-        local total := Length(parts);
-        :MemLog("parts-after n=" & total);
+        local start := self.inkStrokeIndex;
+        local index := start;
+        local strokes := [];
+        local count := 0;
+        local top := nil;
+        while index < Length(self.askStrokes) do
+        begin
+            local points := self.askStrokes[index];
+            local size := Length(points) div 2;
+            if (Length(strokes) > 0) and
+                (((Length(strokes) + 1) > self.maxStrokes) or
+                 ((count + size) > self.maxPoints)) then break;
+            AddArraySlot(strokes, points);
+            count := count + size;
+            local at := 1;
+            while at < Length(points) do
+            begin
+                if (top = nil) or (points[at] < top) then top := points[at];
+                at := at + 2;
+            end;
+            index := index + 1;
+        end;
+        if Length(strokes) < 1 then return nil;
+        local partHint := nil;
+        if part = 1 then partHint := hint;
+        // The stream owns exactly one body now, so this is a safe collection
+        // point: reclaim the previous HTTP/body scratch before allocating next.
+        GC();
+        local encoded := :EncodeInk(strokes, top, partHint, mode, part, total);
+        if encoded = nil then return nil;
+        local release := start;
+        while release < index do
+        begin
+            self.askStrokes[release] := nil;
+            release := release + 1;
+        end;
+        self.inkStrokeIndex := index;
+        self.askPoints := self.askPoints + encoded.points;
+        if encoded.thinned then self.askThinned := true;
+        return encoded.body;
+    end,
+
+    PrepareInkPages: func(hint, mode)
+    begin
+        local total := :InkPartCount();
+        self.inkHint := hint;
+        self.inkMode := mode;
+        self.inkTotalParts := total;
+        self.inkStrokeIndex := 0;
+        self.askPoints := 0;
         // Text-only Notes routes still use /ink so the answer is filed by the
         // route agent. The host accepts this zero-stroke NSI1 + H shape.
         if total < 1 then
@@ -1627,49 +1739,19 @@ mainView := {
             if (hint = nil) or (StrLen(hint) < 1) then return nil;
             local empty := :EncodeInk([], 0, hint, mode, 1, 1);
             if empty = nil then return nil;
-            self.askPoints := 0;
-            return [empty.body];
+            self.inkTotalParts := 1;
+            return empty.body;
         end;
-        // P uses two-digit indices and the host rejects totals above 99. This is
-        // the only content backstop: normal notes are never capped. Whole parts
-        // are omitted here, so report truncation distinctly from point thinning.
-        if total > self.maxInkParts then
-        begin
-            total := self.maxInkParts;
-            self.askPartCapped := true;
-        end;
-        :MemLog("bodies-before");
-        local bodies := [];
-        local sent := 0;
-        local index := 0;
-        while index < total do
-        begin
-            :MemLog("body-" & (index + 1) & "-before");
-            local partHint := nil;
-            if index = 0 then partHint := hint;
-            local encoded := :EncodeInk(parts[index].strokes, parts[index].top,
-                partHint, mode, index + 1, total);
-            if encoded = nil then return nil;
-            AddArraySlot(bodies, encoded.body);
-            :MemLog("body-" & (index + 1) & "-after bytes=" & StrLen(encoded.body));
-            sent := sent + encoded.points;
-            if encoded.thinned then self.askThinned := true;
-            index := index + 1;
-        end;
-        self.askPoints := sent;
-        :MemLog("bodies-after n=" & Length(bodies));
-        return bodies;
+        return :EncodeInkPage(hint, mode, 1, total);
     end,
 
-    // Stats returns free NewtonScript-heap bytes and Print writes the labelled
-    // sample to Einstein's Inspector result log. Do not call GC here: the point
-    // is to measure the live retained pipeline exactly as the user runs it.
-    MemLog: func(phase)
-    begin
-        local free := Stats();
-        Print("EF13MEM " & phase & " free=" & free);
-        return free;
-    end,
+    EncodeNextInkPage: func()
+        :EncodeInkPage(self.inkHint, self.inkMode, self.inkPartIndex + 1,
+            self.inkTotalParts),
+
+    CapNotice: func()
+        if self.inkTotalParts < 1 then self.inkCapNotice & " - no pages fit"
+        else self.inkCapNotice & " - first " & self.inkTotalParts & " pages sent",
 
     ClampAt: func(value, limit)
     begin
@@ -1690,22 +1772,20 @@ mainView := {
     begin
         if self.inFlight then return :SetStatus("Turn in flight");
         if self.inkBusy then return :SetStatus("Ask in flight");
-        :MemLog("query-before");
         local entry := :FindNewest();
-        :MemLog("query-after");
         if entry = nil then return :SetStatus("No note found");
-        :MemLog("soup-data-before");
         local data := GetSysEntryData(entry, 'data);
         if not IsArray(data) then return :SetStatus("Newest note is empty");
-        :MemLog("soup-data-after items=" & Length(data));
-        :MemLog("collect-before");
         :CollectNote(data);
-        :MemLog("collect-after strokes=" & Length(self.askStrokes)
-            & " raw=" & self.askRaw);
         local text := :Clean(self.askText);
         local strokes := Length(self.askStrokes);
         if strokes = 0 then
         begin
+            if self.askPartCapped then
+            begin
+                self.inkTotalParts := 0;
+                return :SetStatus(:CapNotice());
+            end;
             if StrLen(text) = 0 then return :SetStatus("Newest note is empty");
             if not self.ready then return :Connect();
             :AppendLine("Note: " & text);
@@ -1714,10 +1794,12 @@ mainView := {
         end;
         local hint := text;
         if StrLen(hint) > self.hintBytes then hint := SubStr(hint, 0, self.hintBytes);
-        :MemLog("encode-before");
-        local body := :EncodeInkPages(hint, 'ask);
-        if body = nil then return :SetStatus("Too much ink to send");
-        :MemLog("encode-after bodies=" & Length(body));
+        local body := :PrepareInkPages(hint, 'ask);
+        if body = nil then
+        begin
+            if self.askPartCapped then return :SetStatus(:CapNotice());
+            return :SetStatus("Too much ink to send");
+        end;
         // `strokes` is the count the pen actually drew: EF6 never drops a
         // stroke, so Length(askStrokes) is the truth and not a survivor count.
         if StrLen(text) > 0 then :AppendLine("Note: " & text)
@@ -1726,11 +1808,9 @@ mainView := {
         // thinning notice only survives in the transcript. Say it plainly and
         // with both numbers: the human asked to be told when the device is not
         // sending everything it read.
-        if self.askPartCapped then :AppendLine(self.inkCapNotice);
-        if self.askThinned then :AppendLine("Note: ink thinned to fit ("
-            & self.askRaw & " points sent as " & self.askPoints & ")");
+        if self.askPartCapped then :AppendLine(:CapNotice());
+        if self.askThinned then :AppendLine("Note: ink thinned to fit");
         :ShowTranscript();
-        :MemLog("send-before");
         return :SendInk(body, strokes);
     end,
 
@@ -1812,7 +1892,10 @@ mainView := {
         agent.linkID := nil;
         agent.endpoint := nil;
         agent.inkEndpoint := nil;
-        agent.inkBodies := nil;
+        agent.inkHint := nil;
+        agent.inkMode := nil;
+        agent.inkTotalParts := 1;
+        agent.inkStrokeIndex := 0;
         agent.inkPartIndex := 0;
         agent.inkPartAck := nil;
         agent.inkBusy := nil;
@@ -1970,17 +2053,14 @@ mainView := {
     // ("(not sent) The host did not answer" while the host had answered).
     SendInk: func(body, strokes)
     begin
-        if IsArray(body) then self.inkBodies := body
-        else self.inkBodies := [body];
-        :MemLog("send-retained bodies=" & Length(self.inkBodies));
         self.inkPartIndex := 0;
         self.inkPartAck := nil;
-        self.inkBody := self.inkBodies[0];
+        self.inkBody := body;
         self.inkBusy := true;
         self.inkGotReply := nil;
         self.inkBindRetried := nil;
-        if Length(self.inkBodies) > 1 then
-            :SetStatus("Sending page 1/" & Length(self.inkBodies))
+        if self.inkTotalParts > 1 then
+            :SetStatus("Sending page 1/" & self.inkTotalParts)
         else :SetStatus("Sending " & strokes & " strokes");
         :ArmInkWatch();
         if self.linkID then return :InkOpen();
@@ -2114,7 +2194,6 @@ mainView := {
 
     InkPost: func()
     begin
-        :MemLog("post-before");
         local body := self.inkBody;
         self.inkBody := nil;
         if body = nil then return nil;
@@ -2133,10 +2212,11 @@ mainView := {
                 try self._parent:InkDropped() onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink input exception");
-        local request := "POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
-            & "Content-Type: application/x-newton-strokes\r\nContent-Length: "
-            & StrLen(body) & "\r\nConnection: close\r\n\r\n" & body;
-        :MemLog("post-request-after bytes=" & StrLen(request));
+        local request := Clone("POST /ink HTTP/1.0\r\nHost: 10.42.0.1\r\n"
+            & "Content-Type: application/x-newton-strokes\r\nContent-Length: ");
+        StrMunger(request, 536870911, nil, "" & StrLen(body)
+            & "\r\nConnection: close\r\n\r\n", 0, nil);
+        StrMunger(request, 536870911, nil, body, 0, nil);
         try self.inkEndpoint:output(request, nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
@@ -2175,13 +2255,19 @@ mainView := {
     InkDropped: func()
     begin
         if not self.inkBusy then return nil;
-        if self.inkPartAck and ((self.inkPartIndex + 1) < Length(self.inkBodies)) then
+        if self.inkPartAck and ((self.inkPartIndex + 1) < self.inkTotalParts) then
         begin
             self.inkPartIndex := self.inkPartIndex + 1;
-            self.inkBody := self.inkBodies[self.inkPartIndex];
+            self.inkBody := :EncodeNextInkPage();
+            if self.inkBody = nil then
+            begin
+                self.askPartCapped := true;
+                self.inkTotalParts := self.inkPartIndex;
+                return :InkFailed(:CapNotice());
+            end;
             self.inkPartAck := nil;
             :SetStatus("Sending page " & (self.inkPartIndex + 1) & "/"
-                & Length(self.inkBodies));
+                & self.inkTotalParts);
             AddDelayedCall(func(view) try view:InkNext() onexception |evt.ex| do nil,
                 [self], 1000);
             return nil;
@@ -2212,7 +2298,7 @@ mainView := {
     begin
         self.inkBusy := nil;
         self.inkBody := nil;
-        self.inkBodies := nil;
+        self.askStrokes := nil;
         :SetStatus(message);
         return :InkDone();
     end,
@@ -2236,6 +2322,10 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
+        self.inkBody := nil;
+        self.inkHint := nil;
+        self.inkMode := nil;
+        self.askStrokes := nil;
         :ReleaseLink();
         return nil;
     end,
