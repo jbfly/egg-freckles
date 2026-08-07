@@ -1,0 +1,5 @@
+42:[mcp_servers.newton]
+43-command = "python3"
+44-args = ["/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/newton_mcp.py"]
+45-default_tools_approval_mode = "approve"
+46-

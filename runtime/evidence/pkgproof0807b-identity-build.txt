@@ -1,0 +1,13 @@
+host_pkg=runtime/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg bytes=1120 mtime=2026-08-07 14:21:43.072688788 +0100
+4887dd0e565746cc185e89d442ca5bb6c09c9a88c70fc8a36d2cca27fb2a3c03  runtime/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg
+runtime/agent-workspace/hello-agent-0807b/Main.newt:1:kAppSymbol := '|HelloAgent0807B:jbfly|;
+runtime/agent-workspace/hello-agent-0807b/Main.newt:2:kAppTitle := "HelloAgent Plumbing Proof";
+runtime/agent-workspace/hello-agent-0807b/Main.newt:3:kVersion := "0.1-proof0807b";
+runtime/agent-workspace/hello-agent-0807b/hello-agent-0807b.nprj:8:    name: "HelloAgent0807B:jbfly",
+pkg_only_under_workspace=yes
+examples_unchanged=yes
+repo_outside_workspace_and_evidence_unchanged=yes
+built_pkg=/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg
+identity=HelloAgent0807B:jbfly
+pkg_only_under_workspace=yes
+examples_unchanged=yes

@@ -12,9 +12,12 @@ tool calls and the screenshot are at the bottom of this page under "The live
 demo (D3)". Since Track G2 the same is true of the build-and-test surface:
 `build_pkg`, `emulator_install`, `emulator_newtonscript`, `emulator_screen` and
 `emulator_tap` were driven by an agent to build a new app and prove it works on
-screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). Only
-`emulator_text`, `emulator_key` and `stage_hw` are still exercised by tests
-alone.
+screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). That historical build
+used `examples/`; the confined writable-workspace path is now emulator-proven
+too (`docs/agent-dev-loop.md`, "Workspace plumbing proven 2026-08-07"). Only
+`emulator_text` and `emulator_key` are still exercised by tests alone.
+The old agent-facing `stage_hw` tool was removed when writes were confined to
+the dedicated workspace; physical staging remains a human host procedure.
 
 `newton_mcp.py` is one stdlib-only file at the repo root. It speaks MCP over
 stdio as newline-delimited JSON-RPC 2.0 and implements exactly `initialize`,
@@ -33,9 +36,10 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 | `emulator_text` | `value`, `instance` | `POST /text` | xdotool typing. |
 | `emulator_key` | `key`, `instance` | `POST /key` | One xdotool key name. |
 | `emulator_newtonscript` | `source`, `instance` | `POST /newtonscript` | One line, raw text body. |
-| `emulator_install` | `pkg_path`, `instance` | `POST /install` | `pkg_path` must start with `/packages/` — the endpoint takes a path inside the container, **not** an upload (`docs/install-paths.md` row 1). |
-| `build_pkg` | `dir` | `make -C <dir>` | `dir` must resolve under `examples/`. Returns the built `.pkg` path, or the tail of the compiler output when the build fails. |
-| `stage_hw` | `pkg_dir` | `make stage-hw PKG=<dir>` | Stages into `runtime/staging/hardware/` and returns the short filename. Installs nothing. |
+| `create_project` | `project`, `identity`, `title`, `version` | `runtime/agent-workspace/<project>` | Copies the trusted `examples/hello` scaffold, renames its project/build targets, and sets a fresh package identity. Refuses nested paths and existing projects. |
+| `write_source` | `project`, `source` | `runtime/agent-workspace/<project>/Main.newt` | Replaces only `Main.newt` in a direct workspace project; refuses path and symlink escapes and source over 256 KiB. |
+| `emulator_install` | `pkg_path`, `instance` | `POST /install` | Accepts container paths under read-only `/packages/` or read-only `/agent-workspace/`; the endpoint takes a path inside the container, **not** an upload (`docs/install-paths.md` row 1). |
+| `build_pkg` | `dir` | sandboxed `make -C <dir>` | Accepts only a direct project under `runtime/agent-workspace/`. Builds run with no network and only that workspace writable, and return the emulator-visible package path. |
 
 Instance resolution reuses `emulator.client.instance_url`
 (`emulator/client.py:17-30`) — `podman port newton-harness-<instance>_emulator_1
@@ -44,7 +48,7 @@ shared emulator at `NEWTON_CONTROL_URL` (default `http://127.0.0.1:18080`).
 
 ## The safety rails (in code, not in a prompt)
 
-Track D2's point is that a prompt is not a rail. All three of these are
+Track D2's point is that a prompt is not a rail. All four of these are
 enforced in `newton_mcp.py` and covered by tests:
 
 1. **The shared emulator is read-only.** `emulator_tap`, `_text`, `_key`,
@@ -59,11 +63,24 @@ enforced in `newton_mcp.py` and covered by tests:
    instead. None of those ops exist on the Newton client yet (ROADMAP C5); the
    rail is in place so they cannot arrive without the gate
    (`docs/notes-bridge.md:16`).
-3. **There is no physical-install tool at all.** The tool surface has no path
-   that puts a package on the MessagePad. `stage_hw` stages and stops; a human
-   opens the Loader, enters the filename, taps Install
-   (`docs/install-paths.md` row 2). `build_pkg`/`stage_hw` also refuse any
-   `dir` that does not resolve under `examples/`.
+3. **Agent writes are confined to one ignored runtime directory.** Codex keeps
+   its global `--sandbox read-only` setting (`server.py:524`).
+   `create_project` can create only one direct child of
+   `runtime/agent-workspace/` (`newton_mcp.py:146-190`);
+   `write_source` can replace only that child's
+   `Main.newt` (`newton_mcp.py:296-350`); both resolve paths and
+   reject symlink escapes. `build_pkg` accepts only a direct workspace project;
+   its Makefile runs under bubblewrap with `/` read-only and only
+   `runtime/agent-workspace/`
+   rebound writable, and networking unshared (`newton_mcp.py:364-391`).
+   The repository and `examples/` therefore remain read-only to the chat agent.
+   The emulator sees the same host directory at `/agent-workspace:ro`
+   (`compose.yaml:41`), so it can read a built package but
+   cannot alter source or build output. No host directory outside this dedicated
+   workspace is granted write access.
+4. **There is no physical-device package tool.** The agent-facing surface can
+   neither install onto the MessagePad nor stage files outside its workspace. A
+   human uses the separate host procedure in `docs/install-paths.md` row 2.
 
 ## How it is registered with codex
 
@@ -126,8 +143,9 @@ Full transcripts: `runtime/evidence/d3demo-mcp-verify.txt`.
    `--sandbox` governs the commands the *model* runs, not the MCP server
    process. Proof: `examples/hello/hello.pkg` was deleted, then a
    `codex exec --sandbox read-only` run called `build_pkg(dir="examples/hello")`
-   and the tool wrote the file (1104 bytes). So `build_pkg`/`stage_hw` need no
-   `--add-dir` and no sandbox change. The flip side is a security note:
+   and the tool wrote the file (1104 bytes). That historical behavior is why
+   `build_pkg` is now workspace-only and bubblewrapped. The flip side is a
+   security note:
    **the sandbox flag is not a rail for this tool surface.** The only rails on
    these tools are the ones coded into `newton_mcp.py` (Track D2), and
    `approve` means the agent uses them without asking.
@@ -158,8 +176,8 @@ What that means:
   `127.0.0.1` only (`compose.yaml:35`, `scripts/emulator-instance.sh:33-38`),
   which the table above shows is unreachable; and `instance_url` shells out to
   `podman`, which is not installed in the server image and has no socket there.
-- **`build_pkg` / `stage_hw` do not work from inside the container either** —
-  the image has no `make`, no `tntk`, and no repo checkout.
+- **`build_pkg` does not work from inside the container either** — the image
+  has no `make`, no `tntk`, and no repo checkout.
 
 **Recommended fix — and what the D3 demo did: run `server.py` on the host for
 agent-tool work**, where
@@ -182,6 +200,219 @@ the shared-emulator refusal is asserted for all five mutating tools and shown
 to lift under `NEWTON_ALLOW_SHARED=1`, and `newton_mcp.http_request` is
 monkeypatched for the `newton_tool` URL/body assertion and the
 `emulator_screen` image encoding. Suite total: 45 passed.
+
+## Writable-workspace package plumbing — emulator-proven 2026-08-07
+
+The package-authoring tools were called directly over MCP JSON-RPC against an
+isolated `pkgproof0807b` emulator restored from the known-good EF13 proof flash
+(SHA-256 `8f37d609d46711ea2ce1d748ed52fbd4b3f4f88fd86e6c90b654fb21fdb1508a`).
+The instance used the emulator image rebuilt from this checkout and mounted
+this checkout's `runtime/agent-workspace` read-only at `/agent-workspace`.
+
+`create_project` made `hello-agent-0807b` with never-used identity
+`HelloAgent0807B:jbfly`; `write_source` wrote a complete 579-byte `Main.newt`;
+and `build_pkg` returned
+`/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg`. The host package was
+1,120 bytes (SHA-256
+`4887dd0e565746cc185e89d442ca5bb6c09c9a88c70fc8a36d2cca27fb2a3c03`), existed
+only below `runtime/agent-workspace`, and before/after hashes showed no change
+to `examples/` or any repository file outside the workspace and evidence
+directory. `emulator_install` returned `queued`, launching
+`GetRoot().|HelloAgent0807B:jbfly|:Open();` returned `queued`, and
+`emulator_screen` showed the **HelloAgent** window with “HelloAgent is alive!”
+visible.
+
+Evidence: [`pkgproof0807b-mcp-transcript.jsonl`](../runtime/evidence/pkgproof0807b-mcp-transcript.jsonl)
+contains every MCP request and response;
+[`pkgproof0807b-identity-build.txt`](../runtime/evidence/pkgproof0807b-identity-build.txt)
+records identity, package path, size, checksum, and containment checks; and
+[`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launched.png)
+is the screenshot returned by `emulator_screen`. This proves the plumbing; the
+real chat-agent selection proof is the `pkgchat0807b` round below.
+
+## Real Egg Freckles turn attempt — stopped before the agent, 2026-08-07
+
+A host-path validation attempt used `release/pkg-write-fix @ 4fc2fb34`, isolated
+instance `pkgchat0807a`, the known-good EF13 seed flash (SHA-256
+`8f37d609d46711ea2ce1d748ed52fbd4b3f4f88fd86e6c90b654fb21fdb1508a`),
+and a real host `server.py` with a temporary Codex home whose `newton` MCP entry
+pointed at this worktree's `newton_mcp.py`. The branch-paired Egg Freckles EF20
+package launched and displayed its normal prompt window
+([`pkgchat0807a-04-egg-recovery.png`](../runtime/evidence/pkgchat0807a-04-egg-recovery.png)).
+
+The turn itself did **not** start. `emulator_text` returned `{"ok":true}`, but
+the NewtonScript prompt field remained empty; tapping **Send** displayed
+"Type a prompt first", and the complete server log contains only its startup
+line — no Newton connection
+([`pkgchat0807a-06-sent.png`](../runtime/evidence/pkgchat0807a-06-sent.png),
+[`pkgchat0807a-server.log`](../runtime/evidence/pkgchat0807a-server.log)). The
+status log records every bounded step, the one recovery (installing the client;
+the EF13 flash is a seed, not a client-package snapshot), and teardown
+([`pkgchat0807a-status.log`](../runtime/evidence/pkgchat0807a-status.log)). No
+workspace project was created, so none of `create_project`, `write_source`,
+`build_pkg`, or `emulator_install` was selected by the chat agent. This remains
+the evidence for why Newton glass text injection is not a reliable automation
+path; the next round bypassed only that input obstacle.
+
+## Real host chat-agent package turn — proven 2026-08-07
+
+`pkgchat0807b` sent the short tic-tac-toe request through the exact native
+`~NEWTONCLI 1` / `MSG` channel on host `server.py:6801`, not through direct MCP
+calls ([wire transcript, lines 1–8](../runtime/evidence/pkgchat0807b-wire-transcript.txt#L1-L8)).
+The server launched the normal `codex exec` backend with this worktree's
+`newton_mcp.py`; the full preserved rollout is
+[`pkgchat0807b-codex-rollout.jsonl`](../runtime/evidence/pkgchat0807b-codex-rollout.jsonl).
+
+The agent itself chose the complete confined path. The concise transcript shows
+`create_project` and `write_source`, including its generated NewtonScript
+([lines 1–2](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L1-L2));
+it hit a real NewtonScript syntax error, corrected `|` to `+`, and rebuilt a
+valid package ([lines 3–29](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L3-L29));
+then it selected `emulator_install`, launch, and repeated `emulator_screen`
+verification against isolated instance `pkgchat0807b`
+([lines 30–39](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L30-L39)).
+The source's title and 3x3 board are preserved at
+[`pkgchat0807b-agent-Main.newt:1-34`](../runtime/evidence/pkgchat0807b-agent-Main.newt#L1-L34),
+and the exact image returned by the agent's final `emulator_screen` call is
+[`pkgchat0807b-agent-screen.png`](../runtime/evidence/pkgchat0807b-agent-screen.png).
+
+The never-used identity was `TTTGridP0807bR1:nwtn`; prior git history had zero
+matches. The built package is 1,784 bytes, SHA-256
+`40fdc2e6157cc2afd2f2e075166cad475f4b479be9e55c98f9dc1c257c79f898`, and
+its live build stayed under `runtime/agent-workspace`
+([identity/build evidence, lines 1–9](../runtime/evidence/pkgchat0807b-identity-build.txt#L1-L9)).
+The committed evidence copy is
+[`pkgchat0807b-tic-tac-toe.pkg`](../runtime/evidence/pkgchat0807b-tic-tac-toe.pkg).
+The branch-paired Egg Freckles package and `pkg_publisher.py` hashes are recorded
+in [`pkgchat0807b-egg-pair-sha256.txt`](../runtime/evidence/pkgchat0807b-egg-pair-sha256.txt).
+
+One bounded recovery was needed after the work, not during package authoring:
+the agent had completed the required tool chain but continued visually checking
+until `server.py`'s 170-second deadline killed its final text
+([wire transcript, lines 8–14](../runtime/evidence/pkgchat0807b-wire-transcript.txt#L8-L14)).
+The preserved Codex thread was resumed once through the same port-6801 channel
+and returned the normal completion `TEXT` and `PROMPT` frames
+([recovery transcript, lines 6–14](../runtime/evidence/pkgchat0807b-recovery-wire-transcript.txt#L6-L14)).
+Focused tests passed 65/65 and the full suite passed 120/120
+([focused lines 1–3](../runtime/evidence/pkgchat0807b-focused-tests.txt#L1-L3),
+[full lines 1–3](../runtime/evidence/pkgchat0807b-full-tests.txt#L1-L3)). The
+shared emulator was healthy before and after; the status log records every
+bounded step and the single recovery
+([`pkgchat0807b-status.log`](../runtime/evidence/pkgchat0807b-status.log)).
+
+## Mars deployment prepared — not applied, 2026-08-07
+
+Mars was reported at `590b6ab`; live SSH verification failed with
+`ssh: connect to host 10.13.13.12 port 22: Connection timed out`. Do not call
+Mars deployed until the following preflight runs there. `tntk` does **not**
+need to be on `PATH`: `build_pkg` resolves `bwrap` with `shutil.which`, invokes
+`make`, and the copied project Makefile calls
+`$HOME/newton-dev/prefix/bin/tntk` while setting `LD_LIBRARY_PATH` itself
+(`newton_mcp.py:364-377`; `examples/hello/Makefile:1-11`). Podman is
+separate and still required for `emulator_*` instance resolution.
+
+Prepare the release bundle on the validated host, then let the human copy and
+apply it:
+
+```sh
+# alpha / validated host
+cd ~/git/newton-harness-worktrees/rel-pkgwrite
+test "$(git rev-parse HEAD)" = 4fc2fb34cce2b1f5b092318c2d1207a6cca9ac0d
+git bundle create /tmp/pkg-write-fix-4fc2fb34.bundle release/pkg-write-fix
+sha256sum /tmp/pkg-write-fix-4fc2fb34.bundle
+scp /tmp/pkg-write-fix-4fc2fb34.bundle mars:/tmp/
+
+# mars — human-gated; abort on any failed assertion
+cd ~/git/newton-harness
+test -z "$(git status --porcelain)"
+test "$(git rev-parse HEAD)" = 590b6ab
+{
+  git rev-parse HEAD
+  sha256sum examples/harness-client/egg-freckles.pkg pkg_publisher.py
+  pgrep -af '^python3( -u)? runtime/raw_pkg_server.py$'
+  ss -ltnp | grep ':18081 '
+} | tee /tmp/mars-pkg-write-predeploy.txt
+test "$(pgrep -fc '^python3( -u)? runtime/raw_pkg_server.py$')" = 1
+git bundle verify /tmp/pkg-write-fix-4fc2fb34.bundle
+git branch backup/mars-before-pkg-write-590b6ab 590b6ab
+git fetch /tmp/pkg-write-fix-4fc2fb34.bundle \
+  release/pkg-write-fix:refs/heads/release/pkg-write-fix
+git switch --detach 4fc2fb34cce2b1f5b092318c2d1207a6cca9ac0d
+mkdir -p runtime/agent-workspace
+
+command -v bwrap
+command -v make
+test -x "$HOME/newton-dev/prefix/bin/tntk"
+test -f "$HOME/newton-dev/ntk-platform-files/Newton 2.1"
+command -v podman                    # required for install/launch/screenshot
+podman info --format '{{.Host.Security.Rootless}}' | grep -x true
+codex mcp get newton                 # must name ~/git/newton-harness/newton_mcp.py
+                                    # and approval mode "approve"
+uv run --with pytest pytest -q
+```
+
+The checkout update changes **both** `examples/harness-client/egg-freckles.pkg`
+and `pkg_publisher.py` relative to `590b6ab`; keep them paired. At `4fc2fb34`
+their SHA-256 values are `91381832725a2563…` and `538d6fa41b65373c…`.
+`runtime/raw_pkg_server.py` imports the publisher at process start, so restart
+that one listener after the tests and verify the served package before any
+human uses Egg Freckles:
+
+```sh
+cd ~/git/newton-harness
+old_pid=$(pgrep -f '^python3( -u)? runtime/raw_pkg_server.py$')
+test -n "$old_pid" && test "$(printf '%s\n' "$old_pid" | wc -l)" = 1
+kill "$old_pid"
+for _ in $(seq 1 20); do
+  kill -0 "$old_pid" 2>/dev/null || break
+  sleep 1
+done
+! kill -0 "$old_pid" 2>/dev/null
+mkdir -p runtime/logs
+nohup python3 -u runtime/raw_pkg_server.py \
+  >runtime/logs/raw-pkg-server.log 2>&1 &
+echo $! >/tmp/mars-raw-pkg-server.pid
+for _ in $(seq 1 20); do
+  curl -fsS http://10.42.0.1:18081/status && break
+  sleep 1
+done
+curl -fsS http://10.42.0.1:18081/egg-freckles.pkg | sha256sum | \
+  grep '^91381832725a2563dcf6c635c3f7f98306a5d1214d1bdafd183757d5c5d4e0bd '
+sha256sum pkg_publisher.py | \
+  grep '^538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566 '
+```
+
+The host chat server on 6801 need not restart: a new Codex process and MCP
+subprocess start per turn, and a new session reads the updated
+`agent_prompt.txt`. On Egg Freckles use `/new pkg-write` before the first
+package-authoring request. If Mars has no rootless Podman, stop before the
+publisher restart and leave the old checkout running: create/write/build could
+work, but emulator install/launch cannot, so the requested end-to-end surface
+is not deployable there. The MCP surface deliberately has no physical-hardware
+deployment tool.
+
+Rollback restores the saved checkout and restarts the same publisher process.
+It deliberately leaves the confined workspace in place so generated source and
+packages are not destroyed:
+
+```sh
+cd ~/git/newton-harness
+git switch --detach backup/mars-before-pkg-write-590b6ab
+old_pid=$(cat /tmp/mars-raw-pkg-server.pid)
+kill "$old_pid" 2>/dev/null || true
+for _ in $(seq 1 20); do
+  kill -0 "$old_pid" 2>/dev/null || break
+  sleep 1
+done
+nohup python3 -u runtime/raw_pkg_server.py \
+  >runtime/logs/raw-pkg-server.log 2>&1 &
+sha256sum examples/harness-client/egg-freckles.pkg pkg_publisher.py
+cat /tmp/mars-pkg-write-predeploy.txt
+```
+
+This procedure does not merge `master`, install on the MessagePad, or touch
+ZC40. The publisher restart is host-only but hardware-facing, which is why the
+entire apply sequence remains human-gated.
 
 ## The live demo (D3) — 2026-08-03
 

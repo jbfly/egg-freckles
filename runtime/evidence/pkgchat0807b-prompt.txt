@@ -1,0 +1,1 @@
+Make a small tic-tac-toe Newton app in isolated instance pkgchat0807b. Use a fresh project and never-used identity. Build it, install it, launch it, and verify it on screen. A static visible 3x3 grid is enough.

@@ -1,0 +1,3 @@
+isolated_container_removed=yes
+isolated_volume_removed=yes
+shared_emulator_untouched_running=yes

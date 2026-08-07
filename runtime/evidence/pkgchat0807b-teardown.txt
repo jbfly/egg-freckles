@@ -1,0 +1,5 @@
+newton-harness-pkgchat0807b_emulator_1
+newton-harness-pkgchat0807b_emulator_1
+newton-harness-pkgchat0807b_emulator-state
+af7476544b75dfa7275d3c8e485f6beb85e39e13ab8ab600a2adece0584daa83
+newton-harness-pkgchat0807b_default

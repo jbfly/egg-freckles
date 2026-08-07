@@ -83,7 +83,7 @@ screenshots live in `runtime/evidence/`.
   │  newton_tool  ──→ POST /tools :18081 ──→ the Newton      │
   │  emulator_*   ──→ Einstein control API (screen/tap/text) │
   │  build_pkg    ──→ tntk toolchain ──→ a real .pkg         │
-  │  stage_hw     ──→ staged for the human to install        │
+  │  create/write ──→ runtime/agent-workspace only           │
   └──────────────────────────────────────────────────────────┘
 ```
 

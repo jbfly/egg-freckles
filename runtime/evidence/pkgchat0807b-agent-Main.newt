@@ -1,0 +1,34 @@
+constant kAppSymbol := '|TTTGridP0807bR1:nwtn|;
+constant kAppTitle := "Tic Tac Toe Grid";
+
+constant mainView := {
+    _proto: protoApp,
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    viewBounds: {left: 8, top: 24, right: 312, bottom: 420},
+    viewFlags: vApplication + vVisible,
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            text: "TIC TAC TOE",
+            viewBounds: {left: 72, top: 28, right: 232, bottom: 54},
+            viewFlags: vVisible,
+            viewFont: ROM_fontSystem14Bold,
+            viewJustification: 1
+        },
+        {
+            _proto: protoStaticText,
+            text: "       |       |       \n       |       |       \n-------+-------+-------\n       |       |       \n       |       |       \n-------+-------+-------\n       |       |       \n       |       |       ",
+            viewBounds: {left: 38, top: 90, right: 278, bottom: 270},
+            viewFlags: vVisible,
+            viewFont: ROM_fontSystem12,
+            viewJustification: 0
+        }
+    ]
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView
+}

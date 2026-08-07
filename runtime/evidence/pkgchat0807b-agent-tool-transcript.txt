@@ -1,0 +1,39 @@
+line 17 create_project args={"identity": "TTTGridP0807bR1:nwtn", "project": "ttt-grid-pkgchat0807b-r1", "title": "Tic Tac Toe Grid", "version": "0.1-pkgchat0807b-r1"} isError=False result=created runtime/agent-workspace/ttt-grid-pkgchat0807b-r1; write Main.newt with write_source, then call build_pkg images=0
+line 55 write_source args={"project": "ttt-grid-pkgchat0807b-r1", "source": "constant kAppSymbol := '|TTTGridP0807bR1:nwtn|;\nconstant kAppTitle := \"Tic Tac Toe Grid\";\n\nconstant mainView := {\n    _proto: protoApp,\n    title: kAppTitle,\n    appSymbol: kAppSymbol,\n    viewBounds: {left: 8, top: 24, right: 312, bottom: 420},\n    viewFlags: vApplication | vVisible,\n    stepChildren: [\n        {\n            _proto: protoStaticText,\n            text: \"TIC TAC TOE\",\n            viewBounds: {left: 72, top: 28, right: 232, bottom: 54},\n            viewJustify: vjParentTopH,\n            viewFlags: vVisible,\n            viewFont: ROM_fontSystem14Bold,\n            viewJustification: 1\n        },\n        {\n            _proto: protoStaticText,\n            text: \"       |       |       \\n       |       |       \\n-------+-------+-------\\n       |       |       \\n       |       |       \\n-------+-------+-------\\n       |       |       \\n       |       |       \",\n            viewBounds: {left: 38, top: 90, right: 278, bottom: 270},\n            viewFlags: vVisible,\n            viewFont: ROM_fontSystem12,\n            viewJustification: 0\n        }\n    ]\n};\n\n{\n    app: kAppSymbol,\n    text: kAppTitle,\n    theForm: mainView\n}"} isError=False result=wrote 1145 bytes to runtime/agent-workspace/ttt-grid-pkgchat0807b-r1/Main.newt images=0
+line 60 build_pkg args={"dir": "runtime/agent-workspace/ttt-grid-pkgchat0807b-r1"} isError=True result=build failed (make exited 2)
+make: Entering directory '/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace/ttt-grid-pkgchat0807b-r1'
+LD_LIBRARY_PATH="/home/jbfly/newton-dev/prefix/lib:${LD_LIBRARY_PATH}" \
+	"/home/jbfly/newton-dev/prefix/bin/tntk" -P "/home/jbfly/newton-dev/ntk-platform-files" -c ttt-grid-pkgchat0807b-r1.nprj
+E:lines 11: syntax error:
+    viewFlags: vApplication |
+                            ^
+E:lines 33: syntax error:
+{
+^
+make: *** [Makefile:10: ttt-grid-pkgchat0807b-r1.pkg] Segmentation fault (core dumped)
+make: Leaving directory '/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace/ttt-grid-pkgchat0807b-r1' images=0
+line 65 write_source args={"project": "ttt-grid-pkgchat0807b-r1", "source": "constant kAppSymbol := '|TTTGridP0807bR1:nwtn|;\nconstant kAppTitle := \"Tic Tac Toe Grid\";\n\nconstant mainView := {\n    _proto: protoApp,\n    title: kAppTitle,\n    appSymbol: kAppSymbol,\n    viewBounds: {left: 8, top: 24, right: 312, bottom: 420},\n    viewFlags: vApplication + vVisible,\n    stepChildren: [\n        {\n            _proto: protoStaticText,\n            text: \"TIC TAC TOE\",\n            viewBounds: {left: 72, top: 28, right: 232, bottom: 54},\n            viewFlags: vVisible,\n            viewFont: ROM_fontSystem14Bold,\n            viewJustification: 1\n        },\n        {\n            _proto: protoStaticText,\n            text: \"       |       |       \\n       |       |       \\n-------+-------+-------\\n       |       |       \\n       |       |       \\n-------+-------+-------\\n       |       |       \\n       |       |       \",\n            viewBounds: {left: 38, top: 90, right: 278, bottom: 270},\n            viewFlags: vVisible,\n            viewFont: ROM_fontSystem12,\n            viewJustification: 0\n        }\n    ]\n};\n\n{\n    app: kAppSymbol,\n    text: kAppTitle,\n    theForm: mainView\n}"} isError=False result=wrote 1106 bytes to runtime/agent-workspace/ttt-grid-pkgchat0807b-r1/Main.newt images=0
+line 69 build_pkg args={"dir": "runtime/agent-workspace/ttt-grid-pkgchat0807b-r1"} isError=False result=/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace/ttt-grid-pkgchat0807b-r1/ttt-grid-pkgchat0807b-r1.pkg
+emulator path: /agent-workspace/ttt-grid-pkgchat0807b-r1/ttt-grid-pkgchat0807b-r1.pkg
+...
+      |       \n       |       |       \n-------+-------+-------\n       |       |       \n       |       |       ",
+				viewBounds: {#77bb1841},
+				viewFlags: 1,
+				viewFont: @90,
+				viewJustification: 0
+			}
+		]
+	}
+}
+Package ttt-grid-pkgchat0807b-r1.pkg created.
+make: Leaving directory '/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace/ttt-grid-pkgchat0807b-r1' images=0
+line 74 emulator_install args={"instance": "pkgchat0807b", "pkg_path": "/agent-workspace/ttt-grid-pkgchat0807b-r1/ttt-grid-pkgchat0807b-r1.pkg"} isError=False result=queued images=0
+line 79 emulator_newtonscript args={"instance": "pkgchat0807b", "source": "GetRoot().|TTTGridP0807bR1:nwtn|:Open();"} isError=False result=queued images=0
+line 84 emulator_screen args={"instance": "pkgchat0807b"} isError=False result=320x480 Newton screen from the http://127.0.0.1:60849 images=1
+line 89 emulator_screen args={"instance": "pkgchat0807b"} isError=False result=320x480 Newton screen from the http://127.0.0.1:60849 images=1
+line 94 emulator_newtonscript args={"instance": "pkgchat0807b", "source": "GetRoot().|TTTGridP0807bR1:nwtn|:Open();"} isError=False result=queued images=0
+line 98 emulator_screen args={"instance": "pkgchat0807b"} isError=False result=320x480 Newton screen from the http://127.0.0.1:60849 images=1
+line 103 emulator_tap args={"instance": "pkgchat0807b", "x": 20, "y": 451} isError=False result={"ok":true} images=0
+line 107 emulator_screen args={"instance": "pkgchat0807b"} isError=False result=320x480 Newton screen from the http://127.0.0.1:60849 images=1
+line 112 emulator_tap args={"instance": "pkgchat0807b", "x": 31, "y": 348} isError=False result={"ok":true} images=0
+line 116 emulator_screen args={"instance": "pkgchat0807b"} isError=False result=320x480 Newton screen from the http://127.0.0.1:60849 images=1

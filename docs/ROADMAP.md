@@ -946,8 +946,9 @@ agent can complete one task and verify it.
   **physical** MessagePad and there is no tool that installs there by design.
   **Agent-sized and unblocked:** C5 (`pkg_install`/`pkg_remove` ops, still
   human-gated at the device), E3 (multi-part `/ink` POST), F3 (true Notes
-  integration, genuinely unexplored), then the Track H backlog. `stage_hw` is the one MCP tool no
-  agent has driven yet; G exercised all six `emulator_*` calls it needed.
+  integration, genuinely unexplored), then the Track H backlog. The former
+  `stage_hw` agent tool was removed in the 2026-08-07 workspace hardening;
+  physical staging is again an explicit human host procedure.
 
 **The vision, in one paragraph.** The Newton runs a small harness panel that
 can send the current note — text *or* ink — to an agent and get replies back
@@ -1015,9 +1016,10 @@ typed into Chat on an emulated Newton drove three of them and answered with the
 device's own numbers (D3 entry above). Track G then closed the other half: on
 the same day an agent drove `build_pkg`, `emulator_install`,
 `emulator_newtonscript`, `emulator_screen` and `emulator_tap` to build a new
-app and show it running (G2 entry above). What is left is breadth, not shape —
-`stage_hw` has still only been run by tests, and none of it has run against the
-physical MessagePad.
+app and show it running (G2 entry above). The 2026-08-07 hardening replaced
+the examples-writing build path with `create_project` / `write_source` / a
+workspace-only bubblewrapped `build_pkg`; that path now awaits its bounded
+emulator proof. None of it has run against the physical MessagePad.
 
 ## Track A — repo cleanup and doc truth (first; one cheap-agent session)
 
@@ -1263,14 +1265,19 @@ is glue + a runbook:
   records that `scripts/newton-round.sh` does **not** fit a new app on an
   isolated instance (it drives the shared container and needs a `kVersion` tag
   the scaffold lacks), so a new app bumps its identity by hand.
-- **G2. Done 2026-08-03 — gate passed.** codex built `Dice1:jbfly`
+- **G2. Done 2026-08-03 — historical gate passed.** codex built `Dice1:jbfly`
   ("NewtonDice") into `examples/dice` on isolated instance `gloop` in six MCP
   calls with no intervention and no failed build, and the screenshots show the
   app working. Status log entry above; `docs/agent-dev-loop.md`
   "Proven 2026-08-03"; `runtime/evidence/gloop-*`.
-  **Still open:** the hardware half — the human installing it on the MP2000 via
-  ZC40 after a `store_info` free-space check. `stage_hw` makes that one command
-  away, but the install itself is gated (`docs/agent-tools.md` rail 3).
+  **Still open:** (1) the confined-workspace path through a real Egg Freckles
+  turn, and (2) the hardware half. Direct MCP proved the confined plumbing on
+  2026-08-07, but `pkgchat0807a` stopped before the agent because emulator text
+  injection left the client prompt empty; **Send** said "Type a prompt first"
+  and `server.py` logged no connection (`runtime/evidence/pkgchat0807a-*`).
+  The human hardware install remains via ZC40 after a `store_info` free-space
+  check; physical staging and installation are outside the agent surface
+  (`docs/agent-tools.md` rail 4).
 
 ## Track H — backlog (not scheduled)
 

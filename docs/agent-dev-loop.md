@@ -41,61 +41,49 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
    they are gone. `emulator_screen` after each tap; do not proceed until the
    screen is a bare Notepad.
 
-3. **Scaffold from `examples/hello`.** Copy the directory, do not edit `hello`
-   itself — it is the toolchain smoke test (`make toolchain-hello`,
-   `examples/README.md`). Three files: `Main.newt`, `<name>.nprj`, `Makefile`.
-
-   ```sh
-   cp -r examples/hello examples/<name> && rm -f examples/<name>/hello.pkg
-   mv examples/<name>/hello.nprj examples/<name>/<name>.nprj
-   ```
-
-   Then rename inside them: the `Makefile` names `hello.pkg` and `hello.nprj`
-   in three places (target, prerequisite, `clean`), and `tntk` is invoked as
-   `-c <name>.nprj`. `build_pkg` looks for `<dirname>.pkg` first and only falls
-   back to any `*.pkg` in the directory (`newton_mcp.py:272-275`), so keep
-   directory, `.nprj` and `.pkg` basenames identical. (`examples/harness-client`
-   is the one deliberate exception — it builds `egg-freckles.pkg` and rides that
-   fallback, because Track L1 renamed the package without renaming the
-   directory.)
-
-4. **Give it a brand-new identity — never reuse one.** In `Main.newt` set
-   `kAppSymbol := '|<Name><Round>:jbfly|;` and put the *same* string in the
-   `.nprj`'s `name:` slot. Bumping only `kVersion` does **not** let a package
-   replace an installed one: NewtonOS answers `-10402 Package already exists`,
-   and the one-argument `GetPkgRef` used to clean up fails silently
-   (`docs/phase3-chat-round.md`, "Package identity — the actual rule"). Put a
-   round tag in the symbol from the start (`Dice1`, `Dice2`, …) so there is
-   always a next one.
-
-5. **Build with the host toolchain** — the `build_pkg` MCP tool, which is
-   `make -C examples/<name>` with `~/newton-dev/prefix/bin/tntk`:
+3. **Create a confined workspace project.** Do not copy into or edit
+   `examples/`; it remains the read-only toolchain/reference tree. The
+   `create_project` tool copies the trusted `examples/hello` scaffold into one
+   direct child of `runtime/agent-workspace/`, renames the `.nprj` and Makefile
+   targets, and writes the identity/title/version consistently:
 
    ```json
-   build_pkg {"dir": "examples/<name>"}
+   create_project {"project": "<name>-r1", "identity": "<Name>R1:jbfly", "title": "<Title>", "version": "0.1-r1"}
    ```
 
-   It returns the built `.pkg` path, or the tail of the compiler output when the
-   build fails — iterate on that text, it is the only diagnostic you get.
-   `tntk` must have been built with `tools/tntk-project-version.patch` applied
-   out of tree; **without that patch every rebuild silently regresses the
-   package header to version 1** (`docs/START-HERE.md:95-104`,
-   `docs/phase3-chat-round.md` "Risk"). That is a one-time host setup, not
-   something the loop does.
-
-6. **Install it into your instance.** `/packages` inside the emulator is a
-   read-only bind mount of the repo's `examples/` (`compose.yaml:40`), so a
-   directory you created after the container started is already visible there —
-   no upload, no copy. `POST /install` takes a **path**, not a file
-   (`docs/install-paths.md` row 1):
+4. **Generate the complete NewtonScript source.** Call `write_source`; it can
+   replace only that project's `Main.newt` and refuses path/symlink escapes:
 
    ```json
-   emulator_install {"pkg_path": "/packages/<name>/<name>.pkg", "instance": "<yourname>"}
+   write_source {"project": "<name>-r1", "source": "<complete Main.newt>"}
    ```
 
-   The equivalent from a shell is
-   `NEWTON_CONTROL_URL=http://127.0.0.1:<port> scripts/install-and-launch.sh /packages/<name>/<name>.pkg '<Symbol>:jbfly'`,
-   which also does step 7.
+   Keep `kAppSymbol` identical to the fresh identity passed to
+   `create_project`. Never reuse an installed identity: NewtonOS answers
+   `-10402 Package already exists`, and one-argument `GetPkgRef` cleanup fails
+   silently (`docs/phase3-chat-round.md`, "Package identity — the actual
+   rule").
+
+5. **Build with the host toolchain.** `build_pkg` accepts only the dedicated
+   workspace and runs its Makefile in a no-network bubblewrap sandbox where `/`
+   is read-only and only `runtime/agent-workspace/` is writable:
+
+   ```json
+   build_pkg {"dir": "runtime/agent-workspace/<name>-r1"}
+   ```
+
+   It returns both the host `.pkg` and its `/agent-workspace/...` emulator path,
+   or the tail of the compiler output. `tntk` must carry
+   `tools/tntk-project-version.patch`; without it every rebuild silently
+   regresses the package header to version 1 (`docs/START-HERE.md:95-104`).
+
+6. **Install it into your instance.** The workspace is bind-mounted read-only
+   at `/agent-workspace` in the emulator (`compose.yaml:41`), so this is a path,
+   not an upload:
+
+   ```json
+   emulator_install {"pkg_path": "/agent-workspace/<name>-r1/<name>-r1.pkg", "instance": "<yourname>"}
+   ```
 
 7. **Launch it explicitly.** Installing does not open the app:
 
@@ -116,17 +104,11 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
    exactly (button declared at absolute y 200–236, rendered 198–237). Measured
    pixel scan in `runtime/evidence/gloop-verify-rolls.txt`.
 
-9. **Iterate: bump the identity every round.** Change the source, then give it a
-   new symbol *before* rebuilding — the installed copy will not be replaced
-   otherwise (step 4). `scripts/newton-round.sh <dir> <tag>` does the bump plus
-   build/install/launch/OCR in one shot, but note two limits before reaching for
-   it: it drives the **shared** container `newton-harness_emulator_1`
-   (`scripts/newton-round.sh`, `container=newton-harness_emulator_1`), and its
-   bumper requires `kVersion := "<base>-<tag>";` with a lowercase tag, which the
-   `hello` scaffold does not have. For an isolated instance, either add that
-   `kVersion` shape and reuse `bump_identity`'s conventions by hand, or just
-   edit `Main.newt` + `.nprj` yourself and repeat steps 5–8. Editing two lines
-   is the cheap, honest option for a new app.
+9. **Iterate with a new project and identity every round.** Call
+   `create_project` again with `<name>-r2` / `<Name>R2:jbfly`, then write the
+   revised complete source and repeat steps 5–8. The tools deliberately do not
+   let the chat agent edit `.nprj` or Makefiles in place; that keeps every write
+   inside the narrow scaffold/source/build path.
 
 10. **Tear down.** `make emulator-instance-down INSTANCE=<yourname>` deletes the
     instance's state volume, flash included — that is the point. Copy anything
@@ -135,13 +117,10 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
     and commit them; an artifact that exists only inside a disposable container
     is already gone.
 
-**Hardware is a separate, human-gated step.** There is no tool that installs
-onto the MessagePad, by design (`docs/agent-tools.md`, rail 3). The most an
-agent may do is `stage_hw {"pkg_dir": "examples/<name>"}`, which builds, copies
-into `runtime/staging/hardware/`, refreshes `SHA256SUMS` and prints the short
-filename. A human then opens the Loader, enters that filename and taps
-Install (`docs/install-paths.md` row 2). Check free space first with
-`newton_tool {"op": "store_info"}`.
+**Hardware is a separate, human-gated step.** The agent-facing MCP surface
+can neither install onto the MessagePad nor stage files outside its workspace.
+A human uses the host procedure in `docs/install-paths.md` row 2 after checking
+free space with `newton_tool {"op": "store_info"}`.
 
 ## Footguns that bite new Newton code
 
@@ -158,6 +137,61 @@ writing anything that touches the network. The ones that bite plain UI apps:
 | Arbitrary `Compile(string)` | `-48808`, undefined global; there is no eval on this ROM | fixed operations only (`docs/newtonscript-eval.md`) |
 | Reinstalling the same identity | `-10402 Package already exists` | step 4 |
 
+## Workspace plumbing proven 2026-08-07
+
+The current steps 3–8 are **emulator-proven** through direct MCP JSON-RPC calls,
+not only source tests. Isolated instance `pkgproof0807b` used the known-good
+EF13 proof flash rather than a blank first-run flash; after replacement it
+reached healthy in 15 seconds. Its image was rebuilt from commit `a70a7dd`, and
+container inspection confirmed this checkout's `runtime/agent-workspace` was
+mounted at `/agent-workspace` with `rw=false`.
+
+| # | call | result |
+|---|---|---|
+| 1 | `create_project` for `hello-agent-0807b`, identity `HelloAgent0807B:jbfly` | created the confined project |
+| 2 | `write_source` with complete `Main.newt` | wrote 579 bytes; title `HelloAgent Plumbing Proof` |
+| 3 | `build_pkg {"dir":"runtime/agent-workspace/hello-agent-0807b"}` | built 1,120-byte package and returned `/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg` |
+| 4 | `emulator_install` with that returned path | `queued` |
+| 5 | `emulator_newtonscript` opening `HelloAgent0807B:jbfly` | `queued` |
+| 6 | `emulator_screen` | 320×480 PNG showing “HelloAgent is alive!” |
+
+The package SHA-256 was
+`4887dd0e565746cc185e89d442ca5bb6c09c9a88c70fc8a36d2cca27fb2a3c03` and no
+copy existed outside `runtime/agent-workspace`. Before/after hashes were
+identical for `examples/` and for repository files outside the workspace and
+`runtime/evidence`. Evidence:
+[`pkgproof0807b-mcp-transcript.jsonl`](../runtime/evidence/pkgproof0807b-mcp-transcript.jsonl),
+[`pkgproof0807b-identity-build.txt`](../runtime/evidence/pkgproof0807b-identity-build.txt),
+and [`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launched.png).
+
+The earlier `pkgchat0807a` attempt did not reach the agent because
+`emulator_text` left Egg Freckles' prompt field empty; its evidence remains the
+reason not to depend on Newton glass text injection for automation.
+
+The real chat-agent gate is now closed by `pkgchat0807b`. A short tic-tac-toe
+request entered the same native `server.py:6801` channel that Egg Freckles
+**Send** uses ([wire transcript, lines 1–8](../runtime/evidence/pkgchat0807b-wire-transcript.txt#L1-L8)).
+The agent selected `create_project`, authored complete source with
+`write_source`, corrected a compiler-reported syntax error, rebuilt, selected
+`emulator_install`, launched, and called `emulator_screen`
+([tool transcript, lines 1–39](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L1-L39)).
+Its final source contains the title and visible 3x3 board
+([`pkgchat0807b-agent-Main.newt:1-34`](../runtime/evidence/pkgchat0807b-agent-Main.newt#L1-L34));
+the exact screenshot returned by the agent is
+[`pkgchat0807b-agent-screen.png`](../runtime/evidence/pkgchat0807b-agent-screen.png).
+Fresh identity `TTTGridP0807bR1:nwtn` had zero prior git-history matches, and
+the 1,784-byte package has SHA-256
+`40fdc2e6157cc2afd2f2e075166cad475f4b479be9e55c98f9dc1c257c79f898`
+([identity/build evidence, lines 1–9](../runtime/evidence/pkgchat0807b-identity-build.txt#L1-L9)).
+
+The first server request timed out only after those tool calls while the agent
+kept visually checking. The one recovery resumed that preserved Codex thread
+through the same port-6801 input path and obtained a normal completion reply
+([recovery transcript, lines 6–14](../runtime/evidence/pkgchat0807b-recovery-wire-transcript.txt#L6-L14)).
+Focused tests passed 65/65 and the full suite passed 120/120
+([focused](../runtime/evidence/pkgchat0807b-focused-tests.txt#L1-L3),
+[full](../runtime/evidence/pkgchat0807b-full-tests.txt#L1-L3)).
+
 ## Proven 2026-08-03 (Track G2)
 
 **An agent ran this loop end to end and the app worked on the first build.**
@@ -168,7 +202,9 @@ prompt: build "NewtonDice", identity `Dice1:jbfly`, a floating window with a
 instance `gloop` is already up and seeded; use the MCP tools. Steps 1–2 were
 done for it by the supervising session; steps 3–8 it did itself, unaided.
 
-Six MCP calls, all successful, no retries and no intervention:
+Six MCP calls, all successful, no retries and no intervention. This is
+historical proof of the old examples-writing path; the confined workspace path
+was subsequently emulator-proven in the 2026-08-07 round above:
 
 | # | call | result |
 |---|---|---|

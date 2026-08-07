@@ -38,6 +38,7 @@ services:
       - "${NEWTON_ROM_PATH:-./secrets/717006}:/rom/717006:ro"
       - emulator-state:/state
       - ./examples:/packages:ro
+      - ./runtime/agent-workspace:/agent-workspace:ro
       - ./runtime/nie2:/nie2:ro
     userns_mode: keep-id
     shm_size: 256m

@@ -1,0 +1,6 @@
+image=localhost/newton-harness-dev:local status=running health=healthy
+/home/jbfly/.local/share/containers/storage/volumes/newton-harness-pkgchat0807b_emulator-state/_data -> /state rw=true
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/examples -> /packages rw=false
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace -> /agent-workspace rw=false
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/nie2 -> /nie2 rw=false
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/secrets/717006 -> /rom/717006 rw=false

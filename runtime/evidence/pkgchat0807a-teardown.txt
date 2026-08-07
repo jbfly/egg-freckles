@@ -1,0 +1,7 @@
+Error: no container with name or ID "newton-harness-pkgchat0807a_server_1" found: no such container
+newton-harness-pkgchat0807a_emulator_1
+newton-harness-pkgchat0807a_emulator_1
+Error: no container with ID or name "newton-harness-pkgchat0807a_server_1" found: no such container
+newton-harness-pkgchat0807a_emulator-state
+e0166eb2ebf6c2948e8f8bb9413ba4370a00cb9d650c290b45a3d6cb0bf336a7
+newton-harness-pkgchat0807a_default
