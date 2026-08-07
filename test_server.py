@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import socket
@@ -65,6 +66,45 @@ class FrameTest(unittest.TestCase):
     def test_a_full_part_frame_fits_the_wire_limit(self) -> None:
         encoded = server.frame_line(99, "MSGP", "99 99 " + "x" * 220)
         self.assertEqual(len(encoded), server.MAX_FRAME)
+
+
+def test_codex_backend_relays_hardware_install_start(monkeypatch, tmp_path):
+    events = [
+        b'{"type":"thread.started","thread_id":"t1"}\n',
+        b'{"type":"item.started","item":{"type":"mcp_tool_call",'
+        b'"server":"newton","tool":"hardware_install"}}\n',
+        b'{"type":"item.completed","item":{"type":"agent_message",'
+        b'"text":"{\\"visible\\":\\"Package installed\\"}"}}\n',
+    ]
+
+    class Stdout:
+        async def readline(self):
+            return events.pop(0) if events else b""
+
+    class Process:
+        stdout = Stdout()
+        returncode = 0
+
+        async def wait(self):
+            return 0
+
+        def kill(self):  # pragma: no cover - timeout path
+            raise AssertionError("backend must not time out")
+
+    async def fake_subprocess(*args, **kwargs):
+        return Process()
+
+    progress = []
+
+    async def mark_progress():
+        progress.append("dock")
+
+    monkeypatch.setattr(server.asyncio, "create_subprocess_exec", fake_subprocess)
+    reply = asyncio.run(server.CodexBackend(server.Chat(tmp_path)).chat(
+        "install it", mark_progress))
+
+    assert progress == ["dock"]
+    assert reply == "Package installed"
 
 
 class RegistryTest(unittest.TestCase):

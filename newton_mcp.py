@@ -16,8 +16,9 @@ The safety rails live in this code, not in a prompt (Track D2):
   * agent-authored files are confined to `runtime/agent-workspace/`; project
     creation and source writes reject path and symlink escapes, and builds make
     only that directory writable inside bubblewrap;
-  * there is no physical-device install or staging tool here at all; a human
-    follows `docs/install-paths.md` row 2 outside the agent surface.
+  * `hardware_install` accepts only a staged package basename and refuses unless
+    `NEWTON_ALLOW_HARDWARE_INSTALL=1` was enabled out-of-band; tapping Connect in
+    Dock TCP is the human confirmation that permits the physical write.
 
 Environment:
   NEWTON_TOOLS_URL     base URL of the pkg_publisher tools broker
@@ -25,6 +26,8 @@ Environment:
   NEWTON_CONTROL_URL   base URL of the SHARED emulator control API
                        (default http://127.0.0.1:18080)
   NEWTON_ALLOW_SHARED  "1" to allow mutating ops on the shared emulator
+  NEWTON_ALLOW_HARDWARE_INSTALL
+                       "1" to enable the gated physical Dock installer
 """
 
 from __future__ import annotations
@@ -47,6 +50,8 @@ SERVER_NAME = "newton"
 SERVER_VERSION = "1.0.0"
 DEFAULT_PROTOCOL = "2025-06-18"
 MAKE_TIMEOUT = 600.0
+DOCK_WAIT_SECONDS = 180
+HARDWARE_INSTALL_TIMEOUT = DOCK_WAIT_SECONDS + 15
 MAX_SOURCE_BYTES = 256 * 1024
 
 # Ops that would mutate a physical MessagePad. None of them exist on the
@@ -362,6 +367,30 @@ def tool_emulator_install(arguments: dict) -> dict:
     return control_text(arguments, f"install {pkg_path}", "/install", pkg_path)
 
 
+def tool_hardware_install(arguments: dict) -> dict:
+    name = want_str(arguments, "pkg_name")
+    if Path(name).name != name or not name.endswith(".pkg"):
+        raise ToolError("pkg_name must be one staged .pkg basename")
+    if os.environ.get("NEWTON_ALLOW_HARDWARE_INSTALL") != "1":
+        raise ToolError(
+            "physical Newton install needs human confirmation: set "
+            "NEWTON_ALLOW_HARDWARE_INSTALL=1 out-of-band for this MCP run")
+    package = HARDWARE_STAGING / name
+    if package.is_symlink() or not package.is_file():
+        raise ToolError(f"no staged package: {name}")
+    try:
+        finished = subprocess.run(
+            [str(REPO_ROOT / "runtime" / "install-newton-tcp"), str(package)],
+            cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env={**os.environ, "NEWTON_DOCK_TIMEOUT": str(DOCK_WAIT_SECONDS)},
+            timeout=HARDWARE_INSTALL_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ToolError(f"hardware install failed: {exc}") from exc
+    output = finished.stdout.decode("utf-8", "replace").strip()
+    return text_result(output or f"installer exited {finished.returncode}",
+                       is_error=finished.returncode != 0)
+
+
 def tool_build_pkg(arguments: dict) -> dict:
     path = build_dir(arguments)
     bwrap = shutil.which("bwrap")
@@ -545,6 +574,24 @@ TOOLS: list[dict] = [
             "required": ["pkg_path"],
         },
         "handler": tool_emulator_install,
+    },
+    {
+        "name": "hardware_install",
+        "description": (
+            "Install one package already staged by build_pkg onto the physical "
+            "Newton over Dock TCP. Refused unless the human enabled "
+            "NEWTON_ALLOW_HARDWARE_INSTALL=1 out-of-band. Call this first: it "
+            "listens for 180 seconds and automatically sends the package when "
+            "the user opens Dock, chooses connect via TCP/IP, and taps Connect. "
+            "Return its install success, Dock error, or timeout to the user."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pkg_name": {"type": "string", "description": "staged basename, e.g. my-app.pkg"},
+            },
+            "required": ["pkg_name"],
+        },
+        "handler": tool_hardware_install,
     },
     {
         "name": "build_pkg",

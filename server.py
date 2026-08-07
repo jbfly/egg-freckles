@@ -513,11 +513,18 @@ HELP_TEXT = "\n".join([
 ])
 
 
+def hardware_install_started(event: dict) -> bool:
+    item = event.get("item") if event.get("type") == "item.started" else None
+    return (isinstance(item, dict) and item.get("type") == "mcp_tool_call"
+            and item.get("server") == "newton"
+            and item.get("tool") == "hardware_install")
+
+
 class CodexBackend:
     def __init__(self, ctx: Chat) -> None:
         self.ctx = ctx
 
-    async def chat(self, user_text: str) -> str:
+    async def chat(self, user_text: str, progress=None) -> str:
         thread_id = self.ctx.thread_id
         request = "User text: " + ascii_clean(user_text).strip()
         with tempfile.TemporaryDirectory(prefix="newton-codex-") as tmp:
@@ -544,13 +551,30 @@ class CodexBackend:
                     stderr=asyncio.subprocess.STDOUT)
             except OSError as exc:
                 raise BackendError(f"could not run codex: {exc}") from exc
+            output = []
+            notified = False
+
+            async def collect_output() -> None:
+                nonlocal notified
+                while line := await proc.stdout.readline():
+                    output.append(line)
+                    if progress is not None and not notified:
+                        try:
+                            event = json.loads(line)
+                        except ValueError:
+                            continue
+                        if hardware_install_started(event):
+                            notified = True
+                            await progress()
+                await proc.wait()
+
             try:
-                out, _ = await asyncio.wait_for(proc.communicate(), CODEX_TIMEOUT)
+                await asyncio.wait_for(collect_output(), CODEX_TIMEOUT)
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
                 raise BackendError("agent timed out")
-        text = out.decode("utf-8", "replace")
+        text = b"".join(output).decode("utf-8", "replace")
         if proc.returncode != 0:
             tail = ascii_clean(text).strip()[-160:]
             raise BackendError(tail or f"codex exited {proc.returncode}")
@@ -598,7 +622,7 @@ class FakeBackend:
     def __init__(self, ctx: Chat) -> None:
         self.ctx = ctx
 
-    async def chat(self, user_text: str) -> str:
+    async def chat(self, user_text: str, progress=None) -> str:
         self.ctx.remember_thread(self.ctx.thread_id or f"fake-thread-{self.ctx.index}")
         # The tag is how tests see which model/effort the backend was handed.
         tag = ""
@@ -747,8 +771,14 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         await send_frame(reader, writer, state, "STAT", "THINKING")
         async with TURN_LOCK:
             ctx.record("user", text)
+            async def show_dock_steps() -> None:
+                message = ("Package ready. Open Dock, choose connect via TCP/IP, "
+                           "then tap Connect.")
+                for chunk in text_parts(message, state["tx_seq"]):
+                    await send_frame(reader, writer, state, "TEXT", chunk)
+
             try:
-                reply = await backend.chat(text)
+                reply = await backend.chat(text, show_dock_steps)
             except Exception as exc:
                 reply = None
                 log(f"backend error: {exc!r}")

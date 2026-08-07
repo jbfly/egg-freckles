@@ -1,0 +1,21 @@
+$ uv run --with pytest pytest -q
+........................................................................ [ 58%]
+...............Newton tools disconnected
+.....................................                     [100%]
+124 passed in 17.12s
+$ runtime/install-newton-tcp --self-test
+Dock packet self-test passed
+
+$ focused staged build result
+workspace: runtime/agent-workspace/dock-loop-smoke-r1/dock-loop-smoke-r1.pkg bytes=1112 magic=b'package0' sha256=8ccc648906a815baddb796d43c0b9016b6391487a97d4c3231c5b44778fd6653
+staged: runtime/staging/hardware/dock-loop-smoke-r1.pkg bytes=1112 magic=b'package0' sha256=8ccc648906a815baddb796d43c0b9016b6391487a97d4c3231c5b44778fd6653
+byte_identical=True
+
+$ gate-off Codex public JSON event probe
+{"type":"thread.started","thread_id":"019fde99-9051-7732-aa68-eb5077dcc947"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll make exactly that one hardware-install call, with `pkg_name` set to `missing.pkg`."}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"newton","tool":"hardware_install","arguments":{"pkg_name":"missing.pkg"},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"newton","tool":"hardware_install","arguments":{"pkg_name":"missing.pkg"},"result":{"content":[{"type":"text","text":"physical Newton install needs human confirmation: set NEWTON_ALLOW_HARDWARE_INSTALL=1 out-of-band for this MCP run"}],"structured_content":null},"error":null,"status":"failed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"The install was refused: `NEWTON_ALLOW_HARDWARE_INSTALL=1` must be set out-of-band to confirm physical Newton installation."}}
+{"type":"turn.completed","usage":{"input_tokens":55427,"cached_input_tokens":45312,"cache_write_input_tokens":0,"output_tokens":205,"reasoning_output_tokens":37}}

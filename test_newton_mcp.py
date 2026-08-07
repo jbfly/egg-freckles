@@ -53,7 +53,7 @@ def test_initialize_and_tools_list_round_trip():
     assert names == ["newton_tool", "emulator_screen", "emulator_tap",
                      "emulator_text", "emulator_key", "emulator_newtonscript",
                      "create_project", "write_source", "emulator_install",
-                     "build_pkg"]
+                     "hardware_install", "build_pkg"]
     for tool in replies[1]["result"]["tools"]:
         assert tool["inputSchema"]["type"] == "object"
         assert "handler" not in tool
@@ -140,6 +140,44 @@ def test_emulator_screen_is_allowed_on_the_shared_emulator(monkeypatch):
     assert result["isError"] is False
     assert image["mimeType"] == "image/png"
     assert base64.b64decode(image["data"]) == png
+
+
+def test_hardware_install_requires_out_of_band_human_gate(monkeypatch):
+    monkeypatch.delenv("NEWTON_ALLOW_HARDWARE_INSTALL", raising=False)
+    monkeypatch.setattr(
+        newton_mcp.subprocess, "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("installer must not run without the human gate")))
+
+    result = newton_mcp.call_tool(
+        "hardware_install", {"pkg_name": "my-app.pkg"})
+
+    assert result["isError"] is True
+    assert "needs human confirmation" in result["content"][0]["text"]
+
+
+def test_hardware_install_listens_for_three_minutes(monkeypatch, tmp_path):
+    staging = tmp_path / "hardware"
+    staging.mkdir()
+    package = staging / "my-app.pkg"
+    package.write_bytes(b"package0")
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen.update(command=command, **kwargs)
+        return newton_mcp.subprocess.CompletedProcess(command, 0, b"Package installed")
+
+    monkeypatch.setattr(newton_mcp, "HARDWARE_STAGING", staging)
+    monkeypatch.setenv("NEWTON_ALLOW_HARDWARE_INSTALL", "1")
+    monkeypatch.setattr(newton_mcp.subprocess, "run", fake_run)
+
+    result = newton_mcp.call_tool("hardware_install", {"pkg_name": package.name})
+
+    assert result["isError"] is False
+    assert seen["command"] == [str(newton_mcp.REPO_ROOT / "runtime" /
+                                   "install-newton-tcp"), str(package)]
+    assert seen["env"]["NEWTON_DOCK_TIMEOUT"] == "180"
+    assert seen["timeout"] == 195
 
 
 def test_build_pkg_refuses_paths_outside_agent_workspace(monkeypatch, tmp_path):

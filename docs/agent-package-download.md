@@ -59,45 +59,49 @@ and SHA-256 `898a6a3b...`, byte-identical to the emulator-tested package
 (`runtime/evidence/mars-agent-pkg-download-20260807.txt:22-47`). EF21 remained
 `6652fb0b...`; no ZC40 or backup path was selected (`:49-54`).
 
-## Direct physical install: feasible, but prepared only
+## Direct physical install: wired, hardware validation still gated
 
-**Yes, a host-side push implementation already exists.**
-`runtime/install-newton-tcp:57-91` validates `package0`, listens on
-`10.42.0.1:3679`, performs the ROM Dock session, sends the package in the
-`lpkg` command, and waits for the Newton's `dres` result. The physical Newton
-must already have Dock TCP, open Dock, choose TCP/IP, and tap Connect
-(`docs/hardware-bench-runbook.md:295-316`). Error `-60037` means the selected
-NIE link is inactive (`:324-332`). Serial fallback also exists at
-`runtime/install-newton-serial:1-23`, but requires the cable and device access.
-Neither sender is exposed by `newton_mcp.py`; `dual_send.py` itself never pushes.
+Implemented 2026-08-08. `hardware_install` now accepts only one `.pkg` basename
+already published by `build_pkg`, refuses unless the service inherited
+`NEWTON_ALLOW_HARDWARE_INSTALL=1`, and shells out to
+`runtime/install-newton-tcp` for that staged file (`newton_mcp.py:370-391`). The
+tool overrides only its child process with `NEWTON_DOCK_TIMEOUT=180` and allows
+a 195-second subprocess ceiling, so the listener survives while a human
+navigates Dock (`newton_mcp.py:382-386`; pinned by
+`test_newton_mcp.py:162-183`). The normal installer remains the mechanism: it
+listens on `10.42.0.1:3679`, then sends `lpkg` as soon as the Newton connects
+(`runtime/install-newton-tcp:57-91`).
 
-The smallest safe MCP wiring is preserved, but **not applied**, in
-`docs/prepared-hardware-install.patch`. It adds one `hardware_install` tool that:
+The exact chat flow is:
 
-- accepts only a basename already in `runtime/staging/hardware/`;
-- refuses unless a human starts the MCP service with
-  `NEWTON_ALLOW_HARDWARE_INSTALL=1`;
-- runs `runtime/install-newton-tcp` and returns its bounded output;
-- has a test proving the default refusal never starts a subprocess.
+1. The agent creates, writes, and builds the project; `build_pkg` atomically
+   stages the successful package and returns its basename.
+2. The agent validates the same package in an isolated emulator and inspects a
+   screenshot.
+3. The agent says the package is ready and calls `hardware_install`. The system
+   prompt requires this order and the plain Dock wording
+   (`agent_prompt.txt:25-39`); the public tool schema repeats that it must listen
+   first (`newton_mcp.py:579-594`).
+4. When Codex emits the `hardware_install` start event, the chat server relays
+   `Package ready. Open Dock, choose connect via TCP/IP, then tap Connect.` over
+   the existing Newton frame channel while the tool is still blocked listening
+   (`server.py:516-520,557-568,774-781`). Tapping Connect is the physical-write
+   confirmation; no package bytes move before it.
+5. `runtime/install-newton-tcp` automatically sends the staged package on that
+   connection. The agent's final message reports `Package installed; Dock
+   session closed`, the exact Dock error, or the 180-second no-connection
+   timeout.
 
-The environment gate must be set out-of-band by the human; an agent-supplied
-`confirm: true` would not be a human gate. `git apply --check
- docs/prepared-hardware-install.patch` validates that the prepared diff applies,
-but it must remain unapplied until the human approves a physical install.
-
-### Human-gated test plan
-
-1. Build the package and confirm `build_pkg` returns its Loader filename.
-2. Install that same `/agent-workspace/...` path into an isolated emulator,
-   launch its fresh symbol, inspect `emulator_screen`, and exercise one control.
-3. Confirm the staged file has `package0` magic and the same SHA-256 as the
-   emulator-tested workspace file.
-4. Human only: confirm Newton store free space, open Dock TCP with the working
-   Link selected, and tap Connect only after explicitly approving the install.
-5. Human only: enable `NEWTON_ALLOW_HARDWARE_INSTALL=1` for one chat/MCP run and
-   call `hardware_install` with the staged basename. Require the exact host text
-   `Package installed; Dock session closed`; record any Newton Dock error
-   verbatim. Remove the environment override immediately afterward.
+No physical install was attempted in this change. Emulator-provable evidence is
+`runtime/evidence/agent-hardware-install-20260808.txt`: the full suite passed
+124 tests, the Dock packet self-test passed, and a real sandboxed agent build
+produced byte-identical 1,112-byte workspace/staged packages with `package0`
+magic. A real gate-off `codex exec --json` probe also emitted the exact
+`item.started` MCP event pinned by `test_server.py:71-107`, then returned the
+out-of-band-gate refusal without starting the installer. The two focused tests also prove the subprocess cannot run without the
+out-of-band gate and receives the 180/195-second bounds when enabled
+(`test_newton_mcp.py:145-183`). The former prepared patch was deleted because
+keeping an applyable copy after wiring the feature would be stale and unsafe.
 
 The observed `tntk` core dump was secondary and recoverable: the preserved
 rollouts show syntax errors followed by `Segmentation fault (core dumped)`, then
@@ -106,3 +110,62 @@ a corrected source built and emulator-installed successfully
 `runtime/evidence/marssmoke-20260807T164030Z-codex-rollout.jsonl`, events 34,
 43, 48). No new `-60037` was observed in this download failure; it remains a
 known Dock/NIE link-selection error, not the cause of the HTTP 404.
+
+## Mars deployment prepared, not applied
+
+Mars was verified read-only on 2026-08-08 at `179f91a` on
+`fix/agent-pkg-download`. Its MCP registration already names
+`/home/jbfly/git/newton-harness/newton_mcp.py` with approval mode `approve`, and
+`egg-freckles-chat.service` already has `NEWTON_CODEX_TIMEOUT=300`. The checkout
+has preserved EF package backups and a modified live EF21 package, so the sync
+must fast-forward without requiring or cleaning an otherwise-pristine tree.
+The orchestrator can apply exactly:
+
+```sh
+# alpha: package the committed branch without pushing a shared branch
+cd /home/jbfly/git/newton-harness-pkg-download
+test "$(git branch --show-current)" = fix/agent-pkg-download
+test -z "$(git status --porcelain)"
+git bundle create /tmp/agent-dock-install.bundle fix/agent-pkg-download
+sha256sum /tmp/agent-dock-install.bundle
+scp /tmp/agent-dock-install.bundle mars:/tmp/
+
+# mars: preserve its unrelated EF21/backups, fast-forward only, enable the gate
+ssh mars <<'MARS'
+set -eu
+export PATH=/home/jbfly/.local/bin:/home/jbfly/newton-dev/prefix/bin:/usr/local/bin:/usr/bin
+cd ~/git/newton-harness
+test "$(git branch --show-current)" = fix/agent-pkg-download
+test "$(git rev-parse HEAD)" = 179f91ac1da9a1a5dafbb48a01ffd7fb801885a6
+git diff --quiet -- agent_prompt.txt newton_mcp.py server.py test_newton_mcp.py test_server.py docs
+git bundle verify /tmp/agent-dock-install.bundle
+! ss -ltn | grep -q ':3679 '
+git show-ref --verify --quiet refs/heads/backup/mars-before-agent-dock-install || \
+  git branch backup/mars-before-agent-dock-install HEAD
+git fetch /tmp/agent-dock-install.bundle fix/agent-pkg-download
+git merge --ff-only FETCH_HEAD
+uv run --with pytest pytest -q
+python3 - <<'PY'
+import newton_mcp
+assert "hardware_install" in newton_mcp.HANDLERS
+assert newton_mcp.DOCK_WAIT_SECONDS == 180
+assert "open Dock, choose connect via TCP/IP" in open("agent_prompt.txt").read()
+PY
+mkdir -p ~/.config/systemd/user/egg-freckles-chat.service.d
+cat > ~/.config/systemd/user/egg-freckles-chat.service.d/hardware-install.conf <<'UNIT'
+[Service]
+Environment=NEWTON_ALLOW_HARDWARE_INSTALL=1
+UNIT
+systemctl --user daemon-reload
+systemctl --user restart egg-freckles-chat.service
+systemctl --user is-active --quiet egg-freckles-chat.service
+systemctl --user show egg-freckles-chat.service -p Environment | grep 'NEWTON_ALLOW_HARDWARE_INSTALL=1'
+ss -ltnp | grep ':6801 '
+codex mcp get newton | grep '/home/jbfly/git/newton-harness/newton_mcp.py'
+MARS
+```
+
+After the restart, enter `/new dock-install` once in Egg Freckles before the
+first package-authoring request; resumed Codex threads retain their old system
+prompt. Do not pre-start an installer or touch port 18081: `hardware_install`
+opens `10.42.0.1:3679` only during the gated turn.

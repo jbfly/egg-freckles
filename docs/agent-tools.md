@@ -78,9 +78,12 @@ enforced in `newton_mcp.py` and covered by tests:
    (`compose.yaml:41`), so it can read a built package but
    cannot alter source or build output. No host directory outside this dedicated
    workspace is granted write access.
-4. **There is no physical-device package tool.** The agent-facing surface can
-   neither install onto the MessagePad nor stage files outside its workspace. A
-   human uses the separate host procedure in `docs/install-paths.md` row 2.
+4. **Physical install has two human gates.** `build_pkg` stages only its own
+   successful output under `runtime/staging/hardware/`. `hardware_install`
+   accepts only that staged basename, refuses unless the service inherited
+   `NEWTON_ALLOW_HARDWARE_INSTALL=1`, and invokes `runtime/install-newton-tcp`
+   with a 180-second Dock wait (`newton_mcp.py:370-391`). The package is not sent
+   until the human opens Dock, chooses connect via TCP/IP, and taps Connect.
 
 ## How it is registered with codex
 
@@ -382,16 +385,12 @@ sha256sum pkg_publisher.py | \
   grep '^538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566 '
 ```
 
-The host chat server on 6801 need not restart: a new Codex process and MCP
-subprocess start per turn, and a new session reads the updated
-`agent_prompt.txt`. On Egg Freckles use `/new pkg-write` before the first
-package-authoring request. If Mars has no rootless Podman, stop before the
-publisher restart and leave the old checkout running: create/write/build could
-work, but emulator install/launch cannot, so the requested end-to-end surface
-is not deployable there. The MCP surface deliberately has no direct physical-hardware install tool.
-`build_pkg` now stages the package for the existing human-confirmed Loader path;
-`docs/agent-package-download.md` traces that boundary and preserves the prepared,
-not-applied Dock/TCP tool patch.
+This section records the older package-authoring rollout. The direct Dock tool
+was wired later on 2026-08-08: `docs/agent-package-download.md` records the
+current build, emulator-validation, listen, Connect, and result flow. That live
+change requires restarting `egg-freckles-chat.service` so its long-running
+`server.py` reads the new prompt and can relay the Dock instruction during the
+Codex turn.
 
 Rollback restores the saved checkout and restarts the same publisher process.
 It deliberately leaves the confined workspace in place so generated source and
