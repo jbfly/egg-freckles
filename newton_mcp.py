@@ -42,6 +42,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 EXAMPLES_DIR = REPO_ROOT / "examples"
 AGENT_WORKSPACE = REPO_ROOT / "runtime" / "agent-workspace"
+HARDWARE_STAGING = REPO_ROOT / "runtime" / "staging" / "hardware"
 SERVER_NAME = "newton"
 SERVER_VERSION = "1.0.0"
 DEFAULT_PROTOCOL = "2025-06-18"
@@ -383,7 +384,15 @@ def tool_build_pkg(arguments: dict) -> dict:
         return text_result(f"build failed (make exited {code})\n{tail(output)}",
                            is_error=True)
     relative = pkg.relative_to(AGENT_WORKSPACE)
-    location = f"{pkg}\nemulator path: /agent-workspace/{relative}"
+    HARDWARE_STAGING.mkdir(parents=True, exist_ok=True)
+    staged = HARDWARE_STAGING / pkg.name
+    temporary = staged.with_suffix(staged.suffix + ".tmp")
+    shutil.copyfile(pkg, temporary)
+    temporary.replace(staged)
+    location = (
+        f"{pkg}\nemulator path: /agent-workspace/{relative}\n"
+        f"Loader filename: {staged.name}"
+    )
     return text_result(f"{location}\n{tail(output, 400)}")
 
 
@@ -543,8 +552,9 @@ TOOLS: list[dict] = [
             "Build one package with the host toolchain: runs `make -C <dir>` "
             "for a direct project under runtime/agent-workspace/. "
             "Agent-workspace builds run in a no-network bubblewrap sandbox "
-            "where only that workspace is writable. Returns the built .pkg "
-            "path, including its emulator path, or compiler errors."),
+            "where only that workspace is writable. Publishes a successful build "
+            "to runtime/staging/hardware/ under the same filename for the physical "
+            "Newton Loader, and returns that filename plus the emulator path."),
         "inputSchema": {
             "type": "object",
             "properties": {

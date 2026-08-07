@@ -167,7 +167,9 @@ def test_build_pkg_allows_only_sandboxed_agent_workspace(monkeypatch, tmp_path):
         (project / "my-app.pkg").write_bytes(b"pkg")
         return 0, "built"
 
+    staging = tmp_path / "hardware"
     monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+    monkeypatch.setattr(newton_mcp, "HARDWARE_STAGING", staging)
     monkeypatch.setattr(newton_mcp, "run_make", fake_make)
     monkeypatch.setattr(newton_mcp.shutil, "which", lambda name: "/usr/bin/bwrap")
     result = newton_mcp.call_tool("build_pkg", {"dir": str(project)})
@@ -177,6 +179,8 @@ def test_build_pkg_allows_only_sandboxed_agent_workspace(monkeypatch, tmp_path):
     assert "--unshare-net" in seen["args"]
     assert seen["args"][-3:] == ["make", "-C", str(project)]
     assert "/agent-workspace/my-app/my-app.pkg" in result["content"][0]["text"]
+    assert "Loader filename: my-app.pkg" in result["content"][0]["text"]
+    assert (staging / "my-app.pkg").read_bytes() == b"pkg"
 
 
 def test_build_pkg_refuses_workspace_symlink_escape(monkeypatch, tmp_path):

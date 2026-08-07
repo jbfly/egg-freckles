@@ -72,8 +72,10 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
    build_pkg {"dir": "runtime/agent-workspace/<name>-r1"}
    ```
 
-   It returns both the host `.pkg` and its `/agent-workspace/...` emulator path,
-   or the tail of the compiler output. `tntk` must carry
+   On success it also copies the package under the same basename to
+   `runtime/staging/hardware/` and returns the exact Loader filename, alongside
+   the host `.pkg` and `/agent-workspace/...` emulator path. A failed build is
+   not published. `tntk` must carry
    `tools/tntk-project-version.patch`; without it every rebuild silently
    regresses the package header to version 1 (`docs/START-HERE.md:95-104`).
 

@@ -39,7 +39,7 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 | `create_project` | `project`, `identity`, `title`, `version` | `runtime/agent-workspace/<project>` | Copies the trusted `examples/hello` scaffold, renames its project/build targets, and sets a fresh package identity. Refuses nested paths and existing projects. |
 | `write_source` | `project`, `source` | `runtime/agent-workspace/<project>/Main.newt` | Replaces only `Main.newt` in a direct workspace project; refuses path and symlink escapes and source over 256 KiB. |
 | `emulator_install` | `pkg_path`, `instance` | `POST /install` | Accepts container paths under read-only `/packages/` or read-only `/agent-workspace/`; the endpoint takes a path inside the container, **not** an upload (`docs/install-paths.md` row 1). |
-| `build_pkg` | `dir` | sandboxed `make -C <dir>` | Accepts only a direct project under `runtime/agent-workspace/`. Builds run with no network and only that workspace writable, and return the emulator-visible package path. |
+| `build_pkg` | `dir` | sandboxed `make -C <dir>` | Accepts only a direct project under `runtime/agent-workspace/`. A successful build is copied under the same basename to `runtime/staging/hardware/`; the result returns both the Loader filename and emulator-visible path. |
 
 Instance resolution reuses `emulator.client.instance_url`
 (`emulator/client.py:17-30`) — `podman port newton-harness-<instance>_emulator_1
@@ -388,8 +388,10 @@ subprocess start per turn, and a new session reads the updated
 package-authoring request. If Mars has no rootless Podman, stop before the
 publisher restart and leave the old checkout running: create/write/build could
 work, but emulator install/launch cannot, so the requested end-to-end surface
-is not deployable there. The MCP surface deliberately has no physical-hardware
-deployment tool.
+is not deployable there. The MCP surface deliberately has no direct physical-hardware install tool.
+`build_pkg` now stages the package for the existing human-confirmed Loader path;
+`docs/agent-package-download.md` traces that boundary and preserves the prepared,
+not-applied Dock/TCP tool patch.
 
 Rollback restores the saved checkout and restarts the same publisher process.
 It deliberately leaves the confined workspace in place so generated source and

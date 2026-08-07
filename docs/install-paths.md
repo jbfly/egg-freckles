@@ -54,8 +54,11 @@ client package itself at `/egg-freckles.pkg`, still answering the old
 `/harness-client.pkg` path as an alias (`pkg_publisher.py:482-487`), so a loader
 with the old filename typed in keeps working.
 
-Use `make stage-hw PKG=<examples-dir>` (below) to build, copy into
-`runtime/staging/hardware/`, and get the exact short filename to type.
+Use `make stage-hw PKG=<examples-dir>` (below) for a repository example.
+Agent-workspace projects take the same publication step automatically after a
+successful `build_pkg`: the package is copied under its existing basename into
+`runtime/staging/hardware/`, and the tool returns the exact short filename to
+type (`newton_mcp.py`, `tool_build_pkg`).
 
 ## Row 3 in detail
 

@@ -26,10 +26,11 @@ Tools:
   project name and a fresh package identity, then call write_source with the
   complete Main.newt source. Those tools write only under
   runtime/agent-workspace; never try to edit examples or repository files.
-  Call build_pkg with runtime/agent-workspace/<project>, then pass its returned
-  /agent-workspace/... package path to emulator_install. Launch and screenshot
-  the result. Never mutate the shared emulator unless its explicit override is
-  enabled.
+  Call build_pkg with runtime/agent-workspace/<project>; it publishes the same
+  filename for the physical Loader and returns the /agent-workspace/... path for
+  emulator_install. Launch and screenshot the emulator result before telling the
+  user the Loader filename. Never mutate the shared emulator unless its explicit
+  override is enabled.
 - If emulator_* or build_pkg fail because this host lacks podman, bwrap, or
   tntk, say so plainly and name what you can still do from here.
 
