@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +29,6 @@ MAX_INPUT = WIDTH * 12
 BASE_DIR = Path(__file__).resolve().parent
 PROMPT_FILE = BASE_DIR / "agent_prompt.txt"
 SCHEMA_FILE = BASE_DIR / "response_schema.json"
-AGENT_WORKSPACE = BASE_DIR / "runtime" / "agent-workspace"
 STATE_DIR = Path(os.environ.get("NEWTON_STATE_DIR", BASE_DIR / "state"))
 PORT = int(os.environ.get("NEWTON_PORT", "6801"))
 CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "120"))
@@ -520,36 +520,36 @@ class CodexBackend:
     async def chat(self, user_text: str) -> str:
         thread_id = self.ctx.thread_id
         request = "User text: " + ascii_clean(user_text).strip()
-        AGENT_WORKSPACE.mkdir(parents=True, exist_ok=True)
-        cmd = ["codex", "exec", "--sandbox", "workspace-write",
-               "--skip-git-repo-check", "--cd", str(AGENT_WORKSPACE)]
-        # Both flags must precede `resume`: the subcommand rejects them
-        # ("unexpected argument '--sandbox'"), and a resumed thread does
-        # honour them — docs/chat-commands.md, "What codex actually does".
-        if self.ctx.model:
-            cmd += ["-m", self.ctx.model]
-        if self.ctx.effort:
-            cmd += ["-c", f"model_reasoning_effort={self.ctx.effort}"]
-        if thread_id:
-            cmd += ["resume", "--json", "--output-schema",
-                    str(SCHEMA_FILE), thread_id, request]
-        else:
-            prompt = PROMPT_FILE.read_text(encoding="utf-8") + "\n\n" + request
-            cmd += ["--json", "--output-schema", str(SCHEMA_FILE), prompt]
-        log("codex argv: " + " ".join(cmd[:-1]))
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, cwd=AGENT_WORKSPACE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT)
-        except OSError as exc:
-            raise BackendError(f"could not run codex: {exc}") from exc
-        try:
-            out, _ = await asyncio.wait_for(proc.communicate(), CODEX_TIMEOUT)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            raise BackendError("agent timed out")
+        with tempfile.TemporaryDirectory(prefix="newton-codex-") as tmp:
+            cmd = ["codex", "exec", "--sandbox", "read-only",
+                   "--skip-git-repo-check", "--cd", tmp]
+            # Both flags must precede `resume`: the subcommand rejects them
+            # ("unexpected argument '--sandbox'"), and a resumed thread does
+            # honour them — docs/chat-commands.md, "What codex actually does".
+            if self.ctx.model:
+                cmd += ["-m", self.ctx.model]
+            if self.ctx.effort:
+                cmd += ["-c", f"model_reasoning_effort={self.ctx.effort}"]
+            if thread_id:
+                cmd += ["resume", "--json", "--output-schema",
+                        str(SCHEMA_FILE), thread_id, request]
+            else:
+                prompt = PROMPT_FILE.read_text(encoding="utf-8") + "\n\n" + request
+                cmd += ["--json", "--output-schema", str(SCHEMA_FILE), prompt]
+            log("codex argv: " + " ".join(cmd[:-1]))
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd, cwd=tmp,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT)
+            except OSError as exc:
+                raise BackendError(f"could not run codex: {exc}") from exc
+            try:
+                out, _ = await asyncio.wait_for(proc.communicate(), CODEX_TIMEOUT)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                raise BackendError("agent timed out")
         text = out.decode("utf-8", "replace")
         if proc.returncode != 0:
             tail = ascii_clean(text).strip()[-160:]

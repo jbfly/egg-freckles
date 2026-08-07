@@ -13,9 +13,11 @@ The safety rails live in this code, not in a prompt (Track D2):
     always allowed;
   * `newton_tool` refuses ops that would change a physical device and hands
     back the command for the human instead;
-  * there is no physical-device install tool here at all. `stage_hw` stages a
-    package into `runtime/staging/hardware/`; a human types the filename into
-    the Loader and taps Install (`docs/install-paths.md` row 2).
+  * agent-authored files are confined to `runtime/agent-workspace/`; project
+    creation and source writes reject path and symlink escapes, and builds make
+    only that directory writable inside bubblewrap;
+  * there is no physical-device install or staging tool here at all; a human
+    follows `docs/install-paths.md` row 2 outside the agent surface.
 
 Environment:
   NEWTON_TOOLS_URL     base URL of the pkg_publisher tools broker
@@ -39,11 +41,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 EXAMPLES_DIR = REPO_ROOT / "examples"
-AGENT_WORKSPACE = (REPO_ROOT / "runtime" / "agent-workspace").resolve()
+AGENT_WORKSPACE = REPO_ROOT / "runtime" / "agent-workspace"
 SERVER_NAME = "newton"
 SERVER_VERSION = "1.0.0"
 DEFAULT_PROTOCOL = "2025-06-18"
 MAKE_TIMEOUT = 600.0
+MAX_SOURCE_BYTES = 256 * 1024
 
 # Ops that would mutate a physical MessagePad. None of them exist on the
 # Newton client yet (ROADMAP C5); the rail is here so they cannot arrive
@@ -140,31 +143,46 @@ def guard_shared(action: str, shared: bool) -> None:
         "env only if a human has said the shared emulator is yours.")
 
 
-def directory_under(arguments: dict, field: str, root: Path, label: str) -> Path:
-    value = want_str(arguments, field)
-    path = (REPO_ROOT / value).resolve()
-    if path == root or root not in path.parents:
-        raise ToolError(f"{field} must name a directory under {label}, got {value!r}")
-    if not path.is_dir():
-        raise ToolError(f"no such directory: {value}")
+def workspace_root(*, create: bool = False) -> Path:
+    if AGENT_WORKSPACE.parent.is_symlink() or AGENT_WORKSPACE.is_symlink():
+        raise ToolError("runtime/agent-workspace and its parent must not be symlinks")
+    if create:
+        AGENT_WORKSPACE.mkdir(parents=True, exist_ok=True)
+    root = AGENT_WORKSPACE.resolve()
+    if not root.is_dir():
+        raise ToolError("runtime/agent-workspace does not exist")
+    return root
+
+
+def project_name(arguments: dict) -> str:
+    name = want_str(arguments, "project")
+    if (len(name) > 64 or not name.isascii() or not name[0].isalnum() or
+            any(not (char.isalnum() or char == "-") for char in name)):
+        raise ToolError("project must use 1-64 letters, digits, or hyphens")
+    return name
+
+
+def workspace_project(arguments: dict, *, must_exist: bool = True) -> Path:
+    root = workspace_root(create=not must_exist)
+    path = (root / project_name(arguments)).resolve()
+    if path.parent != root:
+        raise ToolError("project must be directly under runtime/agent-workspace/")
+    if must_exist and not path.is_dir():
+        raise ToolError(f"no such agent project: {path.name}")
     return path
 
 
-def example_dir(arguments: dict, field: str) -> Path:
-    return directory_under(arguments, field, EXAMPLES_DIR, "examples/")
-
-
-def build_dir(arguments: dict) -> tuple[Path, bool]:
+def build_dir(arguments: dict) -> Path:
     value = want_str(arguments, "dir")
+    root = workspace_root()
     path = (REPO_ROOT / value).resolve()
-    for root, writable in ((EXAMPLES_DIR, False), (AGENT_WORKSPACE, True)):
-        if path != root and root in path.parents:
-            if not path.is_dir():
-                raise ToolError(f"no such directory: {value}")
-            return path, writable
-    raise ToolError(
-        "dir must name a project under examples/ or "
-        f"runtime/agent-workspace/, got {value!r}")
+    if path.parent != root:
+        raise ToolError(
+            "dir must name a direct project under runtime/agent-workspace/, "
+            f"got {value!r}")
+    if not path.is_dir():
+        raise ToolError(f"no such directory: {value}")
+    return path
 
 
 def run_make(args: list[str]) -> tuple[int, str]:
@@ -275,6 +293,62 @@ def tool_emulator_newtonscript(arguments: dict) -> dict:
     return control_text(arguments, "evaluate NewtonScript", "/newtonscript", source)
 
 
+def tool_create_project(arguments: dict) -> dict:
+    project = workspace_project(arguments, must_exist=False)
+    if project.exists():
+        raise ToolError(f"agent project already exists: {project.name}")
+    identity = want_str(arguments, "identity")
+    identity_parts = identity.split(":")
+    if (len(identity) > 80 or not identity.isascii() or len(identity_parts) != 2 or
+            any(not part or not part[0].isalnum() for part in identity_parts) or
+            any(not (char.isalnum() or char in "_-")
+                for part in identity_parts for char in part)):
+        raise ToolError(
+            "identity must be a Newton package symbol such as MyAppR1:jbfly")
+    title = want_str(arguments, "title")
+    version = want_str(arguments, "version")
+    if (len(title) > 120 or len(version) > 40 or
+            not title.isascii() or not version.isascii() or
+            any(char in title + version for char in "\r\n\"")):
+        raise ToolError(
+            "title/version must be short ASCII text without quotes or newlines")
+
+    shutil.copytree(EXAMPLES_DIR / "hello", project)
+    (project / "hello.pkg").unlink(missing_ok=True)
+    (project / "hello.nprj").rename(project / f"{project.name}.nprj")
+    makefile = (project / "Makefile").read_text(encoding="utf-8")
+    (project / "Makefile").write_text(
+        makefile.replace("hello", project.name), encoding="utf-8")
+    nprj = project / f"{project.name}.nprj"
+    nprj.write_text(
+        nprj.read_text(encoding="utf-8").replace("HarnessHello:jbfly", identity),
+        encoding="utf-8")
+    source = project / "Main.newt"
+    text = source.read_text(encoding="utf-8")
+    text = text.replace("HarnessHello:jbfly", identity)
+    text = text.replace('"Harness Hello"', f'"{title}"')
+    text = text.replace('"0.1"', f'"{version}"')
+    source.write_text(text, encoding="utf-8")
+    return text_result(
+        f"created runtime/agent-workspace/{project.name}; "
+        "write Main.newt with write_source, then call build_pkg")
+
+
+def tool_write_source(arguments: dict) -> dict:
+    project = workspace_project(arguments)
+    source = want_str(arguments, "source")
+    size = len(source.encode("utf-8"))
+    if size > MAX_SOURCE_BYTES:
+        raise ToolError(f"source exceeds {MAX_SOURCE_BYTES} bytes")
+    target = project / "Main.newt"
+    if (target.is_symlink() or not target.is_file() or
+            target.resolve().parent != project):
+        raise ToolError("Main.newt must be a regular file inside the agent project")
+    target.write_text(source, encoding="utf-8")
+    return text_result(
+        f"wrote {size} bytes to runtime/agent-workspace/{project.name}/Main.newt")
+
+
 def tool_emulator_install(arguments: dict) -> dict:
     pkg_path = want_str(arguments, "pkg_path")
     if (not pkg_path.startswith(("/packages/", "/agent-workspace/"))
@@ -288,20 +362,18 @@ def tool_emulator_install(arguments: dict) -> dict:
 
 
 def tool_build_pkg(arguments: dict) -> dict:
-    path, writable = build_dir(arguments)
-    command = ["make", "-C", str(path)]
-    if writable:
-        bwrap = shutil.which("bwrap")
-        if not bwrap:
-            raise ToolError(
-                "building agent-authored projects requires bubblewrap (bwrap) "
-                "to keep writes inside runtime/agent-workspace/")
-        command = [
-            bwrap, "--ro-bind", "/", "/",
-            "--bind", str(AGENT_WORKSPACE), str(AGENT_WORKSPACE),
-            "--unshare-net", "--die-with-parent", "--chdir", str(REPO_ROOT),
-            *command,
-        ]
+    path = build_dir(arguments)
+    bwrap = shutil.which("bwrap")
+    if not bwrap:
+        raise ToolError(
+            "building agent-authored projects requires bubblewrap (bwrap) "
+            "to keep writes inside runtime/agent-workspace/")
+    command = [
+        bwrap, "--ro-bind", "/", "/",
+        "--bind", str(AGENT_WORKSPACE), str(AGENT_WORKSPACE),
+        "--unshare-net", "--die-with-parent", "--chdir", str(REPO_ROOT),
+        "make", "-C", str(path),
+    ]
     code, output = run_make(command)
     pkg = path / f"{path.name}.pkg"
     if not pkg.exists():
@@ -310,26 +382,9 @@ def tool_build_pkg(arguments: dict) -> dict:
     if code != 0 or not pkg.exists():
         return text_result(f"build failed (make exited {code})\n{tail(output)}",
                            is_error=True)
-    location = str(pkg)
-    if writable:
-        relative = pkg.relative_to(AGENT_WORKSPACE)
-        location += f"\nemulator path: /agent-workspace/{relative}"
+    relative = pkg.relative_to(AGENT_WORKSPACE)
+    location = f"{pkg}\nemulator path: /agent-workspace/{relative}"
     return text_result(f"{location}\n{tail(output, 400)}")
-
-
-def tool_stage_hw(arguments: dict) -> dict:
-    path = example_dir(arguments, "pkg_dir")
-    relative = path.relative_to(REPO_ROOT)
-    code, output = run_make(["make", "stage-hw", f"PKG={relative}"])
-    if code != 0:
-        return text_result(f"stage-hw failed (make exited {code})\n{tail(output)}",
-                           is_error=True)
-    staged = [line for line in output.splitlines() if line.startswith("Staged ")]
-    summary = staged[-1] if staged else tail(output, 400)
-    return text_result(
-        summary + "\n\nStaged only. Nothing was installed: a human opens the "
-        "Loader on the Newton, enters that filename, and taps Install "
-        "(docs/install-paths.md row 2).")
 
 
 TOOLS: list[dict] = [
@@ -431,14 +486,47 @@ TOOLS: list[dict] = [
         "handler": tool_emulator_newtonscript,
     },
     {
+        "name": "create_project",
+        "description": (
+            "Create a Newton package project by copying the read-only hello "
+            "template into runtime/agent-workspace/. The project name is a "
+            "single directory name; identity must be fresh for every install."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "directory/package filename stem, e.g. egg-timer-r1"},
+                "identity": {"type": "string", "description": "fresh package symbol, e.g. EggTimerR1:jbfly"},
+                "title": {"type": "string", "description": "Newton Extras title"},
+                "version": {"type": "string", "description": "version text, e.g. 0.1-r1"},
+            },
+            "required": ["project", "identity", "title", "version"],
+        },
+        "handler": tool_create_project,
+    },
+    {
+        "name": "write_source",
+        "description": (
+            "Replace Main.newt in one project directly under "
+            "runtime/agent-workspace/. This tool cannot write elsewhere."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "project created by create_project"},
+                "source": {"type": "string", "description": "complete Main.newt source"},
+            },
+            "required": ["project", "source"],
+        },
+        "handler": tool_write_source,
+    },
+    {
         "name": "emulator_install",
         "description": (
             "Install a package into an emulator. pkg_path is a path as the "
             "emulator sees it, under /packages/ -- either the read-only "
             "examples mount or the read-only /agent-workspace mount. This is a path, "
             "not an upload. Refused on the shared emulator "
-            "without an instance. There is no tool that installs onto the "
-            "physical Newton; use stage_hw and let a human finish."),
+            "without an instance. There is no tool that installs onto or "
+            "stages a package for the physical Newton."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -453,36 +541,20 @@ TOOLS: list[dict] = [
         "name": "build_pkg",
         "description": (
             "Build one package with the host toolchain: runs `make -C <dir>` "
-            "for a project under examples/ or runtime/agent-workspace/. "
+            "for a direct project under runtime/agent-workspace/. "
             "Agent-workspace builds run in a no-network bubblewrap sandbox "
             "where only that workspace is writable. Returns the built .pkg "
             "path, including its emulator path, or compiler errors."),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "dir": {"type": "string", "description": "e.g. examples/hello or runtime/agent-workspace/my-app"},
+                "dir": {"type": "string", "description": "e.g. runtime/agent-workspace/my-app"},
             },
             "required": ["dir"],
         },
         "handler": tool_build_pkg,
     },
-    {
-        "name": "stage_hw",
-        "description": (
-            "Build a package and stage it for the physical Newton "
-            "(`make stage-hw PKG=<dir>`): copies into "
-            "runtime/staging/hardware/ and refreshes SHA256SUMS. This does NOT "
-            "install anything. It returns the short filename a human then "
-            "enters into the Loader on the device before tapping Install."),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "pkg_dir": {"type": "string", "description": "e.g. examples/harness-client"},
-            },
-            "required": ["pkg_dir"],
-        },
-        "handler": tool_stage_hw,
-    },
+
 ]
 
 HANDLERS = {tool["name"]: tool["handler"] for tool in TOOLS}

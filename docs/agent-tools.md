@@ -12,9 +12,12 @@ tool calls and the screenshot are at the bottom of this page under "The live
 demo (D3)". Since Track G2 the same is true of the build-and-test surface:
 `build_pkg`, `emulator_install`, `emulator_newtonscript`, `emulator_screen` and
 `emulator_tap` were driven by an agent to build a new app and prove it works on
-screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). Only
-`emulator_text`, `emulator_key` and `stage_hw` are still exercised by tests
-alone.
+screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). That historical build
+used `examples/`; the new writable-workspace path is source-tested here and
+awaits a separate bounded emulator proof. Only `emulator_text` and
+`emulator_key` are still exercised by tests alone.
+The old agent-facing `stage_hw` tool was removed when writes were confined to
+the dedicated workspace; physical staging remains a human host procedure.
 
 `newton_mcp.py` is one stdlib-only file at the repo root. It speaks MCP over
 stdio as newline-delimited JSON-RPC 2.0 and implements exactly `initialize`,
@@ -33,9 +36,10 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 | `emulator_text` | `value`, `instance` | `POST /text` | xdotool typing. |
 | `emulator_key` | `key`, `instance` | `POST /key` | One xdotool key name. |
 | `emulator_newtonscript` | `source`, `instance` | `POST /newtonscript` | One line, raw text body. |
-| `emulator_install` | `pkg_path`, `instance` | `POST /install` | `pkg_path` must start with `/packages/` — the endpoint takes a path inside the container, **not** an upload (`docs/install-paths.md` row 1). |
-| `build_pkg` | `dir` | `make -C <dir>` | `dir` must resolve under `examples/`. Returns the built `.pkg` path, or the tail of the compiler output when the build fails. |
-| `stage_hw` | `pkg_dir` | `make stage-hw PKG=<dir>` | Stages into `runtime/staging/hardware/` and returns the short filename. Installs nothing. |
+| `create_project` | `project`, `identity`, `title`, `version` | `runtime/agent-workspace/<project>` | Copies the trusted `examples/hello` scaffold, renames its project/build targets, and sets a fresh package identity. Refuses nested paths and existing projects. |
+| `write_source` | `project`, `source` | `runtime/agent-workspace/<project>/Main.newt` | Replaces only `Main.newt` in a direct workspace project; refuses path and symlink escapes and source over 256 KiB. |
+| `emulator_install` | `pkg_path`, `instance` | `POST /install` | Accepts container paths under read-only `/packages/` or read-only `/agent-workspace/`; the endpoint takes a path inside the container, **not** an upload (`docs/install-paths.md` row 1). |
+| `build_pkg` | `dir` | sandboxed `make -C <dir>` | Accepts only a direct project under `runtime/agent-workspace/`. Builds run with no network and only that workspace writable, and return the emulator-visible package path. |
 
 Instance resolution reuses `emulator.client.instance_url`
 (`emulator/client.py:17-30`) — `podman port newton-harness-<instance>_emulator_1
@@ -44,7 +48,7 @@ shared emulator at `NEWTON_CONTROL_URL` (default `http://127.0.0.1:18080`).
 
 ## The safety rails (in code, not in a prompt)
 
-Track D2's point is that a prompt is not a rail. All three of these are
+Track D2's point is that a prompt is not a rail. All four of these are
 enforced in `newton_mcp.py` and covered by tests:
 
 1. **The shared emulator is read-only.** `emulator_tap`, `_text`, `_key`,
@@ -59,11 +63,24 @@ enforced in `newton_mcp.py` and covered by tests:
    instead. None of those ops exist on the Newton client yet (ROADMAP C5); the
    rail is in place so they cannot arrive without the gate
    (`docs/notes-bridge.md:16`).
-3. **There is no physical-install tool at all.** The tool surface has no path
-   that puts a package on the MessagePad. `stage_hw` stages and stops; a human
-   opens the Loader, enters the filename, taps Install
-   (`docs/install-paths.md` row 2). `build_pkg`/`stage_hw` also refuse any
-   `dir` that does not resolve under `examples/`.
+3. **Agent writes are confined to one ignored runtime directory.** Codex keeps
+   its global `--sandbox read-only` setting (`server.py:524`).
+   `create_project` can create only one direct child of
+   `runtime/agent-workspace/` (`newton_mcp.py:146-190`);
+   `write_source` can replace only that child's
+   `Main.newt` (`newton_mcp.py:296-350`); both resolve paths and
+   reject symlink escapes. `build_pkg` accepts only a direct workspace project;
+   its Makefile runs under bubblewrap with `/` read-only and only
+   `runtime/agent-workspace/`
+   rebound writable, and networking unshared (`newton_mcp.py:364-391`).
+   The repository and `examples/` therefore remain read-only to the chat agent.
+   The emulator sees the same host directory at `/agent-workspace:ro`
+   (`compose.yaml:41`), so it can read a built package but
+   cannot alter source or build output. No host directory outside this dedicated
+   workspace is granted write access.
+4. **There is no physical-device package tool.** The agent-facing surface can
+   neither install onto the MessagePad nor stage files outside its workspace. A
+   human uses the separate host procedure in `docs/install-paths.md` row 2.
 
 ## How it is registered with codex
 
@@ -126,8 +143,9 @@ Full transcripts: `runtime/evidence/d3demo-mcp-verify.txt`.
    `--sandbox` governs the commands the *model* runs, not the MCP server
    process. Proof: `examples/hello/hello.pkg` was deleted, then a
    `codex exec --sandbox read-only` run called `build_pkg(dir="examples/hello")`
-   and the tool wrote the file (1104 bytes). So `build_pkg`/`stage_hw` need no
-   `--add-dir` and no sandbox change. The flip side is a security note:
+   and the tool wrote the file (1104 bytes). That historical behavior is why
+   `build_pkg` is now workspace-only and bubblewrapped. The flip side is a
+   security note:
    **the sandbox flag is not a rail for this tool surface.** The only rails on
    these tools are the ones coded into `newton_mcp.py` (Track D2), and
    `approve` means the agent uses them without asking.
@@ -158,8 +176,8 @@ What that means:
   `127.0.0.1` only (`compose.yaml:35`, `scripts/emulator-instance.sh:33-38`),
   which the table above shows is unreachable; and `instance_url` shells out to
   `podman`, which is not installed in the server image and has no socket there.
-- **`build_pkg` / `stage_hw` do not work from inside the container either** —
-  the image has no `make`, no `tntk`, and no repo checkout.
+- **`build_pkg` does not work from inside the container either** — the image
+  has no `make`, no `tntk`, and no repo checkout.
 
 **Recommended fix — and what the D3 demo did: run `server.py` on the host for
 agent-tool work**, where

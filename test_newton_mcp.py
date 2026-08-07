@@ -52,7 +52,8 @@ def test_initialize_and_tools_list_round_trip():
     names = [tool["name"] for tool in replies[1]["result"]["tools"]]
     assert names == ["newton_tool", "emulator_screen", "emulator_tap",
                      "emulator_text", "emulator_key", "emulator_newtonscript",
-                     "emulator_install", "build_pkg", "stage_hw"]
+                     "create_project", "write_source", "emulator_install",
+                     "build_pkg"]
     for tool in replies[1]["result"]["tools"]:
         assert tool["inputSchema"]["type"] == "object"
         assert "handler" not in tool
@@ -141,15 +142,18 @@ def test_emulator_screen_is_allowed_on_the_shared_emulator(monkeypatch):
     assert base64.b64decode(image["data"]) == png
 
 
-def test_build_pkg_refuses_paths_outside_examples(monkeypatch):
-    def explode(*args, **kwargs):  # pragma: no cover - must never run
-        raise AssertionError("make ran for a path outside examples/")
-
-    monkeypatch.setattr(newton_mcp, "run_make", explode)
-    for value in ("..", "runtime", "examples", "examples/../runtime"):
+def test_build_pkg_refuses_paths_outside_agent_workspace(monkeypatch, tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    workspace.mkdir()
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+    monkeypatch.setattr(
+        newton_mcp, "run_make",
+        lambda args: (_ for _ in ()).throw(AssertionError("make must not run")))
+    for value in ("..", "runtime", "examples/hello", str(workspace),
+                  str(workspace / "../escape")):
         result = newton_mcp.call_tool("build_pkg", {"dir": value})
         assert result["isError"] is True
-        assert "examples/" in result["content"][0]["text"]
+        assert "runtime/agent-workspace/" in result["content"][0]["text"]
 
 
 def test_build_pkg_allows_only_sandboxed_agent_workspace(monkeypatch, tmp_path):
@@ -188,7 +192,7 @@ def test_build_pkg_refuses_workspace_symlink_escape(monkeypatch, tmp_path):
 
     result = newton_mcp.call_tool("build_pkg", {"dir": str(workspace / "escape")})
     assert result["isError"] is True
-    assert "examples/ or runtime/agent-workspace/" in result["content"][0]["text"]
+    assert "direct project under runtime/agent-workspace/" in result["content"][0]["text"]
 
 
 def test_emulator_install_refuses_parent_traversal(monkeypatch):
@@ -200,3 +204,75 @@ def test_emulator_install_refuses_parent_traversal(monkeypatch):
         "emulator_install", {"pkg_path": "/agent-workspace/../secret.pkg"})
     assert result["isError"] is True
     assert "without '..'" in result["content"][0]["text"]
+
+
+def test_create_and_write_source_are_confined_to_workspace(monkeypatch, tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+
+    created = newton_mcp.call_tool("create_project", {
+        "project": "egg-timer-r1",
+        "identity": "EggTimerR1:jbfly",
+        "title": "Egg Timer",
+        "version": "0.1-r1",
+    })
+    project = workspace / "egg-timer-r1"
+    assert created["isError"] is False
+    assert (project / "egg-timer-r1.nprj").is_file()
+    assert "egg-timer-r1.pkg" in (project / "Makefile").read_text()
+    assert "EggTimerR1:jbfly" in (project / "egg-timer-r1.nprj").read_text()
+
+    source = "kAppSymbol := '|EggTimerR1:jbfly|;\n// generated source\n"
+    written = newton_mcp.call_tool(
+        "write_source", {"project": "egg-timer-r1", "source": source})
+    assert written["isError"] is False
+    assert (project / "Main.newt").read_text() == source
+
+    for project_name in ("../escape", "nested/escape", ".", "egg_timer"):
+        result = newton_mcp.call_tool("write_source", {
+            "project": project_name, "source": "bad"})
+        assert result["isError"] is True
+    assert not (tmp_path / "escape").exists()
+
+
+def test_write_source_refuses_symlink_escape(monkeypatch, tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    project = workspace / "app"
+    outside = tmp_path / "outside.newt"
+    project.mkdir(parents=True)
+    outside.write_text("keep")
+    (project / "Main.newt").symlink_to(outside)
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+
+    result = newton_mcp.call_tool(
+        "write_source", {"project": "app", "source": "replace"})
+    assert result["isError"] is True
+    assert outside.read_text() == "keep"
+
+
+def test_workspace_root_refuses_symlink(monkeypatch, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    workspace = tmp_path / "agent-workspace"
+    workspace.symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+
+    result = newton_mcp.call_tool("create_project", {
+        "project": "app", "identity": "AppR1:jbfly",
+        "title": "App", "version": "0.1",
+    })
+    assert result["isError"] is True
+    assert "must not be symlinks" in result["content"][0]["text"]
+
+
+def test_workspace_mount_control_path_and_read_only_agent_are_pinned():
+    root = SERVER.parent
+    server_source = (root / "server.py").read_text(encoding="utf-8")
+    compose = (root / "compose.yaml").read_text(encoding="utf-8")
+    control_patch = (root / "containers/patches/einstein-control-socket.patch").read_text(
+        encoding="utf-8")
+
+    assert '"--sandbox", "read-only"' in server_source
+    assert '"--sandbox", "workspace-write"' not in server_source
+    assert "./runtime/agent-workspace:/agent-workspace:ro" in compose
+    assert 'path.compare(0, 17, "/agent-workspace/")' in control_patch
