@@ -1,19 +1,23 @@
 # Progress and feedback design
 
-Date: 2026-08-07. P2 is source-complete in EF15; emulator and hardware proof
-remain deliberately human-gated.
+Date: 2026-08-07. P2 is source-complete in EF15 and P4 in EF18; emulator and
+hardware proof remain deliberately human-gated.
 
 ## Bottom line
 
-**Implementation result (EF15).** Intermediate multipart `/ink` requests still
+**Implementation result (EF15 + EF18).** Intermediate multipart `/ink` requests still
 return `INKP` immediately while their vision futures run concurrently. The final
 request now flushes close-delimited `STATUS received`, `STATUS rendered`, and
 `STATUS vision` lines before waiting for the combined reading, then ends in one
 `INK` or `INKERR` line (`pkg_publisher.py:458-490,628-640`). The Newton keeps
 `Sending page n/total` visible during each upload and maps those fixed STATUS
-lines to its existing status surface (`examples/harness-client/Main.newt:2014-
-2027,2155-2230`). Source and socket-level tests pin immediate `INKP`, ordered
-STATUS-before-INK, no final `Content-Length`, and EF14's send-owned radio lifecycle.
+lines to its existing status surface. EF18 gives the Notes-menu agent the same
+surface as a small root-level `protoFloatNGo`: it opens immediately before
+`SendInk`, stays non-modal over Notes, mirrors `SetStatus`, shows filing/error
+completion for 1.5 seconds, and closes (`examples/harness-client/Main.newt:149-
+179,208-258,306-359`). Source and socket-level tests pin the Notes path, immediate
+`INKP`, ordered STATUS-before-INK, no final `Content-Length`, and EF14's
+send-owned radio lifecycle.
 
 Use one tiny status record everywhere: a short machine phase, a human sentence,
 and optional `n/total`. Render transient work in the existing Newton status
@@ -194,7 +198,7 @@ The ordering is by file ownership and merge risk, not by conceptual purity.
 | **P1 — radio lifecycle**, existing `release/radio-battery` | Radio-up, connect, disconnect, radio-off; tools poll active only during a send/tool request | This branch already owns the connection lifetime. Progress must not accidentally preserve the EF6 always-on poll that the battery round is deleting. | Source tests pin no install-time `ToolStart`; emulator evidence shows status during connect and no tools socket after idle teardown. |
 | **P2 — first user-visible ink slice**, future `release/progress-ink`, based on merged P0 + P1 and after the current ink worker | Per-part send, received, render, vision, final reply; streamed `STATUS`/`INKERR` response | Highest-value path and the exact 1–2 minute hardware complaint. It touches both `Main.newt` and `pkg_publisher.py`, so it follows their current owners rather than merging around them. | Fake publisher deterministically emits all phases; real-image emulator round shows `Sending page 1/N` then `Server is reading page 1/N`; multipart order and existing final filing remain correct. Hardware remains human-gated. |
 | **P3 — chat detail**, fold into the planned chat-UI round after P1/P2 | Chat send ACK boundary, model phase, reply assembly | Existing `Thinking` is already adequate for ~6 s; lower value than ink. Folding avoids moving/re-wiring the status line twice. | Existing framed protocol tests plus one emulator turn; legacy `READY`/`THINKING` still work. |
-| **P4 — Notes headless progress view**, same planned chat-UI round or its immediate successor | Notes-menu route and `Answer filed in AI` | Requires a UI surface because the agent deliberately has no window (`examples/harness-client/Main.newt:153-191`). The prior design marks opening a float from `RouteScript` unverified, so probe before adopting it. | Isolated emulator: invoke from Notes with Egg Freckles closed, Notes stays interactive, progress view updates, one AI note is filed, view closes. |
+| **P4 — Notes headless progress view** — source-complete in EF18 | Notes-menu route and `Answer filed in AI` | The persistent agent builds a root-level `protoFloatNGo` from the route, updates its static text through the existing `SetStatus`, and closes it after completion; no second channel or application launch (`examples/harness-client/Main.newt:149-179,208-258,306-359`). | Source assertions and clean `tntk` compile pass. Still human-gated: invoke from Notes with Egg Freckles closed, confirm Notes stays interactive, progress updates, one AI note is filed, and the view closes. |
 | **P5 — emulator/tools messages**, existing `release/emulator-nseval` where applicable, otherwise a tiny tools round | Queued install/open, OCR attempt, `ns_eval` wait, `/tools` lifecycle logs | Developer-facing and independent; serialize with the worker already changing the emulator/ns-eval harness. | CLI transcript contains a line before each wait and no polling spam; existing completion checks still decide success. |
 
 ### Recommended first slice

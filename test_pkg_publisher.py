@@ -65,6 +65,7 @@ class PublisherTest(unittest.TestCase):
                     self.assertEqual(status, 200)
                     self.assertEqual(version, 10)
                     self.assertEqual(body, pkg_publisher.PAGE_BODY)
+                    self.assertIn(b"Egg Freckles EF18", body)
                     self.assertEqual(headers["Content-Length"], str(len(body)))
                     self.assertEqual(headers["Connection"], "close")
                     self.assertIn("text/html", headers["Content-Type"])

@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef17_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef18_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF17:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef17";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF18:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef18";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF17:jbfly"' in PROJECT
-    assert "version: 29" in PROJECT
+    assert 'name: "EggFrecklesEF18:jbfly"' in PROJECT
+    assert "version: 30" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -259,12 +259,31 @@ def test_every_endpoint_catches_its_own_exceptions():
 
 
 def test_the_chat_launches_full_screen_instead_of_floating():
-    assert "_proto: protoApp," in SOURCE
-    assert "local box := GetAppParams();" in SOURCE
-    assert "left: box.appAreaLeft, top: box.appAreaTop" in SOURCE
-    assert "right: box.appAreaWidth, bottom: box.appAreaHeight" in SOURCE
-    assert "protoFloatNGo" not in SOURCE
-    assert "CenterBounds: func()" not in SOURCE
+    main = SOURCE[SOURCE.index("mainView := {"):]
+    assert "_proto: protoApp," in main
+    assert "local box := GetAppParams();" in main
+    assert "left: box.appAreaLeft, top: box.appAreaTop" in main
+    assert "right: box.appAreaWidth, bottom: box.appAreaHeight" in main
+    assert "_proto: protoFloatNGo," not in main
+    assert "CenterBounds: func()" not in main
+
+
+def test_notes_menu_uses_a_non_modal_progress_view_and_existing_status_stream():
+    progress = SOURCE[SOURCE.index("noteProgressView := {"):SOURCE.index("noteAgent := {")]
+    agent = SOURCE[SOURCE.index("noteAgent := {"):SOURCE.index("mainView := {")]
+    route = agent[agent.index("Route: func(target, targetView, mode)"):
+                  agent.index("HandleInkLine: func(line)")]
+    assert "_proto: protoFloatNGo," in progress
+    assert "_proto: protoStaticText," in progress
+    assert "BuildContext(self.progressTemplate)" in agent
+    assert "self.progressView:Open();" in agent
+    assert "SetValue(self.progressView.statusView, 'text, message)" in agent
+    assert route.index(":OpenProgress();") < route.index(":SendInk(body, strokes);")
+    assert 'if BeginsWith(line, "STATUS ") then' in agent
+    assert ':SetStatus("Sending page 1/" & self.inkTotalParts);' in SOURCE
+    assert ':ProgressDone("Answer filed in AI");' in agent
+    assert "try view:Close()" in agent
+    assert "[self], 1500);" in agent
 
 
 def test_one_ask_button_classifies_the_note_instead_of_offering_two():

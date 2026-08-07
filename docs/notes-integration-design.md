@@ -197,11 +197,11 @@ and the note is visible under the "AI" tab:
 [`l2probe-ai-folder.png`](../runtime/evidence/l2probe-ai-folder.png).
 
 **Folders do not fight back.** The popup fallback the human offered is not
-needed for delivery. A `protoFloatNGo` panel is still worth having as a
-*progress* surface — "Thinking…", then "Answer filed in AI" — because a route
-script that returns silently and produces a note somewhere else 9 seconds later
-is a bad experience. Keep the panel small and optional. **[verify]** — opening
-a float from inside a RouteScript was not probed.
+needed for delivery. EF18 now uses a small root-level `protoFloatNGo` as the
+*progress* surface: the route opens it before `SendInk`, the existing status path
+updates it, and "Answer filed in AI" or an error remains for 1.5 seconds before
+it closes (`examples/harness-client/Main.newt:149-179,208-258,306-359`). The
+source compiles; Notes interactivity and rendering remain hardware-gated.
 
 One trap: `Length()` on a NewtonScript string returns **bytes**, so the
 22-character "the cat sat on the mat" measured 46. Use `StrLen` for characters
@@ -429,7 +429,7 @@ human's.
 | §5 is `GetRoot().paperroll` instantiated when InstallScript runs at boot | **Yes.** `via=install` after a cold boot means the hook landed on the first try; the four-retry `AddDelayedCall` path shipped but never fired | `l2build-round.txt` §1 |
 | §4 the host's zero-stroke `/ink` body | **Host proven in L2; client regressed in EF9/EF10 and restored in EF11 and retained in EF12.** `pkg_publisher.py` answers zero strokes from `H`, but EF9/EF10 returned nil before posting. EF12 calls `EncodeInk([], 0, hint, mode, 1, 1)` and Ask AI filed `ZERO STROKE OK`; the host test now pins the exact client-built `M ask` + `H` shape | `examples/harness-client/Main.newt:1608-1620`; `runtime/evidence/ef10round-fix2-zero-host.log`; `ef10round-fix2-zero-reply.txt`; `test_pkg_publisher.py:181-225` |
 | §2 multi-select target from the overview | **Implemented, not exercised.** `Route` calls `GetTargetCursor(target, nil)` unconditionally and takes `:Entry()`, which is the documented shape for any target (`Guide:46379-46381`). Every live tap in this round was a single open note, so the checked-overview case is still unproven on the ROM | `Main.newt`, `noteAgent.Route` |
-| §3 opening a `protoFloatNGo` from a RouteScript | **Not built, deliberately.** The design already demoted the progress panel to optional; the reply note is the surface, and a *failure* now also writes a note ("(not sent) …"), so the silent case the panel was meant to cover no longer exists. Still unprobed | `Main.newt`, `noteAgent.InkDone` |
+| §3 opening a `protoFloatNGo` from a RouteScript | **Source-complete in EF18.** `noteAgent.Route` calls `OpenProgress` immediately before the existing asynchronous `SendInk`; `BuildContext` attaches the `protoFloatNGo` to the root, `SetStatus` updates its static text, and `ProgressDone` closes it after 1.5 seconds. Source assertions and `tntk` compile pass; visual/non-modal behavior remains hardware-gated | `Main.newt:149-179,208-258,306-359`; `test_newton_client_source.py` |
 | §3 `RemoveFolder("AI")` on uninstall | **Deliberately not done — deviation from build plan step 9.** `RemoveScript` runs on *every* deactivation, package replacement included, so removing the folder would unfile every answer the user had kept, every time they installed a newer Egg Freckles. By then the folder is the user's data. `RemoveAppFolders` is still never called | `Main.newt`, part frame `RemoveScript` |
 | §1 `RegRouteScript` / `extraRouteScripts` as a general registry | **Still unprobed**, and still not needed | — |
 

@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF17:jbfly|;
-kVersion := "1.0-ef17";
+kAppSymbol := '|EggFrecklesEF18:jbfly|;
+kVersion := "1.0-ef18";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -145,6 +145,37 @@ kIconBits := MakeBinaryFromHex(
     & "0c03000003fc0000", 'bits);
 kAppIcon := {bits: kIconBits, bounds: {top: 0, left: 0, bottom: 14, right: 20}};
 
+// A root-level floating view is the smallest status surface Notes can show
+// without becoming modal or opening the full Egg Freckles application.
+// BuildContext attaches it to the root; protoFloatNGo keeps Notes clickable.
+noteProgressView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 20, top: 56, right: 300, bottom: 128},
+    title: "Egg Freckles",
+    agent: nil,
+    statusView: nil,
+
+    ViewQuitScript: func()
+    begin
+        if IsFrame(self.agent) then self.agent.progressView := nil;
+        inherited:?ViewQuitScript();
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 12, top: 24, right: 268, bottom: 52},
+            viewFont: ROM_fontSystem10,
+            text: "Sending page...",
+            ViewSetupDoneScript: func()
+            begin
+                inherited:?ViewSetupDoneScript();
+                self:Parent().statusView := self;
+            end,
+        },
+    ],
+};
+
 // ===================== the stock Notes route scripts ========================
 //
 // These slots are copied onto a small heap frame whose `_proto` is this
@@ -161,11 +192,11 @@ kAppIcon := {bits: kIconBits, bounds: {top: 0, left: 0, bottom: 14, right: 20}};
 // may be no view. The agent is created once per boot by the hook and lives in
 // the NewtonScript heap until the package is removed.
 noteAgent := {
-    // Where a status line would have gone. Kept because the inherited network
-    // code calls it on every path, and because it is what the failure note
-    // says (docs/notes-integration-design.md §3 demoted the progress popup;
-    // the note itself is the surface).
+    // The latest status is retained for failure notes and mirrored into the
+    // transient Notes progress view while that view is open.
     aiStatus: nil,
+    progressTemplate: noteProgressView,
+    progressView: nil,
     // A short label for the note we were asked about, so the reply can say
     // what it is a reply to.
     aiLabel: "",
@@ -177,10 +208,46 @@ noteAgent := {
     SetStatus: func(message)
     begin
         self.aiStatus := message;
+        if IsFrame(self.progressView) and IsFrame(self.progressView.statusView) then
+            try SetValue(self.progressView.statusView, 'text, message)
+            onexception |evt.ex| do nil;
         return nil;
     end,
 
-    // There is no view, so there are no children to wire. The inherited
+    OpenProgress: func()
+    begin
+        :CloseProgress();
+        try
+        begin
+            self.progressView := BuildContext(self.progressTemplate);
+            self.progressView.agent := self;
+            self.progressView:Open();
+        end
+        onexception |evt.ex| do self.progressView := nil;
+        return nil;
+    end,
+
+    CloseProgress: func()
+    begin
+        local view := self.progressView;
+        self.progressView := nil;
+        if IsFrame(view) then
+        begin
+            view.agent := nil;
+            try view:Close() onexception |evt.ex| do nil;
+        end;
+        return nil;
+    end,
+
+    ProgressDone: func(message)
+    begin
+        :SetStatus(message);
+        AddDelayedCall(func(agent) try agent:CloseProgress() onexception |evt.ex| do nil,
+            [self], 1500);
+        return nil;
+    end,
+
+    // There is no application window, so there are no children to wire. The inherited
     // SetStatus/PromptField call this; overriding it to nil is what keeps
     // :ChildViewFrames() from being sent to a frame that is not a view.
     Wire: func() nil,
@@ -239,7 +306,8 @@ noteAgent := {
         // Everything from here is the Ask button's asynchronous POST, unchanged:
         // the route script returns nil now and the answer lands in InputScript
         // ~9 s later. A synchronous wait would freeze Notes for that whole time
-        // (design §4).
+        // (design §4). The root-level float is non-modal, so Notes remains live.
+        :OpenProgress();
         :SendInk(body, strokes);
         return nil;
     end,
@@ -271,6 +339,7 @@ noteAgent := {
         if self.askThinned then
             self.aiLabel := self.aiLabel & " (ink thinned to fit)";
         :FileReply(SubStr(line, 4, StrLen(line) - 6));
+        :ProgressDone("Answer filed in AI");
         return nil;
     end,
 
@@ -287,6 +356,7 @@ noteAgent := {
             if self.askThinned then
                 self.aiLabel := self.aiLabel & " (ink thinned to fit)";
             try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;
+            :ProgressDone(why);
         end;
         :ArmRadioIdle();
         AddDelayedCall(func(agent) try agent:InkStop() onexception |evt.ex| do nil,
@@ -1855,6 +1925,7 @@ mainView := {
             try previous:ToolStop() onexception |evt.ex| do nil;
             try previous:InkStop() onexception |evt.ex| do nil;
             try previous:Stop() onexception |evt.ex| do nil;
+            try previous:CloseProgress() onexception |evt.ex| do nil;
         end;
         // The agent is a heap frame whose proto is this template, so it
         // inherits every method the Ask button uses. Its own copies of the
@@ -3405,6 +3476,8 @@ mainView := {
                         begin
                             item.agent.toolStopping := true;
                             try item.agent:ToolStop()
+                            onexception |evt.ex| do nil;
+                            try item.agent:CloseProgress()
                             onexception |evt.ex| do nil;
                         end;
                     end
