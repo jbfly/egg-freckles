@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF20:jbfly|;
-kVersion := "1.0-ef20";
+kAppSymbol := '|EggFrecklesEF21:jbfly|;
+kVersion := "1.0-ef21";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -426,10 +426,8 @@ mainView := {
     // area instead of centring a floating panel over Notes.
     _proto: protoApp,
     viewBounds: {left: 0, top: 0, right: 320, bottom: 480},
-    // The ROM arrows were tried on the old floating root: direct scroll methods
-    // worked, but arrow taps were routed to Notepad because floating views are
-    // excluded (refs/NewtonProgrammerRef20.txt:4510-4512). Keep the proven Up/Dn
-    // row window rather than claiming native scrolling without a device proof.
+    // Full-screen protoApp is eligible for the ROM scroll arrows; the old
+    // floating root was excluded from scroll routing by definition.
     title: kAppTitle,
     appSymbol: kAppSymbol,
     endpointClass: {_proto: protoBasicEndpoint},
@@ -744,6 +742,13 @@ mainView := {
     ScrollUp: func() :ScrollBy(self.visibleRows - self.scrollOverlap),
 
     ScrollDown: func() :ScrollBy(self.scrollOverlap - self.visibleRows),
+
+    // The status-bar arrows send these messages to the frontmost non-floating
+    // application view. Reuse the proven row window rather than adding a second
+    // scrolling mechanism.
+    ViewScrollUpScript: func() :ScrollUp(),
+
+    ViewScrollDownScript: func() :ScrollDown(),
 
     ShowTranscript: func()
     begin
@@ -3444,24 +3449,9 @@ mainView := {
         },
         {
             _proto: protoDivider,
-            viewBounds: {left: 0, top: 214, right: 198, bottom: 232},
+            viewBounds: {left: 0, top: 214, right: 290, bottom: 232},
             viewFont: ROM_fontSystem10Bold,
             title: "Prompt",
-        },
-        // The scroll control. Two stock buttons on the divider row cost no
-        // transcript height and no new view machinery; see the header comment
-        // on kRowChars for why the native scroller protos buy nothing here.
-        {
-            _proto: protoTextButton,
-            viewBounds: {left: 206, top: 210, right: 246, bottom: 232},
-            text: "Up",
-            buttonClickScript: func() self:Parent():ScrollUp(),
-        },
-        {
-            _proto: protoTextButton,
-            viewBounds: {left: 250, top: 210, right: 290, bottom: 232},
-            text: "Dn",
-            buttonClickScript: func() self:Parent():ScrollDown(),
         },
         {
             _proto: protoInputLine,

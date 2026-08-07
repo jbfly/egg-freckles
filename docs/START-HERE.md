@@ -200,8 +200,8 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-As of 2026-08-07 the *source* client is `EggFrecklesEF20:jbfly` — user-visible
-name **"Egg Freckles"**, title "Egg Freckles 1.0-ef20", package version 32, and
+As of 2026-08-07 the *source* client is `EggFrecklesEF21:jbfly` — user-visible
+name **"Egg Freckles"**, title "Egg Freckles 1.0-ef21", package version 33, and
 since EF5 it has an Extras icon of its own: a little egg with freckles, the same
 one that now sits beside "Send to AI" in the Notes menu. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the

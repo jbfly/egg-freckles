@@ -1194,9 +1194,13 @@ frontmost, its own `front_app` op still answers `Notepad (paperroll)`.
 
 So the eighteenth finding's rule is stronger than it was, not weaker: **a
 floating harness app cannot have the ROM's scroll arrows, and no view flag will
-give them to it.** The flag was reverted (the shipped window is back to the
-proto default) and the three scripts were deleted rather than shipped dead. The
-transcript keeps its own Up/Dn buttons. Apple's own advice points the same way:
+give them to it.** This remains true for floating roots. **EF21 supersedes it
+for Egg Freckles after EF15 changed the root to non-floating full-screen
+`protoApp`:** native arrow taps now deliver the two scroll messages and move the
+transcript (`docs/ef21-native-scroll.md`). The flag was reverted (the then-shipped
+floating window returned to the proto default) and the three scripts were
+deleted rather than shipped dead. That floating build kept its own Up/Dn
+buttons; EF21 removes them from the later full-screen app. Apple's own advice points the same way:
 "For the base view of an application, it is recommended that you use
 protoDragger instead of protoFloater. The floating property interferes with some
 system services for applications" (`:21606-21609`) — which is the real, larger

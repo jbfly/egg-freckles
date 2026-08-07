@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef20_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef21_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF20:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef20";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF21:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef21";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF20:jbfly"' in PROJECT
-    assert "version: 32" in PROJECT
+    assert 'name: "EggFrecklesEF21:jbfly"' in PROJECT
+    assert "version: 33" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -731,26 +731,15 @@ def test_the_transcript_is_windowed_by_rendered_rows_not_characters():
     assert "self.scrollRow := 0;" in SOURCE
 
 
-def test_the_scroll_buttons_page_the_transcript_window():
-    # The divider gives up its right half so the buttons cost no transcript
-    # height and no new view machinery.
-    assert "viewBounds: {left: 0, top: 214, right: 198, bottom: 232}" in SOURCE
-    for text, bounds in (
-        ("Up", "{left: 206, top: 210, right: 246, bottom: 232}"),
-        ("Dn", "{left: 250, top: 210, right: 290, bottom: 232}"),
-    ):
-        assert f"viewBounds: {bounds}" in SOURCE
-        assert f'text: "{text}",' in SOURCE
+def test_the_native_scroll_arrows_page_the_transcript_window():
+    assert "_proto: protoApp," in SOURCE
+    assert "ViewScrollUpScript: func() :ScrollUp()," in SOURCE
+    assert "ViewScrollDownScript: func() :ScrollDown()," in SOURCE
     assert "ScrollUp: func() :ScrollBy(self.visibleRows - self.scrollOverlap)," in SOURCE
     assert "ScrollDown: func() :ScrollBy(self.scrollOverlap - self.visibleRows)," in SOURCE
-    # The measured ROM-arrow attempt failed on the floating root. Full-screen
-    # changes routing, but source-only work cannot prove the device arrows, so
-    # retain the working custom controls and do not ship unverified handlers.
-    assert "_proto: protoApp," in SOURCE
-    assert "Keep the proven Up/Dn" in SOURCE
-    assert "ViewScrollUpScript: func()" not in SOURCE
-    assert "ViewScrollDownScript: func()" not in SOURCE
-    assert "ViewOverviewScript: func()" not in SOURCE
+    assert 'text: "Up",' not in SOURCE
+    assert 'text: "Dn",' not in SOURCE
+    assert "viewBounds: {left: 0, top: 214, right: 290, bottom: 232}" in SOURCE
 
 
 def test_host_errors_remain_visible_in_transcript():

@@ -1129,8 +1129,8 @@ Five things worth carrying forward:
    non-wrapping line, so the row conversion is still yours (`:13934-14066`).
    Once you have the row array the windowing is three lines, so two stock
    `protoTextButton`s beat all of them.
-4. **The ROM's scroll arrows can never reach this app — measured, not
-   inferred.** They go to "the frontmost view that has [`vApplication`] set"
+4. **The ROM's scroll arrows can never reach this floating app — measured, not
+   inferred; EF21 supersedes this after the root became full-screen.** They go to "the frontmost view that has [`vApplication`] set"
    (`refs:3193-3199`, `vApplication` = 4). `ns_eval` on the live window:
    `GetRoot().|HarnessClientA8:jbfly|.viewFlags` → **576** = `vFloating` +
    `vClickable`, bit 4 clear. Tapping the arrows changed nothing on screen, so
@@ -1509,3 +1509,10 @@ armored client still does everything it did.
 - A same-identity reinstall is still rejected ("already installed"), so
   iterating on one round tag means re-seeding the instance flash rather than
   bumping to a throwaway identity.
+
+
+## 2026-08-07 — EF21: native scroll arrows reach the full-screen transcript
+
+The A8/L1 failure was a floating-view routing result, not a transcript limitation. EF20 already changed the root to full-screen `protoApp`; EF21 supplies `ViewScrollUpScript` and `ViewScrollDownScript` as thin calls to the existing row-window methods, and removes the custom Up/Dn buttons.
+
+On isolated seeded instance `ef21arrows`, 30 transcript lines produced 30 wrapped rows. `python3 -m emulator.client --instance ef21arrows tap 309 446` changed `scrollRow` from 0 to 10 and changed 612 pixels inside transcript bounds `(33,35)-(194,197)`. Tapping the native down triangle at `(309,468)` returned `scrollRow` to 0; `runtime/evidence/ef21-scroll-after-down.png` is pixel-identical to `ef21-scroll-bottom-before-up.png`. Timestamped commands and values are in `runtime/evidence/ef21-ui.log`; screenshots are `ef21-scroll-{bottom-before-up,after-up,after-down}.png`. Full result: `docs/ef21-native-scroll.md`.

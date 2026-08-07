@@ -1,0 +1,141 @@
+2026-08-07T13:45:30+01:00 install start
+2026-08-07T13:45:42+01:00 prior install used default 18080 and failed; retry url=http://127.0.0.1:59165
+queued
+queued
+2026-08-07T13:45:42+01:00 install done
+runtime/evidence/ef21-installed.png
+2026-08-07T13:45:45+01:00 screenshot installed
+2026-08-07T13:47:06+01:00 seed transcript start
+"rows=30 scrollRow=0"
+2026-08-07T13:47:06+01:00 seed transcript done
+runtime/evidence/ef21-scroll-bottom-before-up.png
+2026-08-07T13:47:06+01:00 captured bottom before up
+Egg Freckles 1
+
+e 19 nase a1 L
+line 20 &
+ezt
+ez [ pemciaememer
+e 2d|  Manutacturer:Echernec Adapter
+ieze Exoo0
+
+line 26 o
+
+tne 27
+e 22 s usecaraor piena
+
+e 23 ®
+
+e 30
+
+— Prompt
+
+Radioof New ][ sena
+
+o ®
+LS S Q9 el
+
+Extras InOut Names Dates Undo  Find  Assist
+
+2026-08-07T13:47:16+01:00 tap native up x=309 y=461
+{"ok":true}
+runtime/evidence/ef21-scroll-after-up.png
+2026-08-07T13:47:17+01:00 captured after native up
+0
+Egg Freckles 1
+
+e 19 nase a1 L
+line 20 &
+ezt
+ez [ pemciaememer
+e 2d|  Manutacturer:Echernec Adapter
+ieze Exoo0
+
+line 26 o
+
+tne 27
+e 22 s usecaraor piena
+
+e 23 ®
+
+e 30
+
+— Prompt
+
+Radioof New ][ sena
+
+o ®
+LS S Q9 el
+
+Extras InOut Names Dates Undo  Find  Assist
+
+<stdin>:6: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+changed_bbox=None changed_pixels=0
+2026-08-07T13:47:54+01:00 tap native up x=309 y=446 (triangle center from screenshot)
+{"ok":true}
+runtime/evidence/ef21-scroll-after-up.png
+2026-08-07T13:47:55+01:00 captured after native up
+10
+Egg Freckles 1
+
+e s e L
+line 10 o
+e 1
+rez [ pemciaememer
+e 14| Manutacturer:Echernec Adapcer
+e o] Exoon
+
+line 16 o
+
+tne 17
+e 12 e caraor mpena
+
+tne 19 ®
+
+e 20
+
+— Prompt
+
+Radioof New ][ sena
+
+o ®
+LS S Q9 el
+
+Extras InOut Names Dates Undo  Find  Assist
+
+<stdin>:5: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+changed_bbox=(33, 35, 194, 197) changed_pixels=612
+2026-08-07T13:48:04+01:00 tap native down x=309 y=468
+{"ok":true}
+runtime/evidence/ef21-scroll-after-down.png
+2026-08-07T13:48:06+01:00 captured after native down
+0
+Egg Freckles 1
+
+e 19 nase a1 L
+line 20 &
+ezt
+ez [ pemciaememer
+e 2d|  Manutacturer:Echernec Adapter
+ieze Exoo0
+
+line 26 o
+
+tne 27
+e 22 s usecaraor piena
+
+e 23 ®
+
+e 30
+
+— Prompt
+
+Radioof New ][ sena
+
+o ®
+LS S Q9 el
+
+Extras InOut Names Dates Undo  Find  Assist
+
+<stdin>:5: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+changed_from_original_bbox=None changed_pixels=0
