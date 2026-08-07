@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF15:jbfly|;
-kVersion := "1.0-ef15";
+kAppSymbol := '|EggFrecklesEF16:jbfly|;
+kVersion := "1.0-ef16";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -439,6 +439,7 @@ mainView := {
     inkStrokeIndex: 0,
     inkPartIndex: 0,
     inkPartAck: nil,
+    inkSendTicks: nil,
     inkBusy: nil,
     // Which send the 150 s watchdog belongs to; see SendInk.
     inkSeq: 0,
@@ -1594,6 +1595,22 @@ mainView := {
         return parts;
     end,
 
+    // Append text into a fixed-capacity Unicode string. The offset is in
+    // characters; StuffUniChar takes a byte offset. Returning nil preserves the
+    // existing 16 KiB body backstop without growing or copying the destination.
+    PutInkText: func(body, offset, text)
+    begin
+        local count := StrLen(text);
+        if (offset + count) > self.maxInkBody then return nil;
+        local index := 0;
+        while index < count do
+        begin
+            StuffUniChar(body, (offset + index) * 2, text[index]);
+            index := index + 1;
+        end;
+        return offset + count;
+    end,
+
     // One NSI1 image part. P mirrors MSGP's two-digit index/total fields; it is
     // absent on the single-part fast path. Encoding is separated from the body
     // cap retry so the retry thins this part only, never the whole note.
@@ -1602,38 +1619,60 @@ mainView := {
         local fitted := :ThinPartAt(strokes, budget);
         local originLeft := self.askLeft;
         if originLeft = nil then originLeft := 0;
-        // Apple explicitly warns that & allocates and recopies large strings.
-        // Clone makes the literal writable; StrMunger grows it in place.
-        local body := Clone("NSI1 320 480 ");
-        StrMunger(body, 536870911, nil, "" & Length(fitted.strokes) & "\r\n", 0, nil);
-        if mode = 'text then StrMunger(body, 536870911, nil, "M text\r\n", 0, nil)
-        else if mode = 'ask then StrMunger(body, 536870911, nil, "M ask\r\n", 0, nil);
-        if total > 1 then StrMunger(body, 536870911, nil,
-            "P " & :SeqText(part) & " " & :SeqText(total) & "\r\n", 0, nil);
-        if (hint <> nil) and (StrLen(hint) > 0) then
-            StrMunger(body, 536870911, nil, "H " & hint & "\r\n", 0, nil);
+        // One zero-filled, fixed-capacity Unicode string per streamed page.
+        // EF13 measured up to 191.6 KB of transient growth for a ~6 KB body;
+        // this buffer is 32,770 bytes including its untouched terminator.
+        local body := MakeBinary((self.maxInkBody + 1) * 2, 'string);
+        local offset := :PutInkText(body, 0, "NSI1 320 480 ");
+        if offset <> nil then offset := :PutInkText(body, offset,
+            "" & Length(fitted.strokes) & "\r\n");
+        if (offset <> nil) and (mode = 'text) then
+            offset := :PutInkText(body, offset, "M text\r\n")
+        else if (offset <> nil) and (mode = 'ask) then
+            offset := :PutInkText(body, offset, "M ask\r\n");
+        if (offset <> nil) and (total > 1) then
+            offset := :PutInkText(body, offset, "P " & :SeqText(part) & " "
+                & :SeqText(total) & "\r\n");
+        if (offset <> nil) and (hint <> nil) and (StrLen(hint) > 0) then
+            offset := :PutInkText(body, offset, "H " & hint & "\r\n");
         foreach points in fitted.strokes do
         begin
-            local line := Clone("S ");
-            StrMunger(line, 536870911, nil, "" & (Length(points) div 2), 0, nil);
+            if offset = nil then break;
+            offset := :PutInkText(body, offset, "S "
+                & (Length(points) div 2));
             local x := 0;
             local y := 0;
             local index := 0;
-            while (index + 1) < Length(points) do
+            while (offset <> nil) and ((index + 1) < Length(points)) do
             begin
                 local nextX := :ClampAt(points[index] - originLeft, 319);
                 local nextY := :ClampAt(points[index + 1] - originTop, 479);
-                local pair := nil;
-                if index = 0 then pair := " " & nextX & " " & nextY
-                else pair := " " & (nextX - x) & " " & (nextY - y);
-                StrMunger(line, 536870911, nil, pair, 0, nil);
+                offset := :PutInkText(body, offset, " ");
+                if offset <> nil then
+                begin
+                    if index = 0 then
+                    begin
+                        offset := :PutInkText(body, offset, "" & nextX);
+                        if offset <> nil then offset := :PutInkText(body, offset,
+                            " " & nextY);
+                    end
+                    else
+                    begin
+                        offset := :PutInkText(body, offset, "" & (nextX - x));
+                        if offset <> nil then offset := :PutInkText(body, offset,
+                            " " & (nextY - y));
+                    end;
+                end;
                 x := nextX;
                 y := nextY;
                 index := index + 2;
             end;
-            StrMunger(line, 536870911, nil, "\r\n", 0, nil);
-            StrMunger(body, 536870911, nil, line, 0, nil);
+            if offset <> nil then offset := :PutInkText(body, offset, "\r\n");
         end;
+        if offset = nil then return {body: nil, points: fitted.points,
+            thinned: fitted.thinned};
+        // MakeBinary supplied zeroes, so the first untouched Unicode character
+        // terminates the string without a resize or copy.
         return {body: body, points: fitted.points, thinned: fitted.thinned};
     end,
 
@@ -1641,13 +1680,13 @@ mainView := {
     begin
         local encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
             total, self.maxPoints);
-        if StrLen(encoded.body) > self.maxInkBody then
+        if (encoded.body = nil) or (StrLen(encoded.body) > self.maxInkBody) then
         begin
             encoded := :EncodeInkAt(strokes, originTop, hint, mode, part,
                 total, self.maxPoints div 2);
             encoded.thinned := true;
         end;
-        if StrLen(encoded.body) > self.maxInkBody then return nil;
+        if (encoded.body = nil) or (StrLen(encoded.body) > self.maxInkBody) then return nil;
         return encoded;
     end,
 
@@ -1683,7 +1722,10 @@ mainView := {
         // The stream owns exactly one body now, so this is a safe collection
         // point: reclaim the previous HTTP/body scratch before allocating next.
         GC();
+        local buildStart := Ticks();
         local encoded := :EncodeInk(strokes, top, partHint, mode, part, total);
+        local buildMS := ((Ticks() - buildStart) * 1000) div 60;
+        Print("INKTIME page " & part & "/" & total & " build " & buildMS & " ms");
         if encoded = nil then return nil;
         local release := start;
         while release < index do
@@ -1873,6 +1915,7 @@ mainView := {
         agent.inkStrokeIndex := 0;
         agent.inkPartIndex := 0;
         agent.inkPartAck := nil;
+        agent.inkSendTicks := nil;
         agent.inkBusy := nil;
         // The tools channel's mutable state, as own slots, for the same reason:
         // nothing here may be read or written through the read-only template.
@@ -2161,6 +2204,7 @@ mainView := {
         local body := self.inkBody;
         self.inkBody := nil;
         if body = nil then return nil;
+        self.inkSendTicks := Ticks();
         try
         self.inkEndpoint:SetInputSpec({
             _parent: self,
@@ -2237,6 +2281,13 @@ mainView := {
     InkDropped: func()
     begin
         if not self.inkBusy then return nil;
+        if self.inkSendTicks <> nil then
+        begin
+            local sendMS := ((Ticks() - self.inkSendTicks) * 1000) div 60;
+            Print("INKTIME page " & (self.inkPartIndex + 1) & "/"
+                & self.inkTotalParts & " send " & sendMS & " ms");
+            self.inkSendTicks := nil;
+        end;
         if self.inkPartAck and ((self.inkPartIndex + 1) < self.inkTotalParts) then
         begin
             self.inkPartIndex := self.inkPartIndex + 1;
@@ -2281,6 +2332,7 @@ mainView := {
     begin
         self.inkBusy := nil;
         self.inkBody := nil;
+        self.inkSendTicks := nil;
         self.askStrokes := nil;
         :SetStatus(message);
         return :InkDone();
@@ -2307,6 +2359,7 @@ mainView := {
             self.inkEndpoint := nil;
         end;
         self.inkBody := nil;
+        self.inkSendTicks := nil;
         self.inkHint := nil;
         self.inkMode := nil;
         self.askStrokes := nil;

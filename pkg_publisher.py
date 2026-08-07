@@ -168,7 +168,7 @@ class ToolBroker:
 
 PAGE_BODY = (
     b"<!doctype html><html><body>"
-    b"<h1>Egg Freckles EF15</h1>"
+    b"<h1>Egg Freckles EF16</h1>"
     b"<p><a href=\"/egg-freckles.pkg\">Download package</a></p>"
     b"</body></html>"
 )
