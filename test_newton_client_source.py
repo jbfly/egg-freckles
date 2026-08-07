@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef19_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef20_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF19:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef19";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF20:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef20";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF19:jbfly"' in PROJECT
-    assert "version: 31" in PROJECT
+    assert 'name: "EggFrecklesEF20:jbfly"' in PROJECT
+    assert "version: 32" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -181,6 +181,18 @@ def test_radio_stays_off_until_send_and_closes_after_idle():
     failed = SOURCE.index("Failed: func(message)")
     tools = SOURCE.index("// ================= the /tools channel", failed)
     assert ":ArmRadioIdle();" in SOURCE[failed:tools]
+
+    # A terminal Notes reply ends the transfer itself instead of waiting for a
+    # peer-drop callback that NIE may never deliver. InkDone delays ink disposal
+    # out of InputScript and arms the same idle teardown that stops /tools.
+    note_reply = SOURCE.index(':ProgressDone("Answer filed in AI");')
+    note_done = SOURCE.index("// Exactly one note per tap", note_reply)
+    assert "self.inkBusy := nil;\n        return :InkDone();" in SOURCE[note_reply:note_done]
+    assert ":ArmRadioIdle();" in SOURCE[note_done:SOURCE.index("FileReply: func", note_done)]
+    radio_expired = SOURCE.index("RadioExpired: func(seq)")
+    stop = SOURCE.index("Stop: func()", radio_expired)
+    assert ":ToolStop();" in SOURCE[radio_expired:stop]
+    assert ":Stop();" in SOURCE[radio_expired:stop]
 
     # The package-level Notes agent has independent mutable lifecycle state and
     # package removal still stops any active send-triggered poll.

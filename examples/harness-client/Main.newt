@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF19:jbfly|;
-kVersion := "1.0-ef19";
+kAppSymbol := '|EggFrecklesEF20:jbfly|;
+kVersion := "1.0-ef20";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -340,7 +340,11 @@ noteAgent := {
             self.aiLabel := self.aiLabel & " (ink thinned to fit)";
         :FileReply(SubStr(line, 4, StrLen(line) - 6));
         :ProgressDone("Answer filed in AI");
-        return nil;
+        // The terminal reply completes the note path. Do not depend on NIE
+        // delivering a later peer-drop callback: InkDone delays endpoint
+        // disposal out of this callback and arms the five-second radio idle.
+        self.inkBusy := nil;
+        return :InkDone();
     end,
 
     // Exactly one note per tap, whether the host answered or not: this is the
@@ -2391,8 +2395,9 @@ mainView := {
     end,
 
     // ponytail: disposing the endpoint inside its own callback raised -48200 in
-    // the ink Stage 3 round; let the close settle first. Only the ink endpoint
-    // goes away — the NIE link belongs to the chat session.
+    // the ink Stage 3 round; let the close settle first. The ink endpoint goes
+    // away after one second; the idle timer then stops the shared tools endpoint
+    // and releases their NIE link after five seconds.
     InkDone: func()
     begin
         :ArmRadioIdle();
