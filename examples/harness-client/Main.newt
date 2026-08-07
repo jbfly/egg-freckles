@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF14:jbfly|;
-kVersion := "1.0-ef14";
+kAppSymbol := '|EggFrecklesEF15:jbfly|;
+kVersion := "1.0-ef15";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -247,10 +247,23 @@ noteAgent := {
     // The reply arrives on the same connection as one "INK <text>" line.
     HandleInkLine: func(line)
     begin
+        if BeginsWith(line, "STATUS ") then
+        begin
+            local at := StrPos(line, " ", 7);
+            if at <> nil then at := StrPos(line, " ", at + 1);
+            if at <> nil then :SetStatus(SubStr(line, at + 1, StrLen(line) - at - 3));
+            :ArmInkWatch();
+            return nil;
+        end;
         if BeginsWith(line, "INKP ") then
         begin
             self.inkPartAck := true;
             :ArmInkWatch();
+            return nil;
+        end;
+        if BeginsWith(line, "INKERR ") then
+        begin
+            :SetStatus(SubStr(line, 7, StrLen(line) - 9));
             return nil;
         end;
         if not BeginsWith(line, "INK ") then return nil;
@@ -2007,9 +2020,7 @@ mainView := {
         self.inkBusy := true;
         self.inkGotReply := nil;
         self.inkBindRetried := nil;
-        if self.inkTotalParts > 1 then
-            :SetStatus("Sending page 1/" & self.inkTotalParts)
-        else :SetStatus("Sending " & strokes & " strokes");
+        :SetStatus("Sending page 1/" & self.inkTotalParts);
         :ArmInkWatch();
         if self.linkID then return :InkOpen();
         call GetGlobalFn('InetGrabLink) with (nil, self, 'InkGrabbed);
@@ -2176,7 +2187,6 @@ mainView := {
                 onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink send exception");
-        :SetStatus("Thinking...");
         return nil;
     end,
 
@@ -2184,10 +2194,27 @@ mainView := {
     // line, so the transcript is the one place answers appear.
     HandleInkLine: func(line)
     begin
+        if BeginsWith(line, "STATUS ") then
+        begin
+            local at := StrPos(line, " ", 7);
+            if at <> nil then at := StrPos(line, " ", at + 1);
+            if at <> nil then :SetStatus(SubStr(line, at + 1, StrLen(line) - at - 3));
+            :ArmInkWatch();
+            return nil;
+        end;
         if BeginsWith(line, "INKP ") then
         begin
             self.inkPartAck := true;
             :ArmInkWatch();
+            return nil;
+        end;
+        if BeginsWith(line, "INKERR ") then
+        begin
+            self.inkGotReply := true;
+            local message := SubStr(line, 7, StrLen(line) - 9);
+            :AppendLine("ERROR: " & message);
+            :ShowTranscript();
+            :SetStatus(message);
             return nil;
         end;
         if not BeginsWith(line, "INK ") then return nil;

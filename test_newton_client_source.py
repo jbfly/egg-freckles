@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef14_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef15_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF14:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef14";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF15:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef15";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF14:jbfly"' in PROJECT
-    assert "version: 26" in PROJECT
+    assert 'name: "EggFrecklesEF15:jbfly"' in PROJECT
+    assert "version: 27" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -358,7 +358,7 @@ def test_ink_is_decimated_and_part_cap_is_reported_honestly():
     assert "if self.askThinned" not in route
     # The count reported is the true drawn count, not a survivor count.
     assert "local strokes := Length(self.askStrokes);" in SOURCE
-    assert ':SetStatus("Sending " & strokes & " strokes");' in SOURCE
+    assert ':SetStatus("Sending page 1/" & self.inkTotalParts);' in SOURCE
 
 
 def test_nsi1_carries_the_tapped_mode_without_changing_its_tag():
@@ -397,7 +397,13 @@ def test_long_ink_is_streamed_by_per_image_budgets_and_released_in_order():
     next_part = SOURCE[SOURCE.index("InkNext: func()"):SOURCE.index("InkFailed: func(")]
     assert ":EncodeNextInkPage()" not in dropped
     assert next_part.index("self.inkEndpoint:Dispose()") < next_part.index(":EncodeNextInkPage()")
+    assert SOURCE.count('if BeginsWith(line, "STATUS ") then') == 2
+    assert SOURCE.count('if BeginsWith(line, "INKERR ") then') == 2
     assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
+    assert ':SetStatus("Sending page 1/" & self.inkTotalParts);' in SOURCE
+    ink_post_at = SOURCE.index("    InkPost: func()")
+    ink_post = SOURCE[ink_post_at:SOURCE.index("HandleInkLine: func(line)", ink_post_at)]
+    assert ':SetStatus("Thinking...");' not in ink_post
     assert "return :InkOpen();" in SOURCE[SOURCE.index("InkNext: func()"):]
     assert "if total > 1 then StrMunger(body" in SOURCE
     assert "POST /ink HTTP/1.0" in SOURCE
@@ -432,7 +438,8 @@ def test_multipart_watchdog_is_rearmed_and_total_is_protocol_safe():
     assert "if self.askPartCapped then :AppendLine(:CapNotice());" in SOURCE
     assert 'self.aiLabel := self.aiLabel & " (" & :CapNotice() & ")";' in SOURCE
     assert "ArmInkWatch: func()" in SOURCE
-    assert SOURCE.count(":ArmInkWatch();") == 3
+    # Send plus INKP and STATUS handlers keep the 150 s bound fresh.
+    assert SOURCE.count(":ArmInkWatch();") == 5
     assert "self.inkSeq := self.inkSeq + 1;" in SOURCE[SOURCE.index("ArmInkWatch: func()"):]
     assert SOURCE.count('if BeginsWith(line, "INKP ") then') == 2
     for method in ("ArmInkWatch: func()", "InkDropped: func()", "InkNext: func()"):

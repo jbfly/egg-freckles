@@ -18,6 +18,17 @@ import pkg_publisher
 CLIENT_SOURCE = (Path(__file__).parent / "examples/harness-client/Main.newt").read_text()
 
 
+def ink_response(answer: str, *, n: int = 1, total: int = 1, rendered: bool = True, error: bool = False) -> bytes:
+    lines = [
+        f"STATUS received {n}/{total} Server received page {n} of {total}\r\n",
+    ]
+    if rendered:
+        lines.append(f"STATUS rendered {n}/{total} Rendered page {n} of {total}\r\n")
+    lines.append(f"STATUS vision {n}/{total} Server is reading your note...\r\n")
+    lines.append(f"{'INKERR' if error else 'INK'} {answer}\r\n")
+    return "".join(lines).encode("ascii")
+
+
 class PublisherTest(unittest.TestCase):
     def test_codex_binary_resolution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -150,14 +161,14 @@ class PublisherTest(unittest.TestCase):
                 try:
                     with mock.patch.object(pkg_publisher, "interpret", return_value="A spiral."):
                         status, headers, response, version = self.fetch(port, "/ink", "POST", body)
-                    self.assertEqual((status, version, response), (200, 10, b"INK A spiral.\r\n"))
+                    self.assertEqual((status, version, response), (200, 10, ink_response("A spiral.")))
                     self.assertEqual(headers["Content-Type"], "text/plain; charset=us-ascii")
 
                     with mock.patch.object(pkg_publisher, "interpret",
                                            side_effect=RuntimeError("codex exited 1")):
                         status, _, response, _ = self.fetch(port, "/ink", "POST", body)
-                    self.assertEqual(status, 502)
-                    self.assertEqual(response, b"INK No reading: codex exited 1\r\n")
+                    self.assertEqual(status, 200)
+                    self.assertEqual(response, ink_response("No reading: codex exited 1", error=True))
                 finally:
                     server.shutdown()
                     thread.join()
@@ -174,7 +185,7 @@ class PublisherTest(unittest.TestCase):
                     with mock.patch.object(pkg_publisher, "interpret",
                                            return_value="A cat.") as vision:
                         status, _, response, _ = self.fetch(port, "/ink", "POST", mixed)
-                    self.assertEqual((status, response), (200, b"INK A cat.\r\n"))
+                    self.assertEqual((status, response), (200, ink_response("A cat.")))
                     self.assertEqual(vision.call_args.args[1:], ("feed the cat", "text"))
 
                     # No H line is still valid: the physical MP2000 runs an
@@ -217,7 +228,7 @@ class PublisherTest(unittest.TestCase):
                                            return_value="A 1990s PDA.") as model, \
                             mock.patch.object(pkg_publisher, "interpret") as vision:
                         status, _, response, _ = self.fetch(port, "/ink", "POST", body)
-                    self.assertEqual((status, response), (200, b"INK A 1990s PDA.\r\n"))
+                    self.assertEqual((status, response), (200, ink_response("A 1990s PDA.", rendered=False)))
                     self.assertEqual(model.call_args.args, ("what is a newton",))
                     # No drawing, so no vision call and no PNG written at all.
                     vision.assert_not_called()
@@ -227,7 +238,7 @@ class PublisherTest(unittest.TestCase):
                                            side_effect=RuntimeError("model down")):
                         status, _, response, _ = self.fetch(port, "/ink", "POST", body)
                     self.assertEqual((status, response),
-                                     (502, b"INK No reading: model down\r\n"))
+                                     (200, ink_response("No reading: model down", rendered=False, error=True)))
 
                     # Convert to Text on an already-typed note is deterministic:
                     # return its usable text without spending a model call.
@@ -235,7 +246,7 @@ class PublisherTest(unittest.TestCase):
                     with mock.patch.object(pkg_publisher, "ask_model") as model, \
                             mock.patch.object(pkg_publisher, "interpret") as vision:
                         status, _, response, _ = self.fetch(port, "/ink", "POST", text_body)
-                    self.assertEqual((status, response), (200, b"INK exact words\r\n"))
+                    self.assertEqual((status, response), (200, ink_response("exact words", rendered=False)))
                     model.assert_not_called()
                     vision.assert_not_called()
 
@@ -266,7 +277,7 @@ class PublisherTest(unittest.TestCase):
                         for index, page in enumerate(pages, 1):
                             status, _, response, _ = self.fetch(port, "/ink", "POST", page)
                             expected = (f"INKP {index:02d} 04\r\n".encode() if index < 4
-                                        else b"INK FIRST SECOND THIRD FOURTH\r\n")
+                                        else ink_response("FIRST SECOND THIRD FOURTH", n=4, total=4))
                             self.assertEqual((status, response), (200, expected))
                     self.assertEqual(
                         [call.args[0].name for call in vision.call_args_list],
@@ -313,7 +324,50 @@ class PublisherTest(unittest.TestCase):
                         status, _, response, _ = self.fetch(
                             port, "/ink", "POST", page.format("02").encode()
                         )
-                    self.assertEqual((status, response), (200, b"INK 01 02\r\n"))
+                    self.assertEqual((status, response), (200, ink_response("01 02", n=2, total=2)))
+                finally:
+                    release.set()
+                    server.shutdown()
+                    thread.join()
+
+    def test_final_ink_status_is_flushed_before_vision_finishes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with pkg_publisher.make_server(
+                "127.0.0.1", 0, ink_path=Path(tmp) / "ink.png"
+            ) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                started, release = threading.Event(), threading.Event()
+
+                def vision(*_args):
+                    started.set()
+                    self.assertTrue(release.wait(2))
+                    return "done"
+
+                body = b"NSI1 320 480 1\r\nS 2 10 20 20 30\r\n"
+                try:
+                    with mock.patch.object(pkg_publisher, "interpret", side_effect=vision), \
+                            socket.create_connection(("127.0.0.1", port), timeout=2) as sock:
+                        stream = sock.makefile("rwb", buffering=0)
+                        stream.write(
+                            b"POST /ink HTTP/1.0\r\nHost: localhost\r\nContent-Length: "
+                            + str(len(body)).encode() + b"\r\n\r\n" + body
+                        )
+                        self.assertTrue(stream.readline().startswith(b"HTTP/1.0 200"))
+                        headers = []
+                        while True:
+                            line = stream.readline()
+                            if line == b"\r\n":
+                                break
+                            headers.append(line)
+                        self.assertFalse(any(line.lower().startswith(b"content-length:") for line in headers))
+                        self.assertEqual(stream.readline(), b"STATUS received 1/1 Server received page 1 of 1\r\n")
+                        self.assertEqual(stream.readline(), b"STATUS rendered 1/1 Rendered page 1 of 1\r\n")
+                        self.assertTrue(started.wait(1))
+                        self.assertEqual(stream.readline(), b"STATUS vision 1/1 Server is reading your note...\r\n")
+                        release.set()
+                        self.assertEqual(stream.readline(), b"INK done\r\n")
                 finally:
                     release.set()
                     server.shutdown()

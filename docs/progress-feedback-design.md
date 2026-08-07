@@ -1,9 +1,19 @@
 # Progress and feedback design
 
-Date: 2026-08-07. Design only; no client, server, publisher, emulator, or
-hardware change is part of this round.
+Date: 2026-08-07. P2 is source-complete in EF15; emulator and hardware proof
+remain deliberately human-gated.
 
 ## Bottom line
+
+**Implementation result (EF15).** Intermediate multipart `/ink` requests still
+return `INKP` immediately while their vision futures run concurrently. The final
+request now flushes close-delimited `STATUS received`, `STATUS rendered`, and
+`STATUS vision` lines before waiting for the combined reading, then ends in one
+`INK` or `INKERR` line (`pkg_publisher.py:458-490,628-640`). The Newton keeps
+`Sending page n/total` visible during each upload and maps those fixed STATUS
+lines to its existing status surface (`examples/harness-client/Main.newt:2014-
+2027,2155-2230`). Source and socket-level tests pin immediate `INKP`, ordered
+STATUS-before-INK, no final `Content-Length`, and EF14's send-owned radio lifecycle.
 
 Use one tiny status record everywhere: a short machine phase, a human sentence,
 and optional `n/total`. Render transient work in the existing Newton status

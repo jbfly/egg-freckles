@@ -168,7 +168,7 @@ class ToolBroker:
 
 PAGE_BODY = (
     b"<!doctype html><html><body>"
-    b"<h1>Egg Freckles EF14</h1>"
+    b"<h1>Egg Freckles EF15</h1>"
     b"<p><a href=\"/egg-freckles.pkg\">Download package</a></p>"
     b"</body></html>"
 )
@@ -465,23 +465,29 @@ class PublisherHandler(BaseHTTPRequestHandler):
                 self._send_bytes(HTTPStatus.OK, f"INKP {index:02d} {total:02d}\r\n".encode(),
                                  "text/plain; charset=us-ascii")
                 return
-            try:
-                reading = ascii_line(" ".join(item.result() for item in futures), 900)
-                status = HTTPStatus.OK
-            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
-                reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
-            with self.server.ink_lock:
-                self.server.ink_parts.pop(key, None)
         else:
-            try:
-                reading, status = read_ink(reading_path, hint, mode), HTTPStatus.OK
-            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
-                reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
+            index, total, futures = 1, 1, None
 
-        # ponytail: "INK " prefix is all the client needs to tell the body
-        # apart from the HTTP header lines its endpoint also delivers.
-        self._send_bytes(status, f"INK {reading}\r\n".encode("ascii"),
-                         "text/plain; charset=us-ascii")
+        # The final request is already holding the radio open. Flush fixed
+        # close-delimited STATUS lines on it before waiting for vision; no push
+        # channel and no Content-Length are needed.
+        self._start_ink_response()
+        self._ink_status("received", index, total, f"Server received page {index} of {total}")
+        if strokes:
+            self._ink_status("rendered", index, total, f"Rendered page {index} of {total}")
+        self._ink_status("vision", index, total, "Server is reading your note...")
+        try:
+            reading = (ascii_line(" ".join(item.result() for item in futures), 900)
+                       if futures is not None else read_ink(reading_path, hint, mode))
+            line = f"INK {reading}\r\n"
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            line = f"INKERR {ascii_line(f'No reading: {exc}', 80)}\r\n"
+        finally:
+            if part:
+                with self.server.ink_lock:
+                    self.server.ink_parts.pop(key, None)
+        self.wfile.write(line.encode("ascii"))
+        self.wfile.flush()
 
     def _run_tool(self) -> None:
         try:
@@ -618,6 +624,20 @@ class PublisherHandler(BaseHTTPRequestHandler):
 
     def _not_found(self, message: str) -> None:
         self._send_bytes(HTTPStatus.NOT_FOUND, message.encode("utf-8"), "text/plain; charset=utf-8")
+
+    def _start_ink_response(self) -> None:
+        self.close_connection = True
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/plain; charset=us-ascii")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.flush()
+
+    def _ink_status(self, phase: str, n: int, total: int, message: str) -> None:
+        line = f"STATUS {phase} {n}/{total} {message}\r\n"
+        print(f"status phase={phase} n={n} total={total} message={message!r}", flush=True)
+        self.wfile.write(line.encode("ascii"))
+        self.wfile.flush()
 
     def _send_json(self, status: HTTPStatus, value: dict[str, object]) -> None:
         self._send_bytes(status, json.dumps(value, separators=(",", ":")).encode("utf-8") + b"\n",
