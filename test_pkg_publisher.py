@@ -19,6 +19,26 @@ CLIENT_SOURCE = (Path(__file__).parent / "examples/harness-client/Main.newt").re
 
 
 class PublisherTest(unittest.TestCase):
+    def test_codex_binary_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            override = Path(tmp) / "codex"
+            override.write_text("#!/bin/sh\n")
+            override.chmod(0o700)
+            with mock.patch.dict(
+                pkg_publisher.os.environ, {"NEWTON_CODEX_BIN": str(override)}, clear=True
+            ):
+                self.assertEqual(pkg_publisher._codex_bin(), str(override.resolve()))
+
+            home = Path(tmp) / "home"
+            local = home / ".local" / "bin" / "codex"
+            with mock.patch.dict(pkg_publisher.os.environ, {}, clear=True), \
+                    mock.patch.object(pkg_publisher.Path, "home", return_value=home), \
+                    mock.patch.object(pkg_publisher.shutil, "which", return_value=None):
+                with self.assertRaises(RuntimeError) as raised:
+                    pkg_publisher._codex_bin()
+            self.assertIn(str(local), str(raised.exception))
+            self.assertIn("PATH", str(raised.exception))
+
     def test_page_package_headers_and_404(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             package_path = Path(tmp) / "examples" / "harness-client" / "egg-freckles.pkg"
@@ -281,7 +301,8 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
-    def test_interpret_call_boundary(self) -> None:
+    @mock.patch.object(pkg_publisher, "_codex_bin", return_value="/opt/codex")
+    def test_interpret_call_boundary(self, _codex) -> None:
         """The real-backend edge: argv shape, JSON pick, cleanup, failure. No tokens spent."""
         events = (
             b'{"type":"thread.started","thread_id":"t1"}\n'
@@ -295,7 +316,7 @@ class PublisherTest(unittest.TestCase):
             self.assertEqual(pkg_publisher.interpret(Path("/tmp/ink.png")),
                              "A wavy line with a ? dash.")
         argv = run.call_args.args[0]
-        self.assertEqual(argv[:2], ["codex", "exec"])
+        self.assertEqual(argv[:2], ["/opt/codex", "exec"])
         self.assertEqual(argv[-4:], ["-i", "/tmp/ink.png", "--", pkg_publisher.ASK_INK_PROMPT])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 

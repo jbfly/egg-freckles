@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import struct
 import subprocess
@@ -222,6 +223,26 @@ def ask_model(prompt: str, host: str = MODEL_HOST, port: int = MODEL_PORT) -> st
         return answer
 
 
+def _codex_bin() -> str:
+    """Return an absolute executable path for the Codex CLI."""
+    override = os.environ.get("NEWTON_CODEX_BIN")
+    if override:
+        path = Path(override).expanduser()
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path.resolve())
+
+    local = Path.home() / ".local" / "bin" / "codex"
+    if local.is_file() and os.access(local, os.X_OK):
+        return str(local.resolve())
+
+    found = shutil.which("codex")
+    if found:
+        return str(Path(found).resolve())
+
+    checked = f"NEWTON_CODEX_BIN={override!r}, {local}, and PATH"
+    raise RuntimeError(f"codex CLI not found or executable; checked {checked}")
+
+
 def interpret(png_path: Path, hint: str = "", mode: str = "ask") -> str:
     """Return a real vision reading of the rendered ink, or raise RuntimeError."""
     prompt = (TEXT_INK_PROMPT if mode == "text" else ASK_INK_PROMPT)
@@ -233,7 +254,7 @@ def interpret(png_path: Path, hint: str = "", mode: str = "ask") -> str:
     # Measured ~9 s, well inside the client's timeout, so no job queue or polling.
     with tempfile.TemporaryDirectory(prefix="newton-ink-") as tmp:
         proc = subprocess.run(
-            ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
+            [_codex_bin(), "exec", "--sandbox", "read-only", "--skip-git-repo-check",
              "--cd", tmp, "--json", "-i", str(png_path), "--", prompt],
             cwd=tmp, stdin=subprocess.DEVNULL, capture_output=True,
             timeout=INK_TIMEOUT, check=False,
