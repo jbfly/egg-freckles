@@ -227,9 +227,8 @@ contains every MCP request and response;
 [`pkgproof0807b-identity-build.txt`](../runtime/evidence/pkgproof0807b-identity-build.txt)
 records identity, package path, size, checksum, and containment checks; and
 [`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launched.png)
-is the screenshot returned by `emulator_screen`. This proves the plumbing, not
-a real Egg Freckles chat turn in which the agent itself selects these tools and
-generates valid source; that chat-agent behavior remains separate work.
+is the screenshot returned by `emulator_screen`. This proves the plumbing; the
+real chat-agent selection proof is the `pkgchat0807b` round below.
 
 ## Real Egg Freckles turn attempt — stopped before the agent, 2026-08-07
 
@@ -251,9 +250,55 @@ status log records every bounded step, the one recovery (installing the client;
 the EF13 flash is a seed, not a client-package snapshot), and teardown
 ([`pkgchat0807a-status.log`](../runtime/evidence/pkgchat0807a-status.log)). No
 workspace project was created, so none of `create_project`, `write_source`,
-`build_pkg`, or `emulator_install` was selected by the chat agent. The real-turn
-gate therefore remains open; this is a prompt-entry automation blocker, not a
-regression of the already-passed direct-MCP plumbing proof.
+`build_pkg`, or `emulator_install` was selected by the chat agent. This remains
+the evidence for why Newton glass text injection is not a reliable automation
+path; the next round bypassed only that input obstacle.
+
+## Real host chat-agent package turn — proven 2026-08-07
+
+`pkgchat0807b` sent the short tic-tac-toe request through the exact native
+`~NEWTONCLI 1` / `MSG` channel on host `server.py:6801`, not through direct MCP
+calls ([wire transcript, lines 1–8](../runtime/evidence/pkgchat0807b-wire-transcript.txt#L1-L8)).
+The server launched the normal `codex exec` backend with this worktree's
+`newton_mcp.py`; the full preserved rollout is
+[`pkgchat0807b-codex-rollout.jsonl`](../runtime/evidence/pkgchat0807b-codex-rollout.jsonl).
+
+The agent itself chose the complete confined path. The concise transcript shows
+`create_project` and `write_source`, including its generated NewtonScript
+([lines 1–2](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L1-L2));
+it hit a real NewtonScript syntax error, corrected `|` to `+`, and rebuilt a
+valid package ([lines 3–29](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L3-L29));
+then it selected `emulator_install`, launch, and repeated `emulator_screen`
+verification against isolated instance `pkgchat0807b`
+([lines 30–39](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L30-L39)).
+The source's title and 3x3 board are preserved at
+[`pkgchat0807b-agent-Main.newt:1-34`](../runtime/evidence/pkgchat0807b-agent-Main.newt#L1-L34),
+and the exact image returned by the agent's final `emulator_screen` call is
+[`pkgchat0807b-agent-screen.png`](../runtime/evidence/pkgchat0807b-agent-screen.png).
+
+The never-used identity was `TTTGridP0807bR1:nwtn`; prior git history had zero
+matches. The built package is 1,784 bytes, SHA-256
+`40fdc2e6157cc2afd2f2e075166cad475f4b479be9e55c98f9dc1c257c79f898`, and
+its live build stayed under `runtime/agent-workspace`
+([identity/build evidence, lines 1–9](../runtime/evidence/pkgchat0807b-identity-build.txt#L1-L9)).
+The committed evidence copy is
+[`pkgchat0807b-tic-tac-toe.pkg`](../runtime/evidence/pkgchat0807b-tic-tac-toe.pkg).
+The branch-paired Egg Freckles package and `pkg_publisher.py` hashes are recorded
+in [`pkgchat0807b-egg-pair-sha256.txt`](../runtime/evidence/pkgchat0807b-egg-pair-sha256.txt).
+
+One bounded recovery was needed after the work, not during package authoring:
+the agent had completed the required tool chain but continued visually checking
+until `server.py`'s 170-second deadline killed its final text
+([wire transcript, lines 8–14](../runtime/evidence/pkgchat0807b-wire-transcript.txt#L8-L14)).
+The preserved Codex thread was resumed once through the same port-6801 channel
+and returned the normal completion `TEXT` and `PROMPT` frames
+([recovery transcript, lines 6–14](../runtime/evidence/pkgchat0807b-recovery-wire-transcript.txt#L6-L14)).
+Focused tests passed 65/65 and the full suite passed 120/120
+([focused lines 1–3](../runtime/evidence/pkgchat0807b-focused-tests.txt#L1-L3),
+[full lines 1–3](../runtime/evidence/pkgchat0807b-full-tests.txt#L1-L3)). The
+shared emulator was healthy before and after; the status log records every
+bounded step and the single recovery
+([`pkgchat0807b-status.log`](../runtime/evidence/pkgchat0807b-status.log)).
 
 ## Mars deployment prepared — not applied, 2026-08-07
 

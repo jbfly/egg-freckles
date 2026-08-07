@@ -1,0 +1,14 @@
+C> ~NEWTONCLI 1
+C> :00 HELLO NEWTON1 host-proof*51
+S> ACK 00
+S> :00 STAT READY*51
+C> ACK 00
+C> :01 MSG Make a small tic-tac-toe Newton app in isolated instance pkgchat0807b. Use a fresh project and never-used identity. Build it, install it, launch it, and verify it on screen. A static visible 3x3 grid is enough.*36
+S> ACK 01
+S> :01 STAT THINKING*39
+C> ACK 01
+S> :02 STAT ERROR agent timed out*42
+C> ACK 02
+S> :03 PROMPT*65
+C> ACK 03
+VISIBLE>

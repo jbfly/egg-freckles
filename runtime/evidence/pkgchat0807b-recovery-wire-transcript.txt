@@ -1,0 +1,14 @@
+C> ~NEWTONCLI 1
+C> :00 HELLO NEWTON1 host-proof-recovery*ED
+S> ACK 00
+S> :00 STAT READY*51
+C> ACK 00
+C> :01 MSG Stop now. The installed app is visibly running with its tic-tac-toe grid. Reply with a concise completion summary only. Use no more tools.*CC
+S> ACK 01
+S> :01 STAT THINKING*39
+C> ACK 01
+S> :02 TEXT Built, installed, launched, and visually verified Tic Tac Toe Grid in isolated instance pkgchat0807b. Fresh identity: TTTGridP0807bR1:nwtn.*62
+C> ACK 02
+S> :03 PROMPT*65
+C> ACK 03
+VISIBLE> Built, installed, launched, and visually verified Tic Tac Toe Grid in isolated instance pkgchat0807b. Fresh identity: TTTGridP0807bR1:nwtn.

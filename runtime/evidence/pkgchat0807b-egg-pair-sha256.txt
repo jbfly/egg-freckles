@@ -1,0 +1,2 @@
+91381832725a2563dcf6c635c3f7f98306a5d1214d1bdafd183757d5c5d4e0bd  examples/harness-client/egg-freckles.pkg
+538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566  pkg_publisher.py

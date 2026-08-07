@@ -1,0 +1,9 @@
+branch=release/pkg-write-fix
+start_commit=6240d6e81e182a741846b2891a8a1abdb95d133e
+project=ttt-grid-pkgchat0807b-r1
+identity=TTTGridP0807bR1:nwtn
+identity_prior_git_history_matches=0
+package_size=1784
+package_sha256=40fdc2e6157cc2afd2f2e075166cad475f4b479be9e55c98f9dc1c257c79f898
+workspace_realpath=/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace/ttt-grid-pkgchat0807b-r1
+outside_workspace_pkg_copies:

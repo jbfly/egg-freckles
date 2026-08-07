@@ -1,0 +1,67 @@
+[2026-08-07T16:04:16+01:00] BEFORE preflight identity/project/instance/shared status
+[2026-08-07T16:04:16+01:00] AFTER preflight: fresh names, shared healthy, pair and EF13 seed recorded
+[2026-08-07T16:04:16+01:00] BEFORE isolated instance up (timeout 120s)
+[2026-08-07T16:04:18+01:00] AFTER isolated instance up
+[2026-08-07T16:04:18+01:00] BEFORE initial health wait (12 polls x 5s)
+[2026-08-07T16:04:18+01:00] health poll 1: starting
+[2026-08-07T16:04:23+01:00] health poll 2: starting
+[2026-08-07T16:04:28+01:00] health poll 3: starting
+[2026-08-07T16:04:33+01:00] health poll 4: healthy
+[2026-08-07T16:04:33+01:00] AFTER initial health wait: healthy
+[2026-08-07T16:04:33+01:00] BEFORE stop for EF13 seed (timeout 30s)
+[2026-08-07T16:04:33+01:00] AFTER stop for EF13 seed
+[2026-08-07T16:04:33+01:00] BEFORE copy EF13 seed (timeout 30s)
+[2026-08-07T16:04:34+01:00] AFTER copy EF13 seed
+[2026-08-07T16:04:34+01:00] BEFORE restart seeded instance (timeout 30s)
+[2026-08-07T16:04:34+01:00] AFTER restart seeded instance
+[2026-08-07T16:04:34+01:00] BEFORE post-seed health wait (12 polls x 5s)
+[2026-08-07T16:04:34+01:00] post-seed health poll 1: starting
+[2026-08-07T16:04:39+01:00] post-seed health poll 2: starting
+[2026-08-07T16:04:44+01:00] post-seed health poll 3: starting
+[2026-08-07T16:04:49+01:00] post-seed health poll 4: healthy
+[2026-08-07T16:04:49+01:00] AFTER post-seed health wait: healthy
+[2026-08-07T16:04:49+01:00] BEFORE instance inspect/status/screen
+[2026-08-07T16:05:00+01:00] STATUS: prior inspect/status/screen step stopped on host CLI argument ordering; instance remained healthy
+[2026-08-07T16:05:00+01:00] BEFORE corrected seeded status/screen capture
+[2026-08-07T16:05:00+01:00] AFTER corrected seeded status/screen capture
+[2026-08-07T16:05:48+01:00] BEFORE close EF13 boot slip on isolated instance
+[2026-08-07T16:05:48+01:00] AFTER close EF13 boot slip and capture
+[2026-08-07T16:05:48+01:00] BEFORE host server/Codex preflight
+[2026-08-07T16:05:48+01:00] AFTER host server/Codex preflight: tools present and port 6801 free
+[2026-08-07T16:05:48+01:00] BEFORE temporary Codex home setup
+[2026-08-07T16:05:48+01:00] AFTER temporary Codex home setup
+[2026-08-07T16:05:48+01:00] BEFORE host server start
+[2026-08-07T16:05:48+01:00] AFTER host server start pid=1831466
+[2026-08-07T16:05:48+01:00] BEFORE host server readiness wait (20 polls x 0.25s)
+[2026-08-07T16:05:48+01:00] server readiness poll 1: waiting
+[2026-08-07T16:05:48+01:00] server readiness poll 2: listening
+[2026-08-07T16:05:48+01:00] AFTER host server readiness wait: ready
+[2026-08-07T16:06:09+01:00] BEFORE real chat-agent turn via native server input channel (hard timeout 180s)
+[2026-08-07T16:08:59+01:00] AFTER real chat-agent turn returned PROMPT frame
+[2026-08-07T16:08:59+01:00] BEFORE immediate turn artifacts/status check
+[2026-08-07T16:08:59+01:00] AFTER immediate turn artifacts/status check
+[2026-08-07T16:12:02+01:00] RECOVERY BEGIN: original agent completed required tools but server 170s deadline killed final response; resume preserved thread
+[2026-08-07T16:12:02+01:00] BEFORE recovery server stop and isolated status check
+[2026-08-07T16:12:03+01:00] AFTER recovery server stop and isolated status check
+[2026-08-07T16:12:03+01:00] BEFORE restore server session thread id
+[2026-08-07T16:12:03+01:00] AFTER restore server session thread id
+[2026-08-07T16:12:03+01:00] BEFORE recovery server restart (resume timeout 60s)
+[2026-08-07T16:12:04+01:00] AFTER recovery server restart pid=1853791
+[2026-08-07T16:12:04+01:00] BEFORE recovery resume message via native channel (hard timeout 75s)
+[2026-08-07T16:12:10+01:00] AFTER recovery resume message returned PROMPT frame
+[2026-08-07T16:12:10+01:00] RECOVERY END: same Codex thread produced final reply; no further recovery allowed
+[2026-08-07T16:12:47+01:00] BEFORE freeze final app evidence and status
+[2026-08-07T16:12:47+01:00] AFTER freeze final app evidence and status
+[2026-08-07T16:12:47+01:00] BEFORE host server stop
+[2026-08-07T16:12:49+01:00] AFTER host server stop
+[2026-08-07T16:12:49+01:00] BEFORE shared emulator after-status check
+[2026-08-07T16:12:49+01:00] AFTER shared emulator after-status check: untouched and healthy
+[2026-08-07T16:13:10+01:00] BEFORE focused tests: server + MCP + package publisher (timeout 180s)
+[2026-08-07T16:13:27+01:00] AFTER focused tests: passed
+[2026-08-07T16:13:27+01:00] BEFORE full test suite (timeout 180s)
+[2026-08-07T16:13:44+01:00] AFTER full test suite: passed
+[2026-08-07T16:15:33+01:00] BEFORE isolated instance teardown (timeout 120s)
+[2026-08-07T16:15:34+01:00] AFTER isolated instance teardown: state volume removed
+[2026-08-07T16:15:34+01:00] BEFORE temporary Codex/server state cleanup
+[2026-08-07T16:15:34+01:00] AFTER temporary Codex/server state cleanup
+[2026-08-07T16:15:34+01:00] FINAL: proof complete; shared emulator untouched; one recovery consumed; no hardware/Mars/ZC40 operations

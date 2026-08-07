@@ -164,16 +164,33 @@ identical for `examples/` and for repository files outside the workspace and
 [`pkgproof0807b-identity-build.txt`](../runtime/evidence/pkgproof0807b-identity-build.txt),
 and [`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launched.png).
 
-This proof called the plumbing directly. A real Egg Freckles chat turn in which
-the agent itself chooses `create_project`/`write_source`, generates valid
-NewtonScript, and completes the loop remains to be proven separately. The
-2026-08-07 `pkgchat0807a` attempt did not reach the agent: the branch-paired
-EF20 client launched, but `emulator_text` left its NewtonScript prompt field
-empty; **Send** displayed "Type a prompt first" and `server.py` logged no
-connection. The one-recovery limit then stopped the round. Evidence:
-`runtime/evidence/pkgchat0807a-status.log`, `pkgchat0807a-06-sent.png`, and
-`pkgchat0807a-server.log`. Treat this as a prompt-entry automation blocker, not
-a failure of steps 3-8, which were not invoked in that round.
+The earlier `pkgchat0807a` attempt did not reach the agent because
+`emulator_text` left Egg Freckles' prompt field empty; its evidence remains the
+reason not to depend on Newton glass text injection for automation.
+
+The real chat-agent gate is now closed by `pkgchat0807b`. A short tic-tac-toe
+request entered the same native `server.py:6801` channel that Egg Freckles
+**Send** uses ([wire transcript, lines 1–8](../runtime/evidence/pkgchat0807b-wire-transcript.txt#L1-L8)).
+The agent selected `create_project`, authored complete source with
+`write_source`, corrected a compiler-reported syntax error, rebuilt, selected
+`emulator_install`, launched, and called `emulator_screen`
+([tool transcript, lines 1–39](../runtime/evidence/pkgchat0807b-agent-tool-transcript.txt#L1-L39)).
+Its final source contains the title and visible 3x3 board
+([`pkgchat0807b-agent-Main.newt:1-34`](../runtime/evidence/pkgchat0807b-agent-Main.newt#L1-L34));
+the exact screenshot returned by the agent is
+[`pkgchat0807b-agent-screen.png`](../runtime/evidence/pkgchat0807b-agent-screen.png).
+Fresh identity `TTTGridP0807bR1:nwtn` had zero prior git-history matches, and
+the 1,784-byte package has SHA-256
+`40fdc2e6157cc2afd2f2e075166cad475f4b479be9e55c98f9dc1c257c79f898`
+([identity/build evidence, lines 1–9](../runtime/evidence/pkgchat0807b-identity-build.txt#L1-L9)).
+
+The first server request timed out only after those tool calls while the agent
+kept visually checking. The one recovery resumed that preserved Codex thread
+through the same port-6801 input path and obtained a normal completion reply
+([recovery transcript, lines 6–14](../runtime/evidence/pkgchat0807b-recovery-wire-transcript.txt#L6-L14)).
+Focused tests passed 65/65 and the full suite passed 120/120
+([focused](../runtime/evidence/pkgchat0807b-focused-tests.txt#L1-L3),
+[full](../runtime/evidence/pkgchat0807b-full-tests.txt#L1-L3)).
 
 ## Proven 2026-08-03 (Track G2)
 

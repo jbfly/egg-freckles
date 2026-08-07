@@ -1,0 +1,2 @@
+thread_id=019fdcc2-9d97-7b23-a0c0-8bcc0d90ce52
+rollout=/tmp/pkgchat0807b-codex-home/sessions/2026/08/07/rollout-2026-08-07T16-06-09-019fdcc2-9d97-7b23-a0c0-8bcc0d90ce52.jsonl
