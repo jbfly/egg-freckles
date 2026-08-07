@@ -24,7 +24,8 @@ agent can complete one task and verify it.
   [`ef6round-ink-decimation.txt`](../runtime/evidence/ef6round-ink-decimation.txt),
   [`ef6round-tools-window-closed.txt`](../runtime/evidence/ef6round-tools-window-closed.txt),
   screenshots `runtime/evidence/ef6round-*.png`. 98 tests (94 + 4).
-  - **The headline: `/tools` answers with the app never opened.** After a
+  - **Historical EF6 result, superseded by EF14's battery rule:** `/tools`
+    answered with the app never opened. After a
     `podman restart`, with Egg Freckles not launched once,
     `{"op":"ping"}` → `pong` and `{"op":"front_app"}` → `Notepad (paperroll)`.
     The poll now belongs to the same package-level install-hook agent as "Send

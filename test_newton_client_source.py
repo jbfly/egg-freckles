@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef13_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef14_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF13:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef13";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF14:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef14";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF13:jbfly"' in PROJECT
-    assert "version: 25" in PROJECT
+    assert 'name: "EggFrecklesEF14:jbfly"' in PROJECT
+    assert "version: 26" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -58,7 +58,8 @@ def test_long_prompts_go_out_as_msgp_parts():
     assert '" MSGP " & :SeqText(self.partIndex) & " "' in SOURCE
     # Stop-and-wait: the next part only leaves on the previous part's ACK.
     assert "if (self.pendingParts <> nil) and (self.partIndex < Length(self.pendingParts)) then" in SOURCE
-    assert 'if StrLen(text) > self.maxPrompt then return :SetStatus("Prompt too long");' in SOURCE
+    assert "if StrLen(text) > self.maxPrompt then" in SOURCE
+    assert ':SetStatus("Prompt too long");' in SOURCE
 
 
 def test_a_text_only_note_rides_the_chat_path_not_an_http_endpoint():
@@ -145,32 +146,48 @@ def test_the_tools_client_lives_inside_this_package_now():
     assert "if self.linkID then return :ToolOpen();" in SOURCE
 
 
-def test_the_tools_poll_belongs_to_the_package_not_the_window():
-    # The fifth hardware test: an agent-driven install failed with "Newton not
-    # responding to pings" because the human had the window closed, and the poll
-    # only ran between Boot and ViewQuitScript. It is owned by the same
-    # install-hook agent as "Send to AI" now.
+def test_radio_stays_off_until_send_and_closes_after_idle():
+    # EF14 battery rule: install/reset and opening the window install UI hooks
+    # only. Neither path acquires NIE or starts the passive tools poll.
+    hook = SOURCE.index("NotesHook: func(tries, via)")
+    find_agent = SOURCE.index("FindAgent: func(paperroll)", hook)
     boot = SOURCE.index("Boot: func()")
-    quit_script = SOURCE.index("ViewQuitScript: func()")
-    assert ":ToolStart()" not in SOURCE[boot:SOURCE.index("Wire: func()", boot)]
-    assert ":ToolStop();" not in SOURCE[quit_script:boot]
-    # Started from the hook, on the agent frame, by a delayed call -- and a
-    # delayed call with a FRAME receiver is safe where one with a view receiver
-    # is not (the L1 -48809 trap), because this frame has no view to close.
-    assert "who:ToolStart() onexception |evt.ex| do nil,\n            [agent], 3000);" in SOURCE
-    # Exactly one poll instance: a package replacement retires the old agent's
-    # poll before the new agent starts one.
-    assert "FindAgent: func(paperroll)" in SOURCE
-    assert "local previous := :FindAgent(paperroll);" in SOURCE
-    assert "previous.toolStopping := true;" in SOURCE
-    # The agent owns its own copies of every tools slot, never the template's.
+    wire = SOURCE.index("Wire: func()", boot)
+    assert "ToolStart()" not in SOURCE[hook:find_agent]
+    assert ":Connect();" not in SOURCE[boot:wire]
+    assert "try partFrame.theForm:NotesHook(4, 'install)" in SOURCE
+
+    # A real chat or ink send holds the radio and starts the poll on the same
+    # already-acquired link. This is the only poll-start path.
+    open_session = SOURCE.index("OpenSession: func()")
+    bind_failed = SOURCE.index("BindFailed: func(message)", open_session)
+    ink_open = SOURCE.index("InkOpen: func()")
+    ink_bind_failed = SOURCE.index("InkBindFailed: func(message)", ink_open)
+    assert ":ToolStart();" in SOURCE[open_session:bind_failed]
+    assert ":ToolStart();" in SOURCE[ink_open:ink_bind_failed]
+    assert "who:ToolStart() onexception" not in SOURCE
+
+    # Replies arm one ticketed idle close; stale timers and retry callbacks
+    # cannot reopen the link after RadioExpired has shut every endpoint down.
+    assert "RadioHold: func()" in SOURCE
+    assert "ArmRadioIdle: func()" in SOURCE
+    assert "RadioExpired: func(seq)" in SOURCE
+    assert "[self, self.radioSeq], 5000);" in SOURCE
+    assert "if (seq <> self.radioSeq) or not self.radioHeld then return nil;" in SOURCE
+    assert ("self.toolStopping := true;\n"
+            "        :ToolStop();\n"
+            "        :Stop();") in SOURCE
+    assert "if self.stopping or not self.radioHeld then return nil;" in SOURCE
+    failed = SOURCE.index("Failed: func(message)")
+    tools = SOURCE.index("// ================= the /tools channel", failed)
+    assert ":ArmRadioIdle();" in SOURCE[failed:tools]
+
+    # The package-level Notes agent has independent mutable lifecycle state and
+    # package removal still stops any active send-triggered poll.
     for slot in ("toolEndpoint", "toolReady", "toolStopping", "toolMisses",
                  "toolID", "toolOutcome", "toolValue", "toolWatching",
-                 "toolBindRetried"):
+                 "toolBindRetried", "radioHeld", "radioSeq"):
         assert f"agent.{slot} := " in SOURCE
-    assert "agent.ToolGrabbed := self.ToolGrabbed;" in SOURCE
-    # Removing the package is what stops it now -- the flag first, because it is
-    # a slot write that cannot throw once the package's code is going away.
     remove = SOURCE.index("RemoveScript: func(frame)")
     assert "item.agent.toolStopping := true;" in SOURCE[remove:]
     assert "try item.agent:ToolStop()" in SOURCE[remove:]
@@ -482,9 +499,9 @@ def test_two_notes_actions_share_one_agent_and_route_their_own_modes():
     assert "NotesAskRoute: func(target, targetView)" in SOURCE
     assert "return item.agent:Route(target, targetView, 'text);" in SOURCE
     assert "return item.agent:Route(target, targetView, 'ask);" in SOURCE
-    # One heap agent owns both entries and therefore exactly one tools poll.
+    # One heap agent owns both entries; networking starts only when that agent sends.
     assert SOURCE.count("local agent := {_proto: self};") == 1
-    assert SOURCE.count("who:ToolStart() onexception") == 1
+    assert SOURCE.count("who:ToolStart() onexception") == 0
     for closure in ("func(target, targetView) agent:", "func() agent.", "func() kAppSymbol"):
         assert closure not in SOURCE
     assert "try form:NotesHook(0, 'window) onexception |evt.ex| do nil;" in SOURCE
