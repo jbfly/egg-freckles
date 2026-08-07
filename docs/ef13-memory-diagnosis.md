@@ -225,3 +225,27 @@ pkg_publisher; print(pkg_publisher._codex_bin())"` ->
 running with that bare PATH and still serves `d14f183f`; publisher `2e9b728d`.
 
 Restart requirement REMOVED: raw_pkg_server no longer needs a login shell.
+
+## HARDWARE PASS — EF13 proven on the physical Newton
+
+The ~332-stroke note that OOM'd under EF12 completed under EF13. Durable
+evidence on mars (`runtime/evidence/`), surviving a log truncation:
+`ink-latest-part-01.png` … `-part-06.png`, written 22:27–22:29 — **all 6
+parts streamed and rendered one at a time** (build→send→free). User confirmed
+the transcript returned and displayed on the Newton. No OOM / 502 / errno /
+traceback anywhere in the run logs.
+
+Caveats / notes:
+- Latency ~1–2 min for the full note: interpret() runs codex vision once PER
+  part (6 sequential ~9 s reads). That is the cost of streaming instead of
+  materialising all bodies; it is the fix working, not a fault. Possible future
+  speedup: interpret parts concurrently, or show progress. Not done.
+- A power-cycle was NOT required by the fix; it reset a flaky wifi session so
+  the already-completing result surfaced. First "nothing came back" was the
+  send still in-flight (slow), not a failure.
+- Ops lesson: raw_pkg_server was relaunched with `>` (truncating the log),
+  erasing the successful request lines. Relaunch with `>>` (append) next time;
+  the per-part PNGs are the durable record regardless.
+
+Status: EF13 memory fix DONE and hardware-proven. Remaining, separate task:
+the emulator NS-eval control-channel wedge (docs above) — investigate next.
