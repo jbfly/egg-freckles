@@ -193,8 +193,8 @@ class PublisherTest(unittest.TestCase):
                         status, _, _, _ = self.fetch(port, "/ink", "POST", body)
                     self.assertEqual(status, 200)
                     lines = [call.args[0] for call in printed.call_args_list if call.args]
-                    self.assertIn("INKTIME page 1/2 build 99 send -1", lines)
-                    self.assertIn("INKTIME page 2/2 build 187 send -1", lines)
+                    self.assertIn("INKBUILD page 1/2 build 99", lines)
+                    self.assertIn("INKBUILD page 2/2 build 187", lines)
 
                     for timing in (b"T -1 -1", b"T 10 0", b"T 10 -1 extra"):
                         bad = (b"NSI1 320 480 1\r\n" + timing
@@ -510,7 +510,18 @@ class PublisherTest(unittest.TestCase):
             try:
                 newton.sendall(b"POLL\r\n")
                 self.assertEqual(stream.readline(), b"TOOLS 0 ping \r\n")
-                newton.sendall(b"0\r\nresult\r\npong\r\nPOLL\r\n")
+                with mock.patch("builtins.print") as printed:
+                    metric = b"INKTIME page 1/2 build 2500 send 8200 endpoint 3100"
+                    newton.sendall(b"0\r\nresult\r\n" + metric + b"\r\nPOLL\r\n")
+                    for _ in range(100):
+                        if any(call.args and call.args[0].startswith("INKTIME ")
+                               for call in printed.call_args_list):
+                            break
+                        threading.Event().wait(0.01)
+                self.assertIn(
+                    "INKTIME page 1/2 build 2500 send 8200 endpoint 3100",
+                    [call.args[0] for call in printed.call_args_list if call.args])
+                self.assertEqual(server.tools.timing_seen, {(1, 2, 2500, 8200, 3100)})
             finally:
                 newton.close()
                 server.shutdown()

@@ -188,7 +188,9 @@ def test_radio_stays_off_until_send_and_closes_after_idle():
     note_reply = SOURCE.index(':ProgressDone("Answer filed in AI");')
     note_done = SOURCE.index("// Exactly one note per tap", note_reply)
     assert "self.inkBusy := nil;\n        return :InkDone();" in SOURCE[note_reply:note_done]
-    assert ":ArmRadioIdle();" in SOURCE[note_done:SOURCE.index("FileReply: func", note_done)]
+    note_stop = SOURCE.index("InkStop: func()", note_done)
+    dropped = SOURCE.index("Dropped: func()", note_stop)
+    assert ":ArmRadioIdle();" in SOURCE[note_stop:dropped]
     radio_expired = SOURCE.index("RadioExpired: func(seq)")
     stop = SOURCE.index("Stop: func()", radio_expired)
     assert ":ToolStop();" in SOURCE[radio_expired:stop]
@@ -514,7 +516,11 @@ def test_ink_pages_log_build_and_send_milliseconds():
     assert ":StampInkTime(encoded.body, buildMS);" in SOURCE
     assert ":StampInkTime(empty.body, buildMS);" in SOURCE
     assert "self.inkSendTicks := Ticks();" in SOURCE
-    assert '" send " & sendMS & " ms"' in SOURCE
+    assert "else self._parent:InkSent();" in SOURCE
+    assert "InkSent: func()" in SOURCE
+    assert "self.inkSendMS := ((Ticks() - self.inkSendTicks) * 1000) div 60;" in SOURCE
+    assert "AddArraySlot(self.inkMetrics" in SOURCE
+    assert '" endpoint " & metric.endpoint' in SOURCE
     assert "self.inkSendTicks := nil;" in SOURCE
 
 def test_the_capture_canvas_is_gone_multi_stroke_defect_and_all():

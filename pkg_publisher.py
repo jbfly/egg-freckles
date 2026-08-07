@@ -59,6 +59,10 @@ MODEL_HOST = os.environ.get("NEWTON_MODEL_HOST", "127.0.0.1")
 MODEL_PORT = int(os.environ.get("NEWTON_MODEL_PORT", "6801"))
 MODEL_TIMEOUT = 120
 TOOL_OP = re.compile(r"[A-Za-z0-9_]+\Z")
+INK_TIMING = re.compile(
+    r"INKTIME page (\d{1,2})/(\d{1,2}) build (\d{1,6}) "
+    r"send (\d{1,6}) endpoint (\d{1,6})\Z"
+)
 
 
 def unescape(value: str) -> str:
@@ -83,6 +87,7 @@ class ToolBroker:
         self.pending: dict[str, object] | None = None
         self.outcome: dict[str, object] | None = None
         self.connection: socket.socket | None = None
+        self.timing_seen: set[tuple[int, ...]] = set()
         self.heartbeat_seconds = 3.0
 
     def submit(self, op: str, args: dict[str, object], timeout: float) -> dict[str, object]:
@@ -114,6 +119,7 @@ class ToolBroker:
             if self.connection is not None:
                 self.connection.close()
             self.connection = connection
+            self.timing_seen.clear()
             self.condition.notify_all()
         print(f"Newton tools connected {connection.getpeername()[0]}:{connection.getpeername()[1]}",
               flush=True)
@@ -137,10 +143,21 @@ class ToolBroker:
                     "result", "error", "unknown_op"
                 }:
                     return
-                if not heartbeat:
+                value = unescape(value)
+                if heartbeat:
+                    timing = INK_TIMING.fullmatch(value)
+                    if timing:
+                        part, total, build_ms, send_ms, endpoint_ms = map(int, timing.groups())
+                        values = (part, total, build_ms, send_ms, endpoint_ms)
+                        if (1 <= part <= total <= 99 and build_ms <= 600000
+                                and send_ms <= 600000 and endpoint_ms <= 600000
+                                and values not in self.timing_seen):
+                            self.timing_seen.add(values)
+                            print(value, flush=True)
+                else:
                     key = "result" if status == "result" else "error"
                     self.complete({"request_id": request_id, "status": status,
-                                   key: unescape(value)})
+                                   key: value})
                 if self._line(stream) != "POLL":
                     return
         except (ConnectionError, OSError, UnicodeError):
@@ -436,8 +453,8 @@ class PublisherHandler(BaseHTTPRequestHandler):
         points = sum(len(stroke) for stroke in strokes)
         if timing is not None:
             timing_part = part or (1, 1)
-            print(f"INKTIME page {timing_part[0]}/{timing_part[1]} "
-                  f"build {timing[0]} send {timing[1]}", flush=True)
+            print(f"INKBUILD page {timing_part[0]}/{timing_part[1]} "
+                  f"build {timing[0]}", flush=True)
         rate = f" bytes_per_point={length / points:.2f}" if points else ""
         part_text = f" part={part[0]}/{part[1]}" if part else ""
         print(f"INK BODY mode={mode}{part_text} bytes={length} strokes={stroke_count} "

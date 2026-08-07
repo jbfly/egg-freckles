@@ -362,7 +362,6 @@ noteAgent := {
             try :FileReply("(not sent) " & why) onexception |evt.ex| do nil;
             :ProgressDone(why);
         end;
-        :ArmRadioIdle();
         AddDelayedCall(func(agent) try agent:InkStop() onexception |evt.ex| do nil,
             [self], 1000);
         return nil;
@@ -513,7 +512,12 @@ mainView := {
     inkStrokeIndex: 0,
     inkPartIndex: 0,
     inkPartAck: nil,
+    inkBuildMS: nil,
     inkSendTicks: nil,
+    inkSendMS: nil,
+    inkOpenTicks: nil,
+    inkMetrics: nil,
+    inkMetricIndex: 0,
     inkBusy: nil,
     // Which send the 150 s watchdog belongs to; see SendInk.
     inkSeq: 0,
@@ -569,6 +573,8 @@ mainView := {
         // retained stroke array has to be re-made in the heap before anything
         // grows it.
         self.askStrokes := [];
+        self.inkMetrics := [];
+        self.inkMetricIndex := 0;
         // ponytail: the child list is not reachable until the view is fully open.
         //
         // Every AddDelayedCall in this file carries the same try guard, and it
@@ -1788,6 +1794,7 @@ mainView := {
         Print("INKTIME page " & part & "/" & total & " build " & buildMS & " ms");
         if encoded = nil then return nil;
         :StampInkTime(encoded.body, buildMS);
+        self.inkBuildMS := buildMS;
         local release := start;
         while release < index do
         begin
@@ -1819,6 +1826,7 @@ mainView := {
             Print("INKTIME page 1/1 build " & buildMS & " ms");
             if empty = nil then return nil;
             :StampInkTime(empty.body, buildMS);
+            self.inkBuildMS := buildMS;
             self.inkTotalParts := 1;
             return empty.body;
         end;
@@ -1981,7 +1989,12 @@ mainView := {
         agent.inkStrokeIndex := 0;
         agent.inkPartIndex := 0;
         agent.inkPartAck := nil;
+        agent.inkBuildMS := nil;
         agent.inkSendTicks := nil;
+        agent.inkSendMS := nil;
+        agent.inkOpenTicks := nil;
+        agent.inkMetrics := [];
+        agent.inkMetricIndex := 0;
         agent.inkBusy := nil;
         // The tools channel's mutable state, as own slots, for the same reason:
         // nothing here may be read or written through the read-only template.
@@ -2129,6 +2142,8 @@ mainView := {
         :RadioHold();
         self.inkPartIndex := 0;
         self.inkPartAck := nil;
+        self.inkMetrics := [];
+        self.inkMetricIndex := 0;
         self.inkBody := body;
         self.inkBusy := true;
         self.inkGotReply := nil;
@@ -2179,6 +2194,7 @@ mainView := {
     begin
         :ToolStart();
         if self.inkEndpoint then return nil;
+        self.inkOpenTicks := Ticks();
         self.inkEndpoint := {_proto: self.endpointClass, _parent: self,
             ExceptionHandler: func(error)
                 try self._parent:InkDropped() onexception |evt.ex| do nil};
@@ -2270,6 +2286,17 @@ mainView := {
         local body := self.inkBody;
         self.inkBody := nil;
         if body = nil then return nil;
+        if (self.inkMetrics <> nil) and (Length(self.inkMetrics) > 0) then
+        begin
+            local metric := self.inkMetrics[Length(self.inkMetrics) - 1];
+            if not metric.ready and (self.inkOpenTicks <> nil) then
+            begin
+                metric.endpoint := metric.endpoint
+                    + (((Ticks() - self.inkOpenTicks) * 1000) div 60);
+                metric.ready := true;
+            end;
+        end;
+        self.inkOpenTicks := nil;
         self.inkSendTicks := Ticks();
         try
         self.inkEndpoint:SetInputSpec({
@@ -2296,11 +2323,20 @@ mainView := {
             CompletionScript: func(endpoint, options, result)
                 try
                 begin
-                    if result then self._parent:InkFailed("Ink send error " & result);
+                    if result then self._parent:InkFailed("Ink send error " & result)
+                    else self._parent:InkSent();
                 end
                 onexception |evt.ex| do nil,
         })
         onexception |evt.ex.comm| do return :InkFailed("Ink send exception");
+        return nil;
+    end,
+
+    InkSent: func()
+    begin
+        if self.inkSendTicks = nil then return nil;
+        self.inkSendMS := ((Ticks() - self.inkSendTicks) * 1000) div 60;
+        self.inkSendTicks := nil;
         return nil;
     end,
 
@@ -2347,13 +2383,6 @@ mainView := {
     InkDropped: func()
     begin
         if not self.inkBusy then return nil;
-        if self.inkSendTicks <> nil then
-        begin
-            local sendMS := ((Ticks() - self.inkSendTicks) * 1000) div 60;
-            Print("INKTIME page " & (self.inkPartIndex + 1) & "/"
-                & self.inkTotalParts & " send " & sendMS & " ms");
-            self.inkSendTicks := nil;
-        end;
         if self.inkPartAck and ((self.inkPartIndex + 1) < self.inkTotalParts) then
         begin
             self.inkPartIndex := self.inkPartIndex + 1;
@@ -2376,6 +2405,7 @@ mainView := {
     InkNext: func()
     begin
         if not self.inkBusy then return nil;
+        local disposeStart := Ticks();
         if self.inkEndpoint then
         begin
             try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
@@ -2384,6 +2414,11 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
+        AddArraySlot(self.inkMetrics, {part: self.inkPartIndex,
+            total: self.inkTotalParts, build: self.inkBuildMS,
+            send: self.inkSendMS,
+            endpoint: ((Ticks() - disposeStart) * 1000) div 60, ready: nil});
+        self.inkSendMS := nil;
         self.inkBody := :EncodeNextInkPage();
         if self.inkBody = nil then
         begin
@@ -2410,13 +2445,13 @@ mainView := {
     // and releases their NIE link after five seconds.
     InkDone: func()
     begin
-        :ArmRadioIdle();
         AddDelayedCall(func(view) try view:InkStop() onexception |evt.ex| do nil, [self], 1000);
         return nil;
     end,
 
     InkStop: func()
     begin
+        local disposeStart := Ticks();
         if self.inkEndpoint then
         begin
             try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
@@ -2425,11 +2460,20 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
+        if (self.inkSendMS <> nil) and (self.inkMetrics <> nil) then
+            AddArraySlot(self.inkMetrics, {part: self.inkPartIndex + 1,
+                total: self.inkTotalParts, build: self.inkBuildMS,
+                send: self.inkSendMS,
+                endpoint: ((Ticks() - disposeStart) * 1000) div 60, ready: true});
         self.inkBody := nil;
         self.inkSendTicks := nil;
+        self.inkSendMS := nil;
         self.inkHint := nil;
         self.inkMode := nil;
         self.askStrokes := nil;
+        // Start the five-second idle period after callback-safe disposal. This
+        // also leaves a full heartbeat window to publish the final timing.
+        :ArmRadioIdle();
         :ReleaseLink();
         return nil;
     end,
@@ -2737,6 +2781,16 @@ mainView := {
             begin
                 self.toolOutcome := "result";
                 self.toolValue := "pong";
+                if StrEqual(requestID, "0") and (self.inkMetrics <> nil)
+                    and (self.inkMetricIndex < Length(self.inkMetrics))
+                    and self.inkMetrics[self.inkMetricIndex].ready then
+                begin
+                    local metric := self.inkMetrics[self.inkMetricIndex];
+                    self.toolValue := "INKTIME page " & metric.part & "/" & metric.total
+                        & " build " & metric.build & " send " & metric.send
+                        & " endpoint " & metric.endpoint;
+                    self.inkMetricIndex := self.inkMetricIndex + 1;
+                end;
             end
             else if StrEqual(op, "front_app") then
             begin
