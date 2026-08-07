@@ -157,9 +157,12 @@ remains PENDING.**
 
 Emulator prove could NOT be completed: on two clean instances (`ef13ship2`,
 `ef13ship`) the NewtonScript eval channel answers a trivial probe (`2+2`->4)
-but hangs 20s on the first eval touching the seeded ~400-stroke note state —
-a reproducible emulator control-channel wedge, not a fault in the fix. Prior
-worker wedges (240s, 3600s) were the same channel dying. Decision (human):
+but hangs 20s on the first eval touching the seeded ~400-stroke note state.
+The follow-up diagnosis localizes the expensive call to the cursor's first
+full-entry fetch and identifies the uncorrelated singleton result file as what
+turns a timeout into a poisoned channel (`docs/emulator-nseval-wedge.md`). Prior
+worker wedges (240s, 3600s) were retries/concurrency on that channel, not a
+large result crossing a socket-size boundary. Decision (human):
 accept source + unit-test evidence and proceed to the human-gated hardware
 test on the physical Newton; investigate the emulator harness afterward.
 
@@ -247,5 +250,6 @@ Caveats / notes:
   erasing the successful request lines. Relaunch with `>>` (append) next time;
   the per-part PNGs are the durable record regardless.
 
-Status: EF13 memory fix DONE and hardware-proven. Remaining, separate task:
-the emulator NS-eval control-channel wedge (docs above) — investigate next.
+Status: EF13 memory fix DONE and hardware-proven. The separate emulator
+NS-eval wedge is diagnosed in `docs/emulator-nseval-wedge.md`; its correlated,
+single-flight control-channel fix is proposed there but not implemented.

@@ -1,0 +1,11 @@
+STATUS BEFORE health 2026-08-07T09:53:08,030686733+01:00
+{"status":"ready","window_id":2097158,"display":":99","newton_screen":{"width":320,"height":480,"window_offset":{"x":0,"y":78}},"window":{"x":1,"y":20,"width":320,"height":558,"screen":0}}
+STATUS AFTER health 2026-08-07T09:53:08,045019315+01:00
+STATUS BEFORE trivial 2026-08-07T09:53:08,045823444+01:00 source_bytes=3
+STATUS AFTER trivial 2026-08-07T09:53:08,493199129+01:00 rc=0 elapsed_ms=444 stdout_bytes=2 result=4
+STATUS BEFORE stores 2026-08-07T09:53:08,494751427+01:00 source_bytes=19
+STATUS AFTER stores 2026-08-07T09:53:08,768000053+01:00 rc=0 elapsed_ms=269 stdout_bytes=2 result=1
+STATUS BEFORE notes_union 2026-08-07T09:53:08,769632931+01:00 source_bytes=30
+STATUS AFTER notes_union 2026-08-07T09:53:09,045631515+01:00 rc=0 elapsed_ms=272 stdout_bytes=11 result='UnionSoup
+STATUS BEFORE newest_uid 2026-08-07T09:53:09,047177423+01:00 source_bytes=126
+STATUS AFTER newest_uid 2026-08-07T09:53:19,348646888+01:00 rc=1 elapsed_ms=10298 stdout_bytes=0 stderr=timed out after 10s waiting for NewtonScript result
