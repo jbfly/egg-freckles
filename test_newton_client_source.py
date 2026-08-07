@@ -580,6 +580,9 @@ def test_the_reply_comes_back_as_a_note_filed_in_the_ai_folder():
     assert "paperroll:NewNote(note, nil, nil);" in SOURCE
     assert "if (tag <> nil) and IsSoupEntry(note) then" in SOURCE
     assert "try EntryChangeXmit(note, nil) onexception |evt.ex| do nil;" in SOURCE
+    assert "appSymbol: kAppSymbol," in SOURCE
+    assert ("try XmitSoupChange(ROM_paperRollSoupName, self.appSymbol,\n"
+            "                    'entryAdded, note) onexception |evt.ex| do nil;") in SOURCE
     # The source note must never be written to on this path.
     assert "entry.labels := tag;" not in CODE
     assert "EntryChangeXmit(entry, nil);" not in CODE

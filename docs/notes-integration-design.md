@@ -577,8 +577,21 @@ returned into the soup entry** — `"before=n after=y uid=3 lab=set"` — and a
 local note := paperroll:MakeTextNote(body, nil);
 if tag <> nil then note.labels := tag;
 paperroll:NewNote(note, nil, nil);
-if (tag <> nil) and IsSoupEntry(note) then EntryChangeXmit(note, nil);
+if (tag <> nil) and IsSoupEntry(note) then
+begin
+    EntryChangeXmit(note, nil);
+    XmitSoupChange(ROM_paperRollSoupName, kAppSymbol, 'entryAdded, note);
+end;
 ```
+
+`EntryChangeXmit(note, nil)` persists the cached entry but explicitly suppresses
+notification (`refs/NewtonProgrammerGuide20.txt:31157-31160` and
+`refs/NewtonProgrammerRef20.txt:34464-34481`). The reply is a newly added note,
+so the filing path separately emits the supported `'entryAdded` soup event with
+the new entry as its change data; that is the callback contract stock soup
+observers use (`refs/NewtonProgrammerRef20.txt:31614-31669`). This fixes the
+hardware-observed stale Notes overview without reaching into or redrawing the
+stock Notes UI.
 
 No search, so no wrong answer to file; the source note is never written to at
 all. `:SaveNote` had the same defect cosmetically (it reported

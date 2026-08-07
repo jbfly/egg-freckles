@@ -331,12 +331,16 @@ noteAgent := {
             // Filed at creation: the slot rides into the store with the entry.
             if tag <> nil then note.labels := tag;
             paperroll:NewNote(note, nil, nil);
-            // `note` is the entry now. Xmit only to tell the rest of the system
-            // the entry changed; if some other ROM revision copied the frame
-            // instead of adopting it, this is skipped and the note is still
-            // filed, because the label went in with the data.
+            // `note` is the entry now. EntryChangeXmit with nil persists the
+            // cached frame but deliberately suppresses notification. NewNote
+            // added an entry, so announce that exact change to Notes' registered
+            // soup observers; its overview then re-queries without a UI hack.
             if (tag <> nil) and IsSoupEntry(note) then
+            begin
                 try EntryChangeXmit(note, nil) onexception |evt.ex| do nil;
+                try XmitSoupChange(ROM_paperRollSoupName, self.appSymbol,
+                    'entryAdded, note) onexception |evt.ex| do nil;
+            end;
         end
         onexception |evt.ex| do nil;
         return nil;
