@@ -1,0 +1,32 @@
+Mars served-package drift repair — 2026-08-07
+
+Identification before change
+----------------------------
+$ git show daf798b:examples/harness-client/egg-freckles.pkg | sha256sum
+7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9  -
+$ git show daf798b:examples/harness-client/egg-freckles.pkg | wc -c
+73080
+Repository evidence identifies commit daf798b as EF6; docs/newton-dev-notes.md records
+EggFrecklesEF6:jbfly v1.0-ef6 with this exact SHA-256.
+
+Mars before change
+------------------
+7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9  runtime/staging/hardware/egg-freckles.pkg
+538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566  pkg_publisher.py
+runtime/staging/hardware/egg-freckles.pkg 73080 bytes
+GET http://127.0.0.1:18081/egg-freckles.pkg returned 7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9.
+
+Backup and replacement
+----------------------
+7cce547bbc1ff9955388427350ea632fc5ced1dc1865c6a2fdc2e1dfe2df38d9  runtime/staging/hardware/egg-freckles.served-EF6-7cce547b-20260807.bak.pkg
+6652fb0b2e28412cf63caf9cd692359ecee0388206d0bb4131fc1cb9a96a8ebb  runtime/staging/hardware/egg-freckles.pkg
+538d6fa41b65373c4cb3040ff3e7512078e93e7f4d6914e8a18e7b583f6ec566  pkg_publisher.py
+No existing EF backup or ZC package was changed or deleted.
+
+Service and HTTP verification after restart
+-------------------------------------------
+dual-send.service: active (running), MainPID=8000
+LISTEN 0 4 0.0.0.0:18081 0.0.0.0:* users:(("python3",pid=8000,fd=3))
+$ curl --max-time 10 -fsS http://127.0.0.1:18081/egg-freckles.pkg -o /tmp/egg-freckles-served-verify.pkg
+6652fb0b2e28412cf63caf9cd692359ecee0388206d0bb4131fc1cb9a96a8ebb  /tmp/egg-freckles-served-verify.pkg
+/tmp/egg-freckles-served-verify.pkg 85800 bytes

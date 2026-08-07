@@ -105,6 +105,17 @@ Confirm it is serving the current build, not something stale, with
 package and its sha256, e.g. `bootstrap harness-loader.pkg 15000 bytes
 sha256=…`, then `serving runtime/staging/hardware on 0.0.0.0:18081`.
 
+**Mars current state (2026-08-07):** `dual-send.service` is enabled and active.
+The staged `egg-freckles.pkg` had drifted to the 73,080-byte EF6 build: commit
+`daf798b` produces its exact `7cce547b…` hash, and the EF6 log identifies that
+package as `EggFrecklesEF6:jbfly` (`docs/newton-dev-notes.md:1409-1417`;
+`runtime/evidence/mars-ef21-served-pkg-20260807.txt:3-17`). It was backed up,
+then replaced with the hardware-confirmed 85,800-byte EF21 package while the
+paired `pkg_publisher.py` stayed at `538d6fa4…`; after restart, curl returned
+`6652fb0b…` from port 18081
+(`runtime/evidence/mars-ef21-served-pkg-20260807.txt:19-32`). Existing EF
+backups and all ZC packages were left untouched.
+
 ## The human gate — always, on physical hardware
 
 `docs/notes-bridge.md:16`: "Destructive operations require an explicit human
