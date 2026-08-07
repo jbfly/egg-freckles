@@ -152,3 +152,31 @@ Source-only verification: `test_newton_client_source.py` passed 38 tests and
 `d14f183fe611aa1cb26ca317fe608fd7a1314335dc17f313199673b38873ac56`;
 the package and `pkg_publisher.py` ship in the same commit. **Emulator prove
 remains PENDING.**
+
+## Deployed to mars — 2026-08-07 (emulator prove blocked; hardware test next)
+
+Emulator prove could NOT be completed: on two clean instances (`ef13ship2`,
+`ef13ship`) the NewtonScript eval channel answers a trivial probe (`2+2`->4)
+but hangs 20s on the first eval touching the seeded ~400-stroke note state —
+a reproducible emulator control-channel wedge, not a fault in the fix. Prior
+worker wedges (240s, 3600s) were the same channel dying. Decision (human):
+accept source + unit-test evidence and proceed to the human-gated hardware
+test on the physical Newton; investigate the emulator harness afterward.
+
+Deploy = two-file ship + `raw_pkg_server` restart (the fix is device code in
+the pkg AND the paired streaming `/ink` handler in `pkg_publisher.py`, which
+is imported at process start, so a restart is required to load it):
+
+| Item | Value |
+|---|---|
+| Branch / commit | `task/ef13-fix @ 27d0418` |
+| Served pkg (mars `examples/harness-client/egg-freckles.pkg`) | `d14f183fe611` |
+| Publisher (mars `pkg_publisher.py`) | `4d56debf2ff4` |
+| HTTP verify (`curl http://10.42.0.1:18081/egg-freckles.pkg`) | `d14f183fe611` ✓ |
+| New `raw_pkg_server` pid | 371667 (log: `serving http://10.42.0.1:18081`) |
+| `server.py` (179424) | untouched |
+
+Rollback (one-step, staged on mars):
+- EF12 pkg `egg-freckles.EF12.bak.pkg` = `90ee54e8cb66`, publisher
+  `pkg_publisher.EF12.bak.py` = `5def2cd4f3e2` — restore both, restart server.
+- Older: EF9 `egg-freckles.EF9.bak.pkg` = `f7de62f9f705`.
