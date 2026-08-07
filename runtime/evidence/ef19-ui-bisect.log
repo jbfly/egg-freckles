@@ -1,0 +1,487 @@
+2026-08-07T12:01:26+01:00
+STEP dismiss PCMCIA card slip
+{"ok":true}
+runtime/evidence/ef19bisect-notes.png
+P ——— Y
+
+o
+
+& Thu 8/6 ——————————— O =
+
+Ethusrs
+
+Ethusrs
+
+LS 52 ?ed
+
+e e e
+
+
+--- network listeners ---
+    inet 10.42.0.1/24 scope global lo
+2026-08-07T12:02:57+01:00
+STEP open first seeded note
+{"ok":true}
+runtime/evidence/ef19bisect-note-open.png
+e ——— Y
+
+o
+3
+
+& Thu 8/6 ——————————— O =
+
+Ethusrs
+
+Ethusrs
+
+LS 52 ?ed
+
+e e e
+
+2026-08-07T12:03:30+01:00
+STEP open seeded note row at y250
+{"ok":true}
+runtime/evidence/ef19bisect-note-open2.png
+RAEEL L,y + Unfiled Notes &
+
+sat 7725
+
+o=
+
+o
+
+EES
+
+Emuess
+
+o=
+
+Emuess
+
+o=
+
+]
+
+BN
+
+o=
+
+Q o*
+
+Extras InOut Names Dates Undo  Find  Assist
+
+B L D
+
+¥
+2026-08-07T12:03:52+01:00
+STEP open ink-heavy seeded note preview
+{"ok":true}
+runtime/evidence/ef19bisect-note-open3.png
+RAEEL L,y + Unfiled Notes &
+
+sat 7725
+
+o=
+
+o
+
+EES
+
+Emuess
+
+o=
+
+Emuess
+
+o=
+
+]
+
+BN
+
+o=
+
+Q o*
+
+Extras InOut Names Dates Undo  Find  Assist
+
+B L D
+
+¥
+2026-08-07T12:04:17+01:00
+STEP open Notes InOut/envelope menu
+{"ok":true}
+runtime/evidence/ef19bisect-inout-menu.png
+ALY & Unfiled tems W
+
+® InBox
+
+Out Box
+
+There are no Items in this folder.
+
+G CReceine AT X
+
+Extras InOut Names Dates Undo  Find  Assist
+
+=]
+
+Q o*
+
+¥
+2026-08-07T12:05:24+01:00
+BISECT baseline reset seed
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator_1
+2026-08-07T12:05:24+01:00 running/starting
+2026-08-07T12:05:29+01:00 running/starting
+2026-08-07T12:05:34+01:00 running/starting
+2026-08-07T12:05:39+01:00 running/healthy
+2026-08-07T12:05:46+01:00
+BISECT baseline dismiss card
+{"ok":true}
+2026-08-07T12:05:49+01:00
+BISECT baseline install
+2026-08-07T12:06:04+01:00
+BISECT baseline install retry from /packages
+queued
+
+runtime/evidence/ef19-baseline-installed.png
+2026-08-07T12:06:10+01:00
+BISECT baseline tap first note envelope
+{"ok":true}
+runtime/evidence/ef19-baseline-menu.png
+ALY & Unfiled Notes W
+
+sat 7725
+
+o=
+
+o
+
+File thisNotein
+
+® tone Unfied)
+
+Wiscelsneous
+
+Businesz
+
+Perzonsl
+
+@ thu
+
+o=
+
+(New) (EdFotaer)
+
+o=
+
+Emuess
+
+BN
+
+o=
+
+Y new]
+
+LRSS 9e
+
+»
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+2026-08-07T12:06:31+01:00
+BISECT baseline close filing picker
+{"ok":true}
+BISECT baseline tap left half row icons
+{"ok":true}
+runtime/evidence/ef19-baseline-menu2.png
+11:06 Fr
+
+7
+
+* Unf
+
+d Notes.
+
+sat 7725
+
+o=
+
+o
+
+EES
+
+Emuess
+
+o=
+
+o=
+
+Emuess
+
+BN
+
+o=
+
+Y new]
+
+LRSS 9e
+
+»
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+2026-08-07T12:06:45+01:00
+BISECT baseline tap rightmost row action
+{"ok":true}
+runtime/evidence/ef19-baseline-menu3.png
+11:06
+
+U
+
+Notes
+
+sat 7725
+
+o=
+
+o
+
+CEES
+
+Emuess
+
+B printote
+
+P
+
+=2
+
+& Fax
+
+& Beam
+
+Emuess
+
+] pupiicate
+
+@ elete
+
+& Convertto Text
+
+BN
+
+& askal
+
+Q o*
+
+Extras InOut Names Dates Undo  Find  Assist
+
+B L D
+
+¥
+2026-08-07T12:07:20+01:00
+BISECT baseline Convert-to-Text before_posts=0
+{"ok":true}
+runtime/evidence/ef19-baseline-progress.png
+sat 7725
+
+o=
+
+o
+
+@Newton
+
+Sorry, aproblemhas occurred.
+
+(-48803)
+
+@ thusA
+
+o=
+
+e
+
+o=
+
+) Thu 87
+
+BN
+
+o=
+
+B
+
+(AT {new)
+
+»
+
+LRSS 9e
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+2026-08-07T12:07:33+01:00 BISECT baseline wait=10 posts=0
+2026-08-07T12:07:43+01:00 BISECT baseline wait=20 posts=0
+2026-08-07T12:07:53+01:00 BISECT baseline wait=30 posts=0
+2026-08-07T12:08:03+01:00 BISECT baseline wait=40 posts=0
+2026-08-07T12:08:13+01:00 BISECT baseline wait=50 posts=0
+2026-08-07T12:08:23+01:00 BISECT baseline wait=60 posts=0
+2026-08-07T12:08:33+01:00 BISECT baseline wait=70 posts=0
+2026-08-07T12:08:44+01:00 BISECT baseline wait=80 posts=0
+2026-08-07T12:08:54+01:00 BISECT baseline wait=90 posts=0
+2026-08-07T12:09:04+01:00 BISECT baseline wait=100 posts=0
+2026-08-07T12:09:14+01:00 BISECT baseline wait=110 posts=0
+2026-08-07T12:09:24+01:00 BISECT baseline wait=120 posts=0
+2026-08-07T12:09:34+01:00 BISECT baseline wait=130 posts=0
+2026-08-07T12:09:44+01:00 BISECT baseline wait=140 posts=0
+2026-08-07T12:09:54+01:00 BISECT baseline wait=150 posts=0
+2026-08-07T12:10:04+01:00 BISECT baseline wait=160 posts=0
+2026-08-07T12:10:15+01:00 BISECT baseline wait=170 posts=0
+2026-08-07T12:10:25+01:00 BISECT baseline wait=180 posts=0
+baseline_posts=0
+2026-08-07T12:10:46+01:00
+BISECT noprogress reset seed
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator_1
+2026-08-07T12:10:46+01:00 running/starting
+2026-08-07T12:10:51+01:00 running/starting
+2026-08-07T12:10:56+01:00 running/starting
+2026-08-07T12:11:01+01:00 running/healthy
+2026-08-07T12:11:08+01:00
+BISECT noprogress dismiss/install
+{"ok":true}
+queued
+
+BISECT noprogress open action menu
+{"ok":true}
+runtime/evidence/ef19-noprogress-menu.png
+2026-08-07T12:11:20+01:00
+BISECT noprogress Convert-to-Text before_posts=0
+{"ok":true}
+runtime/evidence/ef19-noprogress-after-tap.png
+ALY & Unfiled Notes W
+
+sat 7725
+
+o=
+
+o
+
+@Newton
+
+Sorry, aproblemhas occurred.
+
+(-48803)
+
+o=
+
+@ thusA
+
+——
+
+e,
+
+o=
+
+) Thu 87
+
+o=
+
+BN
+
+B
+
+(AT {new)
+
+»
+
+LRSS 9e
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+2026-08-07T12:11:32+01:00 BISECT noprogress wait=10 posts=0
+2026-08-07T12:11:43+01:00 BISECT noprogress wait=20 posts=0
+2026-08-07T12:11:53+01:00 BISECT noprogress wait=30 posts=0
+2026-08-07T12:12:03+01:00 BISECT noprogress wait=40 posts=0
+2026-08-07T12:12:13+01:00 BISECT noprogress wait=50 posts=0
+2026-08-07T12:12:23+01:00 BISECT noprogress wait=60 posts=0
+2026-08-07T12:12:33+01:00 BISECT noprogress wait=70 posts=0
+2026-08-07T12:12:43+01:00 BISECT noprogress wait=80 posts=0
+2026-08-07T12:12:54+01:00 BISECT noprogress wait=90 posts=0
+2026-08-07T12:13:04+01:00 BISECT noprogress wait=100 posts=0
+2026-08-07T12:13:14+01:00 BISECT noprogress wait=110 posts=0
+2026-08-07T12:13:24+01:00 BISECT noprogress wait=120 posts=0
+2026-08-07T12:13:34+01:00 BISECT noprogress wait=130 posts=0
+2026-08-07T12:13:44+01:00 BISECT noprogress wait=140 posts=0
+2026-08-07T12:13:54+01:00 BISECT noprogress wait=150 posts=0
+2026-08-07T12:14:04+01:00 BISECT noprogress wait=160 posts=0
+2026-08-07T12:14:14+01:00 BISECT noprogress wait=170 posts=0
+2026-08-07T12:14:25+01:00 BISECT noprogress wait=180 posts=0
+noprogress_posts=0
+2026-08-07T12:14:44+01:00
+BISECT noheader reset seed
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator_1
+2026-08-07T12:14:44+01:00 running/starting
+2026-08-07T12:14:49+01:00 running/starting
+2026-08-07T12:14:54+01:00 running/starting
+2026-08-07T12:14:59+01:00 running/healthy
+2026-08-07T12:15:06+01:00
+BISECT noheader dismiss/install
+{"ok":true}
+queued
+
+BISECT noheader open action menu
+{"ok":true}
+runtime/evidence/ef19-noheader-menu.png
+2026-08-07T12:15:18+01:00
+BISECT noheader Convert-to-Text before_posts=0
+{"ok":true}
+runtime/evidence/ef19-noheader-after-tap.png
+RALLLUL Y & Unfiled Notes W
+
+sat 7725
+
+o=
+
+i —
+
+o
+
+Sending page 1/8
+
+EES
+
+Emuess
+
+o=
+
+o=
+
+Emuess
+
+BN
+
+o=
+
+Y new]
+
+LRSS 9e
+
+»
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+2026-08-07T12:15:30+01:00 BISECT noheader wait=10 posts=2
+2026-08-07T12:15:41+01:00 BISECT noheader wait=20 posts=3
+2026-08-07T12:15:51+01:00 BISECT noheader wait=30 posts=5
+2026-08-07T12:16:01+01:00 BISECT noheader wait=40 posts=6
+2026-08-07T12:16:11+01:00 BISECT noheader wait=50 posts=8
+noheader_posts=8

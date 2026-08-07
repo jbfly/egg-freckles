@@ -25,16 +25,16 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef18_identity_is_named_for_a_human_and_mars_default_matches():
+def test_ef19_identity_is_named_for_a_human_and_mars_default_matches():
     # Track L1: the round tag lives in the identity and the version string, and
     # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF18:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef18";' in SOURCE
+    assert "kAppSymbol := '|EggFrecklesEF19:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef19";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF18:jbfly"' in PROJECT
-    assert "version: 30" in PROJECT
+    assert 'name: "EggFrecklesEF19:jbfly"' in PROJECT
+    assert "version: 31" in PROJECT
     # No dev cruft left in anything the human reads. Comments still name the
     # old packages for provenance, so this checks the display strings only:
     # every literal that reaches the screen as a title, a label or a button.
@@ -487,6 +487,10 @@ def test_ink_pages_log_build_and_send_milliseconds():
     assert 'Print("INKTIME page " & part & "/" & total & " build " & buildMS & " ms");' in SOURCE
     assert 'StrMunger(body, 536870911, nil, "T 000000 -1\\r\\n", 0, nil);' in SOURCE
     assert '"T " & buildMS & " -1\\r\\n"' in SOURCE
+    # EF18 called StrPos with two arguments here. NewtonOS requires the start
+    # offset, so Convert-to-Text raised -48803 before InetGrabLink or /ink.
+    assert "local at := StrPos(body, marker, 0);" in SOURCE
+    assert "local at := StrPos(body, marker);" not in SOURCE
     assert ":StampInkTime(encoded.body, buildMS);" in SOURCE
     assert ":StampInkTime(empty.body, buildMS);" in SOURCE
     assert "self.inkSendTicks := Ticks();" in SOURCE

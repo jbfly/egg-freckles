@@ -1,0 +1,104 @@
+2026-08-07T12:18:49+01:00
+FINAL reset EF13 proof flash
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator_1
+2026-08-07T12:18:49+01:00 running/starting
+2026-08-07T12:18:54+01:00 running/starting
+2026-08-07T12:18:59+01:00 running/starting
+2026-08-07T12:19:05+01:00 running/healthy
+2026-08-07T12:19:12+01:00
+FINAL dismiss card and install EF19
+{"ok":true}
+queued
+
+runtime/evidence/ef19-final-installed.png
+2026-08-07T12:19:20+01:00
+FINAL open first note action menu
+{"ok":true}
+runtime/evidence/ef19-final-menu.png
+RARLLLC— + Unfiled Notes &
+
+sat 7725
+
+o=
+
+o
+
+CEES
+
+Emuess
+
+B printote
+
+P
+
+=2
+
+& Fax
+
+& Beam
+
+Emuess
+
+] pupiicate
+
+@ elete
+
+& Convertto Text
+
+BN
+
+& askal
+
+Q o*
+
+Extras InOut Names Dates Undo  Find  Assist
+
+B L D
+
+¥
+2026-08-07T12:19:23+01:00
+FINAL Convert-to-Text before_posts=0
+{"ok":true}
+runtime/evidence/ef19-final-progress.png
+AL & Unfiled Notes W
+
+sat 7725
+
+o=
+
+i —
+
+o
+
+Sending page 1/8
+
+EES
+
+Emuess
+
+o=
+
+o=
+
+Emuess
+
+BN
+
+o=
+
+Y new]
+
+LRSS 9e
+
+»
+
+Extras InOut Names Dates Undo  Find  Assist
+
+¥
+2026-08-07T12:19:36+01:00 FINAL wait=10 posts=2 screen=AL & Unfiled Notes W  sat 7725  o=  i —  o  Sending page 2/8  EES  Emuess  o=  o=  Emuess  BN  o=  Y new]  LRSS 9e  »
+2026-08-07T12:19:47+01:00 FINAL wait=20 posts=3 screen=AL & Unfiled Notes W  sat 7725  o=  i —  o  Sending page 4/8  EES  Emuess  o=  o=  Emuess  BN  o=  Y new]  LRSS 9e  »
+2026-08-07T12:19:57+01:00 FINAL wait=30 posts=5 screen=AL & Unfiled Notes W  sat 7725  o=  i —  o  Sending page 5/8  EES  Emuess  o=  o=  Emuess  BN  o=  Y new]  LRSS 9e  »
+2026-08-07T12:20:07+01:00 FINAL wait=40 posts=6 screen=AL & Unfiled Notes W  sat 7725  o=  i —  o  Sending page 7/8  EES  Emuess  o=  o=  Emuess  BN  o=  Y new]  LRSS 9e  »
+2026-08-07T12:20:17+01:00 FINAL wait=50 posts=8 screen=RARLLLC— + Unfiled Notes &  sat 7725  o=  o  EES  Emuess  o=  Emuess  o=  ]  BN  o=  Q o*  Extras InOut Names Dates Un
+final_posts=8

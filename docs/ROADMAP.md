@@ -202,6 +202,14 @@ agent can complete one task and verify it.
   `try … onexception` so nothing of ours can throw into the FSM, and add a
   single retry-after-delay on bind failure. Einstein cannot reproduce this —
   its synthetic link never exercises the real InetManagerFSM.
+  **Resolved forward in EF19 (2026-08-07):** the later EF18 Convert-to-Text
+  `-48803` was not an `InetReleaseLink` race. Emulator bisect showed the progress
+  view disabled still failed (0 POSTs), while the `T` header disabled sent 8/8
+  parts. EF18's `StampInkTime` called `StrPos(body, marker)` without NewtonOS's
+  required start offset; EF19 uses `StrPos(body, marker, 0)`. Final stock-Notes
+  emulator proof retained the progress view and `T` header, sent 8/8 HTTP 200
+  parts, and showed no `-48803` (`docs/ef19-convert-regression.md`). The existing
+  endpoint-before-release, callback armor, and bind-retry rules remain pinned.
 - **2026-08-04 — Third hardware test: "Send to AI" filed the wrong note, fixed
   in `EggFrecklesEF5:jbfly` (v1.0-ef5); Egg Freckles now has an icon.** The
   human ran EF4 on the physical MP2000 and reported: *"Send to AI works, but

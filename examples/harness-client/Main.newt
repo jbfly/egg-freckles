@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF18:jbfly|;
-kVersion := "1.0-ef18";
+kAppSymbol := '|EggFrecklesEF19:jbfly|;
+kVersion := "1.0-ef19";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 
@@ -1728,7 +1728,9 @@ mainView := {
     StampInkTime: func(body, buildMS)
     begin
         local marker := "T 000000 -1\r\n";
-        local at := StrPos(body, marker);
+        // StrPos requires its start offset on NewtonOS 2.1. EF18 omitted it,
+        // raising -48803 while building the body, before InetGrabLink or /ink.
+        local at := StrPos(body, marker, 0);
         if at <> nil then StrMunger(body, at, StrLen(marker),
             "T " & buildMS & " -1\r\n", 0, nil);
         return body;

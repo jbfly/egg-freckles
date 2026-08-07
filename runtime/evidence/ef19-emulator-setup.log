@@ -1,0 +1,133 @@
+2026-08-07T11:51:57+01:00
+STEP create isolated ef19bisect instance
+instance   ef19bisect
+container  newton-harness-ef19bisect_emulator_1
+control    http://127.0.0.1:
+novnc      http://127.0.0.1:/vnc.html?autoconnect=1
+2026-08-07T11:52:00+01:00
+STEP wait healthy after create
+2026-08-07T11:52:00+01:00
+2026-08-07T11:52:05+01:00
+2026-08-07T11:52:11+01:00
+2026-08-07T11:52:16+01:00
+2026-08-07T11:52:21+01:00
+2026-08-07T11:52:26+01:00
+2026-08-07T11:52:31+01:00
+2026-08-07T11:52:37+01:00
+2026-08-07T11:52:42+01:00
+2026-08-07T11:52:47+01:00
+2026-08-07T11:52:52+01:00
+2026-08-07T11:52:57+01:00
+2026-08-07T11:53:03+01:00
+2026-08-07T11:53:08+01:00
+2026-08-07T11:53:13+01:00
+2026-08-07T11:53:18+01:00
+2026-08-07T11:53:23+01:00
+2026-08-07T11:53:29+01:00
+2026-08-07T11:53:34+01:00
+2026-08-07T11:53:39+01:00
+2026-08-07T11:53:44+01:00
+2026-08-07T11:53:49+01:00
+2026-08-07T11:53:55+01:00
+2026-08-07T11:54:00+01:00
+2026-08-07T11:54:05+01:00
+2026-08-07T11:54:10+01:00
+2026-08-07T11:54:15+01:00
+2026-08-07T11:54:21+01:00
+2026-08-07T11:54:26+01:00
+2026-08-07T11:54:31+01:00
+2026-08-07T11:54:36+01:00
+2026-08-07T11:54:41+01:00
+2026-08-07T11:54:46+01:00
+2026-08-07T11:54:51+01:00
+2026-08-07T11:54:56+01:00
+2026-08-07T11:55:41+01:00
+RECOVERY link ignored ROM/NIE assets into worktree
+runtime/nie2:
+total 0
+
+secrets/717006:
+total 4
+lrwxrwxrwx 1 jbfly jbfly 40 Aug  7 11:55 717006 -> /home/jbfly/newton-dev/prefix/bin/717006
+2026-08-07T11:55:41+01:00
+RECOVERY restart isolated container
+newton-harness-ef19bisect_emulator_1
+2026-08-07T11:55:42+01:00 stopped/starting
+2026-08-07T11:55:47+01:00 stopped/starting
+2026-08-07T11:55:53+01:00 stopped/starting
+2026-08-07T11:55:59+01:00 stopped/starting
+2026-08-07T11:56:04+01:00 stopped/starting
+2026-08-07T11:56:09+01:00 stopped/starting
+2026-08-07T11:56:15+01:00 stopped/starting
+2026-08-07T11:56:21+01:00 stopped/starting
+2026-08-07T11:56:26+01:00 stopped/starting
+2026-08-07T11:56:32+01:00 stopped/starting
+2026-08-07T11:56:37+01:00 stopped/starting
+2026-08-07T11:56:43+01:00 stopped/starting
+2026-08-07T11:56:49+01:00 stopped/starting
+2026-08-07T11:56:54+01:00 stopped/starting
+2026-08-07T11:56:59+01:00 stopped/starting
+2026-08-07T11:57:05+01:00 stopped/starting
+2026-08-07T11:57:11+01:00 stopped/starting
+2026-08-07T11:57:17+01:00 stopped/starting
+2026-08-07T11:57:22+01:00 stopped/starting
+2026-08-07T11:57:28+01:00 stopped/starting
+2026-08-07T11:57:33+01:00 stopped/starting
+2026-08-07T11:57:39+01:00 stopped/starting
+2026-08-07T11:57:44+01:00 stopped/starting
+2026-08-07T11:57:50+01:00 stopped/starting
+2026-08-07T11:58:14+01:00
+RECOVERY 2 replace empty mount directories with symlinks
+lrwxrwxrwx 1 jbfly jbfly 43 Aug  7 11:58 runtime/nie2 -> /home/jbfly/git/newton-harness/runtime/nie2
+lrwxrwxrwx 1 jbfly jbfly 40 Aug  7 11:58 secrets/717006 -> /home/jbfly/newton-dev/prefix/bin/717006
+2026-08-07T11:58:15+01:00 exited/starting
+2026-08-07T11:58:20+01:00 exited/starting
+2026-08-07T11:58:25+01:00 exited/starting
+2026-08-07T11:58:30+01:00 exited/starting
+2026-08-07T11:58:35+01:00 exited/starting
+2026-08-07T11:58:40+01:00 exited/starting
+2026-08-07T11:58:45+01:00 exited/starting
+2026-08-07T11:58:50+01:00 exited/starting
+2026-08-07T11:58:55+01:00 exited/starting
+2026-08-07T11:59:00+01:00 exited/starting
+2026-08-07T11:59:05+01:00 exited/starting
+2026-08-07T11:59:10+01:00 exited/starting
+2026-08-07T11:59:15+01:00 exited/starting
+2026-08-07T11:59:20+01:00 exited/starting
+2026-08-07T11:59:25+01:00 exited/starting
+2026-08-07T11:59:30+01:00 exited/starting
+2026-08-07T11:59:35+01:00 exited/starting
+2026-08-07T11:59:40+01:00 exited/starting
+2026-08-07T11:59:45+01:00 exited/starting
+2026-08-07T11:59:50+01:00 exited/starting
+2026-08-07T11:59:55+01:00 exited/starting
+2026-08-07T12:00:00+01:00 exited/starting
+2026-08-07T12:00:05+01:00 exited/starting
+2026-08-07T12:00:11+01:00 exited/starting
+2026-08-07T12:00:34+01:00
+RECOVERY 3 recreate isolated instance with real ROM file
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator-state
+84147d628ae3b743e2a9ad6a2e17405369a1d459f9661f7e079c0d3477200964
+newton-harness-ef19bisect_default
+-r--r--r-- 1 jbfly jbfly 8388608 Aug  7 12:00 secrets/717006
+instance   ef19bisect
+container  newton-harness-ef19bisect_emulator_1
+control    http://127.0.0.1:38249
+novnc      http://127.0.0.1:53455/vnc.html?autoconnect=1
+2026-08-07T12:00:37+01:00 running/starting
+2026-08-07T12:00:42+01:00 running/starting
+2026-08-07T12:00:47+01:00 running/starting
+2026-08-07T12:00:52+01:00 running/healthy
+2026-08-07T12:00:52+01:00
+STEP copy EF13 proof flash
+8f37d609d46711ea2ce1d748ed52fbd4b3f4f88fd86e6c90b654fb21fdb1508a  /tmp/ef19bisect-seed.flash
+newton-harness-ef19bisect_emulator_1
+newton-harness-ef19bisect_emulator_1
+2026-08-07T12:00:53+01:00 running/starting
+2026-08-07T12:00:58+01:00 running/starting
+2026-08-07T12:01:03+01:00 running/starting
+2026-08-07T12:01:08+01:00 running/healthy
+runtime/evidence/ef19bisect-boot.png
+DONE 2026-08-07T12:01:16+01:00
