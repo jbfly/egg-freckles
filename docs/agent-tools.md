@@ -13,9 +13,9 @@ demo (D3)". Since Track G2 the same is true of the build-and-test surface:
 `build_pkg`, `emulator_install`, `emulator_newtonscript`, `emulator_screen` and
 `emulator_tap` were driven by an agent to build a new app and prove it works on
 screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). That historical build
-used `examples/`; the new writable-workspace path is source-tested here and
-awaits a separate bounded emulator proof. Only `emulator_text` and
-`emulator_key` are still exercised by tests alone.
+used `examples/`; the confined writable-workspace path is now emulator-proven
+too (`docs/agent-dev-loop.md`, "Workspace plumbing proven 2026-08-07"). Only
+`emulator_text` and `emulator_key` are still exercised by tests alone.
 The old agent-facing `stage_hw` tool was removed when writes were confined to
 the dedicated workspace; physical staging remains a human host procedure.
 
@@ -200,6 +200,36 @@ the shared-emulator refusal is asserted for all five mutating tools and shown
 to lift under `NEWTON_ALLOW_SHARED=1`, and `newton_mcp.http_request` is
 monkeypatched for the `newton_tool` URL/body assertion and the
 `emulator_screen` image encoding. Suite total: 45 passed.
+
+## Writable-workspace package plumbing — emulator-proven 2026-08-07
+
+The package-authoring tools were called directly over MCP JSON-RPC against an
+isolated `pkgproof0807b` emulator restored from the known-good EF13 proof flash
+(SHA-256 `8f37d609d46711ea2ce1d748ed52fbd4b3f4f88fd86e6c90b654fb21fdb1508a`).
+The instance used the emulator image rebuilt from this checkout and mounted
+this checkout's `runtime/agent-workspace` read-only at `/agent-workspace`.
+
+`create_project` made `hello-agent-0807b` with never-used identity
+`HelloAgent0807B:jbfly`; `write_source` wrote a complete 579-byte `Main.newt`;
+and `build_pkg` returned
+`/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg`. The host package was
+1,120 bytes (SHA-256
+`4887dd0e565746cc185e89d442ca5bb6c09c9a88c70fc8a36d2cca27fb2a3c03`), existed
+only below `runtime/agent-workspace`, and before/after hashes showed no change
+to `examples/` or any repository file outside the workspace and evidence
+directory. `emulator_install` returned `queued`, launching
+`GetRoot().|HelloAgent0807B:jbfly|:Open();` returned `queued`, and
+`emulator_screen` showed the **HelloAgent** window with “HelloAgent is alive!”
+visible.
+
+Evidence: [`pkgproof0807b-mcp-transcript.jsonl`](../runtime/evidence/pkgproof0807b-mcp-transcript.jsonl)
+contains every MCP request and response;
+[`pkgproof0807b-identity-build.txt`](../runtime/evidence/pkgproof0807b-identity-build.txt)
+records identity, package path, size, checksum, and containment checks; and
+[`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launched.png)
+is the screenshot returned by `emulator_screen`. This proves the plumbing, not
+a real Egg Freckles chat turn in which the agent itself selects these tools and
+generates valid source; that chat-agent behavior remains separate work.
 
 ## The live demo (D3) — 2026-08-03
 

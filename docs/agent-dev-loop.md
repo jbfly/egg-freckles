@@ -137,6 +137,37 @@ writing anything that touches the network. The ones that bite plain UI apps:
 | Arbitrary `Compile(string)` | `-48808`, undefined global; there is no eval on this ROM | fixed operations only (`docs/newtonscript-eval.md`) |
 | Reinstalling the same identity | `-10402 Package already exists` | step 4 |
 
+## Workspace plumbing proven 2026-08-07
+
+The current steps 3–8 are **emulator-proven** through direct MCP JSON-RPC calls,
+not only source tests. Isolated instance `pkgproof0807b` used the known-good
+EF13 proof flash rather than a blank first-run flash; after replacement it
+reached healthy in 15 seconds. Its image was rebuilt from commit `a70a7dd`, and
+container inspection confirmed this checkout's `runtime/agent-workspace` was
+mounted at `/agent-workspace` with `rw=false`.
+
+| # | call | result |
+|---|---|---|
+| 1 | `create_project` for `hello-agent-0807b`, identity `HelloAgent0807B:jbfly` | created the confined project |
+| 2 | `write_source` with complete `Main.newt` | wrote 579 bytes; title `HelloAgent Plumbing Proof` |
+| 3 | `build_pkg {"dir":"runtime/agent-workspace/hello-agent-0807b"}` | built 1,120-byte package and returned `/agent-workspace/hello-agent-0807b/hello-agent-0807b.pkg` |
+| 4 | `emulator_install` with that returned path | `queued` |
+| 5 | `emulator_newtonscript` opening `HelloAgent0807B:jbfly` | `queued` |
+| 6 | `emulator_screen` | 320×480 PNG showing “HelloAgent is alive!” |
+
+The package SHA-256 was
+`4887dd0e565746cc185e89d442ca5bb6c09c9a88c70fc8a36d2cca27fb2a3c03` and no
+copy existed outside `runtime/agent-workspace`. Before/after hashes were
+identical for `examples/` and for repository files outside the workspace and
+`runtime/evidence`. Evidence:
+[`pkgproof0807b-mcp-transcript.jsonl`](../runtime/evidence/pkgproof0807b-mcp-transcript.jsonl),
+[`pkgproof0807b-identity-build.txt`](../runtime/evidence/pkgproof0807b-identity-build.txt),
+and [`pkgproof0807b-07-launched.png`](../runtime/evidence/pkgproof0807b-07-launched.png).
+
+This proof called the plumbing directly. A real Egg Freckles chat turn in which
+the agent itself chooses `create_project`/`write_source`, generates valid
+NewtonScript, and completes the loop remains to be proven separately.
+
 ## Proven 2026-08-03 (Track G2)
 
 **An agent ran this loop end to end and the app worked on the first build.**
@@ -148,8 +179,8 @@ instance `gloop` is already up and seeded; use the MCP tools. Steps 1–2 were
 done for it by the supervising session; steps 3–8 it did itself, unaided.
 
 Six MCP calls, all successful, no retries and no intervention. This is
-historical proof of the old examples-writing path; the current confined
-workspace path still needs the bounded emulator proof:
+historical proof of the old examples-writing path; the confined workspace path
+was subsequently emulator-proven in the 2026-08-07 round above:
 
 | # | call | result |
 |---|---|---|

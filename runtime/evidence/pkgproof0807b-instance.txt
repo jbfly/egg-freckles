@@ -1,0 +1,9 @@
+branch=release/pkg-write-fix
+commit=a70a7dd59e74280eff35de90a3cf42e614990e22
+8f37d609d46711ea2ce1d748ed52fbd4b3f4f88fd86e6c90b654fb21fdb1508a  /tmp/ef19bisect-seed.flash
+container=newton-harness-pkgproof0807b_emulator_1 image=localhost/newton-harness-dev:local image_id=3e00dc6df37a388f2cab5152042ec409d61882b710303787e23d6b65f1b4ae10 status=running health=healthy
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/examples  ->  /packages  rw= false
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/agent-workspace  ->  /agent-workspace  rw= false
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/runtime/nie2  ->  /nie2  rw= false
+/home/jbfly/git/newton-harness-worktrees/rel-pkgwrite/secrets/717006  ->  /rom/717006  rw= false
+control_socket_patch_marker=/state/einstein-control.sock present

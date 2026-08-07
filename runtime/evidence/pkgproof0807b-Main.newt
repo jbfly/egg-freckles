@@ -1,0 +1,24 @@
+kAppSymbol := '|HelloAgent0807B:jbfly|;
+kAppTitle := "HelloAgent Plumbing Proof";
+kVersion := "0.1-proof0807b";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 24, top: 120, right: 296, bottom: 220},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 16, top: 18, right: 250, bottom: 54},
+            text: "HelloAgent is alive!",
+            viewFont: ROM_fontSystem12Bold,
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

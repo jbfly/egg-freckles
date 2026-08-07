@@ -1,0 +1,20 @@
+[BEFORE MCP create_project] 2026-08-07T14:21:23+01:00
+[AFTER MCP create_project rc=0] 2026-08-07T14:21:23+01:00
+[BEFORE MCP write_source] 2026-08-07T14:21:35+01:00
+[AFTER MCP write_source rc=0] 2026-08-07T14:21:35+01:00
+[BEFORE MCP build_pkg] 2026-08-07T14:21:42+01:00
+[AFTER MCP build_pkg rc=0] 2026-08-07T14:21:43+01:00
+[BEFORE build-containment-check] 2026-08-07T14:21:59+01:00
+[AFTER repeat-build-containment-check] 2026-08-07T14:22:16+01:00
+[BEFORE MCP emulator_install] 2026-08-07T14:22:32+01:00
+[AFTER MCP emulator_install rc=0 queued_required=yes] 2026-08-07T14:22:32+01:00
+[BEFORE install-settle] 2026-08-07T14:22:42+01:00
+[AFTER install-settle] 2026-08-07T14:22:46+01:00
+[BEFORE MCP emulator_newtonscript] 2026-08-07T14:22:46+01:00
+[AFTER MCP emulator_newtonscript rc=0] 2026-08-07T14:22:46+01:00
+[BEFORE launch-settle] 2026-08-07T14:22:55+01:00
+[AFTER launch-settle] 2026-08-07T14:22:58+01:00
+[BEFORE MCP emulator_screen] 2026-08-07T14:22:58+01:00
+[AFTER MCP emulator_screen rc=0] 2026-08-07T14:22:58+01:00
+[BEFORE screenshot-verdict] 2026-08-07T14:23:10+01:00
+[AFTER screenshot-verdict] 2026-08-07T14:23:10+01:00
