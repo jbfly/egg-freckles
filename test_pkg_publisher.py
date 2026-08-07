@@ -285,6 +285,40 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
+    def test_ink_part_ack_does_not_wait_for_interpretation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with pkg_publisher.make_server(
+                "127.0.0.1", 0, ink_path=Path(tmp) / "ink.png"
+            ) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                started, release = threading.Event(), threading.Event()
+
+                def vision(path, _hint, _mode):
+                    if path.name.endswith("01.png"):
+                        started.set()
+                        self.assertTrue(release.wait(2))
+                    return path.stem[-2:]
+
+                try:
+                    page = "NSI1 320 480 1\r\nP {} 02\r\nS 2 10 20 20 30\r\n"
+                    with mock.patch.object(pkg_publisher, "interpret", side_effect=vision):
+                        status, _, response, _ = self.fetch(
+                            port, "/ink", "POST", page.format("01").encode()
+                        )
+                        self.assertTrue(started.wait(1))
+                        self.assertEqual((status, response), (200, b"INKP 01 02\r\n"))
+                        release.set()
+                        status, _, response, _ = self.fetch(
+                            port, "/ink", "POST", page.format("02").encode()
+                        )
+                    self.assertEqual((status, response), (200, b"INK 01 02\r\n"))
+                finally:
+                    release.set()
+                    server.shutdown()
+                    thread.join()
+
     def test_ink_render(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ink_path = Path(tmp) / "ink.png"

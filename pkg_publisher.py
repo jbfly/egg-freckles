@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import threading
 import zlib
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -53,6 +54,7 @@ ASK_INK_PROMPT = (
 INK_HINT_PROMPT = " The drawing is accompanied by this note text: "
 INK_HINT_LIMIT = 200
 INK_TIMEOUT = 120
+INK_WORKERS = 8
 MODEL_HOST = os.environ.get("NEWTON_MODEL_HOST", "127.0.0.1")
 MODEL_PORT = int(os.environ.get("NEWTON_MODEL_PORT", "6801"))
 MODEL_TIMEOUT = 120
@@ -251,7 +253,7 @@ def interpret(png_path: Path, hint: str = "", mode: str = "ask") -> str:
     # failure gets diagnosed (the hardware 502 was codex missing from PATH).
     print(f"INK PROMPT {prompt!r}", flush=True)
     # ponytail: one blocking subprocess, same boring shape as server.py CodexBackend.
-    # Measured ~9 s, well inside the client's timeout, so no job queue or polling.
+    # Multipart callers run these in the server's bounded worker pool.
     with tempfile.TemporaryDirectory(prefix="newton-ink-") as tmp:
         proc = subprocess.run(
             [_codex_bin(), "exec", "--sandbox", "read-only", "--skip-git-repo-check",
@@ -274,6 +276,14 @@ def interpret(png_path: Path, hint: str = "", mode: str = "ask") -> str:
     if not reading:
         raise RuntimeError("no model text")
     return reading
+
+
+def read_ink(png_path: Path | None, hint: str, mode: str) -> str:
+    if png_path is not None:
+        return interpret(png_path, hint, mode)
+    if mode == "text":
+        return hint
+    return ask_model(hint)
 
 
 def save_ink_png(path: Path, strokes: list[list[tuple[int, int]]]) -> None:
@@ -420,18 +430,17 @@ class PublisherHandler(BaseHTTPRequestHandler):
         print(f"INK BODY mode={mode}{part_text} bytes={length} strokes={stroke_count} "
               f"points={points}{rate}", flush=True)
 
-        # ponytail: one ordered multipart stream is enough because the Newton
-        # sends the next page only after INKP closes this HTTP/1.0 response.
+        # ponytail: one ordered multipart stream per Newton IP is enough.
         key = self.client_address[0]
         if part:
             index, total = part
             with self.server.ink_lock:
                 current = self.server.ink_parts.get(key)
                 if index == 1:
-                    current = {"total": total, "mode": mode, "readings": []}
+                    current = {"total": total, "mode": mode, "futures": []}
                     self.server.ink_parts[key] = current
                 elif (current is None or current["total"] != total
-                      or current["mode"] != mode or len(current["readings"]) + 1 != index):
+                      or current["mode"] != mode or len(current["futures"]) + 1 != index):
                     self._send_bytes(HTTPStatus.BAD_REQUEST, b"invalid ink part\n",
                                      "text/plain; charset=us-ascii")
                     return
@@ -443,35 +452,31 @@ class PublisherHandler(BaseHTTPRequestHandler):
         if strokes:
             png_path.parent.mkdir(parents=True, exist_ok=True)
             save_ink_png(png_path, strokes)
-        try:
-            # Zero strokes need no PNG: Convert returns the already-usable note
-            # text, while Ask keeps the existing plain model turn.
-            if strokes:
-                reading = interpret(png_path, hint, mode)
-            elif mode == "text":
-                reading = hint
-            else:
-                reading = ask_model(hint)
-            status = HTTPStatus.OK
-        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
-            reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
-            if part:
-                with self.server.ink_lock:
-                    self.server.ink_parts.pop(key, None)
-
-        if part and status == HTTPStatus.OK:
-            index, total = part
+        # Passing only the saved path lets this handler release the decoded
+        # strokes as soon as its response closes.
+        reading_path = png_path if strokes else None
+        if part:
+            future = self.server.ink_workers.submit(read_ink, reading_path, hint, mode)
             with self.server.ink_lock:
                 current = self.server.ink_parts[key]
-                current["readings"].append(reading)
-                if index < total:
-                    response = f"INKP {index:02d} {total:02d}\r\n"
-                else:
-                    response = f"INK {ascii_line(' '.join(current['readings']), 900)}\r\n"
-                    del self.server.ink_parts[key]
-            self._send_bytes(status, response.encode("ascii"),
-                             "text/plain; charset=us-ascii")
-            return
+                current["futures"].append(future)
+                futures = list(current["futures"])
+            if index < total:
+                self._send_bytes(HTTPStatus.OK, f"INKP {index:02d} {total:02d}\r\n".encode(),
+                                 "text/plain; charset=us-ascii")
+                return
+            try:
+                reading = ascii_line(" ".join(item.result() for item in futures), 900)
+                status = HTTPStatus.OK
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
+            with self.server.ink_lock:
+                self.server.ink_parts.pop(key, None)
+        else:
+            try:
+                reading, status = read_ink(reading_path, hint, mode), HTTPStatus.OK
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                reading, status = ascii_line(f"No reading: {exc}", 80), HTTPStatus.BAD_GATEWAY
 
         # ponytail: "INK " prefix is all the client needs to tell the body
         # apart from the HTTP header lines its endpoint also delivers.
@@ -634,8 +639,14 @@ class PublisherServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], handler: type[PublisherHandler]) -> None:
         self.tools = ToolBroker()
         self.ink_lock = threading.Lock()
+        # ponytail: eight workers cover the measured six-part note without an unbounded process burst.
+        self.ink_workers = ThreadPoolExecutor(max_workers=INK_WORKERS)
         self.ink_parts: dict[str, dict[str, object]] = {}
         super().__init__(address, handler)
+
+    def server_close(self) -> None:
+        self.ink_workers.shutdown(wait=True, cancel_futures=True)
+        super().server_close()
 
 
 def make_server(
