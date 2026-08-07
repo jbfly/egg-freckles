@@ -1,0 +1,5 @@
+STATUS POST-HANG CAPTURE 2026-08-07T09:53:57,188054116+01:00
+{"status":"ready","window_id":2097158,"display":":99","newton_screen":{"width":320,"height":480,"window_offset":{"x":0,"y":78}},"window":{"x":1,"y":20,"width":320,"height":558,"screen":0}}
+ls: cannot access '/state/einstein-ns-result': No such file or directory
+srw------- 1 newton newton 0 Aug  6 23:46 /state/einstein-control.sock
+name=newton-harness-ef13fix_emulator_1 cpu=1.2220157053894205 mem=34.86MB / 33.57GB
