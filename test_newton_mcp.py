@@ -150,3 +150,53 @@ def test_build_pkg_refuses_paths_outside_examples(monkeypatch):
         result = newton_mcp.call_tool("build_pkg", {"dir": value})
         assert result["isError"] is True
         assert "examples/" in result["content"][0]["text"]
+
+
+def test_build_pkg_allows_only_sandboxed_agent_workspace(monkeypatch, tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    project = workspace / "my-app"
+    project.mkdir(parents=True)
+    seen = {}
+
+    def fake_make(args):
+        seen["args"] = args
+        (project / "my-app.pkg").write_bytes(b"pkg")
+        return 0, "built"
+
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+    monkeypatch.setattr(newton_mcp, "run_make", fake_make)
+    monkeypatch.setattr(newton_mcp.shutil, "which", lambda name: "/usr/bin/bwrap")
+    result = newton_mcp.call_tool("build_pkg", {"dir": str(project)})
+
+    assert result["isError"] is False
+    assert seen["args"][:5] == ["/usr/bin/bwrap", "--ro-bind", "/", "/", "--bind"]
+    assert "--unshare-net" in seen["args"]
+    assert seen["args"][-3:] == ["make", "-C", str(project)]
+    assert "/agent-workspace/my-app/my-app.pkg" in result["content"][0]["text"]
+
+
+def test_build_pkg_refuses_workspace_symlink_escape(monkeypatch, tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    outside = tmp_path / "outside"
+    workspace.mkdir()
+    outside.mkdir()
+    (workspace / "escape").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+    monkeypatch.setattr(
+        newton_mcp, "run_make",
+        lambda args: (_ for _ in ()).throw(AssertionError("make must not run")))
+
+    result = newton_mcp.call_tool("build_pkg", {"dir": str(workspace / "escape")})
+    assert result["isError"] is True
+    assert "examples/ or runtime/agent-workspace/" in result["content"][0]["text"]
+
+
+def test_emulator_install_refuses_parent_traversal(monkeypatch):
+    monkeypatch.setenv("NEWTON_ALLOW_SHARED", "1")
+    monkeypatch.setattr(
+        newton_mcp, "http_request",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("HTTP must not run")))
+    result = newton_mcp.call_tool(
+        "emulator_install", {"pkg_path": "/agent-workspace/../secret.pkg"})
+    assert result["isError"] is True
+    assert "without '..'" in result["content"][0]["text"]

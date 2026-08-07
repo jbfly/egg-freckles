@@ -30,6 +30,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -38,6 +39,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 EXAMPLES_DIR = REPO_ROOT / "examples"
+AGENT_WORKSPACE = (REPO_ROOT / "runtime" / "agent-workspace").resolve()
 SERVER_NAME = "newton"
 SERVER_VERSION = "1.0.0"
 DEFAULT_PROTOCOL = "2025-06-18"
@@ -138,14 +140,31 @@ def guard_shared(action: str, shared: bool) -> None:
         "env only if a human has said the shared emulator is yours.")
 
 
-def example_dir(arguments: dict, field: str) -> Path:
+def directory_under(arguments: dict, field: str, root: Path, label: str) -> Path:
     value = want_str(arguments, field)
     path = (REPO_ROOT / value).resolve()
-    if path == EXAMPLES_DIR or EXAMPLES_DIR not in path.parents:
-        raise ToolError(f"{field} must name a directory under examples/, got {value!r}")
+    if path == root or root not in path.parents:
+        raise ToolError(f"{field} must name a directory under {label}, got {value!r}")
     if not path.is_dir():
         raise ToolError(f"no such directory: {value}")
     return path
+
+
+def example_dir(arguments: dict, field: str) -> Path:
+    return directory_under(arguments, field, EXAMPLES_DIR, "examples/")
+
+
+def build_dir(arguments: dict) -> tuple[Path, bool]:
+    value = want_str(arguments, "dir")
+    path = (REPO_ROOT / value).resolve()
+    for root, writable in ((EXAMPLES_DIR, False), (AGENT_WORKSPACE, True)):
+        if path != root and root in path.parents:
+            if not path.is_dir():
+                raise ToolError(f"no such directory: {value}")
+            return path, writable
+    raise ToolError(
+        "dir must name a project under examples/ or "
+        f"runtime/agent-workspace/, got {value!r}")
 
 
 def run_make(args: list[str]) -> tuple[int, str]:
@@ -258,17 +277,32 @@ def tool_emulator_newtonscript(arguments: dict) -> dict:
 
 def tool_emulator_install(arguments: dict) -> dict:
     pkg_path = want_str(arguments, "pkg_path")
-    if not pkg_path.startswith("/packages/"):
+    if (not pkg_path.startswith(("/packages/", "/agent-workspace/"))
+            or ".." in Path(pkg_path).parts):
         raise ToolError(
-            "pkg_path must be a path inside the emulator under /packages/ "
-            "(the read-only mount of examples/), e.g. "
-            "/packages/hello/hello.pkg -- docs/install-paths.md row 1")
+            "pkg_path must be under /packages/ or /agent-workspace/ without '..', e.g. "
+            "/packages/hello/hello.pkg or "
+            "/agent-workspace/my-app/my-app.pkg -- "
+            "docs/install-paths.md row 1")
     return control_text(arguments, f"install {pkg_path}", "/install", pkg_path)
 
 
 def tool_build_pkg(arguments: dict) -> dict:
-    path = example_dir(arguments, "dir")
-    code, output = run_make(["make", "-C", str(path)])
+    path, writable = build_dir(arguments)
+    command = ["make", "-C", str(path)]
+    if writable:
+        bwrap = shutil.which("bwrap")
+        if not bwrap:
+            raise ToolError(
+                "building agent-authored projects requires bubblewrap (bwrap) "
+                "to keep writes inside runtime/agent-workspace/")
+        command = [
+            bwrap, "--ro-bind", "/", "/",
+            "--bind", str(AGENT_WORKSPACE), str(AGENT_WORKSPACE),
+            "--unshare-net", "--die-with-parent", "--chdir", str(REPO_ROOT),
+            *command,
+        ]
+    code, output = run_make(command)
     pkg = path / f"{path.name}.pkg"
     if not pkg.exists():
         candidates = sorted(path.glob("*.pkg"))
@@ -276,7 +310,11 @@ def tool_build_pkg(arguments: dict) -> dict:
     if code != 0 or not pkg.exists():
         return text_result(f"build failed (make exited {code})\n{tail(output)}",
                            is_error=True)
-    return text_result(f"{pkg}\n{tail(output, 400)}")
+    location = str(pkg)
+    if writable:
+        relative = pkg.relative_to(AGENT_WORKSPACE)
+        location += f"\nemulator path: /agent-workspace/{relative}"
+    return text_result(f"{location}\n{tail(output, 400)}")
 
 
 def tool_stage_hw(arguments: dict) -> dict:
@@ -396,14 +434,15 @@ TOOLS: list[dict] = [
         "name": "emulator_install",
         "description": (
             "Install a package into an emulator. pkg_path is a path as the "
-            "emulator sees it, under /packages/ (the read-only mount of "
-            "examples/) -- not an upload. Refused on the shared emulator "
+            "emulator sees it, under /packages/ -- either the read-only "
+            "examples mount or the read-only /agent-workspace mount. This is a path, "
+            "not an upload. Refused on the shared emulator "
             "without an instance. There is no tool that installs onto the "
             "physical Newton; use stage_hw and let a human finish."),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "pkg_path": {"type": "string", "description": "/packages/<dir>/<name>.pkg"},
+                "pkg_path": {"type": "string", "description": "/packages/<dir>/<name>.pkg or /agent-workspace/<dir>/<name>.pkg"},
                 "instance": {"type": "string"},
             },
             "required": ["pkg_path"],
@@ -414,12 +453,14 @@ TOOLS: list[dict] = [
         "name": "build_pkg",
         "description": (
             "Build one package with the host toolchain: runs `make -C <dir>` "
-            "for a directory under examples/. Returns the built .pkg path, or "
-            "the compiler error text if the build failed."),
+            "for a project under examples/ or runtime/agent-workspace/. "
+            "Agent-workspace builds run in a no-network bubblewrap sandbox "
+            "where only that workspace is writable. Returns the built .pkg "
+            "path, including its emulator path, or compiler errors."),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "dir": {"type": "string", "description": "e.g. examples/hello"},
+                "dir": {"type": "string", "description": "e.g. examples/hello or runtime/agent-workspace/my-app"},
             },
             "required": ["dir"],
         },

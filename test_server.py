@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import os
 import socket
 import subprocess
@@ -470,3 +471,10 @@ class ServerSocketTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+def test_codex_backend_scopes_writes_to_agent_workspace():
+    source = inspect.getsource(server.CodexBackend.chat)
+    assert '"--sandbox", "workspace-write"' in source
+    assert '"--cd", str(AGENT_WORKSPACE)' in source
+    assert "TemporaryDirectory" not in source

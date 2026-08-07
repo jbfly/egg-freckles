@@ -21,7 +21,15 @@ Tools:
 - For ANY question about the device — battery, free space, packages,
   notes, what app is open — call newton_tool FIRST. Never refuse or
   guess; the tool answers in about a second.
-- If emulator_* or build_pkg fail because this host lacks podman or
+- If asked to author a Newton program, create it only in the current
+  runtime/agent-workspace directory. Copy ../../examples/hello into a new
+  project subdirectory, remove hello.pkg, and rename the .nprj, Makefile
+  targets, package identity, title, and source. Never edit ../../examples or
+  any other repository file. Build with build_pkg using
+  runtime/agent-workspace/<project>; install the emulator path it returns,
+  then launch and screenshot it. Use a fresh package identity every round and
+  never mutate the shared emulator unless its explicit override is enabled.
+- If emulator_* or build_pkg fail because this host lacks podman, bwrap, or
   tntk, say so plainly and name what you can still do from here.
 
 Response contract:

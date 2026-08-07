@@ -56,7 +56,7 @@ index 41a8a8ce..765d3b86 100644
  // FLTK user interface
  #include <FL/Fl.H>
  #include <FL/Fl_Button.H>
-@@ -269,10 +275,140 @@ static const char* tfl_file_chooser(const char* message, const char* pat, const
+@@ -269,10 +275,142 @@ static const char* tfl_file_chooser(const char* message, const char* pat, const
  // Local Classes
  // -------------------------------------------------------------------------- //
  
@@ -120,8 +120,10 @@ index 41a8a8ce..765d3b86 100644
 +	{
 +		std::string path = command.substr(8);
 +		struct stat status;
-+		if (path.compare(0, 10, "/packages/") != 0 || path.find("..") != std::string::npos)
-+			ReplyControlClient(fd, "error install path must be under /packages/ without ..");
++		if ((path.compare(0, 10, "/packages/") != 0 &&
++			 path.compare(0, 17, "/agent-workspace/") != 0) ||
++			path.find("..") != std::string::npos)
++			ReplyControlClient(fd, "error install path must be under /packages/ or /agent-workspace/ without ..");
 +		else if (::stat(path.c_str(), &status) != 0 || !S_ISREG(status.st_mode))
 +			ReplyControlClient(fd, "error package is not a readable regular file");
 +		else
@@ -197,7 +199,7 @@ index 41a8a8ce..765d3b86 100644
  
  /**
   Constructor for the app.
-@@ -415,12 +551,15 @@ TFLApp::Run(int argc, char* argv[])
+@@ -415,12 +553,15 @@ TFLApp::Run(int argc, char* argv[])
  		// }
  	}
  	// launch the actual emulation in the background
