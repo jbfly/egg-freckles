@@ -280,3 +280,30 @@ remain. The O(n) optimization is abandoned until a correctly sized NewtonScript
 string can be produced without relying on embedded zeroes. Hardware validation
 remains gated: install EF17, invoke both Notes envelope actions on an ink note,
 confirm `/ink` POSTs and the five-second idle radio disconnect.
+
+
+## EF18 remote per-page timing — measurement before encoder work
+
+EF18 leaves the EF17 `Clone`/`StrMunger` stroke and delta encoder unchanged and
+adds one fixed optional line to the existing NSI1 header block:
+
+```text
+T <build_ms> -1
+```
+
+`build_ms` is measured around the existing `EncodeInk` call and stamped into a
+placeholder after the body is complete (`examples/harness-client/Main.newt:1668-
+1735,1769-1807`). `send_ms` is `-1` because the body must be transmitted before
+that page's send duration exists; the existing Newton-only post/response timing
+print remains. The publisher accepts older bodies with no `T`, validates EF18's
+fixed three-field line, and prints one server line per received part:
+
+```text
+INKTIME page n/total build X send -1
+```
+
+The parser and log are pinned at `pkg_publisher.py:370-440` and
+`test_pkg_publisher.py::PublisherTest::test_ink_timing_line_is_parsed_and_logged`.
+Hardware remains human-gated: the next MP2000 Convert-to-Text run should put the
+per-page build numbers in the Mars publisher log; those measurements decide
+whether EF19 changes the encoder.

@@ -174,6 +174,36 @@ class PublisherTest(unittest.TestCase):
                     server.shutdown()
                     thread.join()
 
+    def test_ink_timing_line_is_parsed_and_logged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with pkg_publisher.make_server(
+                "127.0.0.1", 0, ink_path=Path(tmp) / "ink.png"
+            ) as server:
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.start()
+                body = (b"NSI1 320 480 1\r\nM text\r\nP 02 02\r\n"
+                        b"T 187 -1\r\nS 2 10 20 20 30\r\n")
+                try:
+                    with mock.patch.object(pkg_publisher, "interpret", return_value="done"), \
+                            mock.patch("builtins.print") as printed:
+                        # Seed part 1 so the publisher accepts ordered part 2.
+                        first = body.replace(b"P 02 02", b"P 01 02").replace(b"T 187", b"T 99")
+                        self.fetch(port, "/ink", "POST", first)
+                        status, _, _, _ = self.fetch(port, "/ink", "POST", body)
+                    self.assertEqual(status, 200)
+                    lines = [call.args[0] for call in printed.call_args_list if call.args]
+                    self.assertIn("INKTIME page 1/2 build 99 send -1", lines)
+                    self.assertIn("INKTIME page 2/2 build 187 send -1", lines)
+
+                    for timing in (b"T -1 -1", b"T 10 0", b"T 10 -1 extra"):
+                        bad = (b"NSI1 320 480 1\r\n" + timing
+                               + b"\r\nS 2 10 20 20 30\r\n")
+                        self.assertEqual(self.fetch(port, "/ink", "POST", bad)[0], 400)
+                finally:
+                    server.shutdown()
+                    thread.join()
+
     def test_ink_hint_line_is_optional_and_reaches_the_prompt(self) -> None:
         """A mixed note is ONE request: S lines for the strokes, one H line for the text."""
         with tempfile.TemporaryDirectory() as tmp:

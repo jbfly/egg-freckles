@@ -368,9 +368,9 @@ class PublisherHandler(BaseHTTPRequestHandler):
             if (canvas_width, canvas_height) != (320, 480) or stroke_count < 0:
                 raise ValueError
             # NSI1 grammar: header, optional M mode, optional P part/total,
-            # optional H text, then exactly stroke_count S lines. P mirrors the
-            # chat MSGP index protocol; single-page EF8 bodies have no P line.
-            body_lines, hint, mode, part = lines[1:], "", "ask", None
+            # optional H text, optional fixed T timing, then exactly stroke_count
+            # S lines. P mirrors MSGP; older clients omit T.
+            body_lines, hint, mode, part, timing = lines[1:], "", "ask", None, None
             if body_lines and body_lines[0].startswith("M "):
                 mode = body_lines[0][2:]
                 if mode not in ("text", "ask"):
@@ -389,6 +389,15 @@ class PublisherHandler(BaseHTTPRequestHandler):
                 hint = body_lines[0][2:]
                 if not 0 < len(hint) <= INK_HINT_LIMIT or not hint.isprintable():
                     raise ValueError
+                body_lines = body_lines[1:]
+            if body_lines and body_lines[0].startswith("T "):
+                fields = body_lines[0].split()
+                if len(fields) != 3:
+                    raise ValueError
+                build_ms, send_ms = map(int, fields[1:])
+                if not 0 <= build_ms <= 600000 or send_ms != -1:
+                    raise ValueError
+                timing = (build_ms, send_ms)
                 body_lines = body_lines[1:]
             if len(body_lines) != stroke_count:
                 raise ValueError
@@ -425,6 +434,10 @@ class PublisherHandler(BaseHTTPRequestHandler):
         # test's truncation bug was invisible here precisely because nothing
         # logged how much geometry a body carried.
         points = sum(len(stroke) for stroke in strokes)
+        if timing is not None:
+            timing_part = part or (1, 1)
+            print(f"INKTIME page {timing_part[0]}/{timing_part[1]} "
+                  f"build {timing[0]} send {timing[1]}", flush=True)
         rate = f" bytes_per_point={length / points:.2f}" if points else ""
         part_text = f" part={part[0]}/{part[1]}" if part else ""
         print(f"INK BODY mode={mode}{part_text} bytes={length} strokes={stroke_count} "

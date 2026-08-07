@@ -485,6 +485,10 @@ def test_oversize_ink_body_retries_at_half_budget():
 def test_ink_pages_log_build_and_send_milliseconds():
     assert "local buildStart := Ticks();" in SOURCE
     assert 'Print("INKTIME page " & part & "/" & total & " build " & buildMS & " ms");' in SOURCE
+    assert 'StrMunger(body, 536870911, nil, "T 000000 -1\\r\\n", 0, nil);' in SOURCE
+    assert '"T " & buildMS & " -1\\r\\n"' in SOURCE
+    assert ":StampInkTime(encoded.body, buildMS);" in SOURCE
+    assert ":StampInkTime(empty.body, buildMS);" in SOURCE
     assert "self.inkSendTicks := Ticks();" in SOURCE
     assert '" send " & sendMS & " ms"' in SOURCE
     assert "self.inkSendTicks := nil;" in SOURCE

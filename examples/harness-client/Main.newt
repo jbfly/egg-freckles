@@ -1683,6 +1683,9 @@ mainView := {
             "P " & :SeqText(part) & " " & :SeqText(total) & "\r\n", 0, nil);
         if (hint <> nil) and (StrLen(hint) > 0) then
             StrMunger(body, 536870911, nil, "H " & hint & "\r\n", 0, nil);
+        // The fixed placeholder is stamped after encoding, when buildMS exists.
+        // This request cannot know its own send duration yet, so -1 is explicit.
+        StrMunger(body, 536870911, nil, "T 000000 -1\r\n", 0, nil);
         foreach points in fitted.strokes do
         begin
             local line := Clone("S ");
@@ -1722,6 +1725,15 @@ mainView := {
         return encoded;
     end,
 
+    StampInkTime: func(body, buildMS)
+    begin
+        local marker := "T 000000 -1\r\n";
+        local at := StrPos(body, marker);
+        if at <> nil then StrMunger(body, at, StrLen(marker),
+            "T " & buildMS & " -1\r\n", 0, nil);
+        return body;
+    end,
+
     // Build exactly one body, then clear the source stroke references it used.
     // The next body is not allocated until INKP has acknowledged this one.
     EncodeInkPage: func(hint, mode, part, total)
@@ -1759,6 +1771,7 @@ mainView := {
         local buildMS := ((Ticks() - buildStart) * 1000) div 60;
         Print("INKTIME page " & part & "/" & total & " build " & buildMS & " ms");
         if encoded = nil then return nil;
+        :StampInkTime(encoded.body, buildMS);
         local release := start;
         while release < index do
         begin
@@ -1784,8 +1797,12 @@ mainView := {
         if total < 1 then
         begin
             if (hint = nil) or (StrLen(hint) < 1) then return nil;
+            local buildStart := Ticks();
             local empty := :EncodeInk([], 0, hint, mode, 1, 1);
+            local buildMS := ((Ticks() - buildStart) * 1000) div 60;
+            Print("INKTIME page 1/1 build " & buildMS & " ms");
             if empty = nil then return nil;
+            :StampInkTime(empty.body, buildMS);
             self.inkTotalParts := 1;
             return empty.body;
         end;
