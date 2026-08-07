@@ -1,0 +1,54 @@
+kAppSymbol := '|MarsTTT0807R3:nwtn|;
+kAppTitle := "Mars Tic-Tac-Toe";
+kVersion := "0.1-r3";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 36, top: 72, right: 284, bottom: 330},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 58, top: 18, right: 190, bottom: 44},
+            text: "Tic-Tac-Toe",
+            viewFont: ROM_fontSystem12Bold,
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 72, top: 62, right: 176, bottom: 84},
+            text: "   |   |   ",
+            viewFont: ROM_fontSystem12,
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 72, top: 86, right: 176, bottom: 108},
+            text: "---+---+---",
+            viewFont: ROM_fontSystem12,
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 72, top: 110, right: 176, bottom: 132},
+            text: "   |   |   ",
+            viewFont: ROM_fontSystem12,
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 72, top: 134, right: 176, bottom: 156},
+            text: "---+---+---",
+            viewFont: ROM_fontSystem12,
+        },
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 72, top: 158, right: 176, bottom: 180},
+            text: "   |   |   ",
+            viewFont: ROM_fontSystem12,
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

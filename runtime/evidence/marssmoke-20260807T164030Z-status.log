@@ -1,0 +1,20 @@
+[2026-08-07T06:40:30-10:00] BEFORE preflight
+[2026-08-07T06:40:30-10:00] AFTER preflight
+[2026-08-07T06:40:30-10:00] BEFORE isolated instance start (timeout 120s)
+[2026-08-07T06:41:00-10:00] AFTER isolated instance start
+[2026-08-07T06:41:00-10:00] health poll 1: healthy
+[2026-08-07T06:41:01-10:00] AFTER fresh instance ready
+[2026-08-07T06:41:01-10:00] BEFORE real native chat package turn (timeout 420s)
+[2026-08-07T06:41:31-10:00] STATUS real native chat package turn: still running (30s)
+[2026-08-07T06:42:01-10:00] STATUS real native chat package turn: still running (60s)
+[2026-08-07T06:42:31-10:00] STATUS real native chat package turn: still running (90s)
+[2026-08-07T06:43:01-10:00] STATUS real native chat package turn: still running (120s)
+[2026-08-07T06:43:31-10:00] STATUS real native chat package turn: still running (150s)
+[2026-08-07T06:44:01-10:00] AFTER real native chat package turn
+[2026-08-07T06:44:01-10:00] BEFORE smoke evidence verification
+[2026-08-07T06:44:01-10:00] AFTER smoke evidence verification
+[2026-08-07T06:44:01-10:00] BEFORE teardown
+[2026-08-07T06:44:02-10:00] AFTER teardown
+[2026-08-07T06:44:02-10:00] BEFORE final live-state verification
+[2026-08-07T06:44:02-10:00] AFTER final live-state verification: recovery_used=0 evidence=/home/jbfly/git/newton-harness/runtime/evidence/marssmoke-20260807T164030Z
+[2026-08-07T06:44:02-10:00] FINAL SMOKE PASS

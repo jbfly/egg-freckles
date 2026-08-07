@@ -1,0 +1,430 @@
+[
+     {
+          "Id": "ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf",
+          "Created": "2026-08-07T06:40:31.734796389-10:00",
+          "Path": "/usr/bin/tini",
+          "Args": [
+               "--",
+               "/opt/newton/bin/emulator-entrypoint"
+          ],
+          "State": {
+               "OciVersion": "1.3.0",
+               "Status": "running",
+               "Running": true,
+               "Paused": false,
+               "Restarting": false,
+               "OOMKilled": false,
+               "Dead": false,
+               "Pid": 198071,
+               "ConmonPid": 198056,
+               "ExitCode": 0,
+               "Error": "",
+               "StartedAt": "2026-08-07T06:40:32.075667393-10:00",
+               "FinishedAt": "0001-01-01T00:00:00Z",
+               "Health": {
+                    "Status": "healthy",
+                    "FailingStreak": 0,
+                    "Log": [
+                         {
+                              "Start": "2026-08-07T06:40:32.145738706-10:00",
+                              "End": "2026-08-07T06:40:32.402241588-10:00",
+                              "ExitCode": 1,
+                              "Output": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)\n                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/urllib/request.py\", line 189, in urlopen\n    return opener.open(url, data, timeout)\n           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/urllib/request.py\", line 495, in open\n    response = meth"
+                         },
+                         {
+                              "Start": "2026-08-07T06:40:42.824587001-10:00",
+                              "End": "2026-08-07T06:40:42.989632512-10:00",
+                              "ExitCode": 0,
+                              "Output": ""
+                         },
+                         {
+                              "Start": "2026-08-07T06:40:53.826765526-10:00",
+                              "End": "2026-08-07T06:40:53.987746779-10:00",
+                              "ExitCode": 0,
+                              "Output": ""
+                         }
+                    ]
+               },
+               "CgroupPath": "/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf.scope",
+               "CheckpointedAt": "0001-01-01T00:00:00Z",
+               "RestoredAt": "0001-01-01T00:00:00Z"
+          },
+          "Image": "a10c957828206e9df00ed3e474e900f10c512824a7e195040abe806b3cbce107",
+          "ImageDigest": "sha256:68e76fab74aa401c97fcdf1b8e070ccfac9ab1b03abd4006de0fdd8624d8711d",
+          "ImageName": "localhost/newton-harness-dev:local",
+          "Rootfs": "",
+          "Pod": "",
+          "ResolvConfPath": "/run/user/1000/containers/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata/resolv.conf",
+          "HostnamePath": "/run/user/1000/containers/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata/hostname",
+          "HostsPath": "/run/user/1000/containers/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata/hosts",
+          "StaticDir": "/home/jbfly/.local/share/containers/storage/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata",
+          "OCIConfigPath": "/home/jbfly/.local/share/containers/storage/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata/config.json",
+          "OCIRuntime": "runc",
+          "ConmonPidFile": "/run/user/1000/containers/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata/conmon.pid",
+          "PidFile": "/run/user/1000/containers/overlay-containers/ae179435707642a14f3f7bfe1b3d04d736b17b6e5d5ae6b011f823f04269d4cf/userdata/pidfile",
+          "Name": "newton-harness-marspkg0807c_emulator_1",
+          "RestartCount": 0,
+          "Driver": "overlay",
+          "MountLabel": "",
+          "ProcessLabel": "",
+          "AppArmorProfile": "",
+          "EffectiveCaps": null,
+          "BoundingCaps": [
+               "CAP_CHOWN",
+               "CAP_DAC_OVERRIDE",
+               "CAP_FOWNER",
+               "CAP_FSETID",
+               "CAP_KILL",
+               "CAP_NET_BIND_SERVICE",
+               "CAP_SETFCAP",
+               "CAP_SETGID",
+               "CAP_SETPCAP",
+               "CAP_SETUID",
+               "CAP_SYS_CHROOT"
+          ],
+          "ExecIDs": [],
+          "GraphDriver": {
+               "Name": "overlay",
+               "Data": {
+                    "LowerDir": "/home/jbfly/.local/share/containers/storage/overlay/193548675c9a33bd32df5eb6ad3aedf309a70e1eadf2801916754ba93cdf6e12/diff:/home/jbfly/.local/share/containers/storage/overlay/17dbb4ee386a18cea1955ed9da3bfd87e010ab535fbd28bf69ad325db48d53c1/diff:/home/jbfly/.local/share/containers/storage/overlay/a3ef89e19320d1f2c7677de6e0a404182c024d53ad2d025ce64a4965d481e0f4/diff:/home/jbfly/.local/share/containers/storage/overlay/5f12a89f469a2cdd8b04d41060abf5dc627fa2578d3f0a8f50fd7e9646ba7b33/diff:/home/jbfly/.local/share/containers/storage/overlay/30d0ca047d62feb6b46cbd7af8c57f0dbcee94f04b88298e1edd3edafbc963a8/diff:/home/jbfly/.local/share/containers/storage/overlay/44e7f9cf1ffdd63a0f0a3a6cb98b9075a20f55cbff53f50dcb6b6a2e9cd9a2de/diff:/home/jbfly/.local/share/containers/storage/overlay/6f6310e6b05c645edbe06c7e2cf1132bbf8399acd833e5cc7eddf15663b8946a/diff:/home/jbfly/.local/share/containers/storage/overlay/e5d7cd013d0cb45d2d5156bd18e71b1a79fac9adbad6fcd5cc5b0860e32e2c13/diff:/home/jbfly/.local/share/containers/storage/overlay/131b1cbc19a990affdd0209909fb49a16f650d470bec5a09f7a3f182ffffbf31/diff:/home/jbfly/.local/share/containers/storage/overlay/6f94328331290cbd81edab450664d42da7b64c191416c9346cd5d28c84f76035/diff",
+                    "MergedDir": "/home/jbfly/.local/share/containers/storage/overlay/897f4faa1e852cbdf944e91bcd4bcf436e3dede4e46ce91a9df063bd3ed890fb/merged",
+                    "UpperDir": "/home/jbfly/.local/share/containers/storage/overlay/897f4faa1e852cbdf944e91bcd4bcf436e3dede4e46ce91a9df063bd3ed890fb/diff",
+                    "WorkDir": "/home/jbfly/.local/share/containers/storage/overlay/897f4faa1e852cbdf944e91bcd4bcf436e3dede4e46ce91a9df063bd3ed890fb/work"
+               }
+          },
+          "Mounts": [
+               {
+                    "Type": "volume",
+                    "Name": "newton-harness-marspkg0807c_emulator-state",
+                    "Source": "/home/jbfly/.local/share/containers/storage/volumes/newton-harness-marspkg0807c_emulator-state/_data",
+                    "Destination": "/state",
+                    "Driver": "local",
+                    "Mode": "",
+                    "Options": [
+                         "nosuid",
+                         "nodev",
+                         "rbind"
+                    ],
+                    "RW": true,
+                    "Propagation": "rprivate"
+               },
+               {
+                    "Type": "bind",
+                    "Source": "/home/jbfly/git/newton-harness/examples",
+                    "Destination": "/packages",
+                    "Driver": "",
+                    "Mode": "",
+                    "Options": [
+                         "rbind"
+                    ],
+                    "RW": false,
+                    "Propagation": "rprivate"
+               },
+               {
+                    "Type": "bind",
+                    "Source": "/home/jbfly/git/newton-harness/runtime/agent-workspace",
+                    "Destination": "/agent-workspace",
+                    "Driver": "",
+                    "Mode": "",
+                    "Options": [
+                         "rbind"
+                    ],
+                    "RW": false,
+                    "Propagation": "rprivate"
+               },
+               {
+                    "Type": "bind",
+                    "Source": "/home/jbfly/git/newton-harness/runtime/nie2",
+                    "Destination": "/nie2",
+                    "Driver": "",
+                    "Mode": "",
+                    "Options": [
+                         "rbind"
+                    ],
+                    "RW": false,
+                    "Propagation": "rprivate"
+               },
+               {
+                    "Type": "bind",
+                    "Source": "/home/jbfly/newton-dev/prefix/bin/717006",
+                    "Destination": "/rom/717006",
+                    "Driver": "",
+                    "Mode": "",
+                    "Options": [
+                         "rbind"
+                    ],
+                    "RW": false,
+                    "Propagation": "rprivate"
+               }
+          ],
+          "Dependencies": [],
+          "NetworkSettings": {
+               "EndpointID": "",
+               "Gateway": "",
+               "IPAddress": "",
+               "IPPrefixLen": 0,
+               "IPv6Gateway": "",
+               "GlobalIPv6Address": "",
+               "GlobalIPv6PrefixLen": 0,
+               "MacAddress": "",
+               "Bridge": "",
+               "SandboxID": "",
+               "HairpinMode": false,
+               "LinkLocalIPv6Address": "",
+               "LinkLocalIPv6PrefixLen": 0,
+               "Ports": {
+                    "6080/tcp": [
+                         {
+                              "HostIp": "127.0.0.1",
+                              "HostPort": "53919"
+                         }
+                    ],
+                    "8080/tcp": [
+                         {
+                              "HostIp": "127.0.0.1",
+                              "HostPort": "55463"
+                         }
+                    ]
+               },
+               "SandboxKey": "/run/user/1000/netns/netns-7b52f440-9ab9-0e6f-ead8-d520de7f0908",
+               "Networks": {
+                    "newton-harness-marspkg0807c_default": {
+                         "EndpointID": "",
+                         "Gateway": "10.89.0.1",
+                         "IPAddress": "10.89.0.2",
+                         "IPPrefixLen": 24,
+                         "IPv6Gateway": "",
+                         "GlobalIPv6Address": "",
+                         "GlobalIPv6PrefixLen": 0,
+                         "MacAddress": "ce:9a:c8:b9:cb:80",
+                         "NetworkID": "38464867e0c41407fcb5d9fbf76a18b87f170c3791e7bcd9b719a2a0b1e5ca00",
+                         "DriverOpts": null,
+                         "IPAMConfig": null,
+                         "Links": null,
+                         "Aliases": [
+                              "newton-harness-marspkg0807c_emulator_1",
+                              "emulator",
+                              "ae1794357076"
+                         ]
+                    }
+               }
+          },
+          "Namespace": "",
+          "IsInfra": false,
+          "IsService": false,
+          "KubeExitCodePropagation": "invalid",
+          "lockNumber": 3,
+          "Config": {
+               "Hostname": "ae1794357076",
+               "Domainname": "",
+               "User": "newton",
+               "AttachStdin": false,
+               "AttachStdout": false,
+               "AttachStderr": false,
+               "Tty": false,
+               "OpenStdin": false,
+               "StdinOnce": false,
+               "Env": [
+                    "container=podman",
+                    "NEWTON_SCREEN_WIDTH=320",
+                    "DISPLAY=:99",
+                    "NEWTON_SCREEN_HEIGHT=480",
+                    "HOME=/state/home",
+                    "NEWTON_SCREEN_TOP=78",
+                    "NEWTON_ENABLE_VNC=1",
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "LD_LIBRARY_PATH=/usr/local/lib",
+                    "PYTHONUNBUFFERED=1",
+                    "XDG_RUNTIME_DIR=/tmp/newton-runtime",
+                    "HOSTNAME=ae1794357076"
+               ],
+               "Cmd": null,
+               "Image": "localhost/newton-harness-dev:local",
+               "Volumes": null,
+               "WorkingDir": "/",
+               "Entrypoint": [
+                    "/usr/bin/tini",
+                    "--",
+                    "/opt/newton/bin/emulator-entrypoint"
+               ],
+               "OnBuild": null,
+               "Labels": {
+                    "com.docker.compose.config-hash": "905ed423cc2b715d0d556544aa706c04b302ca5065e4c7ba867f312630f78115",
+                    "com.docker.compose.container-number": "1",
+                    "com.docker.compose.depends_on": "",
+                    "com.docker.compose.image": "sha256:a10c957828206e9df00ed3e474e900f10c512824a7e195040abe806b3cbce107",
+                    "com.docker.compose.image.builder": "classic",
+                    "com.docker.compose.oneoff": "False",
+                    "com.docker.compose.project": "newton-harness-marspkg0807c",
+                    "com.docker.compose.project.config_files": "/home/jbfly/git/newton-harness/compose.yaml",
+                    "com.docker.compose.project.working_dir": "/home/jbfly/git/newton-harness",
+                    "com.docker.compose.service": "emulator",
+                    "com.docker.compose.version": "5.4.0",
+                    "io.buildah.version": "1.44.1"
+               },
+               "Annotations": {
+                    "io.container.manager": "libpod",
+                    "io.podman.annotations.userns": "keep-id",
+                    "org.opencontainers.image.stopSignal": "15",
+                    "org.systemd.property.KillSignal": "15",
+                    "org.systemd.property.TimeoutStopUSec": "uint64 15000000"
+               },
+               "StopSignal": "SIGTERM",
+               "Healthcheck": {
+                    "Test": [
+                         "CMD",
+                         "python3",
+                         "-c",
+                         "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"
+                    ],
+                    "Interval": 10000000000,
+                    "Timeout": 3000000000,
+                    "Retries": 12
+               },
+               "HealthcheckOnFailureAction": "none",
+               "HealthLogDestination": "local",
+               "HealthcheckMaxLogCount": 5,
+               "HealthcheckMaxLogSize": 500,
+               "Umask": "0000",
+               "Timeout": 0,
+               "StopTimeout": 15,
+               "Passwd": true,
+               "ExposedPorts": {
+                    "6080/tcp": {},
+                    "8080/tcp": {}
+               }
+          },
+          "HostConfig": {
+               "Binds": [
+                    "newton-harness-marspkg0807c_emulator-state:/state:rw,rprivate,nosuid,nodev,rbind",
+                    "/home/jbfly/git/newton-harness/examples:/packages:ro,rprivate,rbind",
+                    "/home/jbfly/git/newton-harness/runtime/agent-workspace:/agent-workspace:ro,rprivate,rbind",
+                    "/home/jbfly/git/newton-harness/runtime/nie2:/nie2:ro,rprivate,rbind",
+                    "/home/jbfly/newton-dev/prefix/bin/717006:/rom/717006:ro,rprivate,rbind"
+               ],
+               "CgroupManager": "systemd",
+               "CgroupMode": "private",
+               "ContainerIDFile": "",
+               "LogConfig": {
+                    "Type": "journald",
+                    "Config": null,
+                    "Path": "",
+                    "Tag": "",
+                    "Size": "-1B"
+               },
+               "NetworkMode": "bridge",
+               "PortBindings": {
+                    "6080/tcp": [
+                         {
+                              "HostIp": "127.0.0.1",
+                              "HostPort": "53919"
+                         }
+                    ],
+                    "8080/tcp": [
+                         {
+                              "HostIp": "127.0.0.1",
+                              "HostPort": "55463"
+                         }
+                    ]
+               },
+               "RestartPolicy": {
+                    "Name": "unless-stopped",
+                    "MaximumRetryCount": 0
+               },
+               "AutoRemove": false,
+               "AutoRemoveImage": false,
+               "Annotations": {
+                    "io.container.manager": "libpod",
+                    "io.podman.annotations.userns": "keep-id",
+                    "org.opencontainers.image.stopSignal": "15",
+                    "org.systemd.property.KillSignal": "15",
+                    "org.systemd.property.TimeoutStopUSec": "uint64 15000000"
+               },
+               "VolumeDriver": "",
+               "VolumesFrom": null,
+               "CapAdd": [],
+               "CapDrop": [],
+               "Dns": [],
+               "DnsOptions": null,
+               "DnsSearch": null,
+               "ExtraHosts": null,
+               "HostsFile": "none",
+               "GroupAdd": null,
+               "IpcMode": "shareable",
+               "Cgroup": "",
+               "Cgroups": "default",
+               "Links": null,
+               "OomScoreAdj": 200,
+               "PidMode": "private",
+               "Privileged": false,
+               "PublishAllPorts": false,
+               "ReadonlyRootfs": false,
+               "SecurityOpt": [],
+               "Tmpfs": {},
+               "UTSMode": "private",
+               "UsernsMode": "private",
+               "IDMappings": {
+                    "UidMap": [
+                         "0:1:1000",
+                         "1000:0:1",
+                         "1001:1001:64536"
+                    ],
+                    "GidMap": [
+                         "0:1:1000",
+                         "1000:0:1",
+                         "1001:1001:64536"
+                    ]
+               },
+               "ShmSize": 268435456,
+               "Runtime": "oci",
+               "ConsoleSize": [
+                    0,
+                    0
+               ],
+               "Isolation": "",
+               "CpuShares": 0,
+               "Memory": 0,
+               "NanoCpus": 0,
+               "CgroupParent": "user.slice",
+               "BlkioWeight": 0,
+               "BlkioWeightDevice": null,
+               "BlkioDeviceReadBps": null,
+               "BlkioDeviceWriteBps": null,
+               "BlkioDeviceReadIOps": null,
+               "BlkioDeviceWriteIOps": null,
+               "CpuPeriod": 0,
+               "CpuQuota": 0,
+               "CpuRealtimePeriod": 0,
+               "CpuRealtimeRuntime": 0,
+               "CpusetCpus": "",
+               "CpusetMems": "",
+               "Devices": [],
+               "DiskQuota": 0,
+               "KernelMemory": 0,
+               "MemoryReservation": 0,
+               "MemorySwap": 0,
+               "MemorySwappiness": null,
+               "OomKillDisable": false,
+               "PidsLimit": 2048,
+               "Ulimits": [
+                    {
+                         "Name": "RLIMIT_NOFILE",
+                         "Soft": 524288,
+                         "Hard": 524288
+                    },
+                    {
+                         "Name": "RLIMIT_NPROC",
+                         "Soft": 119708,
+                         "Hard": 119708
+                    }
+               ],
+               "CpuCount": 0,
+               "CpuPercent": 0,
+               "IOMaximumIOps": 0,
+               "IOMaximumBandwidth": 0,
+               "CgroupConf": null
+          },
+          "UseImageHosts": false,
+          "UseImageHostname": false
+     }
+]

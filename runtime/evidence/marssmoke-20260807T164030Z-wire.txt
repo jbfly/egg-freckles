@@ -1,0 +1,19 @@
+C> ~NEWTONCLI 1
+C> :00 HELLO NEWTON1 mars-deploy*AD
+S> ACK 00
+S> :00 STAT READY*51
+C> ACK 00
+C> :01 MSG Make a small tic-tac-toe Newton app in isolated instance marspkg0807c. Fresh project mars-ttt-0807-r3, identity MarsTTT0807R3:nwtn. Build, install, launch, and verify on screen. A static 3x3 grid is enough.*43
+S> ACK 01
+S> :01 STAT THINKING*39
+C> ACK 01
+S> :02 TEXT Done. mars-ttt-0807-r3 was built,*9C
+C> ACK 02
+S> :03 TEXT installed, and launched in marspkg0807c.*F7
+C> ACK 03
+S> :04 TEXT The screen shows the Tic-Tac-Toe title and*CE
+C> ACK 04
+S> :05 TEXT a static 3x3 grid.*E5
+C> ACK 05
+S> :06 PROMPT*68
+C> ACK 06

@@ -1,0 +1,10 @@
+[4m>>>> Executing external compose provider "/usr/lib/docker/cli-plugins/docker-compose". Please see podman-compose(1) for how to disable this message. <<<<
+
+[0m Container newton-harness-marspkg0807c_emulator_1 Stopping 
+ Container newton-harness-marspkg0807c_emulator_1 Stopped 
+ Container newton-harness-marspkg0807c_emulator_1 Removing 
+ Container newton-harness-marspkg0807c_emulator_1 Removed 
+ Volume newton-harness-marspkg0807c_emulator-state Removing 
+ Network newton-harness-marspkg0807c_default Removing 
+ Network newton-harness-marspkg0807c_default Removed 
+ Volume newton-harness-marspkg0807c_emulator-state Removed 

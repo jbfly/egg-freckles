@@ -1,0 +1,18 @@
+[4m>>>> Executing external compose provider "/usr/lib/docker/cli-plugins/docker-compose". Please see podman-compose(1) for how to disable this message. <<<<
+
+[0m Network newton-harness-marspkg0807c_default Creating 
+ Network newton-harness-marspkg0807c_default Creating 
+ Volume newton-harness-marspkg0807c_emulator-state Creating 
+ Volume newton-harness-marspkg0807c_emulator-state Creating 
+ Network newton-harness-marspkg0807c_default Created 
+ Network newton-harness-marspkg0807c_default Created 
+ Volume newton-harness-marspkg0807c_emulator-state Created 
+ Volume newton-harness-marspkg0807c_emulator-state Created 
+ Container newton-harness-marspkg0807c_emulator_1 Creating 
+ Container newton-harness-marspkg0807c_emulator_1 Created 
+ Container newton-harness-marspkg0807c_emulator_1 Starting 
+ Container newton-harness-marspkg0807c_emulator_1 Started 
+instance   marspkg0807c
+container  newton-harness-marspkg0807c_emulator_1
+control    http://127.0.0.1:55463
+novnc      http://127.0.0.1:53919/vnc.html?autoconnect=1
