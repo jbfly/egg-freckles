@@ -62,6 +62,10 @@ Battery wins over passive push.
 
 ## Status / sequencing
 
+- **Section A.1-A.3 are source-complete.** The client now opens as a full-screen
+  `protoApp`, the redundant Ask/Save panel buttons are gone, and the measured
+  failed ROM-arrow path remains replaced by the proven custom Up/Dn row scroller.
+  **A.4 remains a follow-up:** Ask replies are not filed back into the source note.
 - **Section B is source-complete in EF14.** `InstallScript` only installs the
   Notes routes (`examples/harness-client/Main.newt:1848-1937,3374-3376`), and
   opening the app leaves the radio off (`Main.newt:554-561`). Chat and ink sends

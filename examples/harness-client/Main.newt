@@ -1,6 +1,6 @@
 // "Egg Freckles" is the product, not a round number: one package the human
-// installs once, carrying the chat window, the Ask/Save Note bridge to stock
-// Notes, AND the fixed-op /tools channel that used to be a second package
+// installs once, carrying the chat window, the stock Notes actions, AND the
+// fixed-op /tools channel that used to be a second package
 // (`HarnessToolsR10P`, deleted in this round). Two packages was the first
 // complaint of the second hardware test; a second tools app also meant two NIE
 // clients fighting for one broker slot and raising `Communications` alerts.
@@ -11,11 +11,6 @@ kAppSymbol := '|EggFrecklesEF14:jbfly|;
 kVersion := "1.0-ef14";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
-
-// The window is centred at setup time from the live root box instead of being
-// hardcoded, so it lands in the middle of whatever screen the ROM reports.
-kWinWidth := 304;
-kWinHeight := 428;
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -336,30 +331,15 @@ noteAgent := {
 };
 
 mainView := {
-    _proto: protoFloatNGo,
-    // Replaced at setup time by :CenterBounds(); these are the fallback if the
-    // root view will not report a box.
-    viewBounds: {left: 8, top: 26, right: 312, bottom: 454},
-    // No viewFlags override. The eighteenth finding's open experiment — "would
-    // adding vApplication make the ROM's scroll arrows work?" — was run in this
-    // round and the answer is NO, measured rather than assumed:
-    //
-    //   viewFlags 580 (vFloating + vClickable + vApplication) went in, the live
-    //   window read 581 with vVisible added, the root view's own flags are 5 so
-    //   the parent chain qualifies, ViewScrollUpScript/ViewScrollDownScript were
-    //   supplied and both worked when called directly (scrollRow 0 -> 10) —
-    //   and tapping the ROM's up arrow at (309,461) changed **nothing at all**:
-    //   zero pixels, scrollRow still 0. The same tap scrolls the Notepad when
-    //   this window is closed, so the hit point is right.
-    //
-    // The mechanism is documented: scroll routing resolves like
-    // 'viewFrontMostApp, "not including floating views (those with vFloating set
-    // in their viewFlags slot)" (refs/NewtonProgrammerRef20.txt:4510-4512). A
-    // floating window is excluded by definition, flag or no flag — which the
-    // tools channel confirms from the other side, because front_app still
-    // answers "Notepad (paperroll)" while this window is open. The transcript
-    // therefore keeps its own Up/Dn buttons, and the scroll scripts are gone
-    // rather than shipped dead.
+    // Full-screen application by explicit user choice. protoApp supplies
+    // vApplication without vFloating; ViewSetupFormScript fills the ROM's app
+    // area instead of centring a floating panel over Notes.
+    _proto: protoApp,
+    viewBounds: {left: 0, top: 0, right: 320, bottom: 480},
+    // The ROM arrows were tried on the old floating root: direct scroll methods
+    // worked, but arrow taps were routed to Notepad because floating views are
+    // excluded (refs/NewtonProgrammerRef20.txt:4510-4512). Keep the proven Up/Dn
+    // row window rather than claiming native scrolling without a device proof.
     title: kAppTitle,
     appSymbol: kAppSymbol,
     endpointClass: {_proto: protoBasicEndpoint},
@@ -476,36 +456,17 @@ mainView := {
     askMenuTitle: kAskMenuTitle,
     menuIcon: kAppIcon,
     hookTries: kHookTries,
-    winWidth: kWinWidth,
-    winHeight: kWinHeight,
     // The physical build always uses Mars. An emulator round may override this
     // slot through ns_eval without rebuilding or changing the package identity.
     serverAddress: [10, 42, 0, 1],
     serverPort: 6801,
 
-    // viewBounds has to be final before the view is laid out, which is what
-    // ViewSetupFormScript is for. A9 shipped a hardcoded box; the human's
-    // second hardware test said the window loads off-centre, and a constant can
-    // only ever be centred on the one screen it was measured against.
     ViewSetupFormScript: func()
     begin
-        :CenterBounds();
+        local box := GetAppParams();
+        self.viewBounds := {left: box.appAreaLeft, top: box.appAreaTop,
+            right: box.appAreaWidth, bottom: box.appAreaHeight};
         inherited:?ViewSetupFormScript();
-    end,
-
-    CenterBounds: func()
-    begin
-        local box := nil;
-        try box := GetRoot():LocalBox() onexception |evt.ex| do box := nil;
-        if box = nil then return nil;
-        local wide := box.right - box.left;
-        local high := box.bottom - box.top;
-        if (wide < self.winWidth) or (high < self.winHeight) then return nil;
-        local left := box.left + ((wide - self.winWidth) div 2);
-        local top := box.top + ((high - self.winHeight) div 2);
-        self.viewBounds := {left: left, top: top,
-            right: left + self.winWidth, bottom: top + self.winHeight};
-        return nil;
     end,
 
     ViewSetupDoneScript: func()
@@ -3333,23 +3294,7 @@ mainView := {
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
         },
-        // One button, one meaning: send the newest note, whatever kind it is.
-        // It is labelled "Ask Note" rather than "Ask" because the human's
-        // second hardware test said the bare verbs did not say what they act
-        // on — "Send" sends what you typed, "Ask Note" asks about your newest
-        // note, "Save Note" saves the answer.
-        {
-            _proto: protoTextButton,
-            viewBounds: {left: 14, top: 388, right: 110, bottom: 410},
-            text: "Ask Note",
-            buttonClickScript: func() self:Parent():Ask(),
-        },
-        {
-            _proto: protoTextButton,
-            viewBounds: {left: 118, top: 388, right: 214, bottom: 410},
-            text: "Save Note",
-            buttonClickScript: func() self:Parent():SaveNote(),
-        },
+        // Filing Ask replies back into their source note remains a follow-up.
     ],
 };
 

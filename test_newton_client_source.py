@@ -258,24 +258,22 @@ def test_every_endpoint_catches_its_own_exceptions():
     assert len(guarded) == SOURCE.count("AddDelayedCall(")
 
 
-def test_the_window_is_centred_on_whatever_screen_the_rom_reports():
-    # A9 hardcoded the box. The second hardware test said it loads off-centre,
-    # and a constant can only be centred on the screen it was measured against.
-    assert "kWinWidth := 304;" in SOURCE
-    assert "kWinHeight := 428;" in SOURCE
-    assert "ViewSetupFormScript: func()" in SOURCE
-    assert "CenterBounds: func()" in SOURCE
-    assert "try box := GetRoot():LocalBox()" in SOURCE
-    assert "local left := box.left + ((wide - self.winWidth) div 2);" in SOURCE
-    assert "local top := box.top + ((high - self.winHeight) div 2);" in SOURCE
+def test_the_chat_launches_full_screen_instead_of_floating():
+    assert "_proto: protoApp," in SOURCE
+    assert "local box := GetAppParams();" in SOURCE
+    assert "left: box.appAreaLeft, top: box.appAreaTop" in SOURCE
+    assert "right: box.appAreaWidth, bottom: box.appAreaHeight" in SOURCE
+    assert "protoFloatNGo" not in SOURCE
+    assert "CenterBounds: func()" not in SOURCE
 
 
 def test_one_ask_button_classifies_the_note_instead_of_offering_two():
     # Still one button with one meaning -- send the newest note, whatever kind
     # it is -- but labelled for what it acts on. Track L1: the bare verbs did
     # not say what they applied to. Never an "Ask Note"/"Ask Sketch" pair.
-    assert 'text: "Ask Note",' in SOURCE
-    assert "buttonClickScript: func() self:Parent():Ask()," in SOURCE
+    assert "Ask: func()" in SOURCE
+    assert 'kAskMenuTitle := "Ask AI";' in SOURCE
+    assert 'text: "Ask Note",' not in SOURCE
     assert 'text: "Ask Sketch",' not in SOURCE
     # The classification ORDER is load-bearing: every sketch item's _proto is a
     # clPolygonView template with its own empty `points` binary, so testing
@@ -629,13 +627,13 @@ def test_prompt_is_a_large_multiline_handwriting_area():
     assert "viewBounds: {left: 238, top: 360, right: 290, bottom: 382}" in SOURCE
 
 
-def test_the_second_control_row_carries_the_panel_buttons():
-    for text, bounds in (
-        ("Ask Note", "{left: 14, top: 388, right: 110, bottom: 410}"),
-        ("Save Note", "{left: 118, top: 388, right: 214, bottom: 410}"),
-    ):
-        assert f"viewBounds: {bounds}" in SOURCE
-        assert f'text: "{text}",' in SOURCE
+def test_redundant_ask_and_save_note_panel_buttons_are_gone():
+    assert 'text: "Ask Note",' not in SOURCE
+    assert 'text: "Save Note",' not in SOURCE
+    assert "buttonClickScript: func() self:Parent():Ask()," not in SOURCE
+    assert "buttonClickScript: func() self:Parent():SaveNote()," not in SOURCE
+    assert 'kAskMenuTitle := "Ask AI";' in SOURCE
+    assert "RouteScript: self.NotesAskRoute," in SOURCE
 
 
 def test_the_transcript_is_windowed_by_rendered_rows_not_characters():
@@ -670,13 +668,11 @@ def test_the_scroll_buttons_page_the_transcript_window():
         assert f'text: "{text}",' in SOURCE
     assert "ScrollUp: func() :ScrollBy(self.visibleRows - self.scrollOverlap)," in SOURCE
     assert "ScrollDown: func() :ScrollBy(self.scrollOverlap - self.visibleRows)," in SOURCE
-    # The ROM's own scroll arrows cannot reach this window, and Track L1 tried
-    # it rather than assuming: viewFlags 580 went in, the live window read 581,
-    # the handlers worked when called directly, and tapping the arrow changed
-    # nothing at all. Scroll routing excludes floating views by definition
-    # (refs/NewtonProgrammerRef20.txt:4510-4512), so the flag is reverted and
-    # the handlers are gone rather than shipped dead.
-    assert "viewFlags:" not in SOURCE
+    # The measured ROM-arrow attempt failed on the floating root. Full-screen
+    # changes routing, but source-only work cannot prove the device arrows, so
+    # retain the working custom controls and do not ship unverified handlers.
+    assert "_proto: protoApp," in SOURCE
+    assert "Keep the proven Up/Dn" in SOURCE
     assert "ViewScrollUpScript: func()" not in SOURCE
     assert "ViewScrollDownScript: func()" not in SOURCE
     assert "ViewOverviewScript: func()" not in SOURCE
