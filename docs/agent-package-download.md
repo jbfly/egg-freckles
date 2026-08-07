@@ -31,7 +31,7 @@ human-gated.
    ```
 
    Evidence and the post-fix curl are preserved in
-   `runtime/evidence/mars-agent-pkg-download-20260807.txt`.
+   `runtime/evidence/mars-agent-pkg-download-20260807.txt:4-6,37-47`.
 
 ## Implemented publication fix
 
@@ -46,8 +46,18 @@ focused test pins both the returned name and copied bytes
 (`test_newton_mcp.py`, `test_build_pkg_allows_only_sandboxed_agent_workspace`).
 
 This is host publication, not a physical-Newton write. The existing Loader still
-requires the human to type the returned filename and tap **Install**. No EF21,
-ZC40, bootstrap, or backup filename is selected or modified by this change.
+requires the human to type the returned filename and tap **Install**.
+
+The specific 240-byte `tic-tac-toe-r1.pkg` was a partial compiler artifact:
+forced compilation reports undefined `CellButton`, and opening it in the
+isolated emulator produced `-48809`
+(`runtime/evidence/mars-agent-pkg-download-20260807.txt:8-20`). It was not left
+published. For the filename the user had already entered, the bytes of the
+successful, emulator-proven Mars chat tic-tac-toe build were atomically staged
+as `tic-tac-toe-r1.pkg`. Live curl returned HTTP 200, 1,952 bytes, `package0`,
+and SHA-256 `898a6a3b...`, byte-identical to the emulator-tested package
+(`runtime/evidence/mars-agent-pkg-download-20260807.txt:22-47`). EF21 remained
+`6652fb0b...`; no ZC40 or backup path was selected (`:49-54`).
 
 ## Direct physical install: feasible, but prepared only
 

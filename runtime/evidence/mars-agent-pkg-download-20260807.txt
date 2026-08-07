@@ -1,0 +1,60 @@
+Mars agent package publication proof — 2026-08-07
+Branch commit on both hosts: 8d933fdd4c0240671c89efc4f6f66aea157ab3ca
+
+1. Original Loader request and failure (journalctl --user -u dual-send):
+2026-08-07T10:59:37 request 'GET /tic-tac-toe-r1.pkg HTTP/1.0'
+2026-08-07T10:59:37 HTTP 404 'tic-tac-toe-r1.pkg'
+
+2. The exact tic-tac-toe-r1 workspace was a partial tntk artifact, not the
+successful emulator-proven chat build. Forced build_pkg result after the fix:
+build failed (make exited 0)
+Uncaught exception:
+errorCode: -48807
+errorMessage: "kNErrUndefinedVariable"
+symbol: 'CellButton
+Package tic-tac-toe-r1.pkg created.
+
+The old 240-byte package had package0 magic and entered the emulator store, but
+opening TicTacToeR1:newtonHarness displayed "Sorry, a problem has occurred.
+(-48809)". The fix therefore rejects tntk's zero-exit exception and does not
+publish that partial output.
+
+3. Successful chat-authored package rebuilt and published by build_pkg:
+workspace: runtime/agent-workspace/mars-ttt-0807-r3/mars-ttt-0807-r3.pkg
+Loader filename: mars-ttt-0807-r3.pkg
+size: 1952 bytes
+magic: package0
+sha256: 898a6a3baa5f4cc8b9383aeef319e5e6981fbe5ab086ca5a3205ca922ffccd16
+
+4. Isolated emulator validation, instance ticdownload:
+SafeRemovePackage(previous MarsTTT0807R3:nwtn): TRUE
+emulator_install /agent-workspace/mars-ttt-0807-r3/mars-ttt-0807-r3.pkg: queued
+GetPkgRef("MarsTTT0807R3:nwtn", GetDefaultStore()) <> nil: TRUE
+GetRoot().|MarsTTT0807R3:nwtn|:Open(): TRUE
+screenshot: runtime/evidence/mars-agent-pkg-download-20260807.png
+screenshot sha256: 4cf17afe7f04347a728bdcc027e6befd3f21b6e8df98ce6ad69da3fe1c58f2c3
+
+5. Exact Loader-name recovery. The validated bytes were atomically staged under
+the filename the user already entered, then fetched from the live dual-send
+service on Mars:
+$ curl -sS -D headers -o pkg http://127.0.0.1:18081/tic-tac-toe-r1.pkg
+HTTP/1.0 200 OK
+Content-Type: application/octet-stream
+Content-Length: 1952
+curl bytes=1952
+curl magic=package0
+sha256=898a6a3baa5f4cc8b9383aeef319e5e6981fbe5ab086ca5a3205ca922ffccd16
+cmp against emulator-tested mars-ttt-0807-r3.pkg: identical
+
+6. Protected artifacts after publication:
+runtime/staging/hardware/egg-freckles.pkg
+6652fb0b2e28412cf63caf9cd692359ecee0388206d0bb4131fc1cb9a96a8ebb
+No command selected a ZC40 or backup path. Mars git status retained the same
+pre-existing modified examples/harness-client/egg-freckles.pkg and EF backup
+files; the branch diff contains no EF21, ZC40, or backup file.
+
+7. Tests on the implementation worktree:
+121 passed in 17.08s
+Prepared direct-hardware patch focused tests: 16 passed in 0.18s
+$ git apply --check docs/prepared-hardware-install.patch
+(exit 0)
