@@ -1,0 +1,59 @@
+TEST B build evidence
+deployed_head=a49a1b91dd8472085d67f69c990ab9b1a078c228
+source_bytes=161997
+source_sha256=209b23d2dfdca6f3dc4b3c7e2686ae00ad816be622c56feb06ca8538e071926a
+canonical_source_sha256=209b23d2dfdca6f3dc4b3c7e2686ae00ad816be622c56feb06ca8538e071926a
+good_pkg_size=99096
+good_pkg_sha256=3316d54c529786ead7daa73f6450aa5851214709c9f3f01799e62a5d7ee19fd3
+TEST B isolation preconditions
+compose_executable=/home/jbfly/.local/bin/podman-compose
+named_container_exists_before=no
+all_containers_before:
+anisette-v3 Exited (139) 2 hours ago
+newton-harness-marsdeployef22_emulator_1 Exited (143) 2 hours ago
+newton-harness-tictacfoe_emulator_1 Exited (143) 2 hours ago
+TEST B fresh isolated emulator boot
+>>>> Executing external compose provider "/usr/lib/docker/cli-plugins/docker-compose". Please see podman-compose(1) for how to disable this message. <<<<
+
+ Network newton-harness-marsguard0808_default Creating
+ Volume newton-harness-marsguard0808_emulator-state Creating
+ Volume newton-harness-marsguard0808_emulator-state Creating
+ Network newton-harness-marsguard0808_default Creating
+ Volume newton-harness-marsguard0808_emulator-state Created
+ Volume newton-harness-marsguard0808_emulator-state Created
+ Network newton-harness-marsguard0808_default Created
+ Network newton-harness-marsguard0808_default Created
+ Container newton-harness-marsguard0808_emulator_1 Creating
+ Container newton-harness-marsguard0808_emulator_1 Created
+ Container newton-harness-marsguard0808_emulator_1 Starting
+ Container newton-harness-marsguard0808_emulator_1 Started
+instance   marsguard0808
+container  newton-harness-marsguard0808_emulator_1
+control    http://127.0.0.1:44305
+novnc      http://127.0.0.1:57859/vnc.html?autoconnect=1
+container=newton-harness-marsguard0808_emulator_1
+container_health=healthy
+control_port=127.0.0.1:44305
+state_volume=newton-harness-marsguard0808_emulator-state
+fresh UI setup replies:
+{"ok":true}
+{"ok":true}
+{"ok":true}
+install_reply:
+queued
+
+launch_reply:
+queued
+
+/tmp/mars-guard-test-b-20260808.png
+>>>> Executing external compose provider "/usr/lib/docker/cli-plugins/docker-compose". Please see podman-compose(1) for how to disable this message. <<<<
+
+ Container newton-harness-marsguard0808_emulator_1 Stopping
+ Container newton-harness-marsguard0808_emulator_1 Stopped
+ Container newton-harness-marsguard0808_emulator_1 Removing
+ Container newton-harness-marsguard0808_emulator_1 Removed
+ Network newton-harness-marsguard0808_default Removing
+ Volume newton-harness-marsguard0808_emulator-state Removing
+ Volume newton-harness-marsguard0808_emulator-state Removed
+ Network newton-harness-marsguard0808_default Removed
+container_exists_after_teardown=no

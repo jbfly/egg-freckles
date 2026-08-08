@@ -1,0 +1,15 @@
+TEST B screenshot/OCR proof
+screenshot_file=runtime/evidence/mars-guard-test-b-20260808.png: PNG image data, 320 x 480, 1-bit grayscale, non-interlaced
+screenshot_sha256=a5189b88a83f35b4337a5f44889b08a35dd3097fbcb6cd3e42061a528e30864c
+tesseract_output:
+Egg Freckles 1.0-ef21
+
+Type a promp below, then tap Send.
+
+—prompt————
+
+Radioof New ][ sena
+
+ocr_minus_48809_count=0
+ocr_problem_alert_count=0
+ocr_egg_freckles_count=1

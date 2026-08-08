@@ -1,0 +1,22 @@
+TEST A preconditions
+deployed_head=a49a1b91dd8472085d67f69c990ab9b1a078c228
+known_good_source_bytes=161997
+mutated_source_bytes=162051
+exact_injected_refs=1
+workspace_pkg_before=absent
+staged_pkg_before=absent
+TEST A actual tool_build_pkg return
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "build failed (make exited 0)\nmake: Entering directory '/home/jbfly/git/newton-harness/runtime/agent-workspace/mars-guard-undefined-0808'\nLD_LIBRARY_PATH=\"/home/jbfly/newton-dev/prefix/lib:${LD_LIBRARY_PATH}\" \\\n\t\"/home/jbfly/newton-dev/prefix/bin/tntk\" -P \"/home/jbfly/newton-dev/ntk-platform-files\" -c mars-guard-undefined-0808.nprj\nUncaught exception:\n{\n\tname: '|evt.ex.fr;type.ref.frame|, \n\tdata: {\n\t\terrorCode: -48808, \n\t\terrorMessage: \"kNErrUndefinedGlobalFunction\", \n\t\tsymbol: 'CellButton\n\t}\n}\nReading project file mars-guard-undefined-0808.nprj\nReading platform file Newton 2.1\nParts: 1\nBuilding package EggFrecklesEF21:jbfly\nBuilding part 0\nReading platform file /home/jbfly/newton-dev/ntk-platform-files/Newton 2.1\nCompiling Main.newt\nEncoding Part 0 fff2...\n#UNBIND\nPackage mars-guard-undefined-0808.pkg created.\nmake: Leaving directory '/home/jbfly/git/newton-harness/runtime/agent-workspace/mars-guard-undefined-0808'"
+    }
+  ],
+  "isError": true
+}
+TEST A postconditions
+workspace_pkg_after=232
+workspace_pkg_sha256=46ca28dfa9e8be236d6db918e4d1500dec1e63168c8af9cb1c58d39f38a38148
+workspace_pkg_header=7061636b616765307878787810000000
+staged_pkg_after=absent
