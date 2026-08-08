@@ -760,3 +760,4 @@ def test_package_management_tools_use_proven_install_and_remove_paths():
     assert '"|id=" & title' in SOURCE
     assert "// background keepalive. EF14 closes the tools channel about 5 s idle." in SOURCE
     assert "if not self._parent.pkgInstallQueued then" in SOURCE
+    assert "self.pkgInstalledIdentity := :PkgNewIdentity();" in SOURCE

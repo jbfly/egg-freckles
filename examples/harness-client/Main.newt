@@ -549,6 +549,7 @@ mainView := {
     pkgOffset: 0,
     pkgChunk: 0,
     pkgInstallQueued: nil,
+    pkgBefore: nil,
     pkgInstalledIdentity: nil,
     // A send holds the radio through its reply; this ticket makes old idle
     // callbacks harmless when a new send starts before they fire.
@@ -2041,6 +2042,7 @@ mainView := {
         agent.pkgOffset := 0;
         agent.pkgChunk := 0;
         agent.pkgInstallQueued := nil;
+        agent.pkgBefore := [];
         agent.pkgInstalledIdentity := nil;
         agent.radioHeld := nil;
         agent.radioSeq := 0;
@@ -2921,6 +2923,11 @@ mainView := {
         self.pkgOffset := 0;
         self.pkgChunk := 0;
         self.pkgInstallQueued := nil;
+        self.pkgBefore := [];
+        local packages := GetPackages();
+        if packages <> nil then foreach package in packages do
+            if IsFrame(package) and HasSlot(package, 'title) then
+                AddArraySlot(self.pkgBefore, "" & package.title);
         self.pkgInstalledIdentity := nil;
         try
         begin
@@ -3067,6 +3074,22 @@ mainView := {
         return :PkgArmBody();
     end,
 
+    PkgNewIdentity: func()
+    begin
+        local packages := GetPackages();
+        if packages = nil then return nil;
+        foreach package in packages do
+            if IsFrame(package) and HasSlot(package, 'title) then
+            begin
+                local identity := "" & package.title;
+                local seen := nil;
+                foreach previous in self.pkgBefore do
+                    if StrEqual(previous, identity) then seen := true;
+                if not seen then return identity;
+            end;
+        return nil;
+    end,
+
     PkgInstallNow: func()
     begin
         try
@@ -3078,6 +3101,8 @@ mainView := {
                 callback: func(progress)
                     self._parent.pkgInstalledIdentity := progress.packageName,
             });
+            if self.pkgInstalledIdentity = nil then
+                self.pkgInstalledIdentity := :PkgNewIdentity();
             if self.pkgInstalledIdentity and :PkgFind(self.pkgInstalledIdentity) then
                 return :PkgFinish("result", "installed " & self.pkgInstalledIdentity);
             return :PkgFinish("error", "install not confirmed");
