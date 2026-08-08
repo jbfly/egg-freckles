@@ -306,6 +306,19 @@ def test_emulator_install_refuses_parent_traversal(monkeypatch):
     assert "without '..'" in result["content"][0]["text"]
 
 
+def test_emulator_newtonscript_refuses_open_on_symbol(monkeypatch):
+    monkeypatch.setattr(
+        newton_mcp, "http_request",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("HTTP must not run")))
+
+    result = newton_mcp.call_tool("emulator_newtonscript", {
+        "instance": "isolated", "source": "|TicTacToeCPUR1:nwh|:Open();"})
+
+    assert result["isError"] is True
+    assert "GetRoot().|MyAppR1:jbfly|:Open();" in result["content"][0]["text"]
+    assert "-48809" in result["content"][0]["text"]
+
+
 def test_create_and_write_source_are_confined_to_workspace(monkeypatch, tmp_path):
     workspace = tmp_path / "agent-workspace"
     monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)

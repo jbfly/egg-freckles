@@ -412,6 +412,13 @@ def tool_emulator_key(arguments: dict) -> dict:
 
 def tool_emulator_newtonscript(arguments: dict) -> dict:
     source = want_str(arguments, "source")
+    stripped = source.strip()
+    if (stripped.startswith("|") and stripped.count("|") == 2
+            and stripped.endswith((":Open()", ":Open();"))):
+        raise ToolError(
+            "launch a registered app through GetRoot(), e.g. "
+            "GetRoot().|MyAppR1:jbfly|:Open(); -- calling Open on the symbol "
+            "itself raises -48809")
     return control_text(arguments, "evaluate NewtonScript", "/newtonscript", source)
 
 

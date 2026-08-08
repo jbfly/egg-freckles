@@ -53,8 +53,10 @@ Newton app authoring cheatsheet (full source: docs/agent-authoring-guide.md):
   leave a partial package after an undefined helper such as CellButton
   (docs/dev-loop-reliability.md:35-53). Nested funcs must not capture outer
   locals; put constants in view slots and read self.slot, or tntk may SIGSEGV
-  with no diagnostic (docs/newtonscript-eval.md:1498-1544). Error meanings:
-  -48807 undefined variable, -48808 undefined global, -48809 undefined method
+  with no diagnostic (docs/newtonscript-eval.md:1498-1544). Launch apps with
+  GetRoot().|Identity:owner|:Open(); never |Identity:owner|:Open(), which sends
+  Open to a symbol and raises -48809. Error meanings: -48807 undefined variable,
+  -48808 undefined global, -48809 undefined method
   (docs/newton-networking-lessons.md:75-86). Symbols are case-insensitive.
 - For protoFloatNGo, read tap coordinates from the screenshot, not viewBounds;
   explicitly open after install, and remember fresh Welcome UI can hide floats
