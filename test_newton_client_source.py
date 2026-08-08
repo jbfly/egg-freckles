@@ -14,11 +14,10 @@ CODE = re.sub(r"//[^\n]*", "", SOURCE)
 def test_chat_transport_stays_non_blocking():
     assert "async: nil" not in SOURCE
     assert "endpoint:Input(" not in SOURCE
-    # 6 chat (Bind, connect, handshake, hello, ACK, send) + 3 ink (Bind,
-    # connect, POST) + 5 tools (Bind, connect, POLL, reply, re-POLL). Track L1
-    # folded the tools client in without relaxing one timing rule.
-    assert SOURCE.count("async: true") == 14
-    assert SOURCE.count("form: 'string") == 12
+    # 6 chat + 3 ink + 5 tools + 3 package-download operations. Every network
+    # operation remains asynchronous.
+    assert SOURCE.count("async: true") == 17
+    assert SOURCE.count("form: 'string") == 13
     assert "ViewQuitScript: func()" in SOURCE
     assert "self.endpoint:SetInputSpec(nil)" in SOURCE
     assert "self.inkEndpoint:SetInputSpec(nil)" in SOURCE
@@ -139,9 +138,10 @@ def test_the_tools_client_lives_inside_this_package_now():
     for name in ("ToolStart", "ToolGrabbed", "ToolBound", "ToolConnected",
                  "ToolPoll", "ToolArmInput", "ToolReply", "ToolStop"):
         assert f"{name}: func" in SOURCE
-    # One link, three connections: nobody releases it while another holds it.
+    # One link, up to four connections: nobody releases it while another holds it.
     assert "ReleaseLink: func()" in SOURCE
-    assert "if self.endpoint or self.inkEndpoint or self.toolEndpoint then return nil;" in SOURCE
+    assert ("if self.endpoint or self.inkEndpoint or self.toolEndpoint or self.pkgEndpoint "
+            "then return nil;") in SOURCE
     assert "if self.linkID then return :OpenSession();" in SOURCE
     assert "if self.linkID then return :ToolOpen();" in SOURCE
 
@@ -271,8 +271,8 @@ def test_every_endpoint_catches_its_own_exceptions():
     # the handler chain. Exceptions that are not caught are displayed as warning
     # messages to the user" (refs/NewtonProgrammerRef20.txt:57321-57323) -- that
     # warning is the modal Communications slip the hardware test complained
-    # about. Three endpoints, three handlers.
-    assert SOURCE.count("ExceptionHandler: func(error)") == 3
+    # about. Chat, ink, tools, and package endpoints each carry one.
+    assert SOURCE.count("ExceptionHandler: func(error)") == 4
     # And a delayed call that lands on a closed view -- or on an agent whose
     # package has been removed -- raises -48809; every one of them opens with a
     # try, which is what makes closing the window silent.
@@ -744,3 +744,18 @@ def test_the_native_scroll_arrows_page_the_transcript_window():
 
 def test_host_errors_remain_visible_in_transcript():
     assert 'self.responseText := "ERROR: " & SubStr(line, 15, star - 15);' in SOURCE
+
+
+def test_package_management_tools_use_proven_install_and_remove_paths():
+    for op in ("pkg_install", "pkg_remove"):
+        assert f'StrEqual(op, "{op}")' in SOURCE
+    assert "GetDefaultStore():SuckPackageFromBinary(self.pkgBinary" in SOURCE
+    assert '"GET /" & self.pkgName & " HTTP/1.0' in SOURCE
+    assert "GetDefaultStore():NewVBO('package, self.pkgLength)" in SOURCE
+    assert "local package := GetPkgRef(identity, store);" in SOURCE
+    assert "SafeRemovePackage(package);" in SOURCE
+    assert "GetRoot().(Intern(identity))" in SOURCE
+    assert 'or BeginsWith(identity, "-Loader")' in SOURCE
+    assert '"Newton Internet Enabler"' in SOURCE
+    assert '"|id=" & title' in SOURCE
+    assert "// background keepalive. EF14 closes the tools channel about 5 s idle." in SOURCE

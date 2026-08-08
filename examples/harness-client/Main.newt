@@ -538,6 +538,17 @@ mainView := {
     toolOutcome: nil,
     toolValue: nil,
     toolPort: 18081,
+    // Short-lived fourth endpoint used only by pkg_install while this active
+    // send keeps the tools channel and NIE link alive.
+    pkgEndpoint: nil,
+    pkgName: nil,
+    pkgInput: nil,
+    pkgBinary: nil,
+    pkgHeader: "",
+    pkgLength: nil,
+    pkgOffset: 0,
+    pkgChunk: 0,
+    pkgInstalledIdentity: nil,
     // A send holds the radio through its reply; this ticket makes old idle
     // callbacks harmless when a new send starts before they fire.
     radioHeld: nil,
@@ -864,6 +875,14 @@ mainView := {
             try self.inkEndpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.inkEndpoint := nil;
         end;
+        if self.pkgEndpoint then
+        begin
+            try self.pkgEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.pkgEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.pkgEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.pkgEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.pkgEndpoint := nil;
+        end;
         :ReleaseLink();
         self.ready := nil;
         self.inFlight := nil;
@@ -874,7 +893,7 @@ mainView := {
         self.pendingPromptLabel := nil;
     end,
 
-    // One NIE link, three connections: chat, ink POST, tools long poll. Whoever
+    // One NIE link, four connections: chat, ink POST, tools poll, package GET. Whoever
     // shuts down last releases it. Releasing it under a live endpoint is what
     // raised the -48803 overlays in the loader rounds
     // (docs/newton-networking-lessons.md §1.5), and dropping it to open a
@@ -894,7 +913,7 @@ mainView := {
     // reason to keep believing we hold one.
     ReleaseLink: func()
     begin
-        if self.endpoint or self.inkEndpoint or self.toolEndpoint then return nil;
+        if self.endpoint or self.inkEndpoint or self.toolEndpoint or self.pkgEndpoint then return nil;
         if self.linkID then
         begin
             try call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released)
@@ -2012,6 +2031,15 @@ mainView := {
         agent.toolID := nil;
         agent.toolOutcome := nil;
         agent.toolValue := nil;
+        agent.pkgEndpoint := nil;
+        agent.pkgName := nil;
+        agent.pkgInput := nil;
+        agent.pkgBinary := nil;
+        agent.pkgHeader := "";
+        agent.pkgLength := nil;
+        agent.pkgOffset := 0;
+        agent.pkgChunk := 0;
+        agent.pkgInstalledIdentity := nil;
         agent.radioHeld := nil;
         agent.radioSeq := 0;
         // ponytail: template literals live in the read-only package, so the
@@ -2770,13 +2798,288 @@ mainView := {
         return nil;
     end,
 
+    ToolDecodeArg: func(value)
+    begin
+        if value = nil then return nil;
+        local digits := "0123456789ABCDEF";
+        local out := "";
+        local index := 0;
+        while index < StrLen(value) do
+        begin
+            if (value[index] = $%) and ((index + 2) < StrLen(value)) then
+            begin
+                local hi := StrPos(digits, SubStr(value, index + 1, 1), 0);
+                local lo := StrPos(digits, SubStr(value, index + 2, 1), 0);
+                if (hi <> nil) and (lo <> nil) then
+                begin
+                    out := out & Chr((hi * 16) + lo);
+                    index := index + 3;
+                end
+                else
+                begin
+                    out := out & SubStr(value, index, 1);
+                    index := index + 1;
+                end;
+            end
+            else
+            begin
+                out := out & SubStr(value, index, 1);
+                index := index + 1;
+            end;
+        end;
+        return out;
+    end,
+
+    PkgProtected: func(identity)
+    begin
+        if BeginsWith(identity, "EggFreckles") or BeginsWith(identity, "-Loader")
+        or BeginsWith(identity, "-HarnessLoader") then return true;
+        foreach protected in [
+            "NewtsCape:NewtsCape", "JPEGConvert:NewtsCape",
+            "Dock ZC & TCP/IP:Kallisys", "PT100:Scrawl",
+            "BASIC:NSBASIC", "Runtime:NSBASIC", " Newton Devices",
+            "Newton Internet Enabler", "NIE Ethernet Module", "Internet Setup",
+            "LucentWaveLAN:Noguchi", "Farallon Enet", "3C589", "z3ComDrv:clli"
+        ] do if StrEqual(identity, protected) then return true;
+        return nil;
+    end,
+
+    PkgFind: func(identity)
+    begin
+        local stores := GetStores();
+        if stores = nil then return nil;
+        foreach store in stores do
+        begin
+            local package := GetPkgRef(identity, store);
+            if package then return package;
+        end;
+        return nil;
+    end,
+
+    PkgRemove: func(identity)
+    begin
+        if identity = nil or StrLen(identity) = 0 then return "identity required";
+        if :PkgProtected(identity) then return "protected package: " & identity;
+        local root := nil;
+        try root := GetRoot().(Intern(identity)) onexception |evt.ex| do root := nil;
+        if root then try root:Close() onexception |evt.ex| do nil;
+        local removed := nil;
+        local stores := GetStores();
+        if stores <> nil then
+            foreach store in stores do
+            begin
+                // The two-argument store form is load-bearing: one-argument
+                // GetPkgRef fails silently on this ROM.
+                local package := GetPkgRef(identity, store);
+                if package then
+                begin
+                    SafeRemovePackage(package);
+                    removed := true;
+                end;
+            end;
+        if not removed then return "not installed: " & identity;
+        if :PkgFind(identity) then return "remove not confirmed: " & identity;
+        return "removed " & identity;
+    end,
+
+    PkgFinish: func(outcome, value)
+    begin
+        if self.pkgEndpoint then
+        begin
+            try self.pkgEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.pkgEndpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.pkgEndpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.pkgEndpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.pkgEndpoint := nil;
+        end;
+        self.pkgInput := nil;
+        self.pkgBinary := nil;
+        self.toolOutcome := outcome;
+        self.toolValue := value;
+        :ToolReply();
+        return nil;
+    end,
+
+    PkgInstallStart: func(name)
+    begin
+        // ponytail: pkg_install exists only inside the active-send window; no
+        // background keepalive. EF14 closes the tools channel about 5 s idle.
+        if name = nil or StrLen(name) < 5
+        or StrPos(name, ".pkg", 0) <> StrLen(name) - 4 then
+            return :PkgFinish("error", "basename must end in .pkg");
+        local allowed := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.";
+        for index := 0 to StrLen(name) - 1 do
+            if StrPos(allowed, SubStr(name, index, 1), 0) = nil then
+                return :PkgFinish("error", "bad package basename");
+        if self.pkgEndpoint then return :PkgFinish("error", "install already active");
+        if self.linkID = nil then return :PkgFinish("error", "active send link is gone");
+        self.pkgName := name;
+        self.pkgHeader := "";
+        self.pkgLength := nil;
+        self.pkgOffset := 0;
+        self.pkgChunk := 0;
+        self.pkgInstalledIdentity := nil;
+        try
+        begin
+            self.pkgEndpoint := {_proto: self.endpointClass, _parent: self,
+                ExceptionHandler: func(error)
+                    try self._parent:PkgFinish("error", "package connection failed")
+                    onexception |evt.ex| do nil};
+            self.pkgEndpoint:Instantiate(self.pkgEndpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [self.linkID], typeList: ['struct, 'ulong]}},
+                {label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                 form: 'template, data: {arglist: [1], typeList: ['struct, 'ulong]}},
+            ]);
+            self.pkgEndpoint:Bind(nil, {
+                async: true, reqTimeout: 10000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    try
+                    begin
+                        if result then self._parent:PkgFinish("error", "package bind failed")
+                        else self._parent:PkgBound();
+                    end
+                    onexception |evt.ex| do nil,
+            });
+        end
+        onexception |evt.ex| do return :PkgFinish("error", "package endpoint failed");
+        return nil;
+    end,
+
+    PkgBound: func()
+    begin
+        local address := self.serverAddress;
+        try self.pkgEndpoint:connect([{
+            label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+            form: 'template,
+            data: {arglist: [address[0], address[1], address[2], address[3], self.toolPort],
+                   typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short]},
+        }], {
+            async: true, reqTimeout: 45000, _parent: self,
+            CompletionScript: func(endpoint, options, result)
+                try
+                begin
+                    if result then self._parent:PkgFinish("error", "package connect failed")
+                    else self._parent:PkgConnected();
+                end
+                onexception |evt.ex| do nil,
+        })
+        onexception |evt.ex| do :PkgFinish("error", "package connect failed");
+        return nil;
+    end,
+
+    PkgConnected: func()
+    begin
+        try self.pkgInput := GetDefaultStore():NewVBO('package, 1024)
+        onexception |evt.ex| do return :PkgFinish("error", "no header buffer");
+        :PkgArmHeader();
+        try self.pkgEndpoint:Output(
+            "GET /" & self.pkgName & " HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
+            nil, {form: 'string, async: true, reqTimeout: 10000, _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    try if result then self._parent:PkgFinish("error", "package request failed")
+                    onexception |evt.ex| do nil})
+        onexception |evt.ex| do :PkgFinish("error", "package request failed");
+        return nil;
+    end,
+
+    PkgArmHeader: func()
+    begin
+        self.pkgEndpoint:SetInputSpec({
+            _parent: self, form: 'binary,
+            target: {data: self.pkgInput, offset: 0},
+            termination: {byteCount: 1024}, discardAfter: 1024,
+            InputScript: func(endpoint, data, terminator, options)
+                try endpoint._parent:PkgHeaderReceived()
+                onexception |evt.ex| do
+                    try endpoint._parent:PkgFinish("error", "bad package header")
+                    onexception |evt.ex| do nil,
+        });
+        return nil;
+    end,
+
+    PkgHeaderReceived: func()
+    begin
+        local bodyStart := nil;
+        for index := 0 to 1023 do
+            if bodyStart = nil then
+            begin
+                self.pkgHeader := self.pkgHeader & Chr(ExtractByte(self.pkgInput, index));
+                if (index >= 3) and StrEqual(
+                    SubStr(self.pkgHeader, index - 3, 4), "\r\n\r\n") then
+                    bodyStart := index + 1;
+            end;
+        if bodyStart = nil then return :PkgFinish("error", "package header too long");
+        if not BeginsWith(self.pkgHeader, "HTTP/1.0 200") then
+            return :PkgFinish("error", "package not staged");
+        local lengthStart := StrPos(self.pkgHeader, "Content-Length:", 0);
+        if lengthStart = nil then return :PkgFinish("error", "missing package length");
+        self.pkgLength := Floor(StringToNumber(SubStr(self.pkgHeader,
+            lengthStart + 16, StrLen(self.pkgHeader) - lengthStart - 20)));
+        if self.pkgLength <= 0 or self.pkgLength > 524288 then
+            return :PkgFinish("error", "bad package length");
+        try self.pkgBinary := GetDefaultStore():NewVBO('package, self.pkgLength)
+        onexception |evt.ex| do return :PkgFinish("error", "no package buffer");
+        self.pkgOffset := 1024 - bodyStart;
+        if self.pkgOffset > self.pkgLength then return :PkgFinish("error", "package body too long");
+        BinaryMunger(self.pkgBinary, 0, self.pkgOffset,
+            self.pkgInput, bodyStart, self.pkgOffset);
+        return :PkgArmBody();
+    end,
+
+    PkgArmBody: func()
+    begin
+        self.pkgChunk := self.pkgLength - self.pkgOffset;
+        if self.pkgChunk > 8192 then self.pkgChunk := 8192;
+        self.pkgEndpoint:SetInputSpec({
+            _parent: self, form: 'binary,
+            target: {data: self.pkgBinary, offset: self.pkgOffset},
+            termination: {byteCount: self.pkgChunk}, discardAfter: self.pkgChunk,
+            InputScript: func(endpoint, data, terminator, options)
+                try endpoint._parent:PkgBodyReceived()
+                onexception |evt.ex| do
+                    try endpoint._parent:PkgFinish("error", "package receive failed")
+                    onexception |evt.ex| do nil,
+        });
+        return nil;
+    end,
+
+    PkgBodyReceived: func()
+    begin
+        self.pkgOffset := self.pkgOffset + self.pkgChunk;
+        if self.pkgOffset = self.pkgLength then
+        begin
+            AddDelayedCall(func(view) try view:PkgInstallNow() onexception |evt.ex| do nil,
+                [self], 1000);
+            return nil;
+        end;
+        return :PkgArmBody();
+    end,
+
+    PkgInstallNow: func()
+    begin
+        try
+        begin
+            GetDefaultStore():SuckPackageFromBinary(self.pkgBinary, {
+                _parent: self, callbackFrequency: 8192,
+                callback: func(progress)
+                    self._parent.pkgInstalledIdentity := progress.packageName,
+            });
+            if self.pkgInstalledIdentity and :PkgFind(self.pkgInstalledIdentity) then
+                return :PkgFinish("result", "installed " & self.pkgInstalledIdentity);
+            return :PkgFinish("error", "install not confirmed");
+        end
+        onexception |evt.ex| do return :PkgFinish("error", "package install failed");
+    end,
+
     ToolDispatch: func(line)
     begin
         local tokens := StrTokenize(line, " \r\n");
         local marker := call tokens with ();
         local requestID := call tokens with ();
         local op := call tokens with ();
-        local argument := call tokens with ();
+        local argument := :ToolDecodeArg(call tokens with ());
         if marker = nil or requestID = nil or op = nil then return nil;
         if not StrEqual(requestID, "0") then :RadioHold();
         self.toolID := requestID;
@@ -2861,6 +3164,20 @@ mainView := {
             begin
                 self.toolOutcome := "result";
                 self.toolValue := :StoreInfo();
+            end
+            else if StrEqual(op, "pkg_install") then
+            begin
+                :PkgInstallStart(argument);
+                return nil;
+            end
+            else if StrEqual(op, "pkg_remove") then
+            begin
+                self.toolOutcome := "result";
+                self.toolValue := :PkgRemove(argument);
+                if BeginsWith(self.toolValue, "protected ")
+                or BeginsWith(self.toolValue, "identity ")
+                or BeginsWith(self.toolValue, "remove not ") then
+                    self.toolOutcome := "error";
             end
             else if StrEqual(op, "pkg_list") then
             begin
@@ -3074,7 +3391,7 @@ mainView := {
         end;
 
         return "" & ordinal & "/" & total & " " & title & "|" & :NumStr(size)
-            & "|" & storeName;
+            & "|" & storeName & "|id=" & title;
     end,
 
     ExceptionName: func()
