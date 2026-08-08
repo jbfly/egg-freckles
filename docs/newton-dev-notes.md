@@ -1516,3 +1516,26 @@ armored client still does everything it did.
 The A8/L1 failure was a floating-view routing result, not a transcript limitation. EF20 already changed the root to full-screen `protoApp`; EF21 supplies `ViewScrollUpScript` and `ViewScrollDownScript` as thin calls to the existing row-window methods, and removes the custom Up/Dn buttons.
 
 On isolated seeded instance `ef21arrows`, 30 transcript lines produced 30 wrapped rows. `python3 -m emulator.client --instance ef21arrows tap 309 446` changed `scrollRow` from 0 to 10 and changed 612 pixels inside transcript bounds `(33,35)-(194,197)`. Tapping the native down triangle at `(309,468)` returned `scrollRow` to 0; `runtime/evidence/ef21-scroll-after-down.png` is pixel-identical to `ef21-scroll-bottom-before-up.png`. Timestamped commands and values are in `runtime/evidence/ef21-ui.log`; screenshots are `ef21-scroll-{bottom-before-up,after-up,after-down}.png`. Full result: `docs/ef21-native-scroll.md`.
+
+## 2026-08-08 — EF22 mars deploy preparation and isolated acceptance
+
+Prepared only; mars and the physical Newton were not touched. The merged client
+was bumped from EF21 to fresh identity `EggFrecklesEF22:jbfly`, visible version
+`1.0-ef22`, and package version 34. A clean `tntk` rebuild produced
+`egg-freckles-ef22.pkg`, 99,096 bytes, SHA-256
+`f301fe73cd032cc6300f6f41e64f1283f718fc045c2670c9011ea46abb82a8f1`;
+the paired `pkg_publisher.py` SHA-256 is
+`1c7f4a85c027c9a76768890efae6889db492dee6a12fccb78de3cf926a9b1ed8`.
+
+Isolated seeded instance `ef22final` installed and launched the exact reproducible
+EF22 bytes. Thirty rows
+started at `scrollRow=0`; the native up arrow at `(309,446)` moved it to 10 and
+changed 265 pixels, and the down arrow at `(309,468)` returned it to 0 with a
+pixel-identical screen. Over the EF22 tools connection, staged disposable
+`HarnessHello:jbfly` returned `installed HarnessHello:jbfly`; after the install intentionally
+closed that tools connection, fresh isolated instance `ef22remove` returned `removed HarnessHello:jbfly` and
+the store-specific nil check returned true. Evidence is
+`runtime/evidence/ef22-validation-final/`. Both instances were torn down after
+the run.
+Deployment/rollback gates and the physical follow-up are in
+`docs/mars-deploy-devloop.md`.

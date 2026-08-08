@@ -1,0 +1,7 @@
+8f42717b473a837120a1be5b9516381b0925e40140aca7baf179e7483659eeeb
+fc2b9285dc4ddcd2b2d400124b008097b9e86cc74bf209325b786064ed8cc830
+newton-harness-ef22final_emulator_1
+instance   ef22final
+container  newton-harness-ef22final_emulator_1
+control    http://127.0.0.1:46461
+novnc      http://127.0.0.1:43623/vnc.html?autoconnect=1

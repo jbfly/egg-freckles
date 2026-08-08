@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF21:jbfly|;
-kVersion := "1.0-ef21";
+kAppSymbol := '|EggFrecklesEF22:jbfly|;
+kVersion := "1.0-ef22";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 

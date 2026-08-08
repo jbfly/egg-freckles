@@ -1,0 +1,8 @@
+serving http://0.0.0.0:18081 package=/home/jbfly/git/newton-harness-devloop/examples/harness-client/egg-freckles.pkg
+127.0.0.1 - - [08/Aug/2026 10:14:49] "GET /status HTTP/1.1" 200 -
+Newton tools connected 10.42.0.1:39404
+10.42.0.1 - - [08/Aug/2026 10:14:52] "GET /ef22-tools-proof.pkg HTTP/1.0" 200 -
+127.0.0.1 - - [08/Aug/2026 10:14:54] "POST /tools?timeout=120 HTTP/1.1" 200 -
+Newton tools disconnected
+Newton tools connected 10.42.0.1:39422
+Newton tools disconnected

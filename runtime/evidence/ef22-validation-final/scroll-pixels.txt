@@ -1,0 +1,2 @@
+up bbox (33, 35, 46, 197) pixels 265
+down-restored bbox None pixels 0

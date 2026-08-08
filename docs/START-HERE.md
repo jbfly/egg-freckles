@@ -200,16 +200,18 @@ Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
 
-As of 2026-08-07 the *source* client is `EggFrecklesEF21:jbfly` — user-visible
-name **"Egg Freckles"**, title "Egg Freckles 1.0-ef21", package version 33, and
-since EF5 it has an Extras icon of its own: a little egg with freckles, the same
+As of 2026-08-08 the *prepared source* client is `EggFrecklesEF22:jbfly` — user-visible
+name **"Egg Freckles"**, title "Egg Freckles 1.0-ef22", package version 34. It adds
+the no-Dock package tools on top of EF21’s native arrows; EF21 remains the served
+production fallback until `docs/mars-deploy-devloop.md` is human-applied.
+Since EF5 it has an Extras icon of its own: a little egg with freckles, the same
 one that now sits beside "Send to AI" in the Notes menu. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
 **harness panel**, not just a chat window:
 
 - it is now the *only* client package. Track L1 folded the fixed-op tools client
-  into it: `examples/harness-tools/` is deleted and its POLL transport and all
-  eight ops live in `examples/harness-client/Main.newt` under `Tool*` names
+  into it: `examples/harness-tools/` is deleted and its POLL transport and fixed operations live in
+  `examples/harness-client/Main.newt` under `Tool*` names
   (`ToolStart`, `ToolPoll`, `ToolDispatch`, `ToolStop`). There is nothing
   separate for the human to install. **Since EF6 that channel is owned by the
   package-level Notes agent, started only by an active chat/ink send**. It stays
@@ -235,7 +237,7 @@ supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
   dropped all but the first stroke when drawing freely, and it was deleted
   rather than fixed;
 - **the transcript scrolls** (Track A8): it is wrapped onto a 12-row grid and
-  the **Up**/**Dn** buttons page that window over the whole 6 KiB ring. A7 fed
+  the ROM **up/down scroll arrows** page that window over the whole 6 KiB ring. A7 fed
   the pane 640 characters, which is far more rows than it can draw, so long
   replies ran off the bottom unreachably — the blocker the first hardware test
   found.
