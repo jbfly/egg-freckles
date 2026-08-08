@@ -1,0 +1,41 @@
+app := {
+_proto: protoApp, appSymbol: '|TicTacToeA8:newtonharness|, title: "Tic-Tac-Toe",
+viewBounds: {left:8,top:45,right:312,bottom:430},
+viewFlags: vApplication+vVisible+vClickable,
+board: ["","","","","","","","",""], gameOver: nil,
+CheckWin: func(m) begin local b; b:=self.board;
+(b[0]=m and b[1]=m and b[2]=m) or (b[3]=m and b[4]=m and b[5]=m) or
+(b[6]=m and b[7]=m and b[8]=m) or (b[0]=m and b[3]=m and b[6]=m) or
+(b[1]=m and b[4]=m and b[7]=m) or (b[2]=m and b[5]=m and b[8]=m) or
+(b[0]=m and b[4]=m and b[8]=m) or (b[2]=m and b[4]=m and b[6]=m); end,
+BoardFull: func() begin local i,f; f:=true; for i:=0 to 8 do if self.board[i]="" then f:=nil; f; end,
+FindLine: func(m) begin local i,a; a:=nil; for i:=0 to 8 do if a=nil and self.board[i]="" then begin self.board[i]:=m; if self:CheckWin(m) then a:=i; self.board[i]:=""; end; a; end,
+Refresh: func() begin local i; for i:=0 to 8 do SetValue(self.viewChildren[i],'buttonText,self.board[i]); Dirty(self); end,
+Finish: func(s) begin self.gameOver:=true; SetValue(self.viewChildren[9],'text,s); Dirty(self); end,
+Play: func(n) begin local move,i;
+if not self.gameOver and self.board[n]="" then begin
+ self.board[n]:="X"; self:Refresh();
+ if self:CheckWin("X") then self:Finish("You win!")
+ else if self:BoardFull() then self:Finish("Draw game.")
+ else begin
+  move:=self:FindLine("O"); if move=nil then move:=self:FindLine("X");
+  if move=nil and self.board[4]="" then move:=4;
+  if move=nil then for i:=0 to 8 do if move=nil and self.board[i]="" then move:=i;
+  self.board[move]:="O"; self:Refresh();
+  if self:CheckWin("O") then self:Finish("Newton wins.")
+  else if self:BoardFull() then self:Finish("Draw game.");
+ end;
+end; end,
+NewGame: func() begin local i; for i:=0 to 8 do self.board[i]:=""; self.gameOver:=nil; self:Refresh(); SetValue(self.viewChildren[9],'text,"Your turn: X"); Dirty(self); end, stepChildren:[
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:0,buttonText:"",viewBounds:{left:20,top:55,right:100,bottom:125},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:1,buttonText:"",viewBounds:{left:110,top:55,right:190,bottom:125},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:2,buttonText:"",viewBounds:{left:200,top:55,right:280,bottom:125},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:3,buttonText:"",viewBounds:{left:20,top:135,right:100,bottom:205},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:4,buttonText:"",viewBounds:{left:110,top:135,right:190,bottom:205},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:5,buttonText:"",viewBounds:{left:200,top:135,right:280,bottom:205},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:6,buttonText:"",viewBounds:{left:20,top:215,right:100,bottom:285},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:7,buttonText:"",viewBounds:{left:110,top:215,right:190,bottom:285},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,cellIndex:8,buttonText:"",viewBounds:{left:200,top:215,right:280,bottom:285},viewClickScript:func() :Parent():Play(self.cellIndex)},
+{_proto:protoStaticText,viewFlags:vVisible,text:"Your turn: X",viewBounds:{left:20,top:300,right:280,bottom:330}},
+{_proto:protoTextButton,viewFlags:vVisible+vClickable,buttonText:"New Game",viewBounds:{left:85,top:340,right:225,bottom:380},viewClickScript:func() :Parent():NewGame()}]};
+{app:'|TicTacToeA8:newtonharness|,text:"Tic-Tac-Toe",theForm:app};

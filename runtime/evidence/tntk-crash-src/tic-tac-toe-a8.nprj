@@ -1,0 +1,10 @@
+{
+    parts: [
+        {
+            main: "Main.newt",
+            files: [],
+        }
+    ],
+    name: "TicTacToeA8:newtonharness",
+    platform: "Newton 2.1"
+}

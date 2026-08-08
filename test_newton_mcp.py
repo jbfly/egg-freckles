@@ -279,6 +279,33 @@ def test_build_pkg_does_not_publish_tntk_exception(monkeypatch, tmp_path):
     assert not (staging / "bad-app.pkg").exists()
 
 
+def test_build_pkg_rejects_tntk_crash_without_identical_retry(monkeypatch,
+                                                               tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    project = workspace / "deep-app"
+    project.mkdir(parents=True)
+    fixture = (Path(__file__).parent / "runtime" / "evidence" /
+               "tntk-crash-fixture" / "Main.newt")
+    (project / "Main.newt").write_text(fixture.read_text())
+    staging = tmp_path / "hardware"
+
+    def fake_make(args):
+        (project / "deep-app.pkg").write_bytes(b"stale package")
+        return 2, "Segmentation fault (core dumped)"
+
+    monkeypatch.setattr(newton_mcp, "AGENT_WORKSPACE", workspace)
+    monkeypatch.setattr(newton_mcp, "HARDWARE_STAGING", staging)
+    monkeypatch.setattr(newton_mcp, "run_make", fake_make)
+    monkeypatch.setattr(newton_mcp.shutil, "which", lambda name: "/usr/bin/bwrap")
+
+    result = newton_mcp.call_tool("build_pkg", {"dir": str(project)})
+
+    assert result["isError"] is True
+    assert "tntk crashed" in result["content"][0]["text"]
+    assert "do not retry byte-identical Main.newt" in result["content"][0]["text"]
+    assert not (staging / "deep-app.pkg").exists()
+
+
 def test_build_pkg_refuses_workspace_symlink_escape(monkeypatch, tmp_path):
     workspace = tmp_path / "agent-workspace"
     outside = tmp_path / "outside"

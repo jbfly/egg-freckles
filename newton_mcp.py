@@ -532,6 +532,12 @@ def tool_build_pkg(arguments: dict) -> dict:
     if not pkg.exists():
         candidates = sorted(path.glob("*.pkg"))
         pkg = candidates[-1] if candidates else pkg
+    if (code < 0 or "segmentation fault" in output.lower() or
+            "dumped core" in output.lower()):
+        return text_result(
+            f"build failed: tntk crashed (make exited {code}); do not retry "
+            f"byte-identical Main.newt -- reduce nesting or change the source shape\n"
+            f"{tail(output)}", is_error=True)
     if code != 0 or "Uncaught exception:" in output or not pkg.exists():
         return text_result(f"build failed (make exited {code})\n{tail(output)}",
                            is_error=True)

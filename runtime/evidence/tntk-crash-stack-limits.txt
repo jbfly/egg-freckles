@@ -1,0 +1,3 @@
+stack_kb=8192 exit=139 package=absent
+stack_kb=unlimited exit=139 package=absent
+stack_kb=65536 exit=139 package=absent
