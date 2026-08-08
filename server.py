@@ -33,7 +33,7 @@ PROMPT_FILE = BASE_DIR / "agent_prompt.txt"
 SCHEMA_FILE = BASE_DIR / "response_schema.json"
 STATE_DIR = Path(os.environ.get("NEWTON_STATE_DIR", BASE_DIR / "state"))
 PORT = int(os.environ.get("NEWTON_PORT", "6801"))
-CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "300"))
+CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "600"))
 GENERATION_HEARTBEAT = 30
 MCP_EVENT_LOG = os.environ.get("NEWTON_MCP_EVENT_LOG")
 FAKE = os.environ.get("NEWTON_FAKE_BACKEND") == "1"
