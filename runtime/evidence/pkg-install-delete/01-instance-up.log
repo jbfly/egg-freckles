@@ -1,0 +1,7 @@
+07ce14b9873ebf5da840c824fed536965f0164a7c971b8038b94334e58f18ce0
+0b3dd1ddbc381363b8931f3a526c6f619d8d0d34320736fa10171cea5c4b3515
+newton-harness-pkgdelproof_emulator_1
+instance   pkgdelproof
+container  newton-harness-pkgdelproof_emulator_1
+control    http://127.0.0.1:45075
+novnc      http://127.0.0.1:50031/vnc.html?autoconnect=1

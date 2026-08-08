@@ -1,0 +1,14 @@
+$ pre-remove presence
+TRUE
+$ newton_mcp emulator_remove
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "queued"
+    }
+  ],
+  "isError": false
+}
+$ post-remove presence
+TRUE

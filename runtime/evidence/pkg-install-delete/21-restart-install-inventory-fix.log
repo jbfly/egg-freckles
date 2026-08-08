@@ -1,0 +1,35 @@
++ c=newton-harness-pkgdelproof_emulator_1
++ podman restart -t 20 newton-harness-pkgdelproof_emulator_1
+newton-harness-pkgdelproof_emulator_1
+++ seq 1 18
++ for i in $(seq 1 18)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ s=starting
++ echo health=starting
+health=starting
++ test starting = healthy
++ sleep 5
++ for i in $(seq 1 18)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ s=starting
++ echo health=starting
+health=starting
++ test starting = healthy
++ sleep 5
++ for i in $(seq 1 18)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ s=starting
++ echo health=starting
+health=starting
++ test starting = healthy
++ sleep 5
++ for i in $(seq 1 18)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ s=healthy
++ echo health=healthy
+health=healthy
++ test healthy = healthy
++ break
++ curl -fsS --max-time 80 -X POST http://127.0.0.1:45075/install --data-binary /packages/harness-client/egg-freckles.pkg
+queued
++ sleep 8

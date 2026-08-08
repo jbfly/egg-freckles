@@ -11,8 +11,9 @@ The safety rails live in this code, not in a prompt (Track D2):
   * mutating emulator ops (tap/text/key/newtonscript/install) refuse the
     SHARED emulator unless `NEWTON_ALLOW_SHARED=1`; `emulator_screen` is
     always allowed;
-  * `newton_tool` refuses ops that would change a physical device and hands
-    back the command for the human instead;
+  * generic `newton_tool` refuses mutation; dedicated `pkg_install` and
+    `pkg_remove` validate staged basenames/exact identities and protect the
+    running client, recovery packages, NIE, and network drivers;
   * agent-authored files are confined to `runtime/agent-workspace/`; project
     creation and source writes reject path and symlink escapes, and builds make
     only that directory writable inside bubblewrap;

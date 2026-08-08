@@ -1,0 +1,14 @@
+$ pre-remove GetPkgRef
+TRUE
+$ MCP pkg_remove
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"request_id\":\"2\",\"status\":\"result\",\"result\":\"removed HarnessHello:jbfly\"}"
+    }
+  ],
+  "isError": false
+}
+$ post-remove GetPkgRef nil
+TRUE
