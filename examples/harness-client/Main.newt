@@ -3072,7 +3072,9 @@ mainView := {
         try
         begin
             GetDefaultStore():SuckPackageFromBinary(self.pkgBinary, {
-                _parent: self, callbackFrequency: 8192,
+                // 512 also confirms tiny agent packages; 8192 never called back
+                // for the 1,104-byte emulator proof even though install succeeded.
+                _parent: self, callbackFrequency: 512,
                 callback: func(progress)
                     self._parent.pkgInstalledIdentity := progress.packageName,
             });
