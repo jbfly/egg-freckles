@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "build failed: tntk crashed (make exited 2); do not retry byte-identical Main.newt -- reduce nesting or change the source shape\nmake: Entering directory '/home/jbfly/git/newton-harness-tntk-crash/runtime/agent-workspace/tntk-crash-check'\nLD_LIBRARY_PATH=\"/home/jbfly/newton-dev/prefix/lib:${LD_LIBRARY_PATH}\" \"/home/jbfly/newton-dev/prefix/bin/tntk\" -P \"/home/jbfly/newton-dev/ntk-platform-files\" -c deep.nprj\nmake: *** [Makefile:6: deep.pkg] Segmentation fault (core dumped)\nmake: Leaving directory '/home/jbfly/git/newton-harness-tntk-crash/runtime/agent-workspace/tntk-crash-check'"
+    }
+  ],
+  "isError": true
+}

@@ -116,6 +116,20 @@ the backend still returns the final message (`test_server.py:131-151`). The
 full suite passed **128/128**
 ([pytest log](../runtime/evidence/devloop-streamlimit/pytest.log)).
 
+## Root cause 5: recursive source crashes `tntk` and repeats unchanged
+
+Deeply nested agent-generated NewtonScript can crash `tntk` inside its recursive
+parser before it emits a diagnostic. A 500-array fixture reproduces SIGSEGV 139
+with `NPSGenNode2 -> yyparse -> NPSParse`; increasing the process stack through
+64 MiB and unlimited does not change the result. `build_pkg` already rejected
+the nonzero make exit, but its generic error gave the authoring agent no direct
+instruction to stop retrying the same source shape.
+
+The build path now identifies the compiler crash text and explicitly requires a
+non-identical rewrite with less nesting or a different source shape. The agent
+prompt carries the same rule. The fixture, core trace, stack-limit results, and
+sandboxed build-path proof are in [`docs/tntk-crash.md`](tntk-crash.md).
+
 ## Reliability results
 
 Post-fix isolated-emulator validation passed **counter 5/5**. Every round

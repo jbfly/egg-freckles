@@ -1,0 +1,41 @@
+Reading project file tic-tac-toe-a8.nprj
+Reading platform file Newton 2.1
+Parts: 1
+Building package TicTacToeA8:newtonharness
+Building part 0
+Reading platform file /home/jbfly/newton-dev/ntk-platform-files/Newton 2.1
+Compiling Main.newt
+Encoding Part 0 c80fa1...
+{
+	app: '|TicTacToeA8:newtonharness|,
+	text: "Tic-Tac-Toe",
+	theForm: {
+		_proto: @157,
+		appSymbol: '|TicTacToeA8:newtonharness|,
+		title: "Tic-Tac-Toe",
+		viewBounds: {
+			left: 8,
+			top: 45,
+			right: 312,
+			bottom: 430
+		},
+		viewFlags: 517,
+		board: [
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			""
+		],
+		gameOver: NIL,
+		CheckWin: <function, 1 arg(s) #00cfad11>,
+		BoardFull: <function, 0 arg(s) #00cee461>,
+		FindLine: <function, 1 arg(s) #00cf9771>, ...
+
+	}
+}
+Package tic-tac-toe-a8.pkg created.

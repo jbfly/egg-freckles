@@ -1,0 +1,34 @@
+           PID: 3706940 (tntk)
+           TID: 3706940 (tntk)
+           UID: 1000 (jbfly)
+           GID: 1000 (jbfly)
+        Signal: 11 (SEGV) si_code: SEGV_MAPERR
+     Timestamp: Sun 2026-08-09 00:05:53 WEST (9s ago)
+  Command Line: /home/jbfly/newton-dev/prefix/bin/tntk -P /home/jbfly/newton-dev/ntk-platform-files -c deep.nprj
+    Executable: /home/jbfly/newton-dev/prefix/bin/tntk
+ Control Group: /user.slice/user-1000.slice/user@1000.service/app.slice/omnigent-host.service
+          Unit: user@1000.service
+     User Unit: omnigent-host.service
+         Slice: user-1000.slice
+     Owner UID: 1000 (jbfly)
+       Boot ID: a389511b89534345bfb559b00e9c1452
+    Machine ID: 1bbe862da3274255b20750440a297940
+      Hostname: jbfly-alpha
+       Storage: /var/lib/systemd/coredump/core.tntk.1000.a389511b89534345bfb559b00e9c1452.3706940.1786230353000000.zst (present)
+  Size on Disk: 467.2K
+       Message: Process 3706940 (tntk) of user 1000 dumped core.
+
+                Stack trace of thread 3706940:
+                #0  0x000055a7b03670f9 NPSGenNode2 (tntk + 0x210f9)
+                #1  0x000055a7b0377418 yyparse (tntk + 0x31418)
+                #2  0x000055a7b0366d85 NPSParse (tntk + 0x20d85)
+                #3  0x000055a7b0366f95 NPSParseStr (tntk + 0x20f95)
+                #4  0x000055a7b034bc2c _ZN5TPart14MInterpretFileEPKc (tntk + 0x5c2c)
+                #5  0x000055a7b034beeb _ZN5TPart10MBuildPartEPKc (tntk + 0x5eeb)
+                #6  0x000055a7b034afd5 _ZN8TPackage13MBuildPackageEv (tntk + 0x4fd5)
+                #7  0x000055a7b034cefe _ZThn32_N5TTntk4MRunEv (tntk + 0x6efe)
+                #8  0x000055a7b034a7fc main (tntk + 0x47fc)
+                #9  0x00007f73ce027c8e n/a (libc.so.6 + 0x27c8e)
+                #10 0x00007f73ce027dcb __libc_start_main (libc.so.6 + 0x27dcb)
+                #11 0x000055a7b034a835 _start (tntk + 0x4835)
+                ELF object binary architecture: AMD x86-64
