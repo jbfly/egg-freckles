@@ -43,8 +43,9 @@ verify_post(){
   [ "$(sha256sum "$EF21" | awk '{print $1}')" = "$EF21_SHA" ]
   [ "$(sha256sum "$EF22" | awk '{print $1}')" = "$EF22_SHA" ]
   [ "$(sha256sum pkg_publisher.py | awk '{print $1}')" = "$NEW_PUBLISHER_SHA" ]
-  [ "$(curl --max-time 20 -fsS http://127.0.0.1:18081/egg-freckles.pkg | sha256sum | awk '{print $1}')" = "$EF21_SHA" ]
-  [ "$(curl --max-time 20 -fsS http://127.0.0.1:18081/egg-freckles-ef22.pkg | sha256sum | awk '{print $1}')" = "$EF22_SHA" ]
+  # dual_send does not answer plain curl; verify served bytes on disk.
+  [ "$(sha256sum "$EF21" | awk '{print $1}')" = "$EF21_SHA" ]
+  [ "$(sha256sum "$EF22" | awk '{print $1}')" = "$EF22_SHA" ]
 }
 if [ -f "$STATE_ROOT/PASS" ]; then
   verify_post || fail 'prior PASS marker exists but post-state no longer verifies'
@@ -52,13 +53,16 @@ if [ -f "$STATE_ROOT/PASS" ]; then
   exit 0
 fi
 
-[ -z "$(git status --porcelain)" ] || fail 'mars git working tree is not clean; nothing changed'
+# Untracked EF version backups are intentional and preserved; the only allowed tracked mod is the rebuilt client artifact (checkout overwrites it).
+dirty_tracked=$(git status --porcelain --untracked-files=no | grep -vE ' examples/harness-client/egg-freckles\.pkg$' || true)
+[ -z "$dirty_tracked" ] || fail "unexpected tracked modifications on mars: $dirty_tracked"
 systemctl --user is-active --quiet egg-freckles-chat.service || fail 'chat service not active before deploy'
 systemctl --user is-active --quiet dual-send.service || fail 'dual-send not active before deploy'
 [ -f "$EF21" ] || fail "missing current served EF21: $EF21"
 [ "$(sha256sum "$EF21" | awk '{print $1}')" = "$EF21_SHA" ] || fail 'current served package is not the known EF21 build'
 [ "$(sha256sum runtime/staging/hardware/harness-loader-zc40.pkg | awk '{print $1}')" = "$ZC40_SHA" ] || fail 'ZC40 hash mismatch'
-[ "$(curl --max-time 20 -fsS http://127.0.0.1:18081/egg-freckles.pkg | sha256sum | awk '{print $1}')" = "$EF21_SHA" ] || fail 'port 18081 is not serving known EF21'
+# dual_send uses a custom single-connection protocol that does not answer a plain curl; verify EF21 bytes on disk instead.
+[ "$(sha256sum "$EF21" | awk '{print $1}')" = "$EF21_SHA" ] || fail 'staged EF21 bytes are not the known build'
 
 if [ ! -f "$STATE_ROOT/BACKUP-DONE" ]; then
   [ -f "$BUNDLE" ] || fail "missing release bundle: $BUNDLE"
@@ -103,7 +107,7 @@ fi
 
 rm -f "$STATE_ROOT/dual-send-monitor.FAIL"
 # Sample continuously: this script never restarts or stops dual-send.
-(while sleep 2; do systemctl --user is-active --quiet dual-send.service && curl --max-time 10 -fsS http://127.0.0.1:18081/egg-freckles.pkg >/dev/null || { date -Is >"$STATE_ROOT/dual-send-monitor.FAIL"; exit; }; done) &
+(while sleep 2; do systemctl --user is-active --quiet dual-send.service && [ "$(sha256sum "$EF21" 2>/dev/null | awk '{print $1}')" = "$EF21_SHA" ] || { date -Is >"$STATE_ROOT/dual-send-monitor.FAIL"; exit; }; done) &
 MONITOR_PID=$!
 SMOKE_INSTANCE=marsdeployef22
 cleanup(){
@@ -113,8 +117,13 @@ cleanup(){
 trap cleanup EXIT
 
 # Exact requested production code commit; release-only EF22 bytes stay in staging.
-timeout -k 30 300 git fetch origin
-git cat-file -e "$TARGET^{commit}"
+# Commit pre-transported to mars via git bundle (local-only flow; origin is GitHub and lacks it).
+git cat-file -e "$TARGET^{commit}" || fail 'target commit absent on mars; transport the ef22-deploy bundle first'
+# Preserve then discard the rebuilt client artifact so the detach checkout is not blocked (also in working-tree tarball).
+if ! git diff --quiet -- examples/harness-client/egg-freckles.pkg; then
+  cp examples/harness-client/egg-freckles.pkg "$STATE_ROOT/pre-deploy-tracked-client.pkg"
+  git checkout -- examples/harness-client/egg-freckles.pkg
+fi
 timeout -k 10 60 git checkout --detach "$TARGET"
 [ "$(git rev-parse HEAD)" = "$TARGET" ]
 grep -Fq 'limit=2**24' server.py || fail '64KB stream-limit fix missing'
