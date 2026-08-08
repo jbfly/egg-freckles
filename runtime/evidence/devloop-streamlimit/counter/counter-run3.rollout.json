@@ -1,0 +1,66 @@
+[
+  {
+    "op": "STAT",
+    "payload": "READY"
+  },
+  {
+    "op": "STAT",
+    "payload": "THINKING"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Creating project (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Writing source (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Building package (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Booting emulator (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Installing package (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Launching app (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Taking screenshot (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Built and verified in emulator"
+  },
+  {
+    "op": "TEXT",
+    "payload": "instance dl-counter-091332-3."
+  },
+  {
+    "op": "TEXT",
+    "payload": ""
+  },
+  {
+    "op": "TEXT",
+    "payload": "The screenshot shows Counter, value 0,"
+  },
+  {
+    "op": "TEXT",
+    "payload": "and the Increment button. No physical"
+  },
+  {
+    "op": "TEXT",
+    "payload": "install was attempted."
+  },
+  {
+    "op": "PROMPT",
+    "payload": ""
+  }
+]

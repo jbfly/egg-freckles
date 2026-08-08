@@ -128,6 +128,29 @@ def test_codex_backend_relays_tool_progress_and_failures(monkeypatch, tmp_path):
     ]
 
 
+def test_codex_backend_reads_event_lines_larger_than_asyncio_default(monkeypatch, tmp_path):
+    async def fake_subprocess(*args, **kwargs):
+        reader = asyncio.StreamReader(limit=kwargs["limit"])
+        reader.feed_data(
+            b'{"type":"thread.started","thread_id":"t1","padding":"'
+            + b"x" * (2**16) + b'"}\n'
+            + b'{"type":"item.completed","item":{"type":"agent_message",'
+              b'"text":"{\\"visible\\":\\"done\\"}"}}\n')
+        reader.feed_eof()
+
+        class Process:
+            stdout = reader
+            returncode = 0
+
+            async def wait(self):
+                return 0
+
+        return Process()
+
+    monkeypatch.setattr(server.asyncio, "create_subprocess_exec", fake_subprocess)
+    assert asyncio.run(server.CodexBackend(server.Chat(tmp_path)).chat("large app")) == "done"
+
+
 class RegistryTest(unittest.TestCase):
     """Track F4: the sessions registry, offline."""
 

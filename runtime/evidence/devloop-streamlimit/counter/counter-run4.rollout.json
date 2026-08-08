@@ -1,0 +1,74 @@
+[
+  {
+    "op": "STAT",
+    "payload": "READY"
+  },
+  {
+    "op": "STAT",
+    "payload": "THINKING"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Creating project (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Writing source (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Building package (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Building package failed; fixing: build failed (make exited 2)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Writing source (attempt 2/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Building package (attempt 2/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Booting emulator (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Installing package (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Launching app (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Taking screenshot (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Counter built and verified in emulator"
+  },
+  {
+    "op": "TEXT",
+    "payload": "instance dl-counter-091332-4."
+  },
+  {
+    "op": "TEXT",
+    "payload": ""
+  },
+  {
+    "op": "TEXT",
+    "payload": "Screenshot shows Counter, value 0, and"
+  },
+  {
+    "op": "TEXT",
+    "payload": "the Increment button. No physical install."
+  },
+  {
+    "op": "PROMPT",
+    "payload": ""
+  }
+]

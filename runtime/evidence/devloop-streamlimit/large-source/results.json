@@ -1,0 +1,35 @@
+[
+  {
+    "app": "large-source",
+    "run": 1,
+    "instance": "dl-largesou-090352-1",
+    "project": "dl-largesou-0808090352-1",
+    "passed": true,
+    "seconds": 202.6,
+    "error": "",
+    "title": "Large Source",
+    "ocr": "8:06 Sat 8/8\n\nU\n\nNotes\n\nElsatere\n\no=\n\nR \u2014\n\nLarge Source\n\nQ o*\n\nExtras InOut Names Dates Undo  Find  Assist\n\nB L D\n\n\u00a5",
+    "completed_tools": [
+      "create_project",
+      "write_source",
+      "write_source",
+      "build_pkg",
+      "emulator_boot",
+      "emulator_install",
+      "emulator_newtonscript",
+      "emulator_screen",
+      "write_source",
+      "build_pkg",
+      "emulator_boot",
+      "emulator_install",
+      "emulator_newtonscript",
+      "emulator_screen"
+    ],
+    "package_bytes": 1104,
+    "package_sha256": "1001daf7b6ce814030574f1f6f43834cd4c793e4253a8c0985cacb08525462ec",
+    "screenshot": "runtime/evidence/devloop-streamlimit/large-source/large-source-run1.png",
+    "rollout": "runtime/evidence/devloop-streamlimit/large-source/large-source-run1.rollout.json",
+    "mcp_events": "runtime/evidence/devloop-streamlimit/large-source/large-source-run1.mcp.jsonl",
+    "server_log": "runtime/evidence/devloop-streamlimit/large-source/large-source-run1.server.log"
+  }
+]

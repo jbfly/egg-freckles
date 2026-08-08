@@ -1,0 +1,8 @@
+command: timeout -k 10 180 uv run --with pytest pytest -q
+started: 2026-08-08T08:02:25Z
+........................................................................ [ 56%]
+..................Newton tools disconnected
+......................................                 [100%]
+128 passed in 17.14s
+finished: 2026-08-08T08:02:42Z
+exit_status: 0

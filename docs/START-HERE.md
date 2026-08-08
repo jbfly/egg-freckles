@@ -100,7 +100,7 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 94 pass (2026-08-04), of which **28** are client-source tests
+**Tests** — 128 pass (2026-08-08), of which **28** are client-source tests
 pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
 the Track L1 `EntryUniqueID` ordering rule and merged tools channel, the `NSI1`
 `H` line, the Track A8 transcript row window and the Track L2 "Send to AI" hook
@@ -111,7 +111,7 @@ F4 slash commands and the session registry. `pytest` is not in
 the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 94 passed
+uv run --with pytest pytest -q          # 128 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only

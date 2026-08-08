@@ -1,0 +1,10 @@
+READY
+THINKING
+Creating project (attempt 1/5)
+Writing source (attempt 1/5)
+Building package (attempt 1/5)
+Booting emulator (attempt 1/5)
+Installing package (attempt 1/5)
+Launching app (attempt 1/5)
+Taking screenshot (attempt 1/5)
+Built and verified Counter in isolated emulator dl-counter-091332-2. The screenshot shows the running app with count 0 and the Increment button. No physical install was performed.

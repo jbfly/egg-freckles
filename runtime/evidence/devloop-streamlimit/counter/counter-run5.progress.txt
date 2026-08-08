@@ -1,0 +1,16 @@
+READY
+THINKING
+Creating project (attempt 1/5)
+Writing source (attempt 1/5)
+Building package (attempt 1/5)
+Booting emulator (attempt 1/5)
+Installing package (attempt 1/5)
+Launching app (attempt 1/5)
+Taking screenshot (attempt 1/5)
+Built and verified in emulator
+instance dl-counter-091332-5.
+
+Counter is open and visibly shows 0
+with the Increment button.
+
+No physical install was attempted.

@@ -1,0 +1,17 @@
+READY
+THINKING
+Creating project (attempt 1/5)
+Writing source (attempt 1/5)
+Building package (attempt 1/5)
+Building package failed; fixing: build failed (make exited 2)
+Writing source (attempt 2/5)
+Building package (attempt 2/5)
+Booting emulator (attempt 1/5)
+Installing package (attempt 1/5)
+Launching app (attempt 1/5)
+Taking screenshot (attempt 1/5)
+Counter built and verified in emulator
+instance dl-counter-091332-4.
+
+Screenshot shows Counter, value 0, and
+the Increment button. No physical install.

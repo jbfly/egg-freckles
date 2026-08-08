@@ -1,0 +1,70 @@
+[
+  {
+    "op": "STAT",
+    "payload": "READY"
+  },
+  {
+    "op": "STAT",
+    "payload": "THINKING"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Creating project (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Writing source (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Building package (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Booting emulator (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Installing package (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Launching app (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Taking screenshot (attempt 1/5)"
+  },
+  {
+    "op": "TEXT",
+    "payload": "Built and verified in emulator"
+  },
+  {
+    "op": "TEXT",
+    "payload": "instance dl-counter-091332-5."
+  },
+  {
+    "op": "TEXT",
+    "payload": ""
+  },
+  {
+    "op": "TEXT",
+    "payload": "Counter is open and visibly shows 0"
+  },
+  {
+    "op": "TEXT",
+    "payload": "with the Increment button."
+  },
+  {
+    "op": "TEXT",
+    "payload": ""
+  },
+  {
+    "op": "TEXT",
+    "payload": "No physical install was attempted."
+  },
+  {
+    "op": "PROMPT",
+    "payload": ""
+  }
+]

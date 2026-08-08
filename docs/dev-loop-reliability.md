@@ -98,6 +98,38 @@ after that gate passes. `scripts/emulator-instance.sh` also wraps Compose and
 Podman themselves with `timeout -k 5`, so killing its caller cannot leave an
 unbounded child behind.
 
+## Root cause 4: Codex JSON events exceeded asyncio's line limit
+
+The counter failure at 08:18:43 was not a build retry failure: immediately
+after `create_project`, the whole backend turn ended with
+`ValueError('Separator is not found, and chunk exceed the limit')`
+([server log](../runtime/evidence/devloop-reliability/counter-run1.server.log)).
+`CodexBackend.chat` created the subprocess without a stream limit and then read
+one JSON event per line, so asyncio's 64 KiB default rejected any event carrying
+a large generated source value (`server.py:575-586` before this fix). That
+exception sits outside the MCP stage retry loop and therefore ended the turn.
+
+The subprocess now uses a 16 MiB reader limit (`server.py:575-579`). The
+regression test constructs the fake subprocess's real `asyncio.StreamReader`
+from that argument, feeds it one valid JSON line larger than 64 KiB, and proves
+the backend still returns the final message (`test_server.py:131-151`). The
+full suite passed **128/128**
+([pytest log](../runtime/evidence/devloop-streamlimit/pytest.log)).
+
 ## Reliability results
 
-Pending in this cycle.
+Post-fix isolated-emulator validation passed **counter 5/5**. Every round
+completed create, write, build, boot, install, launch, and screenshot, and each
+OCR file contains the visible `Counter` title and `Increment` button
+([summary and per-round evidence](../runtime/evidence/devloop-streamlimit/counter/)).
+
+A deliberately large app also passed **1/1** with no human turn. Its Codex
+stream carried single `write_source` event arguments of **88,766**, **88,727**,
+and **88,870 bytes** without the former reader exception; after bounded
+self-correction it built, installed, launched, and OCR found `Large Source`
+([server log](../runtime/evidence/devloop-streamlimit/large-source/large-source-run1.server.log),
+[result](../runtime/evidence/devloop-streamlimit/large-source/results.json),
+[screenshot](../runtime/evidence/devloop-streamlimit/large-source/large-source-run1.png)).
+The validation used named isolated instances only; its detached bounds and
+artifact index are recorded in
+[`runtime/evidence/devloop-streamlimit/README.md`](../runtime/evidence/devloop-streamlimit/README.md).

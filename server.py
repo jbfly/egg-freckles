@@ -575,7 +575,8 @@ class CodexBackend:
                 proc = await asyncio.create_subprocess_exec(
                     *cmd, cwd=tmp,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT)
+                    stderr=asyncio.subprocess.STDOUT,
+                    limit=2**24)
             except OSError as exc:
                 raise BackendError(f"could not run codex: {exc}") from exc
             output = []
