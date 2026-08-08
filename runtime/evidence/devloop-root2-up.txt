@@ -1,0 +1,10 @@
+instance   devloop-root2
+container  newton-harness-devloop-root2_emulator_1
+control    http://127.0.0.1:57591
+novnc      http://127.0.0.1:56749/vnc.html?autoconnect=1
+resolved=newton-harness-devloop-root2_emulator_1
+/home/jbfly/newton-dev/prefix/bin/717006 bind
+poll=1 running starting 0
+poll=2 running starting 0
+poll=3 running starting 0
+poll=4 running healthy 0
