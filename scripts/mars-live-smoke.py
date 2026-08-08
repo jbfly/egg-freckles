@@ -35,8 +35,15 @@ def parse(raw):
     body, marker = raw[1:].rstrip(b"\r\n").rsplit(b"*", 1)
     if not raw.startswith(b":") or checksum(body) != int(marker, 16):
         raise ValueError(f"bad frame: {raw!r}")
-    seq, op, payload = body.decode("ascii").split(" ", 2)
+    parts = body.decode("ascii").split(" ", 2)
+    seq, op, payload = parts[0], parts[1], parts[2] if len(parts) > 2 else ""
     return int(seq), op, payload
+
+
+def test_parse():
+    assert parse(frame(1, "STAT", "ready")) == (1, "STAT", "ready")
+    body = b"02 PROMPT"
+    assert parse(b":" + body + f"*{checksum(body):02X}\r\n".encode()) == (2, "PROMPT", "")
 
 
 def main():
