@@ -137,6 +137,43 @@ def test_codex_backend_relays_tool_progress_and_failures(monkeypatch, tmp_path):
     ]
 
 
+def test_native_mode_streams_progress_without_polluting_final_text(monkeypatch, tmp_path):
+    sent = []
+
+    async def fake_send_frame(reader, writer, state, op, payload=""):
+        sent.append((op, payload))
+        state["tx_seq"] = (state["tx_seq"] + 1) % 100
+
+    class Backend:
+        async def chat(self, user_text, progress=None):
+            await progress("Writing source")
+            return "final answer"
+
+    class Writer:
+        def write(self, data):
+            pass
+
+        async def drain(self):
+            pass
+
+    async def exercise():
+        reader = asyncio.StreamReader()
+        reader.feed_data(server.frame_line(0, "HELLO", "NEWTON1 test"))
+        reader.feed_data(server.frame_line(1, "MSG", "build it"))
+        reader.feed_eof()
+        await server.native_mode(reader, Writer(), server.Chat(tmp_path), Backend())
+
+    monkeypatch.setattr(server, "send_frame", fake_send_frame)
+    asyncio.run(exercise())
+    assert sent == [
+        ("STAT", "READY"),
+        ("STAT", "THINKING"),
+        ("STAT", "PROGRESS Writing source"),
+        ("TEXT", "final answer"),
+        ("PROMPT", ""),
+    ]
+
+
 def test_codex_backend_reads_event_lines_larger_than_asyncio_default(monkeypatch, tmp_path):
     async def fake_subprocess(*args, **kwargs):
         reader = asyncio.StreamReader(limit=kwargs["limit"])

@@ -828,8 +828,7 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         async with TURN_LOCK:
             ctx.record("user", text)
             async def show_progress(message: str) -> None:
-                for chunk in text_parts(message, state["tx_seq"]):
-                    await send_frame(reader, writer, state, "TEXT", chunk)
+                await send_frame(reader, writer, state, "STAT", "PROGRESS " + message)
 
             try:
                 reply = await backend.chat(text, show_progress)

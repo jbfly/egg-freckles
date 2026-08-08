@@ -16,9 +16,13 @@ NAK SS REASON\r\n
 |---|---|---|
 | Client → host | `HELLO` | `NEWTON1`, optionally followed by a space and app version |
 | Client → host | `MSG` | One prompt; a leading `/` may make it a host command |
-| Host → client | `STAT` | `READY`, `THINKING`, or `ERROR short-text` |
+| Host → client | `STAT` | `READY`, `THINKING`, `PROGRESS short-text`, or `ERROR short-text` |
 | Host → client | `TEXT` | One ASCII display chunk |
 | Host → client | `PROMPT` | Empty; the turn is complete |
+
+`PROGRESS` is transient status, not assistant reply text. Clients that do not yet
+render it still ACK the frame and ignore the unknown `STAT` payload; the final
+`TEXT` frames and `PROMPT` remain unchanged.
 
 Long replies use multiple `TEXT` frames. A prompt too long for one frame uses
 the `MSGP` extension below; a client that does not implement it still sends one

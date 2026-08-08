@@ -1,7 +1,8 @@
 # Progress and feedback design
 
-Date: 2026-08-07. P2 is source-complete in EF15 and P4 in EF18; emulator and
-hardware proof remain deliberately human-gated.
+Date: 2026-08-09. P2 is source-complete in EF15, P4 in EF18, and the P3
+server half is socket-proven; Newton rendering remains deferred to the session
+that owns `examples/harness-client/Main.newt`. Hardware proof remains human-gated.
 
 ## Bottom line
 
@@ -18,6 +19,17 @@ completion for 1.5 seconds, and closes (`examples/harness-client/Main.newt:149-
 179,208-258,306-359`). Source and socket-level tests pin the Notes path, immediate
 `INKP`, ordered STATUS-before-INK, no final `Content-Length`, and EF14's
 send-owned radio lifecycle.
+
+**Chat stream result (2026-08-09).** `CodexBackend.chat` maps structured MCP
+events to short status lines, and native mode now emits each as `STAT PROGRESS`
+before the unchanged final `TEXT`/`PROMPT` pair (`server.py:524-554,594-622,
+827-850`). A delayed local socket run records writing, build failure/retry,
+emulator boot/install/launch/screenshot, and the final answer arriving over
+4.61 seconds (`runtime/evidence/stream-feedback-local.txt:7-17`). The shipped
+client ACKs these frames but paints nothing until `PROMPT`: it accumulates only
+`TEXT` at `examples/harness-client/Main.newt:1201-1205` and redraws at
+`examples/harness-client/Main.newt:1206-1210`. The client owner must add a
+`STAT PROGRESS` branch there that calls `SetStatus` with the payload.
 
 Use one tiny status record everywhere: a short machine phase, a human sentence,
 and optional `n/total`. Render transient work in the existing Newton status
@@ -85,7 +97,7 @@ text.
 | Chat send | A short `MSG` changes directly to `Thinking` before its ACK, hiding whether bytes are still leaving the Newton. Multipart `MSGP` does show `Sending n/total`, but only until the last ACK. | Normally sub-second on a live link; each output is bounded at 10 s. | `examples/harness-client/Main.newt:994-1008,1081-1135` | `send` — `Sending message...` or `Sending part n/total...`; change phase only after ACK. |
 | Per-part ink upload | `Sending page n/total` is set, but `InkPost` immediately overwrites it with generic `Thinking...`; while the request body is uploading, the user loses the page number. | Hardware-dependent; six parts plus processing took 1–2 min end to end. | `examples/harness-client/Main.newt:1987-2001,2128-2164,2190-2201`; `docs/ef13-memory-diagnosis.md:231-245` | Keep `send` — `Sending page n/total...` until the server emits `received`. |
 | Per-part render/vision wait | Every page waits for a blocking vision call, but the screen says only `Thinking...`; it does not identify the page or distinguish rendering from model work. | About 9 s per image in the current code; measured 9–15 s by payload, and the four-part evidence completed one response about every 10–12 s. | `examples/harness-client/Main.newt:2139-2145`; `pkg_publisher.py:246-260`; `docs/ink-client-design.md:342-350`; `runtime/evidence/ef10round-fix2-many-host.log:1-12` | `render` — `Rendering page n/total...`; then `vision` — `Server is reading page n/total...`. |
-| Waiting for a chat reply | The existing `STAT THINKING` proves the server started work but says nothing after that until text arrives. | About 6 s in the original real turn; model timeout is 120 s. | `docs/phase3-chat-round.md:18-25`; `server.py:747-767`; `examples/harness-client/Main.newt:1053-1076` | `model` — `Server is writing a reply...`; completion remains the transcript answer. |
+| Waiting for a chat reply | The host now emits `STAT PROGRESS` for each Codex tool event, but the client ACKs and ignores it, so the screen still says only `Thinking`. | About 6 s in the original real turn; model timeout is 600 s. | `server.py:524-554,594-622,827-850`; `examples/harness-client/Main.newt:1153-1210`; `runtime/evidence/stream-feedback-local.txt:7-17` | In `HandleLine`, recognize `STAT PROGRESS`, strip the prefix, and call `SetStatus`; final `TEXT` remains the transcript answer. |
 | Filing a Notes-menu reply | The headless route stores status only in `aiStatus`; the user sees nothing until a new note appears in AI. The design record already calls a note appearing about 9 s later “a bad experience.” | About 9 s for one image; 1–2 min for the proven six-part note. | `examples/harness-client/Main.newt:153-186,244-285,309-330`; `docs/notes-integration-design.md:199-204,250-260`; `docs/ef13-memory-diagnosis.md:229-245` | While Notes owns the action, show a small non-modal progress view; close it after `Answer filed in AI`. This is later UI work, not the first slice. |
 | Ink/chat endpoint teardown and radio-down | Endpoint disposal and `InetReleaseLink` happen after 1 s delayed cleanup with no positive “done/radio off” indication. The new lifecycle is not built yet. | About 1 s deliberate settle, then platform teardown. | `examples/harness-client/Main.newt:2242-2266,2276-2283`; `docs/chat-ui-and-radio-lifecycle-plan.md:36-64` | `disconnect` — `Closing connection...`, then `idle` — `Radio off` briefly before `Ready`. Do not keep a connection merely to report this. |
 
@@ -94,7 +106,7 @@ text.
 | Operation | What is quiet today | Typical or bounded wait | Evidence | Required status/log |
 |---|---|---:|---|---|
 | Chat message/part received | `server.py` logs each `MSGP` part and final assembly, but a normal one-frame `MSG` has no equivalent receipt log. Neither path emits a human-specific “message received” phase beyond generic `THINKING`. | Sub-second after connection. | `server.py:672-747` | Log `received` for both `MSG` and `MSGP`; send `STAT` status only when it changes what the user can see. |
-| Chat model call | The host logs the Codex argv and errors, but not a start/done pair or elapsed time; the Newton sees only `Thinking`. | About 6 s in the real proof; hard timeout 120 s. | `server.py:516-557,747-767`; `docs/phase3-chat-round.md:18-25` | Log `model start` and `model done elapsed_ms=...`; surface `Server is writing a reply...` on Newton. |
+| Chat model call | The host logs generation start/complete and each Newton MCP event, and streams mapped events as `STAT PROGRESS`; only the client render branch is missing. | About 6 s in the original proof; hard timeout 600 s. | `server.py:524-554,565-637,827-850`; `runtime/evidence/stream-feedback-server.log`; `runtime/evidence/stream-feedback-local.txt:7-17` | Client-only: render `STAT PROGRESS` in the existing status line. |
 | Chat reply assembly/transmission | Reply chunking and state save are silent on success; only save failure is logged. | Normally sub-second after model completion. | `server.py:651-658,757-767` | Log `reply assembled chars=... parts=...`, then `reply sent`. Do not add each chunk to the transcript. |
 | Ink part received/parsed | `INK BODY` already logs mode, part, bytes, strokes, and points. It does not use the same phase vocabulary or tell the Newton that upload completed. | Immediate after body read. | `pkg_publisher.py:335-421` | Emit/log `received` with `n/total`; this is the event that replaces `Sending page...` on Newton. |
 | PNG rendered | The PNG is written with no success log, so an operator cannot tell whether time is in parsing, rendering, or the model. | Small compared with the 9–15 s model call; not separately measured. | `pkg_publisher.py:279-318,439-450` | Log/emit `rendered` after `save_ink_png`; no percentage or invented ETA. |
@@ -197,7 +209,7 @@ The ordering is by file ownership and merge risk, not by conceptual purity.
 | **P0 — host logs**, future `release/progress-host`, based after the current `server.py` / `pkg_publisher.py` owners merge | Chat receipt/model/reply; ink receipt/render/vision/assembly; `/note`; tools queued/dispatched/done | Independent of Newton wire/UI and immediately useful to operators. Smallest safe merge. | Unit tests capture one ordered line per boundary; one real or fake round shows elapsed time and `n/total`. |
 | **P1 — radio lifecycle**, existing `release/radio-battery` | Radio-up, connect, disconnect, radio-off; tools poll active only during a send/tool request | This branch already owns the connection lifetime. Progress must not accidentally preserve the EF6 always-on poll that the battery round is deleting. | Source tests pin no install-time `ToolStart`; emulator evidence shows status during connect and no tools socket after idle teardown. |
 | **P2 — first user-visible ink slice**, future `release/progress-ink`, based on merged P0 + P1 and after the current ink worker | Per-part send, received, render, vision, final reply; streamed `STATUS`/`INKERR` response | Highest-value path and the exact 1–2 minute hardware complaint. It touches both `Main.newt` and `pkg_publisher.py`, so it follows their current owners rather than merging around them. | Fake publisher deterministically emits all phases; real-image emulator round shows `Sending page 1/N` then `Server is reading page 1/N`; multipart order and existing final filing remain correct. Hardware remains human-gated. |
-| **P3 — chat detail**, fold into the planned chat-UI round after P1/P2 | Chat send ACK boundary, model phase, reply assembly | Existing `Thinking` is already adequate for ~6 s; lower value than ink. Folding avoids moving/re-wiring the status line twice. | Existing framed protocol tests plus one emulator turn; legacy `READY`/`THINKING` still work. |
+| **P3 — chat detail** — server half complete; client deferred | Codex tool-event progress over the active framed connection | The server emits `STAT PROGRESS` without mixing transient status into final `TEXT`. `Main.newt` is owned by another live session, so its one render branch is deliberately unwritten. | Local framed socket transcript proves ordered partial arrival (`runtime/evidence/stream-feedback-local.txt:7-17`); client owner still owes emulator/hardware rendering proof. |
 | **P4 — Notes headless progress view** — source-complete in EF18 | Notes-menu route and `Answer filed in AI` | The persistent agent builds a root-level `protoFloatNGo` from the route, updates its static text through the existing `SetStatus`, and closes it after completion; no second channel or application launch (`examples/harness-client/Main.newt:149-179,208-258,306-359`). | Source assertions and clean `tntk` compile pass. Still human-gated: invoke from Notes with Egg Freckles closed, confirm Notes stays interactive, progress updates, one AI note is filed, and the view closes. |
 | **P5 — emulator/tools messages**, existing `release/emulator-nseval` where applicable, otherwise a tiny tools round | Queued install/open, OCR attempt, `ns_eval` wait, `/tools` lifecycle logs | Developer-facing and independent; serialize with the worker already changing the emulator/ns-eval harness. | CLI transcript contains a line before each wait and no polling spam; existing completion checks still decide success. |
 
