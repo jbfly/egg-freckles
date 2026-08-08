@@ -32,9 +32,41 @@ card warning at `(247,271)`, tap Welcome's Continue at `(160,440)`, then tap
 Enter at `(160,30)`. The resulting screen is stock Notes. The reliability
 harness uses that sequence after each fresh boot.
 
-## Build crash investigation
+## Root cause 2: tntk exits zero after an undefined helper
 
-Pending in this cycle.
+A real workspace build used generated source containing
+`CellButton("Broken helper", ...)`, which is not a NewtonScript global. `tntk`
+reported `kNErrUndefinedGlobalFunction` for `CellButton` but continued through
+`Package buildcrash-0808.pkg created.` and `make` exited 0. The resulting file
+was only 232 bytes
+([complete MCP/toolchain transcript](../runtime/evidence/devloop-build-crash.json)).
+This is the observed “core dump” class: the compiler emits an uncaught Newton
+exception and a partial artifact while its process status still looks
+successful.
+
+The existing `build_pkg` defense from commit `8d933fd` holds: it forces a
+rebuild, treats `Uncaught exception:` as failure even when make exits 0, and
+publishes nothing to hardware staging. The reproduction found the 232-byte
+workspace artifact but `staged_pkg=absent`
+([publish check](../runtime/evidence/devloop-build-crash-publish-check.txt)).
+The agent prompt now requires reading that exact error, replacing the complete
+source, and rebuilding, with at most five attempts per stage.
+
+## Fresh emulator recovery and progress
+
+The new `emulator_boot` MCP tool recreates only a named isolated instance,
+waits for health, and dismisses the deterministic Welcome UI. Its real-tool
+proof returned healthy, zero-restart stock Notes from a blank volume
+([tool result](../runtime/evidence/devloop-emulator-boot-final.json),
+[screenshot](../runtime/evidence/devloop-emulator-boot-final.png),
+[OCR](../runtime/evidence/devloop-emulator-boot-final-ocr.txt)). Calling it
+again is the agent's bounded crash-recovery path; it never targets the shared
+emulator.
+
+`server.py` now relays every authoring MCP `item.started` event over the existing
+native `TEXT` channel, including the stage and attempt number. Failed MCP items
+relay the first error line as “failed; fixing”. No wire-format or client change
+was added.
 
 ## Reliability results
 

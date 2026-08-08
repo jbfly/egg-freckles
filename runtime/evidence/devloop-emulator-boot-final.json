@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "fresh emulator devloop-bootproof4 is healthy at http://127.0.0.1:42553"
+    }
+  ],
+  "isError": false
+}

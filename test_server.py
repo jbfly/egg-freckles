@@ -68,9 +68,16 @@ class FrameTest(unittest.TestCase):
         self.assertEqual(len(encoded), server.MAX_FRAME)
 
 
-def test_codex_backend_relays_hardware_install_start(monkeypatch, tmp_path):
+def test_codex_backend_relays_tool_progress_and_failures(monkeypatch, tmp_path):
     events = [
         b'{"type":"thread.started","thread_id":"t1"}\n',
+        b'{"type":"item.started","item":{"type":"mcp_tool_call",'
+        b'"server":"newton","tool":"build_pkg"}}\n',
+        b'{"type":"item.completed","item":{"type":"mcp_tool_call",'
+        b'"server":"newton","tool":"build_pkg","status":"failed",'
+        b'"result":{"content":[{"type":"text","text":"undefined CellButton\\nmore"}]}}}\n',
+        b'{"type":"item.started","item":{"type":"mcp_tool_call",'
+        b'"server":"newton","tool":"build_pkg"}}\n',
         b'{"type":"item.started","item":{"type":"mcp_tool_call",'
         b'"server":"newton","tool":"hardware_install"}}\n',
         b'{"type":"item.completed","item":{"type":"agent_message",'
@@ -96,14 +103,19 @@ def test_codex_backend_relays_hardware_install_start(monkeypatch, tmp_path):
 
     progress = []
 
-    async def mark_progress():
-        progress.append("dock")
+    async def mark_progress(message):
+        progress.append(message)
 
     monkeypatch.setattr(server.asyncio, "create_subprocess_exec", fake_subprocess)
     reply = asyncio.run(server.CodexBackend(server.Chat(tmp_path)).chat(
         "install it", mark_progress))
 
-    assert progress == ["dock"]
+    assert progress == [
+        "Building package (attempt 1/5)",
+        "Building package failed; fixing: undefined CellButton",
+        "Building package (attempt 2/5)",
+        "Package ready. Open Dock, choose connect via TCP/IP, then tap Connect.",
+    ]
     assert reply == "Package installed"
 
 

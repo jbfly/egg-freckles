@@ -12,34 +12,25 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
 
 ## The loop
 
-1. **Claim an isolated emulator.** Never the shared `newton-harness_emulator_1`
-   — other sessions and the hardware bench use it, and `newton_mcp.py` refuses
-   mutating tools on it anyway (`newton_mcp.py:guard_shared`).
+1. **Boot a fresh isolated emulator.** Never the shared
+   `newton-harness_emulator_1`. Call the MCP tool; it creates disposable state,
+   waits for health, and dismisses the first-run Welcome UI:
 
-   ```sh
-   make emulator-instance-up INSTANCE=<yourname>
-   until [ "$(podman inspect -f '{{.State.Health.Status}}' newton-harness-<yourname>_emulator_1)" = healthy ]; do sleep 5; done
+   ```json
+   emulator_boot {"instance": "<yourname>"}
    ```
 
-2. **Seed its flash, even though the dev loop needs no network.** A fresh
-   instance boots into the first-run Welcome tour, and *the tour suppresses
-   floating windows* — a `protoFloatNGo` app installs fine and then shows
-   nothing, which reads like a broken app. Copy a flash that is already past the
-   tour (~90 s, recipe and seed-picking table in `docs/parallel-emulators.md`,
-   "Seed an instance from a saved flash"):
+   No flash seed is needed for authoring. If any later emulator call reports a
+   crash or unreachable control service, call `emulator_boot` again, then
+   reinstall, relaunch, and screenshot. The tool recreates only that named
+   isolated instance.
 
-   ```sh
-   podman stop -t 20 newton-harness-<yourname>_emulator_1
-   podman cp ~/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash \
-             newton-harness-<yourname>_emulator_1:/state/internal.flash
-   podman start newton-harness-<yourname>_emulator_1
-   ```
-
-   It boots to the Notepad with a `PCMCIA Ethernet` slip on top; tap its close
-   box at roughly `247,178`. Sometimes one or more `Sorry, a problem has
-   occurred` alerts sit above it — close box at roughly `247,271`, tap until
-   they are gone. `emulator_screen` after each tap; do not proceed until the
-   screen is a bare Notepad.
+2. **Use bounded autonomous retries.** A tool error is not a handoff to the
+   human. Retry each stage at most five times. For a compiler error, read the
+   exact tntk diagnostic, replace the complete source, and rebuild. Do not reply
+   until the package builds, installs, launches, and a screenshot visibly shows
+   the app. After five failures, return the stage, attempt count, and last exact
+   error.
 
 3. **Create a confined workspace project.** Do not copy into or edit
    `examples/`; it remains the read-only toolchain/reference tree. The

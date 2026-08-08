@@ -513,11 +513,37 @@ HELP_TEXT = "\n".join([
 ])
 
 
-def hardware_install_started(event: dict) -> bool:
-    item = event.get("item") if event.get("type") == "item.started" else None
-    return (isinstance(item, dict) and item.get("type") == "mcp_tool_call"
-            and item.get("server") == "newton"
-            and item.get("tool") == "hardware_install")
+TOOL_PROGRESS = {
+    "emulator_boot": "Booting emulator",
+    "create_project": "Creating project",
+    "write_source": "Writing source",
+    "build_pkg": "Building package",
+    "emulator_install": "Installing package",
+    "emulator_newtonscript": "Launching app",
+    "emulator_screen": "Taking screenshot",
+}
+
+
+def tool_progress(event: dict, attempts: dict[str, int]) -> str | None:
+    item = event.get("item")
+    if not isinstance(item, dict) or item.get("type") != "mcp_tool_call" or item.get("server") != "newton":
+        return None
+    tool = item.get("tool")
+    if event.get("type") == "item.started" and tool == "hardware_install":
+        return "Package ready. Open Dock, choose connect via TCP/IP, then tap Connect."
+    label = TOOL_PROGRESS.get(tool)
+    if not label:
+        return None
+    if event.get("type") == "item.started":
+        attempts[tool] = attempts.get(tool, 0) + 1
+        return f"{label} (attempt {attempts[tool]}/5)"
+    if event.get("type") == "item.completed" and item.get("status") == "failed":
+        result = item.get("result")
+        content = result.get("content") if isinstance(result, dict) else None
+        detail = content[0].get("text", "") if isinstance(content, list) and content and isinstance(content[0], dict) else ""
+        detail = ascii_clean(detail).strip().splitlines()[0][:80]
+        return f"{label} failed; fixing: {detail or 'tool error'}"
+    return None
 
 
 class CodexBackend:
@@ -552,20 +578,19 @@ class CodexBackend:
             except OSError as exc:
                 raise BackendError(f"could not run codex: {exc}") from exc
             output = []
-            notified = False
+            attempts: dict[str, int] = {}
 
             async def collect_output() -> None:
-                nonlocal notified
                 while line := await proc.stdout.readline():
                     output.append(line)
-                    if progress is not None and not notified:
+                    if progress is not None:
                         try:
                             event = json.loads(line)
                         except ValueError:
                             continue
-                        if hardware_install_started(event):
-                            notified = True
-                            await progress()
+                        message = tool_progress(event, attempts)
+                        if message:
+                            await progress(message)
                 await proc.wait()
 
             try:
@@ -771,14 +796,12 @@ async def native_mode(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         await send_frame(reader, writer, state, "STAT", "THINKING")
         async with TURN_LOCK:
             ctx.record("user", text)
-            async def show_dock_steps() -> None:
-                message = ("Package ready. Open Dock, choose connect via TCP/IP, "
-                           "then tap Connect.")
+            async def show_progress(message: str) -> None:
                 for chunk in text_parts(message, state["tx_seq"]):
                     await send_frame(reader, writer, state, "TEXT", chunk)
 
             try:
-                reply = await backend.chat(text, show_dock_steps)
+                reply = await backend.chat(text, show_progress)
             except Exception as exc:
                 reply = None
                 log(f"backend error: {exc!r}")

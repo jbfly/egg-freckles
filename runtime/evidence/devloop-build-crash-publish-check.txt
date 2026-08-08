@@ -1,0 +1,2 @@
+workspace_pkg=232 bytes
+staged_pkg=absent

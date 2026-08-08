@@ -14,7 +14,8 @@ demo (D3)". Since Track G2 the same is true of the build-and-test surface:
 `emulator_tap` were driven by an agent to build a new app and prove it works on
 screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). That historical build
 used `examples/`; the confined writable-workspace path is now emulator-proven
-too (`docs/agent-dev-loop.md`, "Workspace plumbing proven 2026-08-07"). Only
+too (`docs/agent-dev-loop.md`, "Workspace plumbing proven 2026-08-07"). `emulator_boot` was added and blank-volume proven on 2026-08-08; it removes
+   the old EF13-seed dependency for authoring and provides crash recovery. Only
 `emulator_text` and `emulator_key` are still exercised by tests alone.
 The old agent-facing `stage_hw` tool was removed when writes were confined to
 the dedicated workspace; physical staging remains a human host procedure.
@@ -31,6 +32,7 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 | Tool | Arguments | Goes to | Notes |
 |---|---|---|---|
 | `newton_tool` | `op` (required), `args` (object), `timeout` (s, ≤120, default 20) | `POST {NEWTON_TOOLS_URL}/tools`, default `http://10.42.0.1:18081` | Generic pass-through to the `ToolBroker` (`pkg_publisher.py:354-385`). Reply JSON is returned verbatim; a 4xx/5xx body (`unknown_op`, `timeout`) comes back as `isError` text rather than being swallowed. Ops today: `ping`, `front_app`, `get_note`, `note_probe`, `battery`, `store_info`, `pkg_list`. |
+| `emulator_boot` | `instance` | `scripts/emulator-instance.sh` + control API | Recreates a fresh isolated instance, waits for health, and dismisses Welcome; call again after a crash. |
 | `emulator_screen` | `instance` | `GET /screen.png` | Returns MCP `image` content (base64 PNG) plus one line of text. **Always allowed**, shared emulator included. |
 | `emulator_tap` | `x`, `y`, `instance` | `POST /tap` | 320×480 Newton coordinates. |
 | `emulator_text` | `value`, `instance` | `POST /text` | xdotool typing. |

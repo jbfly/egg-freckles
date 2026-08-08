@@ -50,8 +50,8 @@ def test_initialize_and_tools_list_round_trip():
     assert init["protocolVersion"] == "2025-06-18"
     assert "tools" in init["capabilities"]
     names = [tool["name"] for tool in replies[1]["result"]["tools"]]
-    assert names == ["newton_tool", "emulator_screen", "emulator_tap",
-                     "emulator_text", "emulator_key", "emulator_newtonscript",
+    assert names == ["newton_tool", "emulator_boot", "emulator_screen",
+                     "emulator_tap", "emulator_text", "emulator_key", "emulator_newtonscript",
                      "create_project", "write_source", "emulator_install",
                      "hardware_install", "build_pkg"]
     for tool in replies[1]["result"]["tools"]:
@@ -141,6 +141,39 @@ def test_emulator_screen_is_allowed_on_the_shared_emulator(monkeypatch):
     assert image["mimeType"] == "image/png"
     assert base64.b64decode(image["data"]) == png
 
+
+
+def test_emulator_boot_recreates_fresh_instance(monkeypatch):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return newton_mcp.subprocess.CompletedProcess(command, 0, b"started")
+
+    replies = iter([
+        (200, b'{"status":"ready"}', "application/json"),
+        (200, b'{"ok":true}', "application/json"),
+        (200, b'{"ok":true}', "application/json"),
+        (200, b'{"ok":true}', "application/json"),
+        (200, b'{"ok":true}', "application/json"),
+    ])
+    monkeypatch.setattr(newton_mcp.subprocess, "run", fake_run)
+    monkeypatch.setattr(newton_mcp, "control_target", lambda args: ("http://127.0.0.1:1234", False))
+    monkeypatch.setattr(newton_mcp, "http_request", lambda *args, **kwargs: next(replies))
+    monkeypatch.setattr(newton_mcp.time, "sleep", lambda seconds: None)
+
+    result = newton_mcp.call_tool("emulator_boot", {"instance": "test-loop"})
+
+    script = str(newton_mcp.REPO_ROOT / "scripts" / "emulator-instance.sh")
+    assert calls == [[script, "down", "test-loop"], [script, "up", "test-loop"]]
+    assert result["isError"] is False
+    assert "fresh emulator test-loop is healthy" in result["content"][0]["text"]
+
+
+def test_emulator_boot_rejects_non_lowercase_instance():
+    result = newton_mcp.call_tool("emulator_boot", {"instance": "Bad_Name"})
+    assert result["isError"] is True
+    assert "lowercase" in result["content"][0]["text"]
 
 def test_hardware_install_requires_out_of_band_human_gate(monkeypatch):
     monkeypatch.delenv("NEWTON_ALLOW_HARDWARE_INSTALL", raising=False)

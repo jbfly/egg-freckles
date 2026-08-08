@@ -38,6 +38,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -160,6 +161,16 @@ def workspace_root(*, create: bool = False) -> Path:
     return root
 
 
+def instance_name(arguments: dict) -> str:
+    name = want_str(arguments, "instance")
+    if (len(name) > 64 or not name.isascii() or not name[0].isalnum() or
+            any(not (char.isalnum() or char == "-") for char in name)):
+        raise ToolError("instance must use 1-64 lowercase letters, digits, or hyphens")
+    if name != name.lower():
+        raise ToolError("instance must use 1-64 lowercase letters, digits, or hyphens")
+    return name
+
+
 def project_name(arguments: dict) -> str:
     name = want_str(arguments, "project")
     if (len(name) > 64 or not name.isascii() or not name[0].isalnum() or
@@ -238,6 +249,42 @@ def tool_newton_tool(arguments: dict) -> dict:
         url, data=body, content_type="application/json", timeout=timeout + 10)
     return text_result(payload.decode("utf-8", "replace").strip() or f"HTTP {status}",
                        is_error=status >= 400)
+
+
+def tool_emulator_boot(arguments: dict) -> dict:
+    instance = instance_name(arguments)
+    script = REPO_ROOT / "scripts" / "emulator-instance.sh"
+    subprocess.run([str(script), "down", instance], cwd=REPO_ROOT,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                   timeout=60, check=False)
+    try:
+        started = subprocess.run(
+            [str(script), "up", instance], cwd=REPO_ROOT,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            timeout=120, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ToolError(f"could not create emulator {instance}: {exc}") from exc
+    output = started.stdout.decode("utf-8", "replace")
+    if started.returncode:
+        raise ToolError(f"could not create emulator {instance}: {tail(output)}")
+    deadline = time.monotonic() + 120
+    last = "not ready"
+    while time.monotonic() < deadline:
+        try:
+            base, _ = control_target({"instance": instance})
+            status, body, _ = http_request(base + "/health", timeout=3)
+            if status == 200:
+                time.sleep(8)
+                for x, y, pause in ((247, 271, 1), (160, 440, 3), (160, 30, 2), (160, 30, 2)):
+                    http_request(base + "/tap", data=json.dumps({"x": x, "y": y}).encode(),
+                                 content_type="application/json", timeout=10)
+                    time.sleep(pause)
+                return text_result(f"fresh emulator {instance} is healthy at {base}")
+            last = f"HTTP {status}: {body.decode('utf-8', 'replace')[:100]}"
+        except ToolError as exc:
+            last = str(exc)
+        time.sleep(2)
+    raise ToolError(f"emulator {instance} did not become healthy: {last}")
 
 
 def tool_emulator_screen(arguments: dict) -> dict:
@@ -447,6 +494,21 @@ TOOLS: list[dict] = [
             "required": ["op"],
         },
         "handler": tool_newton_tool,
+    },
+    {
+        "name": "emulator_boot",
+        "description": (
+            "Create a fresh isolated emulator, wait for health, and dismiss the "
+            "first-run Welcome screens. Calling it again discards and recreates "
+            "that isolated instance, so use it to recover from an emulator crash."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "instance": {"type": "string", "description": "lowercase isolated instance name"},
+            },
+            "required": ["instance"],
+        },
+        "handler": tool_emulator_boot,
     },
     {
         "name": "emulator_screen",
