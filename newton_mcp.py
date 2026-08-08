@@ -40,6 +40,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -57,11 +58,16 @@ DOCK_WAIT_SECONDS = 180
 HARDWARE_INSTALL_TIMEOUT = DOCK_WAIT_SECONDS + 15
 MAX_SOURCE_BYTES = 256 * 1024
 
-# Ops that would mutate a physical MessagePad. None of them exist on the
-# Newton client yet (ROADMAP C5); the rail is here so they cannot arrive
-# without a human gate. docs/notes-bridge.md:16.
+# Generic mutation stays gated. Package changes have dedicated, validated tools
+# below so the user's active chat send is the confirmation window (ROADMAP C5).
 HUMAN_GATED_OPS = {"pkg_install", "pkg_remove", "note_write", "note_delete",
                    "note_create", "reset", "restart"}
+PROTECTED_PACKAGE_PARTS = (
+    "eggfreckles", "loader", "newtscape", "newt's cape", "jpegconvert:newtscape",
+    "dock zc & tcp/ip", "pt100:scrawl", ":nsbasic", "newton devices",
+    "newton internet enabler", "nie ethernet module", "internet setup",
+    "lucentwavelan", "farallon enet", "3c589", "z3comdrv",
+)
 
 
 class ToolError(RuntimeError):
@@ -227,6 +233,66 @@ def text_result(text: str, *, is_error: bool = False) -> dict:
 
 # --------------------------------------------------------------------------
 # Tools
+
+
+def broker_tool(op: str, argument: str, timeout: float = 120) -> dict:
+    # ponytail: the tools wire has one whitespace-delimited argument; percent
+    # encoding preserves exact package identities without changing the protocol.
+    encoded = urllib.parse.quote(argument, safe="-_.:")
+    body = json.dumps({"op": op, "args": {"id": encoded}}).encode("utf-8")
+    url = f"{tools_url()}/tools?timeout={timeout:g}"
+    status, payload, _ = http_request(
+        url, data=body, content_type="application/json", timeout=timeout + 10)
+    return text_result(payload.decode("utf-8", "replace").strip() or f"HTTP {status}",
+                       is_error=status >= 400)
+
+
+def package_identity(arguments: dict) -> str:
+    identity = want_str(arguments, "identity")
+    if (len(identity) > 120 or not identity.isascii() or
+            any(ord(char) < 32 or ord(char) > 126 for char in identity)):
+        raise ToolError("identity must be 1-120 printable ASCII characters")
+    return identity
+
+
+def protected_package(identity: str) -> bool:
+    lowered = identity.casefold()
+    return any(part in lowered for part in PROTECTED_PACKAGE_PARTS)
+
+
+def tool_pkg_install(arguments: dict) -> dict:
+    basename = want_str(arguments, "basename")
+    if (Path(basename).name != basename or not basename.endswith(".pkg") or
+            len(basename) > 120 or not basename.isascii() or
+            any(not (char.isalnum() or char in "-_.") for char in basename)):
+        raise ToolError("basename must be one staged ASCII .pkg filename")
+    package = HARDWARE_STAGING / basename
+    if package.is_symlink() or not package.is_file():
+        raise ToolError(f"no staged package: {basename}")
+    return broker_tool("pkg_install", basename)
+
+
+def tool_pkg_remove(arguments: dict) -> dict:
+    identity = package_identity(arguments)
+    if protected_package(identity):
+        raise ToolError(f"refusing to remove protected package: {identity}")
+    return broker_tool("pkg_remove", identity)
+
+
+def tool_emulator_remove(arguments: dict) -> dict:
+    identity = package_identity(arguments)
+    if protected_package(identity):
+        raise ToolError(f"refusing to remove protected package: {identity}")
+    quoted = identity.replace("\\", "\\\\").replace('"', '\\"')
+    source = (
+        'begin local identity := "' + quoted + '"; local root := GetRoot().(Intern(identity)); '
+        'if root then try root:Close() onexception |evt.ex| do nil; local removed := nil; '
+        'foreach store in GetStores() do begin local p := GetPkgRef(identity, store); '
+        'if p then begin SafeRemovePackage(p); removed := true; end; end; '
+        'if removed and (GetPkgRef(identity, GetDefaultStore()) = nil) then "removed " & identity '
+        'else "not removed " & identity; end'
+    )
+    return tool_emulator_newtonscript({**arguments, "source": source})
 
 
 def tool_newton_tool(arguments: dict) -> dict:
@@ -475,6 +541,48 @@ def tool_build_pkg(arguments: dict) -> dict:
 
 
 TOOLS: list[dict] = [
+    {
+        "name": "pkg_install",
+        "description": (
+            "Install one package already staged by build_pkg through Egg Freckles' "
+            "active tools channel, without Dock. Call immediately after build_pkg "
+            "in the same user-requested chat turn; the channel closes about five "
+            "seconds after the send becomes idle."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"basename": {"type": "string", "description": "staged .pkg basename"}},
+            "required": ["basename"],
+        },
+        "handler": tool_pkg_install,
+    },
+    {
+        "name": "pkg_remove",
+        "description": (
+            "Remove an installed package by the exact identity returned by pkg_list. "
+            "Protected Egg Freckles, loader/recovery, and network packages are refused. "
+            "Call only in the same active chat turn where the user requested removal."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"identity": {"type": "string", "description": "exact package identity"}},
+            "required": ["identity"],
+        },
+        "handler": tool_pkg_remove,
+    },
+    {
+        "name": "emulator_remove",
+        "description": (
+            "Remove a package from an isolated emulator with the proven close plus "
+            "two-argument store-specific GetPkgRef sequence. Protected packages are refused."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "identity": {"type": "string"},
+                "instance": {"type": "string", "description": "isolated instance name"},
+            },
+            "required": ["identity", "instance"],
+        },
+        "handler": tool_emulator_remove,
+    },
     {
         "name": "newton_tool",
         "description": (
