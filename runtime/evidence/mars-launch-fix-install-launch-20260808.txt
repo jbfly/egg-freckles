@@ -1,0 +1,7 @@
+install_time=2026-08-08T09:50:19-10:00
+queued
+
+launch_time=2026-08-08T09:50:28-10:00
+queued
+
+runtime/evidence/mars-launch-fix-egg-launched-20260808.png

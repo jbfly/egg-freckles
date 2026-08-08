@@ -1,0 +1,17 @@
+preflight_time=2026-08-08T09:49:44-10:00
+containers
+newton-harness-mars-evening-0808_emulator_1 127.0.0.1:56741->8080/tcp, 127.0.0.1:59795->6080/tcp Up 4 hours (healthy)
+newton-harness-tic-tac-toe-cpu_emulator_1 127.0.0.1:35957->8080/tcp, 127.0.0.1:41863->6080/tcp Up 4 hours (healthy)
+newton-harness-mars-launchfix-0808_emulator_1 127.0.0.1:45181->6080/tcp, 127.0.0.1:59321->8080/tcp Up 36 seconds (healthy)
+port18081
+LISTEN 0      4            0.0.0.0:18081      0.0.0.0:*    users:(("python3",pid=1596,fd=3))
+
+generation_processes
+
+staging_before
+egg-freckles-ef22.pkg 99096 2026-08-08T09:46:01.7561083680
+published_size=99096
+published_sha256=444a066030b8e52119ef0fb3b79a0bc42b9a3995deaf2de57c0a5747af52c8c9
+served_size=99096
+served_sha256=444a066030b8e52119ef0fb3b79a0bc42b9a3995deaf2de57c0a5747af52c8c9
+publish_cmp_ok

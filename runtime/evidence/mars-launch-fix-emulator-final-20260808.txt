@@ -1,0 +1,4 @@
+container=newton-harness-mars-launchfix-0808_emulator_1
+health=healthy
+control=127.0.0.1:59321
+novnc=127.0.0.1:45181

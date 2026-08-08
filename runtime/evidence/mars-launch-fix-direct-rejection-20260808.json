@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "text": "launch a registered app through GetRoot(), e.g. GetRoot().|MyAppR1:jbfly|:Open(); -- calling Open on the symbol itself raises -48809",
+      "type": "text"
+    }
+  ],
+  "isError": true
+}
