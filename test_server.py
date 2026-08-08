@@ -68,6 +68,15 @@ class FrameTest(unittest.TestCase):
         self.assertEqual(len(encoded), server.MAX_FRAME)
 
 
+def test_agent_prompt_is_read_fresh(monkeypatch, tmp_path):
+    prompt = tmp_path / "agent_prompt.txt"
+    monkeypatch.setattr(server, "PROMPT_FILE", prompt)
+    prompt.write_text("first", encoding="utf-8")
+    assert server.load_agent_prompt() == "first"
+    prompt.write_text("second", encoding="utf-8")
+    assert server.load_agent_prompt() == "second"
+
+
 def test_codex_backend_relays_tool_progress_and_failures(monkeypatch, tmp_path):
     events = [
         b'{"type":"thread.started","thread_id":"t1"}\n',

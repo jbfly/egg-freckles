@@ -28,4 +28,5 @@ A real native `~NEWTONCLI 1` / `MSG` turn on 6801 asked for tic-tac-toe. The age
 
 ## Operate
 - Start/stop/restart: `systemctl --user {start,stop,restart} egg-freckles-chat.service`
+- After deploying code changes, run: `systemctl --user restart egg-freckles-chat.service` (mars unit evidence: `ExecStart=/usr/bin/python3 -u /home/jbfly/git/newton-harness/server.py`, checked 2026-08-08).
 - Status/logs: `systemctl --user status egg-freckles-chat.service --no-pager`; `journalctl --user -u egg-freckles-chat.service -n 100 --no-pager`; `ss -ltnp | grep ':6801 '`

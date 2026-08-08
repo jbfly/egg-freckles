@@ -399,10 +399,10 @@ sha256sum pkg_publisher.py | \
 
 This section records the older package-authoring rollout. The direct Dock tool
 was wired later on 2026-08-08: `docs/agent-package-download.md` records the
-current build, emulator-validation, listen, Connect, and result flow. That live
-change requires restarting `egg-freckles-chat.service` so its long-running
-`server.py` reads the new prompt and can relay the Dock instruction during the
-Codex turn.
+current build, emulator-validation, listen, Connect, and result flow.
+Prompt-only changes now load on the next new generation (`server.py` reads
+`PROMPT_FILE` inside `CodexBackend.chat`); deployed `server.py` code changes
+still require restarting `egg-freckles-chat.service`.
 
 Rollback restores the saved checkout and restarts the same publisher process.
 It deliberately leaves the confined workspace in place so generated source and

@@ -17,9 +17,11 @@ import asyncio
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import textwrap
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -32,6 +34,7 @@ SCHEMA_FILE = BASE_DIR / "response_schema.json"
 STATE_DIR = Path(os.environ.get("NEWTON_STATE_DIR", BASE_DIR / "state"))
 PORT = int(os.environ.get("NEWTON_PORT", "6801"))
 CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "300"))
+GENERATION_HEARTBEAT = 30
 MCP_EVENT_LOG = os.environ.get("NEWTON_MCP_EVENT_LOG")
 FAKE = os.environ.get("NEWTON_FAKE_BACKEND") == "1"
 NATIVE_HANDSHAKE = b"~NEWTONCLI 1"
@@ -66,6 +69,10 @@ def now_iso() -> str:
 
 def log(message: str) -> None:
     print(f"[newton] ts={now_iso()} {message}", file=sys.stderr, flush=True)
+
+
+def load_agent_prompt() -> str:
+    return PROMPT_FILE.read_text(encoding="utf-8")
 
 
 def ascii_clean(text: str) -> str:
@@ -553,7 +560,9 @@ class CodexBackend:
 
     async def chat(self, user_text: str, progress=None) -> str:
         thread_id = self.ctx.thread_id
+        request_id = uuid.uuid4().hex[:8]
         request = "User text: " + ascii_clean(user_text).strip()
+        log(f"generation start request={request_id} session={self.ctx.index} resume={bool(thread_id)}")
         with tempfile.TemporaryDirectory(prefix="newton-codex-") as tmp:
             cmd = ["codex", "exec", "--sandbox", "read-only",
                    "--skip-git-repo-check", "--cd", tmp]
@@ -568,7 +577,7 @@ class CodexBackend:
                 cmd += ["resume", "--json", "--output-schema",
                         str(SCHEMA_FILE), thread_id, request]
             else:
-                prompt = PROMPT_FILE.read_text(encoding="utf-8") + "\n\n" + request
+                prompt = load_agent_prompt() + "\n\n" + request
                 cmd += ["--json", "--output-schema", str(SCHEMA_FILE), prompt]
             log("codex argv: " + " ".join(cmd[:-1]))
             try:
@@ -583,7 +592,14 @@ class CodexBackend:
             attempts: dict[str, int] = {}
 
             async def collect_output() -> None:
-                while line := await proc.stdout.readline():
+                while True:
+                    try:
+                        line = await asyncio.wait_for(proc.stdout.readline(), GENERATION_HEARTBEAT)
+                    except asyncio.TimeoutError:
+                        log(f"generation heartbeat request={request_id}")
+                        continue
+                    if not line:
+                        break
                     output.append(line)
                     if progress is not None:
                         try:
@@ -611,7 +627,9 @@ class CodexBackend:
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
-                raise BackendError("agent timed out")
+                raise BackendError(
+                    f"agent timed out after {CODEX_TIMEOUT:g}s (request {request_id})")
+            log(f"generation complete request={request_id} exit={proc.returncode}")
         text = b"".join(output).decode("utf-8", "replace")
         if proc.returncode != 0:
             tail = ascii_clean(text).strip()[-160:]
@@ -909,6 +927,18 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> 
 
 
 async def main() -> None:
+    try:
+        git_sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=BASE_DIR,
+            stderr=subprocess.DEVNULL, text=True).strip()
+    except (OSError, subprocess.CalledProcessError):
+        git_sha = "unknown"
+    try:
+        prompt_mtime = datetime.fromtimestamp(
+            PROMPT_FILE.stat().st_mtime, timezone.utc).replace(microsecond=0).isoformat()
+    except OSError:
+        prompt_mtime = "missing"
+    log(f"startup git={git_sha} prompt_mtime={prompt_mtime}")
     server = await asyncio.start_server(handle, "0.0.0.0", PORT)
     log(f"serving on 0.0.0.0:{PORT} fake={FAKE} state={STATE_DIR}")
     async with server:
