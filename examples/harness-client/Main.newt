@@ -548,6 +548,7 @@ mainView := {
     pkgLength: nil,
     pkgOffset: 0,
     pkgChunk: 0,
+    pkgInstallQueued: nil,
     pkgInstalledIdentity: nil,
     // A send holds the radio through its reply; this ticket makes old idle
     // callbacks harmless when a new send starts before they fire.
@@ -2039,6 +2040,7 @@ mainView := {
         agent.pkgLength := nil;
         agent.pkgOffset := 0;
         agent.pkgChunk := 0;
+        agent.pkgInstallQueued := nil;
         agent.pkgInstalledIdentity := nil;
         agent.radioHeld := nil;
         agent.radioSeq := 0;
@@ -2918,12 +2920,19 @@ mainView := {
         self.pkgLength := nil;
         self.pkgOffset := 0;
         self.pkgChunk := 0;
+        self.pkgInstallQueued := nil;
         self.pkgInstalledIdentity := nil;
         try
         begin
             self.pkgEndpoint := {_proto: self.endpointClass, _parent: self,
                 ExceptionHandler: func(error)
-                    try self._parent:PkgFinish("error", "package connection failed")
+                    try
+                    begin
+                        // HTTP/1.0 peer-close is success after the final body
+                        // chunk; the Loader proved install must survive it.
+                        if not self._parent.pkgInstallQueued then
+                            self._parent:PkgFinish("error", "package connection failed");
+                    end
                     onexception |evt.ex| do nil};
             self.pkgEndpoint:Instantiate(self.pkgEndpoint, [
                 {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
@@ -3050,6 +3059,7 @@ mainView := {
         self.pkgOffset := self.pkgOffset + self.pkgChunk;
         if self.pkgOffset = self.pkgLength then
         begin
+            self.pkgInstallQueued := true;
             AddDelayedCall(func(view) try view:PkgInstallNow() onexception |evt.ex| do nil,
                 [self], 1000);
             return nil;
