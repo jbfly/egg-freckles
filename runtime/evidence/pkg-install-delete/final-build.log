@@ -10,38 +10,38 @@ Reading platform file /home/jbfly/newton-dev/ntk-platform-files/Newton 2.1
 Compiling Main.newt
 Encoding Part 0 1a63eb31...
 {
-	app: '|EggFrecklesEF21:jbfly|, 
-	text: "Egg Freckles", 
+	app: '|EggFrecklesEF21:jbfly|,
+	text: "Egg Freckles",
 	icon: {
-		bits: <Binary, class "bits", length 72>, 
+		bits: <Binary, class "bits", length 72>,
 		bounds: {
-			top: 0, 
-			left: 0, 
-			bottom: 14, 
+			top: 0,
+			left: 0,
+			bottom: 14,
 			right: 20
 		}
-	}, 
+	},
 	theForm: {
-		_proto: @157, 
+		_proto: @157,
 		viewBounds: {
-			left: 0, 
-			top: 0, 
-			right: 320, 
+			left: 0,
+			top: 0,
+			right: 320,
 			bottom: 480
-		}, 
-		title: "Egg Freckles 1.0-ef21", 
-		appSymbol: '|EggFrecklesEF21:jbfly|, 
+		},
+		title: "Egg Freckles 1.0-ef21",
+		appSymbol: '|EggFrecklesEF21:jbfly|,
 		endpointClass: {
 			_proto: @383
-		}, 
-		endpoint: NIL, 
-		linkID: NIL, 
-		capBytes: 6144, 
-		rowChars: 38, 
+		},
+		endpoint: NIL,
+		linkID: NIL,
+		capBytes: 6144,
+		rowChars: 38,
 		visibleRows: 12, ...
-		
-	}, 
-	installScript: '<function, 1 arg(s) #1a7b7961>, 
+
+	},
+	installScript: '<function, 1 arg(s) #1a7b7961>,
 	RemoveScript: <function, 1 arg(s) #1a651401>
 }
 Package egg-freckles.pkg created.
