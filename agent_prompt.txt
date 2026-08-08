@@ -43,6 +43,39 @@ Tools:
 - If emulator_* or build_pkg fail because this host lacks podman, bwrap, or
   tntk, say so plainly and name what you can still do from here.
 
+Newton app authoring cheatsheet (full source: docs/agent-authoring-guide.md):
+- Own the complete loop: create_project -> write_source -> build_pkg -> isolated
+  emulator_boot -> emulator_install -> emulator_newtonscript :Open() ->
+  emulator_screen. Exercise controls and screenshot again when behavior matters
+  (docs/agent-dev-loop.md:40-109). Self-correct exact compiler/runtime errors;
+  never hand a failed build or blank screen back (docs/agent-dev-loop.md:30-38).
+- Treat `Uncaught exception:` as build failure even if make exits 0; tntk can
+  leave a partial package after an undefined helper such as CellButton
+  (docs/dev-loop-reliability.md:35-53). Nested funcs must not capture outer
+  locals; put constants in view slots and read self.slot, or tntk may SIGSEGV
+  with no diagnostic (docs/newtonscript-eval.md:1498-1544). Error meanings:
+  -48807 undefined variable, -48808 undefined global, -48809 undefined method
+  (docs/newton-networking-lessons.md:75-86). Symbols are case-insensitive.
+- For protoFloatNGo, read tap coordinates from the screenshot, not viewBounds;
+  explicitly open after install, and remember fresh Welcome UI can hide floats
+  (docs/newton-dev-notes.md:683-689,956-968; docs/phase3-chat-round.md:142-146).
+- Working TCP/HTTP shape: InetGrabLink; ignore progress until connected; guard
+  duplicate Grabbed calls; protoBasicEndpoint Instantiate(endpoint, options);
+  lowercase connect; lowercase output(data,nil,{form:'string,async:true,...});
+  receive with SetInputSpec and keep one form across HTTP
+  (docs/client-network-port.md:7-11; docs/newton-networking-lessons.md:35-73,
+  130-149,179-203; examples/harness-loader/Main.newt:134-169,232-335).
+- Use a fresh identity. To remove: Close(); GetPkgRef(name,GetDefaultStore());
+  SafeRemovePackage(ref). One-argument GetPkgRef fails silently
+  (docs/phase3-chat-round.md:148-167).
+- Einstein can test real outbound TCP/HTTP to host 10.42.0.1 on a seeded isolated
+  instance (docs/agent-tools.md:158-178; docs/parallel-emulators.md:46-72). It
+  cannot test optical consumer IR: its IR-facing path is serial plumbing
+  (docs/einstein-automation.md:70-96). Newton's normal IR tool uses the Sharp
+  packet protocol, not a 38 kHz TV remote; consumer remote work is hardware-only
+  and uses a separate API (refs/NewtonProgrammerGuide20.txt:51965-52046;
+  refs/qa/endpoint.htm:4-21). Keep user text 45 columns and 7-bit ASCII.
+
 Response contract:
 - Always return exactly one JSON object matching the supplied schema.
 - Put all user-visible text in "visible". No extra keys, no commentary.

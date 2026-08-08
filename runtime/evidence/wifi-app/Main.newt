@@ -1,0 +1,182 @@
+kAppSymbol := '|WifiProof0808R2:jbfly|;
+kAppTitle := "WiFi Proof";
+kVersion := "0.1-r2";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewJustify: vjParentFullH + vjParentFullV,
+    viewBounds: {left: 24, top: 110, right: -24, bottom: -110},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    serverPort: 18099,
+    expectedBytes: 60,
+    bodyOffset: 39,
+    endpoint: nil,
+    linkID: nil,
+    resultView: nil,
+    inputTarget: nil,
+    done: nil,
+
+    endpointClass: {
+        _proto: protoBasicEndpoint,
+        ExceptionHandler: func(error)
+        begin
+            local code := call GetGlobalFn('InetGetExceptionError) with (error);
+            if not self._parent.done then self._parent:SetStatus("Endpoint error " & code);
+        end,
+    },
+
+    SetStatus: func(message)
+    begin
+        if self.resultView then SetValue(self.resultView, 'text, message);
+    end,
+
+    Stop: func()
+    begin
+        if self.endpoint then
+        begin
+            try self.endpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Disconnect(true, nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:UnBind(nil) onexception |evt.ex.comm| do nil;
+            try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
+            self.endpoint := nil;
+        end;
+        if self.linkID then
+        begin
+            call GetGlobalFn('InetReleaseLink) with (self.linkID, self, 'Released);
+            self.linkID := nil;
+        end;
+        return nil;
+    end,
+
+    Released: func(id, state, error) nil,
+
+    Start: func()
+    begin
+        self.done := nil;
+        :SetStatus("Opening network...");
+        call GetGlobalFn('InetGrabLink) with (nil, self, 'Grabbed);
+    end,
+
+    Grabbed: func(id, state, error)
+    begin
+        if self.endpoint then return nil;
+        if error then return :SetStatus("Link error " & error);
+        self.linkID := id;
+        if state.linkStatus <> 'connected then return nil;
+        :OpenEndpoint();
+    end,
+
+    OpenEndpoint: func()
+    begin
+        local address := [10, 42, 0, 1];
+        local stage := "Instantiate";
+        self.endpoint := {_proto: self.endpointClass, _parent: self};
+        try
+        begin
+            self.endpoint:Instantiate(self.endpoint, [
+                {label: "inet", type: 'service, opCode: opSetRequired, result: nil},
+                {
+                    label: "ilid", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {arglist: [self.linkID], typeList: ['struct, 'ulong]},
+                },
+                {
+                    label: "itsv", type: 'option, opCode: opSetRequired, result: nil,
+                    form: 'template,
+                    data: {arglist: [1], typeList: ['struct, 'ulong]},
+                },
+            ]);
+            stage := "Bind";
+            self.endpoint:Bind(nil, {async: nil, reqTimeout: 10000});
+            stage := "connect";
+            :SetStatus("Connecting to host...");
+            self.endpoint:connect([{
+                label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+                form: 'template,
+                data: {
+                    arglist: [address[0], address[1], address[2], address[3], self.serverPort],
+                    typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+                },
+            }], {async: nil, reqTimeout: 45000});
+            :SendRequest();
+        end
+        onexception |evt.ex| do
+        begin
+            local code := call GetGlobalFn('InetGetExceptionError) with (CurrentException());
+            :SetStatus(stage & " error " & code);
+        end;
+    end,
+
+    SendRequest: func()
+    begin
+        try self.inputTarget := GetDefaultStore():NewVBO('package, self.expectedBytes)
+        onexception |evt.ex| do return :SetStatus("No receive buffer");
+        self.endpoint:SetInputSpec({
+            _parent: self,
+            form: 'binary,
+            target: {data: self.inputTarget, offset: 0},
+            termination: {byteCount: self.expectedBytes},
+            discardAfter: self.expectedBytes,
+            InputScript: func(endpoint, data, terminator, options)
+                endpoint._parent:ResponseReceived(),
+        });
+        :SetStatus("GET /wifi-proof ...");
+        self.endpoint:output(
+            "GET /wifi-proof HTTP/1.0\r\nHost: 10.42.0.1\r\nConnection: close\r\n\r\n",
+            nil,
+            {
+                form: 'string,
+                async: true,
+                reqTimeout: 10000,
+                _parent: self,
+                CompletionScript: func(endpoint, options, result)
+                    if result then self._parent:SetStatus("Request error " & result),
+            });
+        return nil;
+    end,
+
+    ResponseReceived: func()
+    begin
+        local body := "";
+        for index := self.bodyOffset to self.expectedBytes - 1 do
+            body := body & CHR(ExtractByte(self.inputTarget, index));
+        self.done := true;
+        :SetStatus("Host replied:\r" & body);
+        AddDeferredCall(func(view) view:Stop(), [self]);
+        return nil;
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewJustify: vjParentFullH + vjParentFullV,
+            viewBounds: {left: 16, top: 28, right: -16, bottom: -28},
+            text: "Waiting...",
+            viewFont: ROM_fontSystem12Bold,
+            ViewSetupDoneScript: func()
+            begin
+                inherited:?ViewSetupDoneScript();
+                self:Parent().resultView := self;
+            end,
+        },
+    ],
+
+    ViewSetupDoneScript: func()
+    begin
+        inherited:?ViewSetupDoneScript();
+        AddDelayedCall(func(view) view:Start(), [self], 1000);
+    end,
+
+    ViewQuitScript: func()
+    begin
+        :Stop();
+        inherited:?ViewQuitScript();
+    end,
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

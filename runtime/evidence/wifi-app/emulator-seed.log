@@ -1,0 +1,21 @@
+2b1f6ebfe8a338677d388316c58b0e14e1d084b4b9b6a4ee224916a2e6129ddf
+34295f3eda8d12c9b204e0397c0796721f4c3f669d0c4f9aefe2d6494cf3c798
+newton-harness-wifiproof_emulator_1
+instance   wifiproof
+container  newton-harness-wifiproof_emulator_1
+control    http://127.0.0.1:35995
+novnc      http://127.0.0.1:47137/vnc.html?autoconnect=1
+health=starting
+health=starting
+health=starting
+health=starting
+health=healthy
+newton-harness-wifiproof_emulator_1
+newton-harness-wifiproof_emulator_1
+health=starting
+health=starting
+health=starting
+health=starting
+health=healthy
+127.0.0.1:35995
+READY

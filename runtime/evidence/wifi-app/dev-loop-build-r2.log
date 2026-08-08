@@ -1,0 +1,30 @@
+STAGE create_project
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "created runtime/agent-workspace/wifi-proof-0808-r2; write Main.newt with write_source, then call build_pkg"
+    }
+  ],
+  "isError": false
+}
+STAGE write_source
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "wrote 5943 bytes to runtime/agent-workspace/wifi-proof-0808-r2/Main.newt"
+    }
+  ],
+  "isError": false
+}
+STAGE build_pkg
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "/home/jbfly/git/newton-harness-knowwifi/runtime/agent-workspace/wifi-proof-0808-r2/wifi-proof-0808-r2.pkg\nemulator path: /agent-workspace/wifi-proof-0808-r2/wifi-proof-0808-r2.pkg\nLoader filename: wifi-proof-0808-r2.pkg\n...\nviewBounds: {\n\t\t\tleft: 24, \n\t\t\ttop: 110, \n\t\t\tright: -24, \n\t\t\tbottom: -110\n\t\t}, \n\t\ttitle: \"WiFi Proof\", \n\t\tappSymbol: '|WifiProof0808R2:jbfly|, \n\t\tserverPort: 18099, \n\t\texpectedBytes: 60, \n\t\tbodyOffset: 39, \n\t\tendpoint: NIL, \n\t\tlinkID: NIL, ...\n\t\t\n\t}\n}\nPackage wifi-proof-0808-r2.pkg created.\nmake: Leaving directory '/home/jbfly/git/newton-harness-knowwifi/runtime/agent-workspace/wifi-proof-0808-r2'"
+    }
+  ],
+  "isError": false
+}
