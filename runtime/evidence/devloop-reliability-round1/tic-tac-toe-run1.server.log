@@ -1,0 +1,3 @@
+[newton] ts=2026-08-08T00:48:40+00:00 serving on 0.0.0.0:39857 fake=False state=/home/jbfly/git/newton-harness-devloop/runtime/evidence/devloop-reliability-round1/tic-tac-toe-run1.state
+[newton] ts=2026-08-08T00:48:40+00:00 connect ('127.0.0.1', 55020)
+[newton] ts=2026-08-08T00:58:08+00:00 disconnect ('127.0.0.1', 55020)

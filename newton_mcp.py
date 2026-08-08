@@ -50,7 +50,9 @@ HARDWARE_STAGING = REPO_ROOT / "runtime" / "staging" / "hardware"
 SERVER_NAME = "newton"
 SERVER_VERSION = "1.0.0"
 DEFAULT_PROTOCOL = "2025-06-18"
-MAKE_TIMEOUT = 600.0
+MAKE_TIMEOUT = 60.0
+EMULATOR_COMMAND_TIMEOUT = 70.0
+EMULATOR_HEALTH_TIMEOUT = 90.0
 DOCK_WAIT_SECONDS = 180
 HARDWARE_INSTALL_TIMEOUT = DOCK_WAIT_SECONDS + 15
 MAX_SOURCE_BYTES = 256 * 1024
@@ -256,18 +258,18 @@ def tool_emulator_boot(arguments: dict) -> dict:
     script = REPO_ROOT / "scripts" / "emulator-instance.sh"
     subprocess.run([str(script), "down", instance], cwd=REPO_ROOT,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                   timeout=60, check=False)
+                   timeout=EMULATOR_COMMAND_TIMEOUT, check=False)
     try:
         started = subprocess.run(
             [str(script), "up", instance], cwd=REPO_ROOT,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            timeout=120, check=False)
+            timeout=EMULATOR_COMMAND_TIMEOUT, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ToolError(f"could not create emulator {instance}: {exc}") from exc
     output = started.stdout.decode("utf-8", "replace")
     if started.returncode:
         raise ToolError(f"could not create emulator {instance}: {tail(output)}")
-    deadline = time.monotonic() + 120
+    deadline = time.monotonic() + EMULATOR_HEALTH_TIMEOUT
     last = "not ready"
     while time.monotonic() < deadline:
         try:

@@ -12,9 +12,11 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
 
 ## The loop
 
-1. **Boot a fresh isolated emulator.** Never the shared
-   `newton-harness_emulator_1`. Call the MCP tool; it creates disposable state,
-   waits for health, and dismisses the first-run Welcome UI:
+1. **Create and build the confined project first** (steps 3-5 below), then
+   **boot a fresh isolated emulator.** Never the shared
+   `newton-harness_emulator_1`. Building first avoids spending emulator time on
+   compiler retries. The MCP tool creates disposable state, waits at most 90
+   seconds for health, and dismisses the first-run Welcome UI:
 
    ```json
    emulator_boot {"instance": "<yourname>"}
@@ -25,7 +27,10 @@ separate, human-gated path (`docs/install-paths.md` row 2, step 9 below).
    reinstall, relaunch, and screenshot. The tool recreates only that named
    isolated instance.
 
-2. **Use bounded autonomous retries.** A tool error is not a handoff to the
+2. **Use bounded autonomous retries.** One authoring turn is capped at 300
+   seconds; builds and emulator subprocesses are capped at 60 seconds, emulator
+   health at 90 seconds, and control/install/screenshot calls at 60 seconds or
+   less. A tool error is not a handoff to the
    human. Retry each stage at most five times. For a compiler error, read the
    exact tntk diagnostic, replace the complete source, and rebuild. Do not reply
    until the package builds, installs, launches, and a screenshot visibly shows

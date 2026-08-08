@@ -106,6 +106,8 @@ def test_codex_backend_relays_tool_progress_and_failures(monkeypatch, tmp_path):
     async def mark_progress(message):
         progress.append(message)
 
+    event_log = tmp_path / "mcp.jsonl"
+    monkeypatch.setattr(server, "MCP_EVENT_LOG", str(event_log))
     monkeypatch.setattr(server.asyncio, "create_subprocess_exec", fake_subprocess)
     reply = asyncio.run(server.CodexBackend(server.Chat(tmp_path)).chat(
         "install it", mark_progress))
@@ -117,6 +119,13 @@ def test_codex_backend_relays_tool_progress_and_failures(monkeypatch, tmp_path):
         "Package ready. Open Dock, choose connect via TCP/IP, then tap Connect.",
     ]
     assert reply == "Package installed"
+    recorded = [json.loads(line) for line in event_log.read_text().splitlines()]
+    assert [(event["type"], event["tool"]) for event in recorded] == [
+        ("item.started", "build_pkg"),
+        ("item.completed", "build_pkg"),
+        ("item.started", "build_pkg"),
+        ("item.started", "hardware_install"),
+    ]
 
 
 class RegistryTest(unittest.TestCase):

@@ -68,13 +68,17 @@ class EinsteinControl:
 
     def _run(self, args: list[str]) -> bytes:
         env = dict(os.environ, DISPLAY=self.display)
-        result = self.runner(
-            args,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
+        try:
+            result = self.runner(
+                args,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ControlError(f"{args[0]} timed out after 10s") from exc
         if result.returncode != 0:
             message = result.stderr.decode("utf-8", "replace").strip()
             raise ControlError(message or f"{args[0]} exited {result.returncode}")

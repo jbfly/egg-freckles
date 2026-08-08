@@ -80,6 +80,14 @@ class EinsteinControlTests(unittest.TestCase):
         self.assertTrue(image.startswith(PNG_MAGIC))
         self.assertIn("320x480+0+78", self.runner.calls[-1])
 
+    def test_subprocess_timeout_is_reported(self) -> None:
+        def hang(args, **kwargs):
+            raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+        control = EinsteinControl(runner=hang)
+        with self.assertRaisesRegex(ControlError, "timed out after 10s"):
+            control.window_id()
+
     def test_command_failure_is_reported(self) -> None:
         def fail(args, **kwargs):
             return subprocess.CompletedProcess(args, 1, b"", b"not running")

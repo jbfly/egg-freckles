@@ -1,0 +1,6 @@
+[newton] ts=2026-08-08T01:05:14+00:00 serving on 0.0.0.0:52181 fake=True state=/home/jbfly/git/newton-harness-devloop/runtime/evidence/devloop-fake-protocol/tic-tac-toe-run1.state
+[newton] ts=2026-08-08T01:05:14+00:00 connect ('127.0.0.1', 44344)
+[newton] ts=2026-08-08T01:05:14+00:00 MSGP part 1/3 180B total=180B
+[newton] ts=2026-08-08T01:05:14+00:00 MSGP part 2/3 180B total=360B
+[newton] ts=2026-08-08T01:05:14+00:00 MSGP part 3/3 93B total=453B
+[newton] ts=2026-08-08T01:05:14+00:00 MSGP assembled 3 parts into 453B prompt

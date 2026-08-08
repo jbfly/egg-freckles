@@ -52,7 +52,27 @@ workspace artifact but `staged_pkg=absent`
 The agent prompt now requires reading that exact error, replacing the complete
 source, and rebuilding, with at most five attempts per stage.
 
-## Fresh emulator recovery and progress
+## Root cause 3: the reliability harness violated the native handshake
+
+The first three-app reliability attempt connected each test client but never
+started Codex and never created an emulator container. Its three server logs
+contain only `serving`, `connect`, and a disconnect 568 seconds later
+([tic-tac-toe log](../runtime/evidence/devloop-reliability-round1/tic-tac-toe-run1.server.log));
+the counter and hello logs are byte-for-byte equivalent apart from port and
+address. A bounded fake-backend reproduction exposed the protocol error: the
+harness sent its first `MSGP` before ACKing the server's `STAT READY`, so
+`send_frame` answered `NAK BUSY` and consumed the prompt. The harness ignored
+that NAK and waited forever for an ACK that could no longer arrive.
+
+The harness now ACKs `STAT READY` before sending any prompt frame and applies
+one absolute deadline to connection, every frame read, and the whole turn. The
+same fake-backend probe completed all three prompt parts, `STAT THINKING`, the
+reply, and `PROMPT` in 0.7 seconds (`runtime/evidence/devloop-fake-protocol/`;
+ignored scratch evidence). Server and Codex run in one process group, so timeout
+cleanup kills both rather than leaking the three `server.py` processes found
+after the failed attempt.
+
+## Fresh emulator recovery, timeouts, and progress
 
 The new `emulator_boot` MCP tool recreates only a named isolated instance,
 waits for health, and dismisses the deterministic Welcome UI. Its real-tool
@@ -65,8 +85,18 @@ emulator.
 
 `server.py` now relays every authoring MCP `item.started` event over the existing
 native `TEXT` channel, including the stage and attempt number. Failed MCP items
-relay the first error line as “failed; fixing”. No wire-format or client change
-was added.
+relay the first error line as “failed; fixing”. It also writes a compact JSONL
+MCP event log when `NEWTON_MCP_EVENT_LOG` is set; the reliability gate uses
+completed events from that file rather than trusting the agent's prose. No
+wire-format or client change was added.
+
+All loop waits are bounded: the authoring turn defaults to 300 seconds, package
+builds and emulator Compose commands to 60 seconds, fresh-emulator health to 90
+seconds, and install/control/screenshot calls to at most 60 seconds. The harness
+default is intentionally one tic-tac-toe run; multiple apps are opt-in only
+after that gate passes. `scripts/emulator-instance.sh` also wraps Compose and
+Podman themselves with `timeout -k 5`, so killing its caller cannot leave an
+unbounded child behind.
 
 ## Reliability results
 

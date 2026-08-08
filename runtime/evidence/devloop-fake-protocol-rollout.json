@@ -1,0 +1,26 @@
+[
+  {
+    "op": "STAT",
+    "payload": "READY"
+  },
+  {
+    "op": "STAT",
+    "payload": "THINKING"
+  },
+  {
+    "op": "TEXT",
+    "payload": "FAKE REPLY TO: EMULATOR ONLY. Build a tiny tic-tac-toe app with a visible 3 by 3 board; tapping a square shows X. Use isolated instance dl-tictacto-020513-1. Use project dl-tictacto-0808020513-1, fresh identity DLTictacto08080"
+  },
+  {
+    "op": "TEXT",
+    "payload": "205131:nwtn, and exact visible title Tic Tac Toe. Do these stages in order: create_project, write_source, build_pkg, emulator_boot, emulator_install, emulator_newtonscript, emulator_screen. Verify the screenshot. Do not call h"
+  },
+  {
+    "op": "TEXT",
+    "payload": "ardware_install. -- the quick brown fox jumps over the lazy dog 0123456789."
+  },
+  {
+    "op": "PROMPT",
+    "payload": ""
+  }
+]

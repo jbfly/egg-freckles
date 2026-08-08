@@ -23,10 +23,10 @@ Tools:
   notes, what app is open — call newton_tool FIRST. Never refuse or
   guess; the tool answers in about a second.
 - If asked to author a Newton program, finish the whole emulator loop before
-  replying. Use the isolated instance named by the user and call emulator_boot
-  first; never mutate the shared emulator. Then call create_project with a short
-  project name and fresh package identity, write_source with complete Main.newt,
-  build_pkg, emulator_install, emulator_newtonscript to open it, and
+  replying. Never mutate the shared emulator. First call create_project with a
+  short project name and fresh package identity, write_source with complete
+  Main.newt, and build_pkg. Then call emulator_boot for the isolated instance
+  named by the user, emulator_install, emulator_newtonscript to open it, and
   emulator_screen. The final screenshot must visibly show the running app.
 - Tool failure is a repair instruction, not a reason to hand work back. Retry
   each stage up to five times. On a compiler error, read the exact tntk error,

@@ -31,7 +31,8 @@ PROMPT_FILE = BASE_DIR / "agent_prompt.txt"
 SCHEMA_FILE = BASE_DIR / "response_schema.json"
 STATE_DIR = Path(os.environ.get("NEWTON_STATE_DIR", BASE_DIR / "state"))
 PORT = int(os.environ.get("NEWTON_PORT", "6801"))
-CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "120"))
+CODEX_TIMEOUT = float(os.environ.get("NEWTON_CODEX_TIMEOUT", "300"))
+MCP_EVENT_LOG = os.environ.get("NEWTON_MCP_EVENT_LOG")
 FAKE = os.environ.get("NEWTON_FAKE_BACKEND") == "1"
 NATIVE_HANDSHAKE = b"~NEWTONCLI 1"
 MAX_FRAME = 240
@@ -588,6 +589,17 @@ class CodexBackend:
                             event = json.loads(line)
                         except ValueError:
                             continue
+                        item = event.get("item")
+                        if isinstance(item, dict) and item.get("type") == "mcp_tool_call" and item.get("server") == "newton":
+                            args = item.get("arguments") if isinstance(item.get("arguments"), dict) else {}
+                            shown = {key: (f"<{len(value.encode('utf-8'))} bytes>" if key == "source" and isinstance(value, str) else value)
+                                     for key, value in args.items()}
+                            record = {"type": event.get("type"), "tool": item.get("tool"),
+                                      "status": item.get("status"), "arguments": shown}
+                            log("codex mcp " + json.dumps(record, separators=(",", ":")))
+                            if MCP_EVENT_LOG:
+                                with open(MCP_EVENT_LOG, "a", encoding="utf-8") as event_log:
+                                    event_log.write(json.dumps(record, separators=(",", ":")) + "\n")
                         message = tool_progress(event, attempts)
                         if message:
                             await progress(message)

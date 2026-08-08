@@ -147,7 +147,7 @@ def test_emulator_boot_recreates_fresh_instance(monkeypatch):
     calls = []
 
     def fake_run(command, **kwargs):
-        calls.append(command)
+        calls.append((command, kwargs["timeout"]))
         return newton_mcp.subprocess.CompletedProcess(command, 0, b"started")
 
     replies = iter([
@@ -165,7 +165,10 @@ def test_emulator_boot_recreates_fresh_instance(monkeypatch):
     result = newton_mcp.call_tool("emulator_boot", {"instance": "test-loop"})
 
     script = str(newton_mcp.REPO_ROOT / "scripts" / "emulator-instance.sh")
-    assert calls == [[script, "down", "test-loop"], [script, "up", "test-loop"]]
+    assert calls == [
+        ([script, "down", "test-loop"], newton_mcp.EMULATOR_COMMAND_TIMEOUT),
+        ([script, "up", "test-loop"], newton_mcp.EMULATOR_COMMAND_TIMEOUT),
+    ]
     assert result["isError"] is False
     assert "fresh emulator test-loop is healthy" in result["content"][0]["text"]
 

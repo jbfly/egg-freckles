@@ -22,6 +22,7 @@ def instance_url(instance: str) -> str:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
+        timeout=10,
     )
     published = found.stdout.decode("utf-8", "replace").split()
     if found.returncode or not published:

@@ -32,7 +32,7 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 | Tool | Arguments | Goes to | Notes |
 |---|---|---|---|
 | `newton_tool` | `op` (required), `args` (object), `timeout` (s, ≤120, default 20) | `POST {NEWTON_TOOLS_URL}/tools`, default `http://10.42.0.1:18081` | Generic pass-through to the `ToolBroker` (`pkg_publisher.py:354-385`). Reply JSON is returned verbatim; a 4xx/5xx body (`unknown_op`, `timeout`) comes back as `isError` text rather than being swallowed. Ops today: `ping`, `front_app`, `get_note`, `note_probe`, `battery`, `store_info`, `pkg_list`. |
-| `emulator_boot` | `instance` | `scripts/emulator-instance.sh` + control API | Recreates a fresh isolated instance, waits for health, and dismisses Welcome; call again after a crash. |
+| `emulator_boot` | `instance` | `scripts/emulator-instance.sh` + control API | Recreates a fresh isolated instance, waits at most 90 seconds for health, and dismisses Welcome; call again after a crash. Compose/Podman children are capped at 60 seconds. |
 | `emulator_screen` | `instance` | `GET /screen.png` | Returns MCP `image` content (base64 PNG) plus one line of text. **Always allowed**, shared emulator included. |
 | `emulator_tap` | `x`, `y`, `instance` | `POST /tap` | 320×480 Newton coordinates. |
 | `emulator_text` | `value`, `instance` | `POST /text` | xdotool typing. |
@@ -41,7 +41,7 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 | `create_project` | `project`, `identity`, `title`, `version` | `runtime/agent-workspace/<project>` | Copies the trusted `examples/hello` scaffold, renames its project/build targets, and sets a fresh package identity. Refuses nested paths and existing projects. |
 | `write_source` | `project`, `source` | `runtime/agent-workspace/<project>/Main.newt` | Replaces only `Main.newt` in a direct workspace project; refuses path and symlink escapes and source over 256 KiB. |
 | `emulator_install` | `pkg_path`, `instance` | `POST /install` | Accepts container paths under read-only `/packages/` or read-only `/agent-workspace/`; the endpoint takes a path inside the container, **not** an upload (`docs/install-paths.md` row 1). |
-| `build_pkg` | `dir` | sandboxed `make -C <dir>` | Accepts only a direct project under `runtime/agent-workspace/`. A successful build is copied under the same basename to `runtime/staging/hardware/`; the result returns both the Loader filename and emulator-visible path. |
+| `build_pkg` | `dir` | sandboxed `make -C <dir>` | Accepts only a direct project under `runtime/agent-workspace/`; the build is capped at 60 seconds. A successful build is copied under the same basename to `runtime/staging/hardware/`; the result returns both the Loader filename and emulator-visible path. |
 
 Instance resolution reuses `emulator.client.instance_url`
 (`emulator/client.py:17-30`) — `podman port newton-harness-<instance>_emulator_1
