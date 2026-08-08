@@ -494,7 +494,8 @@ class PublisherTest(unittest.TestCase):
                     b'{"op":"ping","args":{}}')
                 self.assertEqual((status, json.loads(body)["status"]), (504, "timeout"))
                 for body in (b'{"op":"bad-op","args":{}}',
-                             b'{"op":"get_note","args":{"id":true}}'):
+                             b'{"op":"get_note","args":{"id":true}}',
+                             b'{"op":"pkg_remove","args":{"id":"bad identity"}}'):
                     self.assertEqual(self.fetch(port, "/tools", "POST", body)[0], 400)
             finally:
                 server.shutdown()

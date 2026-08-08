@@ -1124,10 +1124,16 @@ ops, each one session-sized with its emulator acceptance test:
   with `cursor:CountEntries()`, which walks the index rather than the entries.
   `get_note` keeps its reply shape and gains the nil-guard + `Floor` at its
   dispatch site. Details in `docs/newtonscript-eval.md` fifteenth finding.
-- **C5. `pkg_install <name>` / `pkg_remove <name>`** — reuse ZC40's proven
-  VBO receive + `SuckPackageFromBinary` code inside the tools client;
-  removal API `[verify]`. **Human gate on physical hardware, always**
-  (`docs/notes-bridge.md:16`).
+- **C5. `pkg_install <name>` / `pkg_remove <name>` — done 2026-08-08,
+  isolated-emulator proven.** `pkg_install` reuses ZC40's HTTP/VBO/
+  `SuckPackageFromBinary` path on the active tools NIE link; `pkg_remove` closes
+  the package root, searches every store with two-argument `GetPkgRef`, removes,
+  and verifies nil. Host and Newton guardrails protect Egg Freckles,
+  loader/recovery, NIE, and network-driver identities. Evidence:
+  `runtime/evidence/pkg-install-delete/README.md`, especially
+  `24-pkg-install-success.log`, `25-pkg-install-present.txt`, and
+  `27-pkg-remove-tools-proof.txt`. Physical no-Dock install/remove remains one
+  user-confirmed active-send turn; EF14's ~5 s idle close is the timing risk.
 - **C6. Rehost ToolBroker — deferred, no longer a prerequisite.** Two facts
   found 2026-08-03: (1) the host `POST /tools` route is a **generic
   pass-through** — any op name matching `TOOL_OP` is forwarded and the

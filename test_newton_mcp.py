@@ -50,7 +50,8 @@ def test_initialize_and_tools_list_round_trip():
     assert init["protocolVersion"] == "2025-06-18"
     assert "tools" in init["capabilities"]
     names = [tool["name"] for tool in replies[1]["result"]["tools"]]
-    assert names == ["newton_tool", "emulator_boot", "emulator_screen",
+    assert names == ["pkg_install", "pkg_remove", "emulator_remove",
+                     "newton_tool", "emulator_boot", "emulator_screen",
                      "emulator_tap", "emulator_text", "emulator_key", "emulator_newtonscript",
                      "create_project", "write_source", "emulator_install",
                      "hardware_install", "build_pkg"]
@@ -375,3 +376,61 @@ def test_workspace_mount_control_path_and_read_only_agent_are_pinned():
     assert '"--sandbox", "workspace-write"' not in server_source
     assert "./runtime/agent-workspace:/agent-workspace:ro" in compose
     assert 'path.compare(0, 17, "/agent-workspace/")' in control_patch
+
+
+def test_pkg_install_validates_staged_basename_and_dispatches(monkeypatch, tmp_path):
+    staging = tmp_path / "hardware"
+    staging.mkdir()
+    (staging / "my-app.pkg").write_bytes(b"package0")
+    seen = {}
+
+    def fake_request(url, *, data=None, content_type=None, timeout=15.0):
+        seen.update(url=url, data=json.loads(data), timeout=timeout)
+        return 200, b'{"status":"result","result":"installed"}', "application/json"
+
+    monkeypatch.setattr(newton_mcp, "HARDWARE_STAGING", staging)
+    monkeypatch.setattr(newton_mcp, "http_request", fake_request)
+    result = newton_mcp.call_tool("pkg_install", {"basename": "my-app.pkg"})
+    assert result["isError"] is False
+    assert seen["data"] == {"op": "pkg_install", "args": {"id": "my-app.pkg"}}
+    assert seen["url"].endswith("/tools?timeout=120")
+    assert seen["timeout"] == 130
+
+    for bad in ("../my-app.pkg", "missing.pkg", "not-pkg", "bad name.pkg"):
+        result = newton_mcp.call_tool("pkg_install", {"basename": bad})
+        assert result["isError"] is True
+
+
+def test_pkg_remove_dispatches_exact_identity_and_refuses_protected(monkeypatch):
+    seen = {}
+
+    def fake_request(url, *, data=None, **kwargs):
+        seen.update(json.loads(data))
+        return 200, b'{"status":"result","result":"removed"}', "application/json"
+
+    monkeypatch.setattr(newton_mcp, "http_request", fake_request)
+    result = newton_mcp.call_tool("pkg_remove", {"identity": "My App:jbfly"})
+    assert result["isError"] is False
+    assert seen == {"op": "pkg_remove", "args": {"id": "My%20App:jbfly"}}
+
+    for identity in ("EggFrecklesEF21:jbfly", "-Loader1:jbfly",
+                     "NewtsCape:NewtsCape", "Newton Internet Enabler",
+                     "LucentWaveLAN:Noguchi"):
+        result = newton_mcp.call_tool("pkg_remove", {"identity": identity})
+        assert result["isError"] is True
+        assert "protected package" in result["content"][0]["text"]
+
+
+def test_emulator_remove_uses_store_specific_lookup(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(newton_mcp, "control_text",
+                        lambda arguments, action, path, body: seen.update(
+                            arguments=arguments, action=action, path=path, body=body) or
+                        newton_mcp.text_result("removed"))
+    result = newton_mcp.call_tool(
+        "emulator_remove", {"identity": "MyApp:jbfly", "instance": "pkgproof"})
+    assert result["isError"] is False
+    assert seen["arguments"]["instance"] == "pkgproof"
+    assert 'GetRoot().(Intern(identity))' in seen["body"]
+    assert 'GetPkgRef(identity, store)' in seen["body"]
+    assert 'SafeRemovePackage(p)' in seen["body"]

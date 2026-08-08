@@ -1,0 +1,8 @@
+serving http://0.0.0.0:18081 package=examples/harness-client/egg-freckles.pkg
+Newton tools connected 10.42.0.1:34798
+10.42.0.1 - - [08/Aug/2026 09:49:13] "GET /pkg-proof.pkg HTTP/1.0" 200 -
+127.0.0.1 - - [08/Aug/2026 09:49:15] "POST /tools?timeout=120 HTTP/1.1" 200 -
+Newton tools disconnected
+Newton tools connected 10.42.0.1:41228
+127.0.0.1 - - [08/Aug/2026 09:49:42] "POST /tools?timeout=120 HTTP/1.1" 200 -
+Newton tools disconnected

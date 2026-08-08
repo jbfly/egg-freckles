@@ -16,7 +16,10 @@ screen (`docs/agent-dev-loop.md`, "Proven 2026-08-03"). That historical build
 used `examples/`; the confined writable-workspace path is now emulator-proven
 too (`docs/agent-dev-loop.md`, "Workspace plumbing proven 2026-08-07"). `emulator_boot` was added and blank-volume proven on 2026-08-08; it removes
    the old EF13-seed dependency for authoring and provides crash recovery. Only
-`emulator_text` and `emulator_key` are still exercised by tests alone.
+`emulator_text` and `emulator_key` are still exercised by tests alone. Track C5's
+`pkg_install`, `pkg_remove`, and `emulator_remove` are isolated-emulator proven; the
+physical no-Dock turn remains pending
+(`runtime/evidence/pkg-install-delete/README.md`).
 The old agent-facing `stage_hw` tool was removed when writes were confined to
 the dedicated workspace; physical staging remains a human host procedure.
 
@@ -31,7 +34,10 @@ server image is `node:22-bookworm-slim` + `python3` and nothing else
 
 | Tool | Arguments | Goes to | Notes |
 |---|---|---|---|
-| `newton_tool` | `op` (required), `args` (object), `timeout` (s, ≤120, default 20) | `POST {NEWTON_TOOLS_URL}/tools`, default `http://10.42.0.1:18081` | Generic pass-through to the `ToolBroker` (`pkg_publisher.py:354-385`). Reply JSON is returned verbatim; a 4xx/5xx body (`unknown_op`, `timeout`) comes back as `isError` text rather than being swallowed. Ops today: `ping`, `front_app`, `get_note`, `note_probe`, `battery`, `store_info`, `pkg_list`. |
+| `pkg_install` | `basename` | `POST {NEWTON_TOOLS_URL}/tools` → staged package GET on port 18081 | Accepts only a regular staged ASCII `.pkg` basename. Egg Freckles downloads it into a VBO and calls `SuckPackageFromBinary`; call immediately after `build_pkg` in the same user-requested active send. |
+| `pkg_remove` | `identity` | `POST {NEWTON_TOOLS_URL}/tools` | Removes the exact identity returned by `pkg_list`; host and Newton both refuse Egg Freckles, loader/recovery, NIE, and network-driver identities. |
+| `emulator_remove` | `identity`, `instance` | isolated emulator `/newtonscript` | Emits the proven close + two-argument `GetPkgRef(identity, store)` + `SafeRemovePackage` sequence and refuses the shared emulator/protected identities. |
+| `newton_tool` | `op` (required), `args` (object), `timeout` (s, ≤120, default 20) | `POST {NEWTON_TOOLS_URL}/tools`, default `http://10.42.0.1:18081` | Generic pass-through to the `ToolBroker`. Reply JSON is returned verbatim; mutating op names remain gated here so callers use the validated dedicated tools. Read-only ops: `ping`, `front_app`, `get_note`, `note_probe`, `battery`, `store_info`, `pkg_list`. |
 | `emulator_boot` | `instance` | `scripts/emulator-instance.sh` + control API | Recreates a fresh isolated instance, waits at most 90 seconds for health, and dismisses Welcome; call again after a crash. Compose/Podman children are capped at 60 seconds. |
 | `emulator_screen` | `instance` | `GET /screen.png` | Returns MCP `image` content (base64 PNG) plus one line of text. **Always allowed**, shared emulator included. |
 | `emulator_tap` | `x`, `y`, `instance` | `POST /tap` | 320×480 Newton coordinates. |
@@ -59,12 +65,16 @@ enforced in `newton_mcp.py` and covered by tests:
    (`newton_mcp.py:guard_shared`). The refusal text tells the agent to run
    `make emulator-instance-up INSTANCE=<name>` and pass `instance`.
    `emulator_screen` is exempt — looking is free.
-2. **Device-mutating tool ops need a human.** `newton_tool` refuses op names in
-   `HUMAN_GATED_OPS` (`pkg_install`, `pkg_remove`, `note_write`, `note_delete`,
-   `note_create`, `reset`, `restart`) and returns the exact `curl` for the human
-   instead. None of those ops exist on the Newton client yet (ROADMAP C5); the
-   rail is in place so they cannot arrive without the gate
-   (`docs/notes-bridge.md:16`).
+2. **Package mutation has a narrow, user-confirmed path.** Generic `newton_tool`
+   still refuses every name in `HUMAN_GATED_OPS`. Dedicated `pkg_install` and
+   `pkg_remove` are available only for the user's explicit install/remove request:
+   install accepts one regular file already published by `build_pkg`; removal
+   accepts one exact printable identity and blocks the running Egg Freckles package,
+   loader/recovery packages, and NIE/network drivers in both Python and NewtonScript
+   (`newton_mcp.py:258-295`, `examples/harness-client/Main.newt:2837-2890`). On
+   hardware the active chat send is the confirmation and timing gate: EF14 closes
+   `/tools` about five seconds after idle, so the call must follow the build in the
+   same turn. No background keepalive was added.
 3. **Agent writes are confined to one ignored runtime directory.** Codex keeps
    its global `--sandbox read-only` setting (`server.py:524`).
    `create_project` can create only one direct child of

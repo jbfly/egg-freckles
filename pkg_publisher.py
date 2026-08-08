@@ -530,8 +530,13 @@ class PublisherHandler(BaseHTTPRequestHandler):
             op, args = request["op"], request["args"]
             if not isinstance(op, str) or TOOL_OP.fullmatch(op) is None or not isinstance(args, dict):
                 raise ValueError
-            if "id" in args and (isinstance(args["id"], bool) or not isinstance(args["id"], int)):
-                raise ValueError
+            if "id" in args:
+                argument = args["id"]
+                if (isinstance(argument, bool) or not isinstance(argument, (int, str)) or
+                        (isinstance(argument, str) and
+                         (not argument or len(argument) > 360 or not argument.isascii() or
+                          any(char.isspace() for char in argument)))):
+                    raise ValueError
             query = urlsplit(self.path).query
             timeout = 20.0
             if query:

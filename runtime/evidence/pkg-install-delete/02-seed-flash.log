@@ -1,0 +1,35 @@
++ c=newton-harness-pkgdelproof_emulator_1
++ podman stop -t 20 newton-harness-pkgdelproof_emulator_1
+newton-harness-pkgdelproof_emulator_1
++ podman cp /home/jbfly/newton-archive/newton-harness/flash-backups/internal-before-round9-loader-20260725-195622.flash newton-harness-pkgdelproof_emulator_1:/state/internal.flash
++ podman start newton-harness-pkgdelproof_emulator_1
+newton-harness-pkgdelproof_emulator_1
+++ seq 1 24
++ for i in $(seq 1 24)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ status=starting
++ echo health=starting
+health=starting
++ test starting = healthy
++ sleep 5
++ for i in $(seq 1 24)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ status=starting
++ echo health=starting
+health=starting
++ test starting = healthy
++ sleep 5
++ for i in $(seq 1 24)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ status=starting
++ echo health=starting
+health=starting
++ test starting = healthy
++ sleep 5
++ for i in $(seq 1 24)
+++ podman inspect -f '{{.State.Health.Status}}' newton-harness-pkgdelproof_emulator_1
++ status=healthy
++ echo health=healthy
+health=healthy
++ test healthy = healthy
++ exit 0

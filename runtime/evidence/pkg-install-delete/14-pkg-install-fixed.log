@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"request_id\":\"1\",\"status\":\"error\",\"error\":\"install not confirmed\"}"
+    }
+  ],
+  "isError": true
+}
