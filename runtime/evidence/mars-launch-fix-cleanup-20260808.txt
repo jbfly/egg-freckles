@@ -1,0 +1,7 @@
+cleanup_time=2026-08-08T09:46:20-10:00
+   9074       1 Ss     33241 zsh -c echo "=== ldd tntk ==="; ldd ~/newton-dev/prefix/bin/tntk 2>&1 | grep -i "not found" || echo "all libs resolved"; echo "=== tntk runs? ==="; ~/newton-dev/prefix/bin/tntk 2>&1 | head -3; echo "exit=$?"; echo "=== newton-dev layout ==="; ls ~/newton-dev/ 2>&1; echo "=== build script / server ==="; ls ~/newton-harness/runtime/ 2>&1 | head
+   9081    9074 Sl     33241 /home/jbfly/newton-dev/prefix/bin/tntk
+remove runtime/staging/hardware/egg-freckles.pkg size=99096
+reaped pid 9074
+reaped pid 9081
+removed_ok

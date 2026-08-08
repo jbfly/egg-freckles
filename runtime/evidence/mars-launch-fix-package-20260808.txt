@@ -1,0 +1,6 @@
+size=99096
+sha256=444a066030b8e52119ef0fb3b79a0bc42b9a3995deaf2de57c0a5747af52c8c9
+git_blob=ba79270a790cd9ffe96a20b08ec85cb7e110b76a
+committed_blob=3bbe8dec4753e14525d7ff5fa1774ffeca9fb84e
+predeploy_sha256=ad35453faaa297990e1c5b7600fa2a68c761c35d5b7f5218b730b86c5d7ac7b9
+examples/harness-client/egg-freckles.pkg: Newton package, NOS 1.x, NoCompression, version 34

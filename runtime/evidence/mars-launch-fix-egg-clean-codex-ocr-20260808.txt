@@ -1,0 +1,13 @@
+Legible text:
+
+- “Egg Freckles 1.0-ef22”
+- “Type a prompt below, then tap Send.”
+- “Prompt”
+- “Radio off”
+- “New”
+- “Send”
+- “Continue”
+
+Open application: Egg Freckles 1.0-ef22.
+
+No modal, Sorry/problem alert, or error code **-48809** is visible.

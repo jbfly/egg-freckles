@@ -1,0 +1,48 @@
+make: Entering directory '/home/jbfly/git/newton-harness/examples/harness-client'
+LD_LIBRARY_PATH="/home/jbfly/newton-dev/prefix/lib:${LD_LIBRARY_PATH}" \
+	"/home/jbfly/newton-dev/prefix/bin/tntk" -P "/home/jbfly/newton-dev/ntk-platform-files" -c egg-freckles.nprj
+Reading project file egg-freckles.nprj
+Reading platform file Newton 2.1
+Parts: 1
+Building package EggFrecklesEF22:jbfly
+Building part 0
+Reading platform file /home/jbfly/newton-dev/ntk-platform-files/Newton 2.1
+Compiling Main.newt
+Encoding Part 0 f6581b21...
+{
+	app: '|EggFrecklesEF22:jbfly|, 
+	text: "Egg Freckles", 
+	icon: {
+		bits: <Binary, class "bits", length 72>, 
+		bounds: {
+			top: 0, 
+			left: 0, 
+			bottom: 14, 
+			right: 20
+		}
+	}, 
+	theForm: {
+		_proto: @157, 
+		viewBounds: {
+			left: 0, 
+			top: 0, 
+			right: 320, 
+			bottom: 480
+		}, 
+		title: "Egg Freckles 1.0-ef22", 
+		appSymbol: '|EggFrecklesEF22:jbfly|, 
+		endpointClass: {
+			_proto: @383
+		}, 
+		endpoint: NIL, 
+		linkID: NIL, 
+		capBytes: 6144, 
+		rowChars: 38, 
+		visibleRows: 12, ...
+		
+	}, 
+	installScript: '<function, 1 arg(s) #f66fa951>, 
+	RemoveScript: <function, 1 arg(s) #f65943f1>
+}
+Package egg-freckles.pkg created.
+make: Leaving directory '/home/jbfly/git/newton-harness/examples/harness-client'
