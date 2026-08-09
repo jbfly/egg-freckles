@@ -315,7 +315,15 @@ shared emulator was healthy before and after; the status log records every
 bounded step and the single recovery
 ([`pkgchat0807b-status.log`](../runtime/evidence/pkgchat0807b-status.log)).
 
-## Mars deployment prepared — not applied, 2026-08-07
+## Mars deployment prepared — not applied, 2026-08-07 (superseded: applied 2026-08-07)
+
+**Superseded.** Mars *is* deployed: `docs/mars-package-authoring-deploy.md`
+records the master checkout at `5599e7b`, `egg-freckles-chat.service` serving
+6801, and smoke `mars-ttt-0807-r3` PASS. Since the overnight 2026-08-08
+session, mars runs the `task/dev-loop-reliability` line at merge `5eee14b`
+with `NEWTON_CODEX_TIMEOUT=600` (see `docs/ROADMAP.md`, 2026-08-09 entry).
+The preflight below is kept as the procedure template only; its SHAs
+(`590b6ab`, `4fc2fb34`) are historical.
 
 Mars was reported at `590b6ab`; live SSH verification failed with
 `ssh: connect to host 10.13.13.12 port 22: Connection timed out`. Do not call

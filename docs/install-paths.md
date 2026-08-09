@@ -113,7 +113,8 @@ The staged `egg-freckles.pkg` had drifted to the 73,080-byte EF6 build: commit
 `daf798b` produces its exact `7cce547b…` hash, and the EF6 log identifies that
 package as `EggFrecklesEF6:jbfly` (`docs/newton-dev-notes.md:1409-1417`;
 `runtime/evidence/mars-ef21-served-pkg-20260807.txt:3-17`). It was backed up,
-then replaced with the hardware-confirmed 85,800-byte EF21 package while the
+then replaced with the 85,800-byte EF21 package (emulator-proven only — EF21
+has no hardware install record, `docs/ef21-native-scroll.md`) while the
 paired `pkg_publisher.py` stayed at `538d6fa4…`; after restart, curl returned
 `6652fb0b…` from port 18081
 (`runtime/evidence/mars-ef21-served-pkg-20260807.txt:19-32`). Existing EF

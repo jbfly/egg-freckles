@@ -7,6 +7,92 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-09 — Recovery audit: branch reconciliation after the 2026-08-08
+  overnight sessions.** This docs-only audit is replayed on the selected
+  immutable trunk, `f4885d1`; nothing was deployed or touched on hardware.
+  Verified against git:
+  - **Nothing uncommitted is lost.** All 42 worktrees are clean (the one `??
+    secrets` in `newton-harness-multiemu` is a symlink). The single at-risk
+    item, stash@{0} ("p3c chat WIP", 2026-07-26 — the only copy of the
+    `HarnessClientP3C:jbfly` line-protocol experiment, superseded by the
+    shipped framed client), is preserved as branch `archive/p3c-chat-wip-stash`
+    (f48211d). At audit time, the pre-trunk `master` was 46 commits ahead of
+    `origin/master`, and origin was the only remote; publishing that history
+    remains a human-owned backup gate.
+  - **`task/dev-loop-reliability` (f4885d1) is the trunk.** 33 commits ahead of
+    master, 0 behind — a clean fast-forward — and it strictly contains
+    `prepare/ef22-ipad-unified` (0f25095), `task/pkg-install-delete` (5e0f430),
+    `task/agent-knowledge-wifi` (672eee5), `fix/agent-pkg-download` (3a88b10),
+    `task/tntk-crash` (e9398d8) and `task/stream-feedback` (6a647df) via merges
+    1bd56d1/eaf6c79. This trunk includes the tntk crash fail-fast
+    (`newton_mcp.py:535-540`; the evidence file records 135 tests at `e9398d8`,
+    before `6a647df` added the 136th),
+    the `STAT PROGRESS` server half (`server.py:830-831`, local proof
+    `runtime/evidence/stream-feedback-local.txt`), the 600 s codex timeout mars
+    already runs (5eee14b), and the gated package install/remove tools.
+  - **`prepare/ef22-autofind` (ab55de3) is the only independent line** — 7
+    commits, all client: the Advanced-slip server picker (favorites list,
+    proven on the iPad: `192.168.100.103 → 192.168.100.93:6801`) and the v36
+    `EggFrecklesEF22Probe:jbfly` handshake probe (HS-A/HS-B/HS-C states, 123
+    tests, sha256 `cdaef4e4…`, built, never deployed). `git merge-tree` shows
+    it conflicts with the dev-loop stack in `Main.newt`, `egg-freckles.nprj`,
+    the binary `.pkg` and `test_newton_client_source.py` — the client forked
+    (blob `8c54a04` vs `8cdd855` off shared base `95b875e`). Landing order is
+    therefore fixed: dev-loop first, then rebase autofind and **rebuild** the
+    `.pkg` (recipe `runtime/evidence/ef22-output-probe/reproducible-build.txt`).
+  - **Branch noise:** 32 branches were fully merged into the pre-trunk
+    `master` and are therefore contained in `f4885d1`;
+    `prepare/ef22-server-settings` was empty at that tip; `task/ef13-wip` is
+    self-labelled do-not-ship; `prepare/persistent-tools-l4` is 147 behind and
+    stale. Still useful outside the two live lines: `hardware-bench` (dcda1eb,
+    3 all-new files, cherry-pickable) and `fix/loader-nie-async-connect`
+    (308dd63, one loader fix to re-evaluate against the EF22 probe verdict).
+  - **Why 2026-08-08 produced "not a single success on the newton" — four
+    separable causes:** (1) tntk segfaults on deeply nested generated
+    NewtonScript (`NPSGenNode2`/`yyparse` and `NBCGenBC_sub` core dumps; a
+    1,078-byte repro of 500 nested array literals exits SIGSEGV at 8 MB, 64 MB
+    *and* unlimited stack — `docs/tntk-crash.md` and
+    `runtime/evidence/tntk-crash-*` on the branch) and the agent retried
+    byte-identical source until the budget died — fixed by the fail-fast; (2)
+    the 300 s timeout killed run `noughts-r8` one second *after* it had built,
+    installed and screenshotted successfully — raised to 600 s, live on mars;
+    (3) progress is invisible on the Newton, so every wait looked like a hang —
+    server half done, the 2-line client render (`docs/stream-feedback.md:52-58`)
+    deferred to the branch that owns `Main.newt`; (4) the iPad iOS NIE client
+    opens TCP but sends zero application bytes (five sockets, `bytes_sent:48,
+    bytes_acked:48`, nothing back), send-ordering ruled out, probe built to
+    answer which half of `Output()` fails.
+  - The single path forward is **"Recovery plan (2026-08-09)"** below the
+    Where-we-are section.
+  - **Verification addendum (second recovery pass, same day).** This entry was
+    itself recovered: the first recovery session wrote it in worktree
+    `task/recovery-2026-08-09` and never committed; this commit is that work,
+    with every git claim re-verified (trunk fast-forward, branch containment,
+    autofind conflict blobs, stash == `archive/p3c-chat-wip-stash`, trunk 136
+    tests, `STAT PROGRESS` at `server.py:831`) plus four corrections from the
+    session histories:
+    (a) **EF21 was never hardware-confirmed** — merge d12dfff's subject and
+    `docs/install-paths.md`'s "hardware-confirmed" overclaimed; all EF21
+    evidence is from emulator instance `ef21arrows` and
+    `docs/ef21-native-scroll.md` leaves the MP2000 install human-gated. The
+    device's last evidenced install is **EF13** (2026-08-07,
+    `docs/ef13-memory-diagnosis.md` "HARDWARE PASS").
+    (b) **The dice hardware success was 2026-08-04 under EF5** (fifth hardware
+    test), not 2026-08-08 — that night had zero hardware successes.
+    (c) **The actual crashing tic-tac-toe source is lost**: the mars agent
+    workspace was overwritten with the corrected 3,910-byte version before
+    capture ("the requested crashing revision is no longer at that path" —
+    tntk-crash-fix child session), so the fail-fast was validated against the
+    synthetic 500-nested-array repro only. `runtime/evidence/tntk-crash-src/`
+    on the trunk holds the corrected source, not the crasher.
+    (d) `uv run --with pytest pytest -q` on the selected trunk passes **136**.
+    `runtime/evidence/tntk-crash-pytest.txt` records 135 at `e9398d8`; later
+    commit `6a647df` adds the `STAT PROGRESS` server test. Older 94/113 results
+    are historical, not current trunk acceptance. Also for
+    the record: the trunk's client identity is already
+    `EggFrecklesEF22:jbfly` v34, and mars serves that 99,096-byte build
+    (sha256 `444a066…`) from 18081 with EF21 kept as fallback.
+
 - **2026-08-07 — EF21: the full-screen app uses the ROM scroll arrows.** Ships as `EggFrecklesEF21:jbfly` (v1.0-ef21, package version 33). The two native callbacks reuse A8’s bounded row window; the custom Up/Dn buttons are deleted. On isolated instance `ef21arrows`, `emulator.client tap 309 446` moved `scrollRow` 0→10 and changed 612 transcript pixels; `tap 309 468` returned 10→0 and reproduced the bottom screenshot exactly. The older “can never reach” finding remains true only for floating roots, which ROM routing excludes. Package sha256 `6652fb0b2e28…`; 113 tests pass; paired publisher sha256 `538d6fa41b65…`. Evidence and build record: `docs/ef21-native-scroll.md`. Hardware remains human-gated.
 
 - **2026-08-06 — EF12: final pre-hardware ink hardening is emulator-proven.** Ships as `EggFrecklesEF12:jbfly` (v1.0-ef12, package version 24), sha256 `90ee54e8cb66…`. First-line `inkBusy` guards on watchdog re-arm, endpoint-drop advance, and delayed next-part open prevent an aborted stream from resurrecting. The 99-part wire backstop now reports `Note too long - first 99 pages sent` through separate `askPartCapped` state, never the point-thinning warning. A forced late-ACK abort left sequence/index/endpoint unchanged; real-backend four-part and zero-stroke routes still filed exact ordered replies. Evidence, source citations, build, and 105-test result: `docs/ef10-ink-pagination.md`. Hardware remains human-gated.
@@ -744,8 +830,10 @@ agent can complete one task and verify it.
   `InkOpen` (**-48200**), the `transcriptTail` trap again. Also: `vfFrameBlack`
   draws no frame without a pen width, and `scripts/newton-round.sh` now honours
   `NEWTON_INSTANCE` so a round can run off the shared emulator.
-  Still open: hardware is **still on A3**, and F3 (a true Notes panel that grabs
-  the *currently open* note) is untouched.
+  Still open: F3 (a true Notes panel that grabs the *currently open* note) is
+  untouched. (Hardware was on A3 when this was written; A7 followed on
+  2026-08-03, and the last evidenced hardware install is EF13, 2026-08-07 —
+  `docs/ef13-memory-diagnosis.md`.)
 
 - **2026-08-03 — Track G done: an agent built a Newton app end to end, first
   build.** G1 is `docs/agent-dev-loop.md` — ten numbered steps from
@@ -963,10 +1051,18 @@ lower-level development (games, richer UIs) on the same rails.
 
 ## Where we are (2026-08-03, all claims audited against source)
 
+*(2026-08-09: this snapshot has aged. The source client is now
+`EggFrecklesEF22:jbfly` ("Egg Freckles", v1.0-ef22, package version 34) — see
+the EF status entries above and `docs/START-HERE.md`. The physical MP2000's
+last evidenced install is EF13 (2026-08-07, `docs/ef13-memory-diagnosis.md`);
+EF21 is emulator-proven only. The architecture description below remains
+accurate.)*
+
 Hardware-proven and current:
 
-- **Chat**: `examples/harness-client` (`HarnessClientA8:jbfly`, "Chat A8"; the
-  physical MP2000 runs A7) ↔ `server.py:6801`, framed ASCII protocol,
+- **Chat**: `examples/harness-client` (per the 2026-08-09 note above, now
+  `EggFrecklesEF22:jbfly`; the physical MP2000's last evidenced install is
+  EF13) ↔ `server.py:6801`, framed ASCII protocol,
   codex backend via `codex exec` subprocess. One turn in flight; since Track F1
   a prompt over 227 characters goes as `MSGP` parts and the host reassembles up
   to 8 KiB. Since Track F2 it is the **harness panel**: `Ask Note` sends the
@@ -1018,8 +1114,73 @@ the same day an agent drove `build_pkg`, `emulator_install`,
 `emulator_newtonscript`, `emulator_screen` and `emulator_tap` to build a new
 app and show it running (G2 entry above). The 2026-08-07 hardening replaced
 the examples-writing build path with `create_project` / `write_source` / a
-workspace-only bubblewrapped `build_pkg`; that path now awaits its bounded
-emulator proof. None of it has run against the physical MessagePad.
+workspace-only bubblewrapped `build_pkg`; that path has since been proven —
+first by direct MCP (`pkgproof0807b`, `docs/agent-tools.md`), then through a
+real chat turn (`pkgchat0807b`, commit 8976d41), then live on mars
+(`docs/mars-package-authoring-deploy.md`, smoke `mars-ttt-0807-r3` PASS).
+None of it has run against the physical MessagePad.
+
+## Recovery plan (2026-08-09) — the single path off the plateau
+
+One trunk, one client branch, five milestones. Evidence for every claim is in
+the 2026-08-09 status entry. M1's trunk selection is complete at immutable SHA
+`f4885d1`; do not open new work off another tip while M2 remains outstanding.
+
+**Decision — tic-tac-toe generation architecture: free-form generation stays.**
+The 2026-08-08 failures were toolchain and harness, not the idea: the 38-line
+dice app built first try, the corrected 3,910-byte tic-tac-toe source builds a
+valid 7,720-byte package, and the crashes are a tntk parser/codegen bug on deep
+nesting (repro above; raising the stack does not help). The fail-fast rung —
+`build_pkg` returns `isError` with "reduce nesting, never retry byte-identical
+source" — is built and tested on the trunk. Escalation ladder, each step only
+if the previous one demonstrably fails: (1) fail-fast + prompt guidance (built);
+(2) a pre-build nesting-depth lint in `write_source`; (3) constrained
+templates/IR. Do not build (2) or (3) speculatively.
+
+**Ownership boundaries — so parallel sessions cannot collide.** The server side
+(`server.py`, `newton_mcp.py`, mars deploys) belongs to the trunk session.
+`examples/harness-client/Main.newt`, `egg-freckles.nprj` and the `.pkg` belong
+to the EF22 client session — the `STAT PROGRESS` render lands there and nowhere
+else. Every physical tap on the iPad or the MP2000 is a human-only gate.
+
+- **M1 — trunk selected; publication and cleanup remain human-owned.** The
+  server-side trunk is immutable SHA `f4885d1`, which contains the six merged
+  reliability lines listed above and passes the full 136-test suite. Publishing
+  the pre-trunk `master` history to the only remote, moving the shared branch
+  name, and pruning the 32 contained branches/worktrees are separate gated
+  operations; this docs replay performs none of them. Keep `archive/*`,
+  `hardware-bench`, `fix/loader-nie-async-connect`, labelled `task/ef13-wip`,
+  and the two live lines. **Accept:** parent/trunk is `f4885d1`, full suite is
+  green at 136, and publication/cleanup happen only after review. Owner:
+  orchestrator, host only.
+- **M2 — one client again: rebase EF22.** Rebase `prepare/ef22-autofind` onto
+  trunk `f4885d1`; hand-merge `Main.newt` (blobs `8c54a04` vs `8cdd855`); pick a
+  fresh package identity (never reuse); **rebuild** the `.pkg` from the
+  reproducible-build recipe instead of merging the binary; add the 2-line
+  `STAT PROGRESS` render per `docs/stream-feedback.md:52-58` (paints
+  `:SetStatus`, never touches `responseText`). **Accept:** full suite green;
+  one isolated-emulator round shows progress lines painting mid-turn and the
+  server picker still selects the LAN entry. Owner: client session.
+- **M3 — tic-tac-toe: emulator, then the MP2000.** One fresh generation run on
+  mars (600 s budget and fail-fast are live there). **Accept (emulator):**
+  build → install → launch → screenshot inside budget, with zero byte-identical
+  retries in the journal. **Accept (hardware, human-gated):** ZC40 install
+  after a `store_info` free-space check, app launches, one game played on
+  glass. This is the project's headline unlock; nothing else pre-empts it.
+- **M4 — iPad probe verdict.** The human-gated one-Send procedure in
+  `docs/ef22-server-autofind.md`, using the M2 rebuild. **Accept:** a
+  photographed HS-A/HS-B/HS-C verdict. The verdict — "Output() never called"
+  vs "completion never fired" — decides the next iPad fix; evaluate
+  `fix/loader-nie-async-connect` (308dd63) against it before writing anything
+  new.
+- **M5 — the low-tap loop, written down.** No new machinery: server choice is
+  the EF22 Advanced slip (persisted in prefs, chosen once); progress is `STAT
+  PROGRESS` on the status line; emulator gating is the isolated-instance
+  `agent-dev-loop.md` path with fail-fast; install is the Loader/ZC40 pull;
+  identity bumps stay automatic (`scripts/newton-round.sh` / fresh-identity
+  rule). **Accept:** a steady-state round on device is: launch Loader → tap
+  install → launch app → Send, with progress visible — counted and recorded in
+  `docs/agent-dev-loop.md`.
 
 ## Track A — repo cleanup and doc truth (first; one cheap-agent session)
 
@@ -1234,7 +1395,9 @@ Evolve the chat client toward the panel-over-Notes dream, incrementally:
   in `Chat A4`; grammar and host state machine in `docs/phase3-protocol.md`,
   "Extension: `MSGP`"; status log entry above. The note bridge was folded onto
   it by F2, so `No answer: LENGTH` is gone. Everything since A3 is
-  emulator-proven only — the physical MP2000 still runs A3.
+  emulator-proven only at the time — the MP2000 ran A7 from the 2026-08-03
+  bench session (A3 before that); its last evidenced install is now EF13
+  (2026-08-07).
 - **F2. The harness panel — DONE 2026-08-03**, shipped as `Chat A7`
   (`HarnessClientA7:jbfly`, v2.4-a7) rather than A5: three identity bumps were
   spent inside the round, one per defect found (see the status log). `Ask Note`
@@ -1276,14 +1439,17 @@ is glue + a runbook:
   calls with no intervention and no failed build, and the screenshots show the
   app working. Status log entry above; `docs/agent-dev-loop.md`
   "Proven 2026-08-03"; `runtime/evidence/gloop-*`.
-  **Still open:** (1) the confined-workspace path through a real Egg Freckles
-  turn, and (2) the hardware half. Direct MCP proved the confined plumbing on
-  2026-08-07, but `pkgchat0807a` stopped before the agent because emulator text
-  injection left the client prompt empty; **Send** said "Type a prompt first"
-  and `server.py` logged no connection (`runtime/evidence/pkgchat0807a-*`).
-  The human hardware install remains via ZC40 after a `store_info` free-space
-  check; physical staging and installation are outside the agent surface
-  (`docs/agent-tools.md` rail 4).
+  **(1) the confined-workspace path through a real Egg Freckles turn — closed
+  2026-08-07** by commit 8976d41 (`pkgchat0807b`, identity
+  `TTTGridP0807bR1:nwtn`; `docs/agent-dev-loop.md` and `docs/agent-tools.md`
+  "Real host chat-agent package turn — proven"), then live on mars
+  (`docs/mars-package-authoring-deploy.md`). The earlier `pkgchat0807a` stop
+  was emulator text injection leaving the prompt empty
+  (`runtime/evidence/pkgchat0807a-*`) — still a known automation trap.
+  **Still open: (2) the hardware half.** The human hardware install remains
+  via ZC40 after a `store_info` free-space check; physical staging and
+  installation are outside the agent surface (`docs/agent-tools.md` rail 4).
+  This is Recovery plan milestone M3.
 
 ## Track H — backlog (not scheduled)
 

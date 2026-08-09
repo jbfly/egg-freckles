@@ -100,7 +100,9 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — 128 pass (2026-08-08), of which **28** are client-source tests
+**Tests** — **136 pass on the trunk** (verified 2026-08-09 at `f4885d1`).
+`runtime/evidence/tntk-crash-pytest.txt` records 135 at `e9398d8`; later commit
+`6a647df` adds the `STAT PROGRESS` server test. Of these, **28** are client-source tests
 pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
 the Track L1 `EntryUniqueID` ordering rule and merged tools channel, the `NSI1`
 `H` line, the Track A8 transcript row window and the Track L2 "Send to AI" hook
@@ -111,7 +113,7 @@ F4 slash commands and the session registry. `pytest` is not in
 the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 128 passed
+uv run --with pytest pytest -q          # 136 passed
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -190,15 +192,29 @@ than hand-rolling the sequence.
 - **The emulator is shared.** Other sessions are using it. Never stop,
   rebuild, or reconfigure `newton-harness_emulator_1` without asking.
 
-## Current state — 2026-08-02 (ages fastest; verify before trusting)
+## Current state — updated 2026-08-09 (ages fastest; verify before trusting)
 
-Working: the framed native client end to end. A1 proved the asynchronous
-transport in Einstein and completed a real Codex turn on the physical MP2000.
-Fresh identity `HarnessClientA3:jbfly` is current; it keeps that transport and
-adds a four-line handwriting field, compact controls, a distinct **Chat A3**
+**2026-08-09 — read `docs/ROADMAP.md` "Recovery plan (2026-08-09)" before
+starting anything.** The selected immutable trunk is `f4885d1`: it contains the
+tntk crash fail-fast, `STAT PROGRESS` server half, 600 s codex timeout, and
+gated package install tools, and its full suite passes 136 tests. The only
+independent live line is `prepare/ef22-autofind` (ab55de3 — EF22 client: server
+picker + handshake probe, v36); rebase it onto `f4885d1`, hand-resolve the
+forked `examples/harness-client/Main.newt`, and rebuild the `.pkg` rather than
+merging the binary. At audit time the pre-trunk `master` was 46 commits ahead
+of the only remote, so backup/publication remains a human-owned gate. The old
+`HarnessClientP3C` stash is preserved as branch
+`archive/p3c-chat-wip-stash`.
+
+Historical (2026-08-02): the framed native client worked end to end. A1 proved
+the asynchronous transport in Einstein and completed a real Codex turn on the
+physical MP2000. `HarnessClientA3:jbfly` kept that transport and
+added a four-line handwriting field, compact controls, a distinct **Chat A3**
 Extras label, and visible host errors. ZC40 physically installed A3 on
 2026-08-02, all 19,266 HTTP bytes were acknowledged, and the larger prompt was
 confirmed substantially easier to use. Preserve A1 as the installed fallback.
+(The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
+evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
 As of 2026-08-08 the *prepared source* client is `EggFrecklesEF22:jbfly` — user-visible
 name **"Egg Freckles"**, title "Egg Freckles 1.0-ef22", package version 34. It adds
@@ -242,9 +258,15 @@ supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
   replies ran off the bottom unreachably — the blocker the first hardware test
   found.
 
-Everything after A7 is emulator-proven only — **the physical MP2000 runs A7**
-(A3 before the 2026-08-03 hardware session), so hardware docs and inventories
-that say A7 are correct.
+The physical MP2000's client has been upgraded repeatedly since A7
+(2026-08-03): EF4/EF5 in the 2026-08-04 bench tests, and the **last evidenced
+hardware install is EF13** — "HARDWARE PASS — EF13 proven on the physical
+Newton", all 6 ink parts streamed, `docs/ef13-memory-diagnosis.md` (commit
+39aa963, 2026-08-07). **EF21 has no hardware install record**: every EF21
+evidence artifact is from emulator instance `ef21arrows`, and
+`docs/ef21-native-scroll.md` explicitly leaves the MP2000 install human-gated
+— the merge subject "hardware-confirmed" (d12dfff) overclaims. Hardware docs
+and inventories that say A7 describe the 2026-08-02/03 state only.
 
 Human gates and preserved recovery state:
 
