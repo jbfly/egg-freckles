@@ -1,0 +1,8 @@
+Error: no container with name or ID "newton-harness-ef22native_server_1" found: no such container
+newton-harness-ef22native_emulator_1
+newton-harness-ef22native_emulator_1
+Error: no container with ID or name "newton-harness-ef22native_server_1" found: no such container
+newton-harness-ef22native_emulator-state
+<network-id>
+newton-harness-ef22native_default
+scratch emulator removed; throwaway server stopped; port 6801 free

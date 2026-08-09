@@ -1,0 +1,20 @@
+Egg Freckles 1
+
+ArPort (ewton) 10.420.1:6801
+> HLANGPad) 192,163 100936801
+
+B pad)
+3
+<lan-ip>
+S
+gy
+Prev Next Pin active
+ndd Delete save
+
+Close
+
+o
+2SS Q9 el
+
+Extras InOut Names Dates Undo  Find  Assist
+

@@ -1,0 +1,10 @@
+Stale-claim grep after M2 documentation updates:
+grep -RInE 'M2 remains outstanding|Exact deferred client step|prepared source client is EggFrecklesEF22|PKG=.*/newton-harness-ef22-autofind|len(data) == 114_616|HELLO NEWTON1 1.0-ef22' docs examples test_*.py
+Result: zero matches.
+
+Historical EF22Probe claims intentionally retained and explicitly bannered as historical in docs/ef22-server-autofind.md:
+docs/ef22-server-autofind.md:21:The diagnostic package uses fresh identity `EggFrecklesEF22Probe:jbfly`, Extras
+docs/ef22-server-autofind.md:22:label and title **Egg Freckles 22 Probe**, and package version 36
+docs/ef22-server-autofind.md:135:| Clean build | package created as `EggFrecklesEF22Probe:jbfly` | `runtime/evidence/ef22-output-probe/build.log` |
+docs/ROADMAP.md:52:    `EggFrecklesEF22Probe:jbfly` handshake probe (HS-A/HS-B/HS-C states, 123
+docs/ROADMAP.md:53:    tests, sha256 `cdaef4e4…`, built, never deployed). `git merge-tree` shows

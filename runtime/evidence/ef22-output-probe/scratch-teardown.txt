@@ -1,0 +1,3 @@
+scratch services created by this task: none
+scratch services remaining matching ef22/output-probe/autofind: none
+shared emulators and live Mars service were not stopped, rebuilt, reconfigured, or used for installation

@@ -1,0 +1,8 @@
+Build 1 and build 2 are byte-identical after the repository Makefile timestamp normalization.
+size=114704 path=<tmp>/m2-ef23-build-1.pkg
+size=114704 path=<tmp>/m2-ef23-build-2.pkg
+093d7784c8d097646cfdd1e7cb7b38cb68ef23e8330cc0fd6af9fc5b3cbe6d53  <tmp>/m2-ef23-build-1.pkg
+093d7784c8d097646cfdd1e7cb7b38cb68ef23e8330cc0fd6af9fc5b3cbe6d53  <tmp>/m2-ef23-build-2.pkg
+093d7784c8d097646cfdd1e7cb7b38cb68ef23e8330cc0fd6af9fc5b3cbe6d53  examples/harness-client/egg-freckles.pkg
+examples/harness-client/egg-freckles.pkg: Newton package, NOS 1.x, NoCompression, version 37
+EggFrecklesEF23:jbfly

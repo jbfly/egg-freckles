@@ -1,0 +1,35 @@
+branch=prepare/ef22-autofind
+base_head=3f1bcdc5d621f5fdb2af4620a26e61bfa847cb67
+audited_head=4814eec27bc7b932c9917326ef1de507bfd94be7
+tracked_server_diff_exit=0
+master:
+## master...origin/master [ahead 46]
+1ae0bd035e01e00c1957b7d5530f4137d6fa53ba
+toolchain:
+uv 0.11.32 (3010295ae 2026-07-23 x86_64-unknown-linux-gnu)
+Python 3.14.6
+tntk=<toolchain>/prefix/bin/tntk size=309584 mtime=2026-07-26 03:28:46.000000000 +0100
+8b4f81ffeb5342c02fc5f18d41403553fed3bd76560dfe5c63ebd8b60338e5cb  <toolchain>/prefix/bin/tntk
+tntk diagnostic invocations still present (not force-quit):
+<pid> <ppid> <toolchain>/prefix/bin/tntk --version
+<pid> <ppid> <toolchain>/prefix/bin/tntk --help
+scratch services matching ef22/output-probe/autofind:
+none
+none
+shared runtimes observed, not modified:
+newton-harness-alpha_emulator_1 Up 8 days (healthy)
+newton-harness-beta_emulator_1 Up 8 days (healthy)
+newton-harness-ef13fix_emulator_1 Up 2 days (healthy)
+newton-harness-ef13round_emulator_1 Up 2 days (healthy)
+newton-harness-ef13ship2_emulator_1 Up 2 days (healthy)
+newton-harness-ef13ship_emulator_1 Up 2 days (healthy)
+newton-harness_emulator_1 Up 6 days (healthy)
+newton-harness-mpclone_emulator_1 Up 5 days (healthy)
+newton-harness-zc39_emulator_1 Up 6 days (healthy)
+package:
+path=<worktree>/examples/harness-client/egg-freckles.pkg
+sha256=cdaef4e4713feb6ad8a15574714c7dc54b22ab02a23bbd82a00ff5e1f0c82034
+size=114616
+identity=EggFrecklesEF22Probe:jbfly
+version=36
+format=package0 Newton NOS 1.x NoCompression

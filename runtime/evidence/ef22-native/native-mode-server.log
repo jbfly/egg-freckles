@@ -1,0 +1,5 @@
+[newton] ts=2026-08-09T09:56:29+00:00 serving on 0.0.0.0:6801 fake=True state=<worktree>/runtime/evidence/ef22-native/server-state
+[newton] ts=2026-08-09T10:01:19+00:00 connect ('10.42.0.1', <ephemeral-port>)
+[newton] ts=2026-08-09T10:01:19+00:00 MODE NATIVE initial=b'~NEWTONCLI 1\r\n' elapsed=0.284s
+[newton] ts=2026-08-09T10:01:19+00:00 HELLO COMPLETE seq=00 payload='NEWTON1 1.0-ef22'
+[newton] ts=2026-08-09T10:01:30+00:00 disconnect ('10.42.0.1', <ephemeral-port>)

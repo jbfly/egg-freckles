@@ -1,0 +1,8 @@
+path=<worktree>/examples/harness-client/egg-freckles.pkg
+fef1a4adabc8a9c77e036cc2152483d35c48de634d92afdff40d22d5ad581d0a  examples/harness-client/egg-freckles.pkg
+size=114056
+8:    name: "EggFrecklesEF22:jbfly",
+9:    version: 35,
+examples/harness-client/egg-freckles.pkg: Newton package, NOS 1.x, NoCompression, version 35
+magic=package0
+identity_present=True

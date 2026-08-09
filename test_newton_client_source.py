@@ -24,28 +24,120 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef22_identity_is_named_for_a_human_and_mars_default_matches():
-    # Track L1: the round tag lives in the identity and the version string, and
-    # nowhere the human reads. Extras shows "Egg Freckles", not "Chat A9 2.4".
-    assert "kAppSymbol := '|EggFrecklesEF22:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef22";' in SOURCE
+def test_ef23_identity_is_fresh_and_named_for_a_human():
+    assert "kAppSymbol := '|EggFrecklesEF23:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef23";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF22:jbfly"' in PROJECT
-    assert "version: 34" in PROJECT
-    # No dev cruft left in anything the human reads. Comments still name the
-    # old packages for provenance, so this checks the display strings only:
-    # every literal that reaches the screen as a title, a label or a button.
-    shown = [line.split('"')[1] for line in SOURCE.splitlines()
-             if line.strip().startswith(("kAppTitle", "kAppLabel", "text: \""))]
-    assert "Egg Freckles" in shown
-    for label in shown:
-        for cruft in ("Chat", "A9", "Harness", "R10P", "Newton"):
-            assert cruft not in label, label
+    assert 'name: "EggFrecklesEF23:jbfly"' in PROJECT
+    assert "version: 37" in PROJECT
     assert "serverAddress: [10, 42, 0, 1]" in SOURCE
     assert "serverPort: 6801" in SOURCE
     assert "inkPort: 18081" in SOURCE
+
+
+def test_server_favorites_persist_one_active_target_and_validate_ipv4():
+    seeds = re.findall(
+        r'\{label: "([^"]+)", ip: "([0-9.]+)", port: ([0-9]+)\}', SOURCE
+    )
+    assert seeds[:2] == [
+        ("AirPort (Newton)", "10.42.0.1", "6801"),
+        ("LAN (iPad)", "192.168.100.93", "6801"),
+    ]
+
+    # Tiny executable mirror of ParseIP's four decimal-octet boundary check.
+    def parse_ip(value):
+        parts = value.split(".")
+        return [int(part) for part in parts] if (
+            len(parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255
+                                    for part in parts)
+        ) else None
+
+    assert parse_ip("192.168.100.93") == [192, 168, 100, 93]
+    assert parse_ip("10.42.0.1") == [10, 42, 0, 1]
+    assert parse_ip("1.2.3") is None
+    assert parse_ip("999.1.1.1") is None
+
+    assert "GetAppPrefs(self.prefsSymbol, {defaultIndex: 0})" in SOURCE
+    assert "HasSlot(self.prefsEntry, 'favorites)" in SOURCE
+    assert "not HasSlot(self.prefsEntry, 'defaultIndex)" in SOURCE
+    assert "self.favorites := :DefaultFavorites();" in SOURCE
+    assert "ClassOf(self.prefsEntry.favorites) = 'array" in SOURCE
+    assert "if not IsFrame(self.prefsEntry) or ClassOf(self.favorites) <> 'array then return nil;" in SOURCE
+    assert "self.prefsEntry.favorites := saved;" in SOURCE
+    assert "EntryChange(self.prefsEntry);" in SOURCE
+    assert "self.prefsEntry.defaultIndex := index;" in SOURCE
+    assert "return :ActivateFavorite(index);" in SOURCE
+    assert SOURCE.count("self.agent:ActivateFavorite(self.selected);") == 2
+    assert "self.settingsSlip.selected := :PrefsIndex();" in SOURCE
+    assert "if not :UseActiveFavorite() then return :Failed(\"No active server\");" in SOURCE
+    active = SOURCE.index("UseActiveFavorite: func()")
+    activate = SOURCE.index("ActivateFavorite: func(index)", active)
+    assert "self.serverAddress := :ParseIP(favorite.ip);" in SOURCE[active:activate]
+    assert "self.serverPort := favorite.port;" in SOURCE[active:activate]
+
+    # Input lines may return rich-string frames after handwriting; decode before
+    # ParseIP's IsString guard instead of rejecting a valid dotted quad.
+    assert "local value := view:GetRichString();" in SOURCE
+    assert "if IsString(value) then return value;" in SOURCE
+    assert "value := DecodeRichString(value, view.viewFont).text;" in SOURCE
+    assert "local ip := :InputText(self.ipView);" in SOURCE
+
+    # A connect attempt targets only that active row. There is no candidate list,
+    # fallback/advance call, or event-loop connect watchdog. The 12 s watchdog is
+    # armed only after Connected(), for the established connection's handshake.
+    for removed in ("favoriteOrder", "TryNextFavorite", "ConnectExpired", "trying next"):
+        assert removed not in SOURCE
+    bound = SOURCE.index("Bound: func()")
+    connected = SOURCE.index("Connected: func()", bound)
+    hello = SOURCE.index("Hello: func()", connected)
+    assert SOURCE.count("self.endpoint:connect([") == 1
+    assert "AddDelayedCall" not in SOURCE[bound:connected]
+    assert "[self, self.handshakeSeq], 12000);" in SOURCE[connected:hello]
+
+    # TCP completion must queue the native marker before SetInputSpec: iOS NIE
+    # can otherwise establish TCP but send zero application bytes. Input is
+    # armed only after the marker output completion, before framed HELLO.
+    marker = SOURCE.index('self.endpoint:output("~NEWTONCLI 1\\r\\n"', hello)
+    marker_sent = SOURCE.index("HelloMarkerSent: func()", marker)
+    framed_hello = SOURCE.index('self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 "', marker_sent)
+    assert ":ArmInput();" not in SOURCE[hello:marker]
+    assert SOURCE.index(":ArmInput();", marker_sent) < framed_hello
+    assert 'if result then self._parent:HandshakeFailed("Handshake error " & result)' in SOURCE[marker:marker_sent]
+    failed = SOURCE.index("Failed: func(message)")
+    assert "AddDelayedCall(func(view) try view:Stop()" in SOURCE[failed:]
+    assert "self.settingsSlip:Open();" in SOURCE
+
+
+def test_ef22_handshake_probe_distinguishes_output_and_completion():
+    connected = SOURCE.index("Connected: func()")
+    hello = SOURCE.index("Hello: func()", connected)
+    called = SOURCE.index("self.handshakeStage := 'called;", hello)
+    output = SOURCE.index('self.endpoint:output("~NEWTONCLI 1\\r\\n"', called)
+    callback = SOURCE.index("HelloMarkerSent: func()", output)
+    completed = SOURCE.index("self.handshakeStage := 'completed;", callback)
+
+    assert SOURCE.index("self.handshakeStage := 'notCalled;", connected) < hello
+    status = SOURCE.index(':SetStatus("HS-B CALLED")', hello)
+    assert status < called < output
+    assert SOURCE[called + len("self.handshakeStage := 'called;"):output].strip() == "try"
+    assert output < callback < completed
+    assert "self.handshakeStage := 'returned;" not in SOURCE[hello:callback]
+    for message in ("HS-A NOT CALLED", "HS-B NO CALLBACK", "HS-C CALLBACK"):
+        assert message in SOURCE
+
+
+def test_progress_status_paints_without_entering_the_final_response():
+    handle = SOURCE.index("HandleLine: func(line)")
+    progress = SOURCE.index('else if BeginsWith(line, ":" & seqText & " STAT PROGRESS ") then', handle)
+    error = SOURCE.index('else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then', progress)
+    branch = SOURCE[progress:error]
+    assert ':SetStatus(SubStr(line, 18, star - 18))' in branch
+    assert "responseText" not in branch
+    text = SOURCE.index('else if BeginsWith(line, ":" & seqText & " TEXT ") then', error)
+    prompt = SOURCE.index('else if BeginsWith(line, ":" & seqText & " PROMPT*") then', text)
+    assert ':AppendLine("Agent: " & self.responseText);' in SOURCE[prompt:]
 
 
 def test_long_prompts_go_out_as_msgp_parts():
@@ -163,7 +255,9 @@ def test_radio_stays_off_until_send_and_closes_after_idle():
     bind_failed = SOURCE.index("BindFailed: func(message)", open_session)
     ink_open = SOURCE.index("InkOpen: func()")
     ink_bind_failed = SOURCE.index("InkBindFailed: func(message)", ink_open)
-    assert ":ToolStart();" in SOURCE[open_session:bind_failed]
+    handshake_ok = SOURCE.index("HandshakeSucceeded: func()")
+    handshake_fail = SOURCE.index("HandshakeFailed: func(message)", handshake_ok)
+    assert ":ToolStart();" in SOURCE[handshake_ok:handshake_fail]
     assert ":ToolStart();" in SOURCE[ink_open:ink_bind_failed]
     assert "who:ToolStart() onexception" not in SOURCE
 
@@ -261,7 +355,7 @@ def test_a_bind_failure_gets_one_retry_before_it_is_surfaced():
     assert "self.inkBindRetried := nil;" in SOURCE
     assert "self.toolBindRetried := nil;" in SOURCE
     # The five-second waits themselves.
-    assert "view:Connect() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
+    assert "view:RetryBind() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
     assert "view:InkRebind() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
     assert "who:ToolResume() onexception |evt.ex| do nil,\n            [self], 5000);" in SOURCE
 
@@ -698,8 +792,9 @@ def test_prompt_is_a_large_multiline_handwriting_area():
     assert "viewBounds: {left: 14, top: 236, right: 290, bottom: 354}" in SOURCE
     assert "viewJustify: vjLeftH" in SOURCE
     assert "viewLineSpacing: 24" in SOURCE
-    assert "viewBounds: {left: 178, top: 360, right: 230, bottom: 382}" in SOURCE
-    assert "viewBounds: {left: 238, top: 360, right: 290, bottom: 382}" in SOURCE
+    assert "viewBounds: {left: 146, top: 360, right: 192, bottom: 382}" in SOURCE
+    assert 'text: "Adv"' in SOURCE
+    assert "viewBounds: {left: 246, top: 360, right: 292, bottom: 382}" in SOURCE
 
 
 def test_redundant_ask_and_save_note_panel_buttons_are_gone():

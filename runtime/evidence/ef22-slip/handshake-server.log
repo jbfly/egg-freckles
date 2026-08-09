@@ -1,0 +1,2 @@
+[newton] ts=2026-08-08T23:39:48+00:00 serving on 0.0.0.0:6801 fake=True state=<worktree>/runtime/evidence/ef22-slip/server-state
+[newton] ts=2026-08-08T23:57:44+00:00 connect ('10.42.0.1', <ephemeral-port>)

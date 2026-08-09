@@ -1,0 +1,29 @@
+--- server.py	2026-08-08 21:28:34.836959220 +0100
++++ <tmp>/ef22-native-server.py	2026-08-09 10:56:29.084434067 +0100
+@@ -713,6 +713,7 @@
+         writer.write(f"ACK {seq:02d}\r\n".encode("ascii"))
+         await writer.drain()
+         if op == "HELLO":
++            log(f"HELLO COMPLETE seq={seq:02d} payload={payload!r}")
+             await send_frame(reader, writer, state, "STAT", "READY")
+             continue
+         if op == "MSGP":
+@@ -768,9 +769,11 @@
+
+
+ async def initial_input(reader: asyncio.StreamReader) -> tuple[bool, bytes]:
++    started = asyncio.get_running_loop().time()
+     try:
+         first = await asyncio.wait_for(reader.read(1), 1.0)
+     except asyncio.TimeoutError:
++        log("MODE LINE initial-timeout=1.000s bytes=b''")
+         return False, b""
+     if first != b"~":
+         return False, first
+@@ -784,6 +787,8 @@
+     except asyncio.TimeoutError:
+         pass
+     native = bytes(data) == NATIVE_HANDSHAKE + b"\r\n"
++    elapsed = asyncio.get_running_loop().time() - started
++    log(f"MODE {'NATIVE' if native else 'LINE'} initial={bytes(data)!r} elapsed={elapsed:.3f}s")
+     return native, b"" if native else bytes(data)

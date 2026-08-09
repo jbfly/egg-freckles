@@ -7,11 +7,11 @@ Base: `5eee14be3b93590ee4832fc3794571662b8d286d`
 
 ## Bottom line
 
-The port-6801 connection supports multiple host frames during one turn, but the
-shipped Newton client renders only once, when `PROMPT` ends the turn. The server
-half is prepared and locally socket-proven as transient `STAT PROGRESS` frames;
-`examples/harness-client/Main.newt` was read but not edited because another live
-session owns it.
+The port-6801 connection supports multiple host frames during one turn. The
+server half was prepared and locally socket-proven as transient `STAT PROGRESS`
+frames; M2 then added the matching client status render on
+`task/m2-ef22-integration`. Final answer text still renders only when `PROMPT`
+ends the turn.
 
 ## Protocol evidence
 
@@ -45,11 +45,10 @@ Evidence: `runtime/evidence/stream-feedback-local.txt:7-17`; matching parsed
 Codex events and generation boundaries are in
 `runtime/evidence/stream-feedback-server.log`.
 
-## Exact deferred client step
+## Client step — completed in M2
 
-Coordinate with the iPad/live session that owns
-`examples/harness-client/Main.newt`. In `HandleLine`, immediately before the
-existing `STAT ERROR` / `TEXT` branches around lines 1194-1205, add this branch:
+`task/m2-ef22-integration` added the branch to `HandleLine` immediately before
+the existing `STAT ERROR` / `TEXT` branches:
 
 ```newtonscript
 else if BeginsWith(line, ":" & seqText & " STAT PROGRESS ") then
@@ -60,6 +59,9 @@ Do not append it to `responseText`; that keeps transient work out of the final
 assistant message. The existing `TEXT` accumulation and `PROMPT` commit path
 remain unchanged.
 
-Then prove in Einstein first that the status line changes through writing,
-building, emulator startup, install, launch, and screenshot before the final
-answer appears. Physical Newton validation remains explicitly human-gated.
+Isolated Einstein instance `m2ef23-0809a` painted `Writing source` and
+`Building package` while its recorded `responseText` was empty, then committed
+`LOCAL PROGRESS OK` only after `TEXT` + `PROMPT`. Evidence:
+`runtime/evidence/m2-ef23-integration/progress-*-state.txt`, matching screenshots,
+and `throwaway-progress-server.log`. Physical Newton validation remains
+explicitly human-gated.

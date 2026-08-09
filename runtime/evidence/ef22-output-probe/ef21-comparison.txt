@@ -1,0 +1,81 @@
+EF21 source commit: cc73acc4c28850d29ea9f5d0410691e36f3fff0a
+Hardware-confirmed merge: d12dfff37669c9d645c3963e378dec405ae52781
+
+commit=d12dfff37669c9d645c3963e378dec405ae52781
+subject=Merge EF21 native scroll arrows (hardware-confirmed)
+parents=d507241c622e6121abf5748b93cc6772ceef3df2 cc73acc4c28850d29ea9f5d0410691e36f3fff0a
+
+cc73acc Main.newt lines 1042-1100:
+  1042	    Connected: func()
+  1043	    begin
+  1044	        if self.stopping then return nil;
+  1045	        :Hello();
+  1046	        return nil;
+  1047	    end,
+  1048
+  1049	    Hello: func()
+  1050	    begin
+  1051	        self.responseText := "";
+  1052	        self.txSeq := 1;
+  1053	        self.ready := nil;
+  1054	        :ArmInput();
+  1055	        try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+  1056	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1057	            CompletionScript: func(endpoint, options, result)
+  1058	                try
+  1059	                begin
+  1060	                    if result then self._parent:Failed("Handshake error " & result)
+  1061	                    else self._parent:HelloMarkerSent();
+  1062	                end
+  1063	                onexception |evt.ex| do nil,
+  1064	        })
+  1065	        onexception |evt.ex.comm| do :Failed("Handshake exception");
+  1066	        return nil;
+  1067	    end,
+  1068
+  1069	    ArmInput: func()
+  1070	    begin
+  1071	        if self.stopping or (self.endpoint = nil) then return nil;
+  1072	        try
+  1073	        self.endpoint:SetInputSpec({
+  1074	            _parent: self,
+  1075	            form: 'string,
+  1076	            // ponytail: protocol lines are capped at 240 bytes.
+  1077	            termination: {endSequence: "\r\n"},
+  1078	            discardAfter: 240,
+  1079	            InputScript: func(endpoint, data, terminator, options)
+  1080	                try self._parent:HandleLine(data) onexception |evt.ex| do nil,
+  1081	            CompletionScript: func(endpoint, options, result)
+  1082	                try self._parent:Dropped() onexception |evt.ex| do nil,
+  1083	        })
+  1084	        onexception |evt.ex.comm| do :Failed("Input exception");
+  1085	        return nil;
+  1086	    end,
+  1087
+  1088	    HelloMarkerSent: func()
+  1089	    begin
+  1090	        if self.stopping then return nil;
+  1091	        try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+  1092	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1093	            CompletionScript: func(endpoint, options, result)
+  1094	                try
+  1095	                begin
+  1096	                    if result then self._parent:Failed("Hello error " & result);
+  1097	                end
+  1098	                onexception |evt.ex| do nil,
+  1099	        })
+  1100	        onexception |evt.ex.comm| do :Failed("Hello exception");
+
+cc73acc_Main_sha256=95c40ea067ca6ee8816ff4bce6ddd63375902726d4355c7c843a316257da685d
+d12dfff_Main_sha256=95c40ea067ca6ee8816ff4bce6ddd63375902726d4355c7c843a316257da685d
+
+Physical served-package record: docs/install-paths.md lines 108-116
+   108	**Mars current state (2026-08-07):** `dual-send.service` is enabled and active.
+   109	The staged `egg-freckles.pkg` had drifted to the 73,080-byte EF6 build: commit
+   110	`daf798b` produces its exact `7cce547b…` hash, and the EF6 log identifies that
+   111	package as `EggFrecklesEF6:jbfly` (`docs/newton-dev-notes.md:1409-1417`;
+   112	`runtime/evidence/mars-ef21-served-pkg-20260807.txt:3-17`). It was backed up,
+   113	then replaced with the hardware-confirmed 85,800-byte EF21 package while the
+   114	paired `pkg_publisher.py` stayed at `538d6fa4…`; after restart, curl returned
+   115	`6652fb0b…` from port 18081
+   116	(`runtime/evidence/mars-ef21-served-pkg-20260807.txt:19-32`). Existing EF

@@ -1,0 +1,21 @@
+Ref preservation proof captured before the M2 product commit:
+master=2fbbd4baefb9504de4826dd439fc2b46f20b5ca6
+prepare/ef22-autofind=ab55de348ab1e483997835c4c173e6bd1d9d6b10
+integration-parent=2fbbd4baefb9504de4826dd439fc2b46f20b5ca6
+
+worktree <repo>
+HEAD 2fbbd4baefb9504de4826dd439fc2b46f20b5ca6
+branch refs/heads/master
+
+worktree <worktree>
+HEAD ab55de348ab1e483997835c4c173e6bd1d9d6b10
+branch refs/heads/prepare/ef22-autofind
+
+worktree <worktree>
+HEAD 493653542422de2dcf61a700f1c00b7ed487a73a
+branch refs/heads/task/m2-ef22-integration
+
+Original master status:
+## master...origin/master
+Original autofind status:
+## prepare/ef22-autofind

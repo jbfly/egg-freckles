@@ -1,0 +1,4 @@
+--- socket state after idle teardown ---
+State Recv-Q Send-Q Local Address:Port Peer Address:PortProcess
+--- client state ---
+"status=Ready ready= endpoint=weird_immediate reply=Session 1/1: chat 10:01Model: codex defaultEffort: codex defaultTurns: 0"

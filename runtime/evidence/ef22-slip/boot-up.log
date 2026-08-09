@@ -1,0 +1,7 @@
+<network-id>
+<container-id>
+newton-harness-ef22slip_emulator_1
+instance   ef22slip
+container  newton-harness-ef22slip_emulator_1
+control    http://127.0.0.1:<ephemeral-port>
+novnc      http://127.0.0.1:<ephemeral-port>/vnc.html?autoconnect=1

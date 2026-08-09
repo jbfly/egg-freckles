@@ -1,0 +1,7 @@
+audited_commit=4814eec27bc7b932c9917326ef1de507bfd94be7
+finding=HS-X NO RETURN was not an unambiguous final watchdog verdict and was unnecessary for the requested A/B distinction.
+reason=The branch's own physical-iOS finding says a blocking endpoint call holds the event loop (docs/ROADMAP.md:11; docs/newton-networking-lessons.md:243). A delayed watchdog on that same event loop cannot run while Output is blocked. If Output later returns, 4814eec changed the stage to returned before the overdue watchdog could run, making HS-X NO RETURN non-final/unreachable under that observed behavior.
+correction=Use exactly notCalled before Hello, called immediately at the Output invocation boundary, and completed in HelloMarkerSent. The existing 12-second watchdog maps notCalled to HS-A NOT CALLED and called to HS-B NO CALLBACK. HS-B CALLED is the immediate boundary state; HS-C CALLBACK proves CompletionScript fired.
+behavior_preserved=Marker remains the first endpoint operation after connect; async=true, form=string, reqTimeout=10000, marker bytes, callback body, ArmInput position, framed HELLO, connect timeout, and 12-second handshake watchdog are unchanged from 3f1bcdc.
+source=examples/harness-client/Main.newt:1045-1054,1480-1513,1535-1541
+test=test_newton_client_source.py:124-139

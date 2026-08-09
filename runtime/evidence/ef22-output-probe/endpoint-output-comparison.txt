@@ -1,0 +1,277 @@
+EF21 working source: cc73acc4c28850d29ea9f5d0410691e36f3fff0a
+EF21 hardware-confirmed merge: d12dfff37669c9d645c3963e378dec405ae52781
+EF22 baseline: 3f1bcdc5d621f5fdb2af4620a26e61bfa847cb67
+Audited probe parent: 4814eec27bc7b932c9917326ef1de507bfd94be7
+
+EF21 post-connect path (cc73acc):
+  1042	    Connected: func()
+  1043	    begin
+  1044	        if self.stopping then return nil;
+  1045	        :Hello();
+  1046	        return nil;
+  1047	    end,
+  1048
+  1049	    Hello: func()
+  1050	    begin
+  1051	        self.responseText := "";
+  1052	        self.txSeq := 1;
+  1053	        self.ready := nil;
+  1054	        :ArmInput();
+  1055	        try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+  1056	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1057	            CompletionScript: func(endpoint, options, result)
+  1058	                try
+  1059	                begin
+  1060	                    if result then self._parent:Failed("Handshake error " & result)
+  1061	                    else self._parent:HelloMarkerSent();
+  1062	                end
+  1063	                onexception |evt.ex| do nil,
+  1064	        })
+  1065	        onexception |evt.ex.comm| do :Failed("Handshake exception");
+  1066	        return nil;
+  1067	    end,
+  1068
+  1069	    ArmInput: func()
+  1070	    begin
+  1071	        if self.stopping or (self.endpoint = nil) then return nil;
+  1072	        try
+  1073	        self.endpoint:SetInputSpec({
+  1074	            _parent: self,
+  1075	            form: 'string,
+  1076	            // ponytail: protocol lines are capped at 240 bytes.
+  1077	            termination: {endSequence: "\r\n"},
+  1078	            discardAfter: 240,
+  1079	            InputScript: func(endpoint, data, terminator, options)
+  1080	                try self._parent:HandleLine(data) onexception |evt.ex| do nil,
+  1081	            CompletionScript: func(endpoint, options, result)
+  1082	                try self._parent:Dropped() onexception |evt.ex| do nil,
+  1083	        })
+  1084	        onexception |evt.ex.comm| do :Failed("Input exception");
+  1085	        return nil;
+  1086	    end,
+  1087
+  1088	    HelloMarkerSent: func()
+  1089	    begin
+  1090	        if self.stopping then return nil;
+  1091	        try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+  1092	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1093	            CompletionScript: func(endpoint, options, result)
+  1094	                try
+  1095	                begin
+  1096	                    if result then self._parent:Failed("Hello error " & result);
+  1097	                end
+  1098	                onexception |evt.ex| do nil,
+  1099	        })
+  1100	        onexception |evt.ex.comm| do :Failed("Hello exception");
+  1101	        return nil;
+
+EF22 baseline post-connect path (3f1bcdc):
+  1472	    Connected: func()
+  1473	    begin
+  1474	        if self.stopping then return nil;
+  1475	        self.handshakeSeq := self.handshakeSeq + 1;
+  1476	        AddDelayedCall(func(view, ticket)
+  1477	                try view:HandshakeExpired(ticket) onexception |evt.ex| do nil,
+  1478	            [self, self.handshakeSeq], 12000);
+  1479	        :Hello();
+  1480	        return nil;
+  1481	    end,
+  1482
+  1483	    Hello: func()
+  1484	    begin
+  1485	        self.responseText := "";
+  1486	        self.txSeq := 1;
+  1487	        self.ready := nil;
+  1488	        // The native marker must be the first endpoint operation after connect.
+  1489	        // On iOS NIE, SetInputSpec here could stall before Output queued a byte.
+  1490	        try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+  1491	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1492	            CompletionScript: func(endpoint, options, result)
+  1493	                try
+  1494	                begin
+  1495	                    if result then self._parent:HandshakeFailed("Handshake error " & result)
+  1496	                    else self._parent:HelloMarkerSent();
+  1497	                end
+  1498	                onexception |evt.ex| do nil,
+  1499	        })
+  1500	        onexception |evt.ex.comm| do :HandshakeFailed("Handshake exception");
+  1501	        return nil;
+  1502	    end,
+  1503
+  1504	    ArmInput: func()
+  1505	    begin
+  1506	        if self.stopping or (self.endpoint = nil) then return nil;
+  1507	        try
+  1508	        self.endpoint:SetInputSpec({
+  1509	            _parent: self,
+  1510	            form: 'string,
+  1511	            // ponytail: protocol lines are capped at 240 bytes.
+  1512	            termination: {endSequence: "\r\n"},
+  1513	            discardAfter: 240,
+  1514	            InputScript: func(endpoint, data, terminator, options)
+  1515	                try self._parent:HandleLine(data) onexception |evt.ex| do nil,
+  1516	            CompletionScript: func(endpoint, options, result)
+  1517	                try self._parent:Dropped() onexception |evt.ex| do nil,
+  1518	        })
+  1519	        onexception |evt.ex.comm| do :ConnectionFailed("Input exception");
+  1520	        return nil;
+  1521	    end,
+  1522
+  1523	    HelloMarkerSent: func()
+  1524	    begin
+  1525	        if self.stopping then return nil;
+  1526	        :ArmInput();
+  1527	        try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+  1528	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1529	            CompletionScript: func(endpoint, options, result)
+  1530	                try
+  1531	                begin
+  1532	                    if result then self._parent:HandshakeFailed("Hello error " & result);
+  1533	                end
+  1534	                onexception |evt.ex| do nil,
+  1535	        })
+  1536	        onexception |evt.ex.comm| do :HandshakeFailed("Hello exception");
+  1537	        return nil;
+
+Corrected probe post-connect path (working tree):
+  1480	    Connected: func()
+  1481	    begin
+  1482	        if self.stopping then return nil;
+  1483	        self.handshakeStage := 'notCalled;
+  1484	        :SetStatus("HS-A BEFORE");
+  1485	        self.handshakeSeq := self.handshakeSeq + 1;
+  1486	        AddDelayedCall(func(view, ticket)
+  1487	                try view:HandshakeExpired(ticket) onexception |evt.ex| do nil,
+  1488	            [self, self.handshakeSeq], 12000);
+  1489	        :Hello();
+  1490	        return nil;
+  1491	    end,
+  1492
+  1493	    Hello: func()
+  1494	    begin
+  1495	        self.responseText := "";
+  1496	        self.txSeq := 1;
+  1497	        self.ready := nil;
+  1498	        // The native marker must be the first endpoint operation after connect.
+  1499	        // On iOS NIE, SetInputSpec here could stall before Output queued a byte.
+  1500	        :SetStatus("HS-B CALLED");
+  1501	        self.handshakeStage := 'called;
+  1502	        try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+  1503	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1504	            CompletionScript: func(endpoint, options, result)
+  1505	                try
+  1506	                begin
+  1507	                    if result then self._parent:HandshakeFailed("Handshake error " & result)
+  1508	                    else self._parent:HelloMarkerSent();
+  1509	                end
+  1510	                onexception |evt.ex| do nil,
+  1511	        })
+  1512	        onexception |evt.ex.comm| do :HandshakeFailed("Handshake exception");
+  1513	        return nil;
+  1514	    end,
+  1515
+  1516	    ArmInput: func()
+  1517	    begin
+  1518	        if self.stopping or (self.endpoint = nil) then return nil;
+  1519	        try
+  1520	        self.endpoint:SetInputSpec({
+  1521	            _parent: self,
+  1522	            form: 'string,
+  1523	            // ponytail: protocol lines are capped at 240 bytes.
+  1524	            termination: {endSequence: "\r\n"},
+  1525	            discardAfter: 240,
+  1526	            InputScript: func(endpoint, data, terminator, options)
+  1527	                try self._parent:HandleLine(data) onexception |evt.ex| do nil,
+  1528	            CompletionScript: func(endpoint, options, result)
+  1529	                try self._parent:Dropped() onexception |evt.ex| do nil,
+  1530	        })
+  1531	        onexception |evt.ex.comm| do :ConnectionFailed("Input exception");
+  1532	        return nil;
+  1533	    end,
+  1534
+  1535	    HelloMarkerSent: func()
+  1536	    begin
+  1537	        if self.stopping then return nil;
+  1538	        self.handshakeStage := 'completed;
+  1539	        :SetStatus("HS-C CALLBACK");
+  1540	        :ArmInput();
+  1541	        try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+
+Transport diff from 3f1bcdc (source only):
+diff --git a/examples/harness-client/Main.newt b/examples/harness-client/Main.newt
+index d857672..8c54a04 100644
+--- a/examples/harness-client/Main.newt
++++ b/examples/harness-client/Main.newt
+@@ -6,11 +6,11 @@
+ // clients fighting for one broker slot and raising `Communications` alerts.
+ // The round tag lives only in the identity and the version string — EF1, EF2,
+ // … — because the identity may never be reused (docs/phase3-chat-round.md,
+-// "Package identity") while the name on the Extras icon should stay put.
+-kAppSymbol := '|EggFrecklesEF22:jbfly|;
++// "Package identity"); this diagnostic build is visibly labeled Probe.
++kAppSymbol := '|EggFrecklesEF22Probe:jbfly|;
+ kVersion := "1.0-ef22";
+-kAppTitle := "Egg Freckles 22";
+-kAppLabel := "Egg Freckles 22";
++kAppTitle := "Egg Freckles 22 Probe";
++kAppLabel := "Egg Freckles 22 Probe";
+ kPrefsSymbol := '|EggFrecklesPrefs:jbfly|;
+
+ // The transcript is one bounded string, trimmed from the front at line
+@@ -741,6 +741,7 @@ mainView := {
+     favorites: nil,
+     handshakeSeq: 0,
+     handshakeActive: nil,
++    handshakeStage: nil,
+     settingsTemplate: serverSettingsView,
+     settingsSlip: nil,
+     serverAddress: [10, 42, 0, 1],
+@@ -1027,6 +1028,7 @@ mainView := {
+     HandshakeSucceeded: func()
+     begin
+         self.handshakeActive := nil;
++        self.handshakeStage := nil;
+         self.handshakeSeq := self.handshakeSeq + 1;
+         :ToolStart();
+         return nil;
+@@ -1043,7 +1045,13 @@ mainView := {
+     HandshakeExpired: func(ticket)
+     begin
+         if self.handshakeActive and ticket = self.handshakeSeq then
++        begin
++            if self.handshakeStage = 'notCalled then
++                return :HandshakeFailed("HS-A NOT CALLED");
++            if self.handshakeStage = 'called then
++                return :HandshakeFailed("HS-B NO CALLBACK");
+             return :HandshakeFailed("Handshake timeout");
++        end;
+         return nil;
+     end,
+
+@@ -1472,6 +1480,8 @@ mainView := {
+     Connected: func()
+     begin
+         if self.stopping then return nil;
++        self.handshakeStage := 'notCalled;
++        :SetStatus("HS-A BEFORE");
+         self.handshakeSeq := self.handshakeSeq + 1;
+         AddDelayedCall(func(view, ticket)
+                 try view:HandshakeExpired(ticket) onexception |evt.ex| do nil,
+@@ -1487,6 +1497,8 @@ mainView := {
+         self.ready := nil;
+         // The native marker must be the first endpoint operation after connect.
+         // On iOS NIE, SetInputSpec here could stall before Output queued a byte.
++        :SetStatus("HS-B CALLED");
++        self.handshakeStage := 'called;
+         try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+             form: 'string, async: true, reqTimeout: 10000, _parent: self,
+             CompletionScript: func(endpoint, options, result)
+@@ -1523,6 +1535,8 @@ mainView := {
+     HelloMarkerSent: func()
+     begin
+         if self.stopping then return nil;
++        self.handshakeStage := 'completed;
++        :SetStatus("HS-C CALLBACK");
+         :ArmInput();
+         try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+             form: 'string, async: true, reqTimeout: 10000, _parent: self,

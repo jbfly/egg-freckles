@@ -1,0 +1,9 @@
+Error: no container with name or ID "newton-harness-m2ef23-0809a_server_1" found: no such container
+newton-harness-m2ef23-0809a_emulator_1
+newton-harness-m2ef23-0809a_emulator_1
+Error: no container with ID or name "newton-harness-m2ef23-0809a_server_1" found: no such container
+newton-harness-m2ef23-0809a_emulator-state
+<network-id>
+newton-harness-m2ef23-0809a_default
+container removed
+state volume removed

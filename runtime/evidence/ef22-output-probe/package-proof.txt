@@ -1,0 +1,6 @@
+path=<worktree>/examples/harness-client/egg-freckles.pkg
+sha256=cdaef4e4713feb6ad8a15574714c7dc54b22ab02a23bbd82a00ff5e1f0c82034
+size=114616
+identity=EggFrecklesEF22Probe:jbfly
+version=36
+format=package0 Newton NOS 1.x NoCompression

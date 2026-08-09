@@ -1,0 +1,7 @@
+<network-id>
+<container-id>
+newton-harness-m2ef23-0809a_emulator_1
+instance   m2ef23-0809a
+container  newton-harness-m2ef23-0809a_emulator_1
+control    http://127.0.0.1:<ephemeral-port>
+novnc      http://127.0.0.1:<ephemeral-port>/vnc.html?autoconnect=1

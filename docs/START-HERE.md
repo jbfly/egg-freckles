@@ -100,9 +100,10 @@ than downloading them, and `refs/SHA256SUMS` is what proves your poppler
 numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
-**Tests** — **136 pass on the trunk** (verified 2026-08-09 at `f4885d1`).
-`runtime/evidence/tntk-crash-pytest.txt` records 135 at `e9398d8`; later commit
-`6a647df` adds the `STAT PROGRESS` server test. Of these, **28** are client-source tests
+**Tests** — **139 pass for the prepared M2 state** (verified 2026-08-09;
+`runtime/evidence/m2-ef23-integration/full-tests.txt`). Published master
+`2fbbd4b` passes 136; M2 adds three client-source tests. Of the M2 total,
+**31** are client-source tests
 pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
 the Track L1 `EntryUniqueID` ordering rule and merged tools channel, the `NSI1`
 `H` line, the Track A8 transcript row window and the Track L2 "Send to AI" hook
@@ -113,7 +114,7 @@ F4 slash commands and the session registry. `pytest` is not in
 the system python, so use `uv`:
 
 ```sh
-uv run --with pytest pytest -q          # 136 passed
+uv run --with pytest pytest -q          # 139 passed with M2
 ```
 
 `make test` now runs the same command. Before 2026-07-31 it ran only
@@ -195,16 +196,15 @@ than hand-rolling the sequence.
 ## Current state — updated 2026-08-09 (ages fastest; verify before trusting)
 
 **2026-08-09 — read `docs/ROADMAP.md` "Recovery plan (2026-08-09)" before
-starting anything.** The selected immutable trunk is `f4885d1`: it contains the
-tntk crash fail-fast, `STAT PROGRESS` server half, 600 s codex timeout, and
-gated package install tools, and its full suite passes 136 tests. The only
-independent live line is `prepare/ef22-autofind` (ab55de3 — EF22 client: server
-picker + handshake probe, v36); rebase it onto `f4885d1`, hand-resolve the
-forked `examples/harness-client/Main.newt`, and rebuild the `.pkg` rather than
-merging the binary. At audit time the pre-trunk `master` was 46 commits ahead
-of the only remote, so backup/publication remains a human-owned gate. The old
-`HarnessClientP3C` stash is preserved as branch
-`archive/p3c-chat-wip-stash`.
+starting anything.** Published master is the immutable recovery commit
+`2fbbd4b`; it contains the tntk crash fail-fast, `STAT PROGRESS` server half,
+600 s codex timeout, gated package install tools, and passes 136 tests. M2 is
+prepared as one atomic child on
+`integration/m2-ef23-atomic-replacement`: the final EF23 source/project, rebuilt package, tests, docs, and existing evidence only. Its
+full suite passes 139 tests. Do **not** rebase or modify the preserved
+`prepare/ef22-autofind` or rejected-history `task/m2-ef22-integration` branches.
+Publication remains a human-owned gate. The old `HarnessClientP3C` stash is
+preserved as branch `archive/p3c-chat-wip-stash`.
 
 Historical (2026-08-02): the framed native client worked end to end. A1 proved
 the asynchronous transport in Einstein and completed a real Codex turn on the
@@ -216,10 +216,14 @@ confirmed substantially easier to use. Preserve A1 as the installed fallback.
 (The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
 evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
-As of 2026-08-08 the *prepared source* client is `EggFrecklesEF22:jbfly` — user-visible
-name **"Egg Freckles"**, title "Egg Freckles 1.0-ef22", package version 34. It adds
-the no-Dock package tools on top of EF21’s native arrows; EF21 remains the served
-production fallback until `docs/mars-deploy-devloop.md` is human-applied.
+As of 2026-08-09 the prepared M2 client is `EggFrecklesEF23:jbfly` — user-visible
+name **"Egg Freckles"**, title "Egg Freckles 1.0-ef23", package version 37. It
+retains EF22's no-Dock package tools and native arrows, adds the persisted
+Advanced server picker plus minimized HS-A/HS-B/HS-C probe from
+`prepare/ef22-autofind`, and paints transient `STAT PROGRESS` frames without
+adding them to the final reply. Its isolated-emulator proof and reproducible
+package hash are in `runtime/evidence/m2-ef23-integration/`; iPad behavior is
+still the exact human-gated M4 test in `docs/ef22-server-autofind.md`.
 Since EF5 it has an Extras icon of its own: a little egg with freckles, the same
 one that now sits beside "Send to AI" in the Notes menu. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the

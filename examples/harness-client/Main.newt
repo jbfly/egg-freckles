@@ -6,11 +6,12 @@
 // clients fighting for one broker slot and raising `Communications` alerts.
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
-// "Package identity") while the name on the Extras icon should stay put.
-kAppSymbol := '|EggFrecklesEF22:jbfly|;
-kVersion := "1.0-ef22";
+// "Package identity").
+kAppSymbol := '|EggFrecklesEF23:jbfly|;
+kVersion := "1.0-ef23";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
+kPrefsSymbol := '|EggFrecklesPrefs:jbfly|;
 
 // The transcript is one bounded string, trimmed from the front at line
 // boundaries. 6 KiB is the whole conversation budget on a 1990s device.
@@ -420,6 +421,176 @@ noteAgent := {
     end,
 };
 
+serverSettingsView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 10, top: 34, right: 310, bottom: 390},
+    title: "Advanced servers",
+    agent: nil,
+    selected: 0,
+    summaryView: nil,
+    labelView: nil,
+    ipView: nil,
+    portView: nil,
+
+    Wire: func()
+    begin
+        local kids := :ChildViewFrames();
+        if kids = nil then return nil;
+        local rootTop := self:GlobalBox().top;
+        foreach child in kids do
+        begin
+            local top := child:GlobalBox().top - rootTop;
+            if top = 24 then self.summaryView := child
+            else if top = 100 then self.labelView := child
+            else if top = 136 then self.ipView := child
+            else if top = 172 then self.portView := child;
+        end;
+        return nil;
+    end,
+
+    Reload: func()
+    begin
+        if not IsFrame(self.agent) then return nil;
+        :Wire();
+        local count := Length(self.agent.favorites);
+        if count = 0 then self.selected := nil
+        else
+        begin
+            if self.selected = nil or self.selected >= count then self.selected := count - 1;
+            if self.selected < 0 then self.selected := 0;
+        end;
+        if self.summaryView then
+            SetValue(self.summaryView, 'text, self.agent:FavoriteSummary(self.selected));
+        local favorite := if self.selected = nil then nil else self.agent.favorites[self.selected];
+        if self.labelView then SetValue(self.labelView, 'text,
+            if favorite then favorite.label else "");
+        if self.ipView then SetValue(self.ipView, 'text,
+            if favorite then favorite.ip else "");
+        if self.portView then SetValue(self.portView, 'text,
+            if favorite then "" & favorite.port else "6801");
+        return nil;
+    end,
+
+    Previous: func()
+    begin
+        if self.selected <> nil then self.selected := self.selected - 1;
+        :Reload();
+        if self.selected <> nil then self.agent:ActivateFavorite(self.selected);
+        :Reload();
+        :FocusField(self.ipView);
+        return nil;
+    end,
+
+    Next: func()
+    begin
+        if self.selected <> nil then self.selected := self.selected + 1;
+        :Reload();
+        if self.selected <> nil then self.agent:ActivateFavorite(self.selected);
+        :Reload();
+        :FocusField(self.ipView);
+        return nil;
+    end,
+
+    AddFavorite: func()
+    begin
+        self.selected := nil;
+        :Wire();
+        if self.summaryView then SetValue(self.summaryView, 'text, "New favorite");
+        if self.labelView then SetValue(self.labelView, 'text, "");
+        if self.ipView then SetValue(self.ipView, 'text, "");
+        if self.portView then SetValue(self.portView, 'text, "6801");
+        :FocusField(self.labelView);
+        return nil;
+    end,
+
+    InputText: func(view)
+    begin
+        if view = nil then return "";
+        local value := view:GetRichString();
+        if IsString(value) then return value;
+        value := DecodeRichString(value, view.viewFont).text;
+        return if IsString(value) then value else "";
+    end,
+
+    FocusField: func(view)
+    begin
+        if view then SetKeyView(view, if IsString(view.text) then StrLen(view.text) else 0);
+        return nil;
+    end,
+
+    SaveFavorite: func()
+    begin
+        :Wire();
+        local label := :InputText(self.labelView);
+        local ip := :InputText(self.ipView);
+        local port := :InputText(self.portView);
+        local result := self.agent:SaveFavorite(self.selected, label, ip, port);
+        if result <> nil then return self.agent:SetStatus(result);
+        if self.selected = nil then self.selected := Length(self.agent.favorites) - 1;
+        :Reload();
+        :FocusField(self.ipView);
+        return nil;
+    end,
+
+    DeleteFavorite: func()
+    begin
+        if self.selected = nil then return nil;
+        self.agent:DeleteFavorite(self.selected);
+        return :Reload();
+    end,
+
+    PinFavorite: func()
+    begin
+        if self.selected = nil then return nil;
+        self.agent:PinFavorite(self.selected);
+        return :Reload();
+    end,
+
+    ViewQuitScript: func()
+    begin
+        if IsFrame(self.agent) then self.agent.settingsSlip := nil;
+        inherited:?ViewQuitScript();
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            viewBounds: {left: 12, top: 24, right: 288, bottom: 88},
+            viewFont: ROM_fontSystem9,
+            viewJustify: vjLeftH,
+            viewLineSpacing: 14,
+            text: "Servers",
+        },
+        {_proto: protoStaticText, viewBounds: {left: 12, top: 100, right: 62, bottom: 120},
+            viewFont: ROM_fontSystem9, text: "Label"},
+        {_proto: protoInputLine, viewBounds: {left: 66, top: 100, right: 288, bottom: 126},
+            viewFont: ROM_fontSystem10, text: ""},
+        {_proto: protoStaticText, viewBounds: {left: 12, top: 136, right: 62, bottom: 156},
+            viewFont: ROM_fontSystem9, text: "IP"},
+        {_proto: protoInputLine, viewBounds: {left: 66, top: 136, right: 288, bottom: 162},
+            viewFont: ROM_fontSystem10, text: ""},
+        {_proto: protoStaticText, viewBounds: {left: 12, top: 172, right: 62, bottom: 192},
+            viewFont: ROM_fontSystem9, text: "Port"},
+        {_proto: protoInputLine, viewBounds: {left: 66, top: 172, right: 154, bottom: 198},
+            viewFont: ROM_fontSystem10, text: "6801"},
+        {_proto: protoTextButton, viewBounds: {left: 12, top: 214, right: 86, bottom: 240},
+            text: "Prev", buttonClickScript: func() self:Parent():Previous()},
+        {_proto: protoTextButton, viewBounds: {left: 94, top: 214, right: 168, bottom: 240},
+            text: "Next", buttonClickScript: func() self:Parent():Next()},
+        {_proto: protoTextButton, viewBounds: {left: 176, top: 214, right: 288, bottom: 240},
+            text: "Pin active", buttonClickScript: func() self:Parent():PinFavorite()},
+        {_proto: protoTextButton, viewBounds: {left: 12, top: 250, right: 86, bottom: 276},
+            text: "Add", buttonClickScript: func() self:Parent():AddFavorite()},
+        {_proto: protoTextButton, viewBounds: {left: 94, top: 250, right: 168, bottom: 276},
+            text: "Delete", buttonClickScript: func() self:Parent():DeleteFavorite()},
+        {_proto: protoTextButton, viewBounds: {left: 176, top: 248, right: 288, bottom: 280},
+            viewFont: ROM_fontSystem10Bold,
+            text: "Save", buttonClickScript: func() self:Parent():SaveFavorite()},
+        {_proto: protoTextButton, viewBounds: {left: 94, top: 294, right: 206, bottom: 320},
+            text: "Close", buttonClickScript: func() self:Parent():Close()},
+    ],
+};
+
 mainView := {
     // Full-screen application by explicit user choice. protoApp supplies
     // vApplication without vFloating; ViewSetupFormScript fills the ROM's app
@@ -563,8 +734,16 @@ mainView := {
     askMenuTitle: kAskMenuTitle,
     menuIcon: kAppIcon,
     hookTries: kHookTries,
-    // The physical build always uses Mars. An emulator round may override this
-    // slot through ns_eval without rebuilding or changing the package identity.
+    // One persisted active favorite supplies the address for chat, ink and tools.
+    // GetAppPrefs returns its system-soup entry; EntryChange saves edits.
+    prefsSymbol: kPrefsSymbol,
+    prefsEntry: nil,
+    favorites: nil,
+    handshakeSeq: 0,
+    handshakeActive: nil,
+    handshakeStage: nil,
+    settingsTemplate: serverSettingsView,
+    settingsSlip: nil,
     serverAddress: [10, 42, 0, 1],
     serverPort: 6801,
 
@@ -659,6 +838,221 @@ mainView := {
     begin
         if self.promptView = nil then :Wire();
         return self.promptView;
+    end,
+
+
+    ParseOctet: func(value)
+    begin
+        if not IsString(value) or StrLen(value) = 0 then return nil;
+        for index := 0 to StrLen(value) - 1 do
+            if StrPos("0123456789", SubStr(value, index, 1), 0) = nil then return nil;
+        local number := StringToNumber(value);
+        if number = nil then return nil;
+        number := Floor(number);
+        return if number >= 0 and number <= 255 then number else nil;
+    end,
+
+    ParseIP: func(value)
+    begin
+        if not IsString(value) or StrLen(value) < 7 then return nil;
+        local first := StrPos(value, ".", 0);
+        if first = nil then return nil;
+        local second := StrPos(value, ".", first + 1);
+        if second = nil then return nil;
+        local third := StrPos(value, ".", second + 1);
+        if third = nil or StrPos(value, ".", third + 1) <> nil then return nil;
+        local a := :ParseOctet(SubStr(value, 0, first));
+        local b := :ParseOctet(SubStr(value, first + 1, second - first - 1));
+        local c := :ParseOctet(SubStr(value, second + 1, third - second - 1));
+        local d := :ParseOctet(SubStr(value, third + 1, nil));
+        if a = nil or b = nil or c = nil or d = nil then return nil;
+        return [a, b, c, d];
+    end,
+
+    FavoriteValid: func(favorite)
+    begin
+        if not IsFrame(favorite) or not IsString(favorite.label)
+        or StrLen(favorite.label) = 0 or (:ParseIP(favorite.ip) = nil)
+        or not IsInteger(favorite.port) or favorite.port < 1 or favorite.port > 65535 then
+            return nil;
+        return true;
+    end,
+
+    DefaultFavorites: func()
+    begin
+        local favorites := [];
+        AddArraySlot(favorites,
+            {label: "AirPort (Newton)", ip: "10.42.0.1", port: 6801});
+        AddArraySlot(favorites,
+            {label: "LAN (iPad)", ip: "192.168.100.93", port: 6801});
+        return favorites;
+    end,
+
+    PrefsIndex: func()
+    begin
+        if not IsFrame(self.prefsEntry) or not HasSlot(self.prefsEntry, 'defaultIndex) then
+            return nil;
+        return self.prefsEntry.defaultIndex;
+    end,
+
+    SetPrefsIndex: func(index)
+    begin
+        if IsFrame(self.prefsEntry) then self.prefsEntry.defaultIndex := index;
+        return nil;
+    end,
+
+    LoadFavorites: func()
+    begin
+        // GetAppPrefs does not merge defaults into an entry that already exists.
+        // Create the entry with one scalar, then seed favorites through EntryChange.
+        self.prefsEntry := GetAppPrefs(self.prefsSymbol, {defaultIndex: 0});
+        self.favorites := [];
+        if IsFrame(self.prefsEntry) and HasSlot(self.prefsEntry, 'favorites)
+        and ClassOf(self.prefsEntry.favorites) = 'array then
+            foreach favorite in self.prefsEntry.favorites do
+                if :FavoriteValid(favorite) then AddArraySlot(self.favorites, {
+                    label: favorite.label, ip: favorite.ip, port: favorite.port});
+        if Length(self.favorites) = 0 then
+        begin
+            self.favorites := :DefaultFavorites();
+            :SetPrefsIndex(0);
+            :PersistFavorites();
+        end;
+        return self.favorites;
+    end,
+
+    PersistFavorites: func()
+    begin
+        if not IsFrame(self.prefsEntry) or ClassOf(self.favorites) <> 'array then return nil;
+        local saved := [];
+        foreach favorite in self.favorites do AddArraySlot(saved, {
+            label: favorite.label, ip: favorite.ip, port: favorite.port});
+        self.prefsEntry.favorites := saved;
+        EntryChange(self.prefsEntry);
+        return nil;
+    end,
+
+    FavoriteSummary: func(selected)
+    begin
+        local out := "";
+        local pinned := :PrefsIndex();
+        for index := 0 to Length(self.favorites) - 1 do
+        begin
+            local favorite := self.favorites[index];
+            if index > 0 then out := out & self.newline;
+            out := out & (if index = selected then "> " else "  ")
+                & (if index = pinned then "*" else "")
+                & favorite.label & " " & favorite.ip & ":" & favorite.port;
+        end;
+        if Length(self.favorites) = 0 then out := "No favorites. Tap Add.";
+        return out;
+    end,
+
+    SaveFavorite: func(index, label, ip, portText)
+    begin
+        if not IsString(label) or StrLen(label) = 0 then return "Label required";
+        if :ParseIP(ip) = nil then return "IP must be 4 dotted octets";
+        local port := StringToNumber(portText);
+        if port = nil then return "Port must be 1-65535";
+        port := Floor(port);
+        if port < 1 or port > 65535 then return "Port must be 1-65535";
+        local favorite := {label: label, ip: ip, port: port};
+        if index = nil then
+        begin
+            AddArraySlot(self.favorites, favorite);
+            index := Length(self.favorites) - 1;
+        end
+        else self.favorites[index] := favorite;
+        return :ActivateFavorite(index);
+    end,
+
+    DeleteFavorite: func(index)
+    begin
+        local kept := [];
+        for at := 0 to Length(self.favorites) - 1 do
+            if at <> index then AddArraySlot(kept, self.favorites[at]);
+        local pinned := :PrefsIndex();
+        if pinned = index then :SetPrefsIndex(nil)
+        else if pinned <> nil and pinned > index then :SetPrefsIndex(pinned - 1);
+        self.favorites := kept;
+        :PersistFavorites();
+        return nil;
+    end,
+
+    PinFavorite: func(index)
+    begin
+        return :ActivateFavorite(index);
+    end,
+
+    OpenAdvanced: func()
+    begin
+        if self.settingsSlip then return nil;
+        :LoadFavorites();
+        self.settingsSlip := BuildContext(self.settingsTemplate);
+        self.settingsSlip.agent := self;
+        self.settingsSlip.selected := :PrefsIndex();
+        self.settingsSlip:Open();
+        self.settingsSlip:Reload();
+        self.settingsSlip:FocusField(self.settingsSlip.ipView);
+        return nil;
+    end,
+
+    UseActiveFavorite: func()
+    begin
+        :LoadFavorites();
+        local index := :PrefsIndex();
+        if not IsInteger(index) or index < 0 or index >= Length(self.favorites) then
+        begin
+            index := 0;
+            :SetPrefsIndex(index);
+            :PersistFavorites();
+        end;
+        local favorite := self.favorites[index];
+        self.serverAddress := :ParseIP(favorite.ip);
+        self.serverPort := favorite.port;
+        :SetStatus("Connecting to " & favorite.label);
+        return true;
+    end,
+
+    ActivateFavorite: func(index)
+    begin
+        if not IsInteger(index) or index < 0 or index >= Length(self.favorites) then return nil;
+        :SetPrefsIndex(index);
+        :PersistFavorites();
+        local favorite := self.favorites[index];
+        self.serverAddress := :ParseIP(favorite.ip);
+        self.serverPort := favorite.port;
+        return true;
+    end,
+
+    HandshakeSucceeded: func()
+    begin
+        self.handshakeActive := nil;
+        self.handshakeStage := nil;
+        self.handshakeSeq := self.handshakeSeq + 1;
+        :ToolStart();
+        return nil;
+    end,
+
+    HandshakeFailed: func(message)
+    begin
+        if self.stopping or not self.handshakeActive then return nil;
+        self.handshakeActive := nil;
+        self.handshakeSeq := self.handshakeSeq + 1;
+        return :Failed(message);
+    end,
+
+    HandshakeExpired: func(ticket)
+    begin
+        if self.handshakeActive and ticket = self.handshakeSeq then
+        begin
+            if self.handshakeStage = 'notCalled then
+                return :HandshakeFailed("HS-A NOT CALLED");
+            if self.handshakeStage = 'called then
+                return :HandshakeFailed("HS-B NO CALLBACK");
+            return :HandshakeFailed("Handshake timeout");
+        end;
+        return nil;
     end,
 
     // StrPos with a Chr(13) needle raises interpreter error -48802 on this ROM,
@@ -858,9 +1252,8 @@ mainView := {
         return nil;
     end,
 
-    Stop: func()
+    CloseChatEndpoint: func()
     begin
-        self.stopping := true;
         if self.endpoint then
         begin
             try self.endpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
@@ -869,6 +1262,15 @@ mainView := {
             try self.endpoint:Dispose() onexception |evt.ex.comm| do nil;
             self.endpoint := nil;
         end;
+        return nil;
+    end,
+
+    Stop: func()
+    begin
+        self.stopping := true;
+        self.handshakeActive := nil;
+        self.handshakeSeq := self.handshakeSeq + 1;
+        :CloseChatEndpoint();
         if self.inkEndpoint then
         begin
             try self.inkEndpoint:SetInputSpec(nil) onexception |evt.ex.comm| do nil;
@@ -935,10 +1337,10 @@ mainView := {
         :Stop();
         self.pendingPrompt := pending;
         self.pendingPromptLabel := label;
+        if not :UseActiveFavorite() then return :Failed("No active server");
         :RadioHold();
         self.stopping := nil;
-        if pending <> nil then :SetStatus("Connecting, will send...")
-        else :SetStatus("Connecting");
+        if pending <> nil then :SetStatus("Connecting to active server; will send...");
         // If the tools poll (or a live ink POST) still holds the link, reuse it
         // rather than grabbing a second one: a grab that is never matched by a
         // release leaks, and this is the same rule SendInk follows.
@@ -968,7 +1370,7 @@ mainView := {
 
     OpenSession: func()
     begin
-        :ToolStart();
+        self.handshakeActive := true;
         local address := self.serverAddress;
         local callName := "Instantiate";
         // EF6 armor: every one of the callback bodies below is invoked *by the
@@ -1026,9 +1428,24 @@ mainView := {
         if self.bindRetried then return :Failed(message);
         self.bindRetried := true;
         :SetStatus("Bind retry");
-        AddDelayedCall(func(view) try view:Connect() onexception |evt.ex| do nil,
+        AddDelayedCall(func(view) try view:RetryBind() onexception |evt.ex| do nil,
             [self], 5000);
         return nil;
+    end,
+
+    RetryBind: func()
+    begin
+        if self.stopping then return nil;
+        self.stopping := true;
+        :CloseChatEndpoint();
+        self.stopping := nil;
+        return :OpenSession();
+    end,
+
+    ConnectionFailed: func(message)
+    begin
+        if self.handshakeActive then return :HandshakeFailed(message);
+        return :Failed(message);
     end,
 
     Bound: func()
@@ -1047,22 +1464,28 @@ mainView := {
                     },
                 },
             ], {
-                async: true, reqTimeout: 45000, _parent: self,
+                async: true, reqTimeout: 10000, _parent: self,
                 CompletionScript: func(endpoint, options, result)
                     try
                     begin
-                        if result then self._parent:Failed("Connect error " & result)
+                        if result then self._parent:HandshakeFailed("Connect error " & result)
                         else self._parent:Connected();
                     end
                     onexception |evt.ex| do nil,
             })
-        onexception |evt.ex.comm| do :Failed("Connect exception");
+        onexception |evt.ex.comm| do :HandshakeFailed("Connect exception");
         return nil;
     end,
 
     Connected: func()
     begin
         if self.stopping then return nil;
+        self.handshakeStage := 'notCalled;
+        :SetStatus("HS-A BEFORE");
+        self.handshakeSeq := self.handshakeSeq + 1;
+        AddDelayedCall(func(view, ticket)
+                try view:HandshakeExpired(ticket) onexception |evt.ex| do nil,
+            [self, self.handshakeSeq], 12000);
         :Hello();
         return nil;
     end,
@@ -1072,18 +1495,21 @@ mainView := {
         self.responseText := "";
         self.txSeq := 1;
         self.ready := nil;
-        :ArmInput();
+        // The native marker must be the first endpoint operation after connect.
+        // On iOS NIE, SetInputSpec here could stall before Output queued a byte.
+        :SetStatus("HS-B CALLED");
+        self.handshakeStage := 'called;
         try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
                 try
                 begin
-                    if result then self._parent:Failed("Handshake error " & result)
+                    if result then self._parent:HandshakeFailed("Handshake error " & result)
                     else self._parent:HelloMarkerSent();
                 end
                 onexception |evt.ex| do nil,
         })
-        onexception |evt.ex.comm| do :Failed("Handshake exception");
+        onexception |evt.ex.comm| do :HandshakeFailed("Handshake exception");
         return nil;
     end,
 
@@ -1102,23 +1528,26 @@ mainView := {
             CompletionScript: func(endpoint, options, result)
                 try self._parent:Dropped() onexception |evt.ex| do nil,
         })
-        onexception |evt.ex.comm| do :Failed("Input exception");
+        onexception |evt.ex.comm| do :ConnectionFailed("Input exception");
         return nil;
     end,
 
     HelloMarkerSent: func()
     begin
         if self.stopping then return nil;
+        self.handshakeStage := 'completed;
+        :SetStatus("HS-C CALLBACK");
+        :ArmInput();
         try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
             form: 'string, async: true, reqTimeout: 10000, _parent: self,
             CompletionScript: func(endpoint, options, result)
                 try
                 begin
-                    if result then self._parent:Failed("Hello error " & result);
+                    if result then self._parent:HandshakeFailed("Hello error " & result);
                 end
                 onexception |evt.ex| do nil,
         })
-        onexception |evt.ex.comm| do :Failed("Hello exception");
+        onexception |evt.ex.comm| do :HandshakeFailed("Hello exception");
         return nil;
     end,
 
@@ -1166,6 +1595,7 @@ mainView := {
         onexception |evt.ex.comm| do return :Failed("ACK exception");
         if BeginsWith(line, ":" & seqText & " STAT READY*") then
         begin
+            :HandshakeSucceeded();
             self.ready := true;
             if self.pendingPrompt <> nil then
             begin
@@ -1191,6 +1621,8 @@ mainView := {
             end;
         end else if BeginsWith(line, ":" & seqText & " STAT THINKING*") then
             :SetStatus("Thinking")
+        else if BeginsWith(line, ":" & seqText & " STAT PROGRESS ") then
+            :SetStatus(SubStr(line, 18, star - 18))
         else if BeginsWith(line, ":" & seqText & " STAT ERROR ") then
         begin
             self.ready := true;
@@ -2518,6 +2950,7 @@ mainView := {
     Dropped: func()
     begin
         if self.stopping then return nil;
+        if self.handshakeActive then return :HandshakeFailed("Server closed handshake");
         :SetStatus("Offline");
         :ArmRadioIdle();
         :Stop();
@@ -2526,6 +2959,8 @@ mainView := {
     Failed: func(message)
     begin
         if self.stopping then return nil;
+        self.handshakeActive := nil;
+        self.handshakeSeq := self.handshakeSeq + 1;
         self.pendingPrompt := nil;
         self.pendingPromptLabel := nil;
         :SetStatus(message);
@@ -3828,19 +4263,25 @@ mainView := {
         },
         {
             _proto: protoStaticText,
-            viewBounds: {left: 14, top: 364, right: 168, bottom: 380},
+            viewBounds: {left: 14, top: 364, right: 142, bottom: 380},
             viewFont: ROM_fontSystem9,
             text: "Offline",
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 178, top: 360, right: 230, bottom: 382},
+            viewBounds: {left: 146, top: 360, right: 192, bottom: 382},
+            text: "Adv",
+            buttonClickScript: func() self:Parent():OpenAdvanced(),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 196, top: 360, right: 242, bottom: 382},
             text: "New",
             buttonClickScript: func() self:Parent():NewChat(),
         },
         {
             _proto: protoTextButton,
-            viewBounds: {left: 238, top: 360, right: 290, bottom: 382},
+            viewBounds: {left: 246, top: 360, right: 292, bottom: 382},
             text: "Send",
             buttonClickScript: func() self:Parent():SendPrompt(),
         },

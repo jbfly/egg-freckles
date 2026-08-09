@@ -7,6 +7,23 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-09 — M2 integrated and emulator-proven.** The landing replacement
+  is one atomic final-state commit on
+  `integration/m2-ef23-atomic-replacement`, directly atop published master `2fbbd4b`. It preserves both
+  `prepare/ef22-autofind` and rejected-history `task/m2-ef22-integration`
+  unchanged, while retaining trunk package tools/native scrolling plus the
+  Advanced server picker and minimized HS-A/HS-B/HS-C probe. The rebuilt client is `EggFrecklesEF23:jbfly`, title
+  **Egg Freckles 1.0-ef23**, package version 37; two normalized builds are
+  byte-identical at 114,704 bytes, SHA-256
+  `093d7784c8d097646cfdd1e7cb7b38cb68ef23e8330cc0fd6af9fc5b3cbe6d53`.
+  The full suite passes 139 tests. Disposable instance `m2ef23-0809a`
+  installed/launched version 37, selected **LAN (iPad)** in the Advanced slip,
+  and showed `Writing source` then `Building package` while `responseText`
+  remained empty; only `TEXT` + `PROMPT` committed `LOCAL PROGRESS OK`.
+  Evidence: `runtime/evidence/m2-ef23-integration/`. No shared emulator,
+  hardware, Mars, service, or remote branch was changed. M4 remains exactly one
+  human-gated iPad Send to photograph the HS-A/HS-B/HS-C verdict.
+
 - **2026-08-09 — Recovery audit: branch reconciliation after the 2026-08-08
   overnight sessions.** This docs-only audit is replayed on the selected
   immutable trunk, `f4885d1`; nothing was deployed or touched on hardware.
@@ -30,16 +47,20 @@ agent can complete one task and verify it.
     the `STAT PROGRESS` server half (`server.py:830-831`, local proof
     `runtime/evidence/stream-feedback-local.txt`), the 600 s codex timeout mars
     already runs (5eee14b), and the gated package install/remove tools.
-  - **`prepare/ef22-autofind` (ab55de3) is the only independent line** — 7
-    commits, all client: the Advanced-slip server picker (favorites list,
-    proven on the iPad: `192.168.100.103 → 192.168.100.93:6801`) and the v36
+  - **Historical recovery finding (superseded by the prepared atomic M2 state above):**
+    `prepare/ef22-autofind` (ab55de3) was the only independent line at audit
+    time: seven client commits containing the Advanced-slip server picker
+    (proven on the iPad: `<previous-lan-ip> → <lan-ip>:6801`) and the v36
     `EggFrecklesEF22Probe:jbfly` handshake probe (HS-A/HS-B/HS-C states, 123
-    tests, sha256 `cdaef4e4…`, built, never deployed). `git merge-tree` shows
-    it conflicts with the dev-loop stack in `Main.newt`, `egg-freckles.nprj`,
-    the binary `.pkg` and `test_newton_client_source.py` — the client forked
-    (blob `8c54a04` vs `8cdd855` off shared base `95b875e`). Landing order is
-    therefore fixed: dev-loop first, then rebase autofind and **rebuild** the
-    `.pkg` (recipe `runtime/evidence/ef22-output-probe/reproducible-build.txt`).
+    tests, sha256 `cdaef4e4…`, built, never deployed). `git merge-tree` showed
+    conflicts with the dev-loop stack in `Main.newt`, `egg-freckles.nprj`, the
+    binary `.pkg`, and `test_newton_client_source.py` because the client had
+    forked (blob `8c54a04` vs `8cdd855` off shared base `95b875e`). The audit's
+    proposed sequence was dev-loop first, then replay autofind and rebuild the
+    package. **That sequence is now complete in the prepared atomic EF23 child
+    of `2fbbd4b`; it is history, not an M2 instruction. Do not rebase, rebuild,
+    or modify the preserved source branches.** Reproducibility evidence remains
+    in `runtime/evidence/ef22-output-probe/reproducible-build.txt`.
   - **Branch noise:** 32 branches were fully merged into the pre-trunk
     `master` and are therefore contained in `f4885d1`;
     `prepare/ef22-server-settings` was empty at that tip; `task/ef13-wip` is
@@ -1124,7 +1145,7 @@ None of it has run against the physical MessagePad.
 
 One trunk, one client branch, five milestones. Evidence for every claim is in
 the 2026-08-09 status entry. M1's trunk selection is complete at immutable SHA
-`f4885d1`; do not open new work off another tip while M2 remains outstanding.
+`f4885d1`; M2 is now prepared on the later immutable recovery base `2fbbd4b`.
 
 **Decision — tic-tac-toe generation architecture: free-form generation stays.**
 The 2026-08-08 failures were toolchain and harness, not the idea: the 38-line
@@ -1153,14 +1174,17 @@ else. Every physical tap on the iPad or the MP2000 is a human-only gate.
   and the two live lines. **Accept:** parent/trunk is `f4885d1`, full suite is
   green at 136, and publication/cleanup happen only after review. Owner:
   orchestrator, host only.
-- **M2 — one client again: rebase EF22.** Rebase `prepare/ef22-autofind` onto
-  trunk `f4885d1`; hand-merge `Main.newt` (blobs `8c54a04` vs `8cdd855`); pick a
-  fresh package identity (never reuse); **rebuild** the `.pkg` from the
-  reproducible-build recipe instead of merging the binary; add the 2-line
-  `STAT PROGRESS` render per `docs/stream-feedback.md:52-58` (paints
-  `:SetStatus`, never touches `responseText`). **Accept:** full suite green;
-  one isolated-emulator round shows progress lines painting mid-turn and the
-  server picker still selects the LAN entry. Owner: client session.
+- **M2 — complete as an atomic landing replacement.**
+  `integration/m2-ef23-atomic-replacement` contains one final-state commit
+  directly atop
+  published master `2fbbd4b`; the rejected eight-commit replay and
+  `prepare/ef22-autofind` remain unchanged. The package was rebuilt from the
+  final source as fresh `EggFrecklesEF23:jbfly` v37. The two-line
+  `STAT PROGRESS` branch paints `:SetStatus` and never touches `responseText`.
+  **Accepted:** 139 tests pass; two builds are byte-identical; isolated instance
+  `m2ef23-0809a` installed/launched the package, selected the LAN favorite, and
+  painted both progress labels before final text. Evidence:
+  `runtime/evidence/m2-ef23-integration/`. Owner: orchestrator to review/land.
 - **M3 — tic-tac-toe: emulator, then the MP2000.** One fresh generation run on
   mars (600 s budget and fail-fast are live there). **Accept (emulator):**
   build → install → launch → screenshot inside budget, with zero byte-identical
@@ -1168,7 +1192,7 @@ else. Every physical tap on the iPad or the MP2000 is a human-only gate.
   after a `store_info` free-space check, app launches, one game played on
   glass. This is the project's headline unlock; nothing else pre-empts it.
 - **M4 — iPad probe verdict.** The human-gated one-Send procedure in
-  `docs/ef22-server-autofind.md`, using the M2 rebuild. **Accept:** a
+  `docs/ef22-server-autofind.md`, using the prepared EF23 M2 package. **Accept:** a
   photographed HS-A/HS-B/HS-C verdict. The verdict — "Output() never called"
   vs "completion never fired" — decides the next iPad fix; evaluate
   `fix/loader-nie-async-connect` (308dd63) against it before writing anything
