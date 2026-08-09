@@ -190,6 +190,26 @@ Focused tests passed 65/65 and the full suite passed 120/120
 ([focused](../runtime/evidence/pkgchat0807b-focused-tests.txt#L1-L3),
 [full](../runtime/evidence/pkgchat0807b-full-tests.txt#L1-L3)).
 
+## M3 fresh EF23 generation — 2026-08-09
+
+The recovery-plan emulator gate now passes through the actual client, not a
+wire-only harness. `EggFrecklesEF23:jbfly` on disposable instance
+`m3ttt-0809` sent one native three-part prompt to an isolated local
+`server.py`. The real Codex/MCP workflow called `create_project`,
+`write_source`, `build_pkg`, `emulator_install`, `emulator_newtonscript`, and
+`emulator_screen`; the one 3,541-byte source built on its only attempt into a
+4,480-byte package (SHA-256 `c2ff5632c5d2d23ec…`). EF23 showed `Thinking` and
+later tool progress before the final reply, and the turn exited 0 in 234
+seconds under the 600-second budget. The genuine screenshot shows a visible
+3×3 button board and `X to move` status; generated source/package prove the
+**M3 Tic Tac Toe** title and identity, not the screenshot. The source gives
+every empty cell an alternating `X`/`O` callback.
+
+Runtime taps produced no pixel change, so playability is source-supported and
+not claimed as interaction evidence. Playing one game on glass remains the M3
+hardware gate. Curated evidence, hashes, MCP/server chronology, screenshots,
+tests, and teardown: `runtime/evidence/m3-tic-tac-toe-20260809/`.
+
 ## Proven 2026-08-03 (Track G2)
 
 **An agent ran this loop end to end and the app worked on the first build.**

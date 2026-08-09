@@ -1,0 +1,109 @@
+kAppSymbol := '|M3TicTacToe20260809:nwtn|;
+kAppTitle := "M3 Tic Tac Toe";
+kVersion := "1.0";
+
+mainView := {
+    _proto: protoFloatNGo,
+    viewBounds: {left: 24, top: 70, right: 296, bottom: 370},
+    title: kAppTitle,
+    appSymbol: kAppSymbol,
+    nextMark: "X",
+    statusView: nil,
+
+    MakeMove: func(moveButton)
+    begin
+        if moveButton.text = "" then
+        begin
+            SetValue(moveButton, 'text, self.nextMark);
+            if self.nextMark = "X" then
+                self.nextMark := "O"
+            else
+                self.nextMark := "X";
+            SetValue(self.statusView, 'text, self.nextMark & " to move");
+        end;
+    end,
+
+    stepChildren: [
+        {
+            _proto: protoStaticText,
+            ViewSetupDoneScript: func()
+            begin
+                inherited:?ViewSetupDoneScript();
+                self:Parent().statusView := self;
+            end,
+            viewBounds: {left: 66, top: 12, right: 206, bottom: 36},
+            text: "X to move",
+            viewFont: ROM_fontSystem12Bold,
+            viewJustification: 1,
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 25, top: 44, right: 93, bottom: 108},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 102, top: 44, right: 170, bottom: 108},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 179, top: 44, right: 247, bottom: 108},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 25, top: 116, right: 93, bottom: 180},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 102, top: 116, right: 170, bottom: 180},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 179, top: 116, right: 247, bottom: 180},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 25, top: 188, right: 93, bottom: 252},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 102, top: 188, right: 170, bottom: 252},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+        {
+            _proto: protoTextButton,
+            viewBounds: {left: 179, top: 188, right: 247, bottom: 252},
+            text: "",
+            viewFont: ROM_fontSystem14Bold,
+            buttonClickScript: func() self:Parent():MakeMove(self),
+        },
+    ],
+};
+
+{
+    app: kAppSymbol,
+    text: kAppTitle,
+    theForm: mainView,
+}

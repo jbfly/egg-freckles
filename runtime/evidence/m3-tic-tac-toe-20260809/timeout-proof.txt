@@ -1,0 +1,7 @@
+generation_start=2026-08-09T21:14:35+00:00
+generation_complete=2026-08-09T21:18:29+00:00
+elapsed_seconds=234
+backend_budget_seconds=600
+generation_exit_0=True
+timeout_log_hits=0
+outer_harness=none; EF23 held the native turn until PROMPT and displayed Ready after final TEXT

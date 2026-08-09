@@ -1,0 +1,31 @@
+Started tool sequence:
+1. create_project
+2. write_source
+3. build_pkg
+4. emulator_install
+5. emulator_newtonscript
+6. emulator_screen
+7. emulator_tap
+8. emulator_tap
+9. emulator_screen
+10. emulator_newtonscript
+11. emulator_screen
+12. emulator_tap
+13. emulator_screen
+14. emulator_newtonscript
+15. emulator_screen
+
+Started tool counts:
+build_pkg=1
+create_project=1
+emulator_install=1
+emulator_newtonscript=3
+emulator_screen=5
+emulator_tap=3
+write_source=1
+write_source_count=1
+build_pkg_count=1
+required_completed_in_order=True
+byte_identical_retry=no
+hardware_install_count=0
+emulator_boot_count=0

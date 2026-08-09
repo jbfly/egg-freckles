@@ -1,0 +1,17 @@
+teardown_started=2026-08-09T21:24:20Z
+server_process_present=no
+server_port_listener=0
+Error: no container with name or ID "<isolated-server-container>" found: no such container
+<isolated-emulator-container>
+<isolated-emulator-container>
+Error: no container with ID or name "<isolated-server-container>" found: no such container
+<isolated-emulator-volume>
+<removed-volume-runtime-id>
+<isolated-network>
+instance_container_present=no
+instance_volume_present=no
+shared_after=<shared-runtime-id> running healthy
+credential_copy_present=no
+workspace_present=no
+staged_copy_present=no
+teardown_finished=2026-08-09T21:24:21Z

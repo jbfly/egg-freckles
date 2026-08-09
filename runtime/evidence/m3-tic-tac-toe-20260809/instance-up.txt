@@ -1,0 +1,7 @@
+<emulator-runtime-id>
+<service-runtime-id>
+<isolated-emulator-container>
+instance   m3ttt-0809
+container  <isolated-emulator-container>
+control    http://127.0.0.1:<ephemeral-control-port>
+novnc      http://127.0.0.1:<ephemeral-novnc-port>/vnc.html?autoconnect=1

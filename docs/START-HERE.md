@@ -196,15 +196,19 @@ than hand-rolling the sequence.
 ## Current state — updated 2026-08-09 (ages fastest; verify before trusting)
 
 **2026-08-09 — read `docs/ROADMAP.md` "Recovery plan (2026-08-09)" before
-starting anything.** Published master is the immutable recovery commit
-`2fbbd4b`; it contains the tntk crash fail-fast, `STAT PROGRESS` server half,
-600 s codex timeout, gated package install tools, and passes 136 tests. M2 is
-prepared as one atomic child on
-`integration/m2-ef23-atomic-replacement`: the final EF23 source/project, rebuilt package, tests, docs, and existing evidence only. Its
-full suite passes 139 tests. Do **not** rebase or modify the preserved
-`prepare/ef22-autofind` or rejected-history `task/m2-ef22-integration` branches.
-Publication remains a human-owned gate. The old `HarnessClientP3C` stash is
-preserved as branch `archive/p3c-chat-wip-stash`.
+starting anything.** Published master is
+`3b2be4f5c44aafde7d981352a9d87105a6c4c721`; it atomically landed M2's final
+EF23 client on the recovery server/tooling base and passes 139 tests. M3's
+emulator gate is now evidenced through the actual EF23 client: one fresh
+source/build/install/launch completed in 234 seconds with no byte-identical
+retry or timeout, and a genuine screenshot shows the 3×3 board/status
+(`runtime/evidence/m3-tic-tac-toe-20260809/`). Generated source/package prove
+the title and identity; the screenshot does not. Runtime taps produced no pixel
+change, so playability is source-supported and the MP2000 game remains
+human-gated. Do **not** rebase or modify preserved
+`prepare/ef22-autofind`, rejected-history `task/m2-ef22-integration`, or the M2
+landing branches. The old `HarnessClientP3C` stash is preserved as branch
+`archive/p3c-chat-wip-stash`.
 
 Historical (2026-08-02): the framed native client worked end to end. A1 proved
 the asynchronous transport in Einstein and completed a real Codex turn on the
@@ -216,7 +220,7 @@ confirmed substantially easier to use. Preserve A1 as the installed fallback.
 (The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
 evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
-As of 2026-08-09 the prepared M2 client is `EggFrecklesEF23:jbfly` — user-visible
+As of 2026-08-09 the published client is `EggFrecklesEF23:jbfly` — user-visible
 name **"Egg Freckles"**, title "Egg Freckles 1.0-ef23", package version 37. It
 retains EF22's no-Dock package tools and native arrows, adds the persisted
 Advanced server picker plus minimized HS-A/HS-B/HS-C probe from

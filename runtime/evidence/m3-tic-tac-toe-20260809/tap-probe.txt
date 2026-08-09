@@ -1,0 +1,8 @@
+Post-run host-coordinate probe (not acceptance evidence):
+emulator.client tap 83 146 -> {"ok":true}
+emulator.client tap 160 146 -> {"ok":true}
+emulator.client tap 106 146 -> {"ok":true}
+emulator.client tap 184 146 -> {"ok":true}
+before_sha256=5d2bcc7610560e3a6c419a70e0a862b5c658ba3eb3794946d8fb40a027eb03f8
+after_sha256=5d2bcc7610560e3a6c419a70e0a862b5c658ba3eb3794946d8fb40a027eb03f8
+Result: no pixel change; do not claim host-tap interaction proof.

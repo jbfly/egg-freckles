@@ -1,0 +1,5 @@
+Retained client screenshots are genuine pre-cleanup/pre-teardown captures; no captures made afterward are part of the curated evidence:
+client-00-after-send.png — EF23 HS-C CALLBACK before generation
+client-01.png — EF23 Thinking before any final answer
+client-05.png — EF23 Taking screenshot while the genuine generated board and status are visible
+Authoritative stage timestamps/completions: mcp-events.jsonl and server.log

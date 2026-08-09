@@ -1,0 +1,4 @@
+60e29bdda4dae31f1ed77bcf1dd9e985e0497c4f90d18c89ea38117dd0d11ddb  generated-Main.newt
+c2ff5632c5d2d23ece63674f390149728f2710a26226df8d6170705a429dac56  m3-tic-tac-toe-20260809.pkg
+4480  package_bytes
+3541  source_bytes

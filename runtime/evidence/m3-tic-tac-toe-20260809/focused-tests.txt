@@ -1,0 +1,6 @@
+$ uv run --with pytest pytest -q test_newton_client_source.py test_server.py test_newton_mcp.py
+started=2026-08-09T21:26:04Z
+........................................................................ [ 67%]
+...................................                                      [100%]
+107 passed in 10.03s
+finished=2026-08-09T21:26:14Z

@@ -7,6 +7,22 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-09 — M3 emulator gate passed through EF23.** A real
+  `EggFrecklesEF23:jbfly` client on disposable instance `m3ttt-0809` sent one
+  fresh tic-tac-toe request to an isolated local `server.py`. The real
+  Codex/MCP workflow created one 3,541-byte source, called `build_pkg` once,
+  produced a 4,480-byte package (SHA-256 `c2ff5632c5d2d23ec…`), installed and
+  launched it, and captured the genuine 3×3 board with `X to move` status.
+  Generated source/package evidence carries the **M3 Tic Tac Toe** title and
+  `M3TicTacToe20260809:nwtn` identity; the screenshot does not independently
+  prove the exact title. EF23 displayed `Thinking` and later tool progress.
+  Generation exited 0 in 234 seconds under the 600-second budget; the journal
+  has one `write_source`, one `build_pkg`, no byte-identical retry, and no
+  timeout. Runtime taps produced no pixel change, so playability is
+  source-supported and one physical game remains human-gated. Evidence:
+  `runtime/evidence/m3-tic-tac-toe-20260809/`. No hardware, iPad, Mars, shared
+  emulator, shared service, or remote branch was touched.
+
 - **2026-08-09 — M2 integrated and emulator-proven.** The landing replacement
   is one atomic final-state commit on
   `integration/m2-ef23-atomic-replacement`, directly atop published master `2fbbd4b`. It preserves both
@@ -1185,12 +1201,17 @@ else. Every physical tap on the iPad or the MP2000 is a human-only gate.
   `m2ef23-0809a` installed/launched the package, selected the LAN favorite, and
   painted both progress labels before final text. Evidence:
   `runtime/evidence/m2-ef23-integration/`. Owner: orchestrator to review/land.
-- **M3 — tic-tac-toe: emulator, then the MP2000.** One fresh generation run on
-  mars (600 s budget and fail-fast are live there). **Accept (emulator):**
-  build → install → launch → screenshot inside budget, with zero byte-identical
-  retries in the journal. **Accept (hardware, human-gated):** ZC40 install
-  after a `store_info` free-space check, app launches, one game played on
-  glass. This is the project's headline unlock; nothing else pre-empts it.
+- **M3 — emulator accepted; MP2000 remains human-gated.** The fresh generation
+  ran through the actual EF23 client against an isolated local server and
+  disposable emulator: one source write, one successful build, install,
+  launch, and genuine screenshot of the 3×3 board plus status in 234 seconds,
+  with no byte-identical retry or timeout
+  (`runtime/evidence/m3-tic-tac-toe-20260809/`). Source/package evidence proves
+  the title and identity; the screenshot does not. Runtime taps produced no
+  pixel change, so playability remains source-supported. The equivalent local
+  run satisfies the emulator gate without changing Mars or a shared service.
+  **Hardware remains:** ZC40 install after a `store_info` free-space check, app
+  launches, one game played on glass.
 - **M4 — iPad probe verdict.** The human-gated one-Send procedure in
   `docs/ef22-server-autofind.md`, using the prepared EF23 M2 package. **Accept:** a
   photographed HS-A/HS-B/HS-C verdict. The verdict — "Output() never called"
