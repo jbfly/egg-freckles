@@ -7,6 +7,8 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-11 — EF25 physical iPad diagnostic recorded; EF2x client-parameter series parked.** On one `/status` Send with no retry, the operator observed `Connecting to active server; will send...` then `Connect exception`; no HS-A/HS-B/HS-C status or reply appeared. The covering capture contains 15 packets and no drops recorded (the pcapng has no drop counter, so this is not a measured zero): three TCP handshakes completed, the service sent one 48-byte greeting on each connection, and the client acknowledged each greeting but sent no TCP payload. EF25's synchronous `connect` therefore raised before `:Connected()` could paint HS-A or send the marker/`HELLO`. EF23, EF24, and EF25 all reached the service at TCP without advancing the harness handshake under the tested async/timeout/sync variations. The series is closed and parked as an external Einstein-platform issue; the evidence does not prove an iOS-specific cause. The deferred control is the stock Einstein network path with the **same seeded flash** used by the successful isolated EF25 gate, retaining only build/automation patches. Evidence: `runtime/evidence/ef25-ipad-physical-20260811/`.
+
 - **2026-08-11 — EF25 prepared a synchronous-connect diagnostic, not a fix.**
   EF24 physically failed before HS-A/B/C with visible `Connect error -16013`;
   that result is evidence of failure, not a root cause. EF25 changes only the
@@ -35,8 +37,9 @@ agent can complete one task and verify it.
   pcap ended before the Send and contains zero packets, so it is disclosed only
   as a timing miss and is not network evidence. The sanitized authoritative
   Mars journal records seven accepted connections from 16:41:36Z through
-  16:41:55Z at three-second intervals, but no protocol/application
-  bytes. Compared with EF23's `Connect error -16005`, restoring the connect
+  16:41:55Z at three-second intervals and no harness protocol observed by the
+  service. The pcap missed the Send, and the lifecycle journal does not measure
+  transmitted bytes. Compared with EF23's `Connect error -16005`, restoring the connect
   timeout changed the visible result to `-16013` but did not advance the
   handshake. Evidence: `runtime/evidence/ef24-ipad-physical-20260811/README.md:9-22,24-38`
   and `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.
@@ -85,7 +88,7 @@ agent can complete one task and verify it.
 
 - **2026-08-09 — M2 integrated and emulator-proven.** The landing replacement
   is one atomic final-state commit on
-  `integration/m2-ef23-atomic-replacement`, directly atop published master `2fbbd4b`. It preserves both
+  `integration/m2-ef23-atomic-replacement`, directly atop historical master milestone `2fbbd4b`. It preserves both
   `prepare/ef22-autofind` and rejected-history `task/m2-ef22-integration`
   unchanged, while retaining trunk package tools/native scrolling plus the
   Advanced server picker and minimized HS-A/HS-B/HS-C probe. The rebuilt client is `EggFrecklesEF23:jbfly`, title
@@ -1255,7 +1258,7 @@ else. Every physical tap on the iPad or the MP2000 is a human-only gate.
 - **M2 — complete as an atomic landing replacement.**
   `integration/m2-ef23-atomic-replacement` contains one final-state commit
   directly atop
-  published master `2fbbd4b`; the rejected eight-commit replay and
+  historical master milestone `2fbbd4b`; the rejected eight-commit replay and
   `prepare/ef22-autofind` remain unchanged. The package was rebuilt from the
   final source as fresh `EggFrecklesEF23:jbfly` v37. The two-line
   `STAT PROGRESS` branch paints `:SetStatus` and never touches `responseText`.

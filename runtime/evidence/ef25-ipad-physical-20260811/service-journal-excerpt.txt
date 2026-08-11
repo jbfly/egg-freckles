@@ -1,0 +1,16 @@
+EF25 physical iPad one-Send service-event summary
+
+This is a manually normalized summary, not a raw journal excerpt. Hostname,
+network address, unit/process identifiers, local-time prefix, and ephemeral
+ports are omitted. Times are relative to the first accepted connection.
+
++0 s  accepted connection 1
++3 s  accepted connection 2
++5 s  accepted connection 3
+
+No disconnect event was recorded before the service next restarted.
+
+Scope note: this service journal records connection lifecycle events, not
+payload. It corroborates three accepted connections only. The packet summary,
+not the absence of journal protocol lines, is the evidence that the client sent
+no application bytes and that the service greetings were visible on the wire.

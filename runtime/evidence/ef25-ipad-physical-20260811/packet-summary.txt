@@ -1,0 +1,40 @@
+EF25 physical iPad one-Send packet summary
+
+This is a manually curated protocol summary derived read-only from the source
+pcapng. The raw capture is not committed. Local paths, hostnames, network
+addresses, process/container identifiers, capture metadata, and ephemeral
+ports are omitted.
+
+Human observation
+- EF25 package version 39 (EggFrecklesEF25:jbfly) was installed and open.
+- The operator entered /status, tapped Send exactly once, and did not retry.
+- The visible sequence was "Connecting to active server; will send..." then
+  "Connect exception".
+- No HS-A, HS-B, or HS-C status appeared, and no reply arrived.
+- No photo was captured; no visual evidence is claimed.
+
+Capture facts
+- 15 packets were captured over 5.912761680 seconds.
+- No drops were recorded. The pcapng contains no drop counter, so this is not
+  evidence that the measured drop count was zero.
+- Three TCP three-way handshakes completed. Each was followed by exactly one
+  48-byte service greeting and the client's pure ACK:
+
+  connection  handshake frames  greeting frame/bytes  client ACK frame
+  1           1/2/3             4 / 48                5
+  2           6/7/8             9 / 48                10
+  3           11/12/13          14 / 48               15
+
+- The greeting-length field is 48 on frames 4, 9, and 14; there are no other
+  payload-bearing service frames.
+- Client-direction TCP payload length is absent/zero on every client frame: 0
+  payload frames and 0 payload bytes.
+- A whole-capture string search found no `~NEWTONCLI`, `HELLO`, `ACK`, `STAT`,
+  `MODE`, `HS-A`, `HS-B`, or `HS-C` match.
+- No FIN or RST appears before capture end.
+
+Interpretation
+The synchronous EF25 path completed TCP handshakes but the client emitted no
+application payload. The visible "Connect exception" occurred before EF25's
+:Connected() continuation, marker output, and HELLO. The capture identifies
+where the attempt stopped; it does not identify the Einstein-platform cause.

@@ -1580,3 +1580,46 @@ marker output, HS-B at marker invocation, and HS-C before HELLO output
 HELLO reached the listener. This supports only the diagnostic path. Whether it
 changes the iOS result remains a physical, human-gated uncertainty. Evidence:
 `runtime/evidence/ef25-sync-connect/README.md`.
+
+## 2026-08-11 — EF25 physical iPad result; EF2x parameter series parked
+
+EF25 package version 39 (`EggFrecklesEF25:jbfly`) was installed in the iPad
+Einstein runtime. On one `/status` Send with no retry, the operator observed
+`Connecting to active server; will send...` then `Connect exception`; no
+HS-A/B/C status or reply appeared. No photo was taken, so no visual evidence
+is claimed.
+
+The covering capture contains 15 packets over 5.913 seconds and no drops
+recorded. The pcapng contains no drop counter, so “no drops recorded” is not a
+measured zero. Three TCP handshakes completed. On each connection the service
+sent one 48-byte greeting and the client acknowledged it, but the client sent
+no TCP payload. No `~NEWTONCLI`, `HELLO`, `ACK`, `STAT`, `MODE`, or HS-A/B/C
+text occurs in the capture. The normalized service-journal summary corroborates
+the three accepted connections only: that journal does not record payload, so
+its lack of protocol lines is not evidence about bytes. The packet summary is
+the payload evidence.
+
+The visible `Connect exception` is EF25's `onexception |evt.ex.comm|` handler
+around the synchronous connect block (`examples/harness-client/Main.newt`,
+`Bound`). EF25 calls `endpoint:connect(..., {async: nil, reqTimeout: 10000})`
+and then `:Connected()`; the exception appeared before `:Connected()` could
+paint HS-A or send the marker and `HELLO`. The diagnostic reached the service's
+TCP stack but did not advance the harness handshake.
+
+This closes and parks the EF2x client-parameter series. The evidence is
+asymmetric: EF23 and EF25 packet captures prove zero iPad TCP payload, while
+EF24's pcap missed the Send and its service journal proves seven accepts with
+no harness protocol observed by the service, not a transmitted byte count. All
+three failed to advance the harness handshake under the tested async,
+restored-timeout, and synchronous-connect variations. That makes the remaining
+failure an external Einstein-platform issue; it does not prove the cause is
+iOS-specific.
+
+If the Einstein experiment resumes, hold Newton state constant first: use the
+stock Einstein network path with the **same seeded flash** used by EF25's
+successful disposable gate, retaining only the build and automation patches
+needed to run it. This isolates the network implementation before trying a
+different flash. Evidence:
+`runtime/evidence/ef25-ipad-physical-20260811/README.md`,
+`runtime/evidence/ef25-ipad-physical-20260811/packet-summary.txt`, and
+`runtime/evidence/ef25-ipad-physical-20260811/service-journal-excerpt.txt`.

@@ -1,6 +1,6 @@
 # M3 fresh tic-tac-toe generation — emulator result
 
-Run date: 2026-08-09 UTC. Branch base: published master
+Run date: 2026-08-09 UTC. Branch base: historical M2 milestone
 `3b2be4f5c44aafde7d981352a9d87105a6c4c721`. No physical Newton, iPad, Mars,
 shared emulator, shared service, remote branch, M2 branch, or history branch was
 changed.

@@ -1,7 +1,7 @@
 # EF24 chat-connect timeout evidence
 
 Date: 2026-08-11. This prepared the smallest M4 follow-up hypothesis directly
-atop published master `4c834a9a04231403beb15d5e155ae4d629090bdc`. This file
+atop historical master milestone `4c834a9a04231403beb15d5e155ae4d629090bdc`. This file
 records Linux Einstein evidence only; the later physical result is separately
 curated in `../ef24-ipad-physical-20260811/README.md`.
 

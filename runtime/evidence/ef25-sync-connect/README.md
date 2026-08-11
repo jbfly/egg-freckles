@@ -1,6 +1,6 @@
 # EF25 synchronous primary-connect diagnostic evidence
 
-Date: 2026-08-11. Parent: published master
+Date: 2026-08-11. Parent: branch-base commit
 `25c2cc56e4caf5b5083d3546b6e228a61e987548`. This is a diagnostic build, not
 a transport redesign and not physical proof.
 

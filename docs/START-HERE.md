@@ -101,8 +101,8 @@ numbers the lines the same way the citations assume. Details in
 `refs/README.md`.
 
 **Tests** — **139 pass for the prepared M2 state** (verified 2026-08-09;
-`runtime/evidence/m2-ef23-integration/full-tests.txt`). Published master
-`2fbbd4b` passes 136; M2 adds three client-source tests. Of the M2 total,
+`runtime/evidence/m2-ef23-integration/full-tests.txt`). Historical master
+milestone `2fbbd4b` passes 136; M2 adds three client-source tests. Of the M2 total,
 **31** are client-source tests
 pinning the `MSGP` split, the Track A9 Ask routing and its two ink converters,
 the Track L1 `EntryUniqueID` ordering rule and merged tools channel, the `NSI1`
@@ -196,7 +196,7 @@ than hand-rolling the sequence.
 ## Current state — updated 2026-08-11 (ages fastest; verify before trusting)
 
 **2026-08-09 — read `docs/ROADMAP.md` "Recovery plan (2026-08-09)" before
-starting anything.** Published master is
+starting anything.** The M2 recovery milestone is
 `3b2be4f5c44aafde7d981352a9d87105a6c4c721`; it atomically landed M2's final
 EF23 client on the recovery server/tooling base and passes 139 tests. M3's
 emulator gate is now evidenced through the actual EF23 client: one fresh
@@ -220,7 +220,7 @@ confirmed substantially easier to use. Preserve A1 as the installed fallback.
 (The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
 evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
-Published master `4c834a9` carries `EggFrecklesEF23:jbfly`; parent commit
+Historical milestone `4c834a9` carries `EggFrecklesEF23:jbfly`; parent commit
 `629f20e` prepared `EggFrecklesEF24:jbfly` — user-visible name **"Egg
 Freckles"**, title "Egg Freckles 1.0-ef24", package version 38. M2 had changed
 only the primary chat connect `reqTimeout` from 45,000 ms to 10,000 ms; EF24
@@ -238,15 +238,17 @@ will send` followed by `Connect error -16013`; no photo was taken, no
 HS-A/HS-B/HS-C status appeared, and no reply arrived. The 90-second pcap ended
 before the Send and contains zero packets, so it is only a disclosed timing
 miss. The sanitized authoritative Mars journal records seven accepted
-connections from 16:41:36Z through 16:41:55Z at three-second intervals
-and no protocol/application bytes. Compared with EF23's earlier `Connect error
+connections from 16:41:36Z through 16:41:55Z at three-second intervals and
+no harness protocol observed by the service. Because the pcap missed the Send
+and the journal records lifecycle rather than payload, EF24 has no transmitted
+byte-count evidence. Compared with EF23's earlier `Connect error
 -16005`, timeout restoration changed the visible result to `-16013` but did not
 advance the handshake. Evidence:
 `runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38` and
 `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.
 
 EF25 is the smallest diagnostic response to that failure, directly atop
-published master `25c2cc56`: only the primary chat connect is synchronous with
+historical EF24 result commit `25c2cc56`: only the primary chat connect is synchronous with
 `async: nil, reqTimeout: 10000`, followed immediately by `:Connected()` after
 a successful return. It uses fresh `EggFrecklesEF25:jbfly`, title **Egg
 Freckles 1.0-ef25**, and package version 39. The hypothesis is that iOS NIE is
@@ -259,6 +261,23 @@ ACK, and teardown. Its screenshots did not preserve the transient painted
 HS-A/B/C states, so the exact evidence is source order plus the marker/HELLO
 wire path, not a visual claim. Evidence:
 `runtime/evidence/ef25-sync-connect/README.md`. iOS remains unverified.
+
+The physical EF25 iPad diagnostic is recorded and closes the EF2x
+client-parameter series. On one `/status` Send with no retry, the operator
+observed `Connecting to active server; will send...` then `Connect exception`;
+no HS-A/HS-B/HS-C status or reply appeared. The covering capture contains 15
+packets and no drops recorded; because the pcapng has no drop counter, that is
+not a measured zero. Three TCP handshakes completed, the service sent one
+48-byte greeting on each connection, and the client acknowledged each greeting
+but sent no TCP payload. EF25's synchronous `connect` raised before
+`:Connected()` and before any marker or `HELLO`. EF23/EF24/EF25 therefore did
+not advance the harness handshake under the tested client parameter changes.
+The series is closed and parked as an external Einstein-platform issue, not a
+proven iOS-specific failure. If resumed, use the stock Einstein network path
+with the **same seeded flash** as the successful isolated EF25 gate, retaining
+only build/automation patches. Evidence:
+`runtime/evidence/ef25-ipad-physical-20260811/`; the raw pcapng is not
+committed.
 
 EF24 otherwise retains EF23's no-Dock package tools, native arrows, persisted
 Advanced server picker, minimized HS-A/HS-B/HS-C probe, and transient `STAT
