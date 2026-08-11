@@ -1,0 +1,7 @@
+Sanitized causes of the three setup attempts disclosed before the final gate
+
+1. A wait expired before protocol capture. No product protocol result was recorded, so the disposable attempt was discarded.
+2. A listener import failed before an emulator instance was created. No product ran; the listener setup was corrected.
+3. A complete protocol exchange passed, but the wrapper's final assertion printed an opaque array rather than scalar values. The wrapper assertion was inconclusive, so the final fresh run used scalar status and reply checks.
+
+These are setup/wrapper failures, not product failures. No raw provider logs are retained.

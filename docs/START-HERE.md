@@ -220,8 +220,8 @@ confirmed substantially easier to use. Preserve A1 as the installed fallback.
 (The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
 evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
-Historical milestone `4c834a9` carries `EggFrecklesEF23:jbfly`; parent commit
-`629f20e` prepared `EggFrecklesEF24:jbfly` — user-visible name **"Egg
+Historical milestone `4c834a9` carries `EggFrecklesEF23:jbfly`; follow-up
+commit `629f20e` prepared `EggFrecklesEF24:jbfly` — user-visible name **"Egg
 Freckles"**, title "Egg Freckles 1.0-ef24", package version 38. M2 had changed
 only the primary chat connect `reqTimeout` from 45,000 ms to 10,000 ms; EF24
 restores it to 45,000 ms while leaving the 12-second post-connect handshake
@@ -278,6 +278,19 @@ with the **same seeded flash** as the successful isolated EF25 gate, retaining
 only build/automation patches. Evidence:
 `runtime/evidence/ef25-ipad-physical-20260811/`; the raw pcapng is not
 committed.
+
+EF26 is the prepared physical-MP2000 candidate. It starts from final EF25 and
+removes only the synchronous primary-connect diagnostic, restoring the exact
+final EF13 hardware-proven form: `{async: true, reqTimeout: 45000}` with a
+completion callback. The identity is `EggFrecklesEF26:jbfly`, the title is
+**Egg Freckles 1.0-ef26**, and the package version is 40. Server selection,
+HS/progress display, framing, package tools, ink/Notes, scrolling, and UI are
+unchanged. Two normalized 114,704-byte builds match at SHA-256
+`bcc36db8db643a1e9e1825699a52ffad9bf705617a4af97bed59641f5736b14f`;
+61 focused and 140 full tests pass. A seeded disposable Einstein completed one
+marker/HELLO/READY/MSG/progress/reply connection and was removed. This is not a
+hardware result. Evidence: `runtime/evidence/ef26-physical-candidate/README.md`;
+bench order: `docs/ef26-physical-mp2000-runbook.md`.
 
 EF24 otherwise retains EF23's no-Dock package tools, native arrows, persisted
 Advanced server picker, minimized HS-A/HS-B/HS-C probe, and transient `STAT

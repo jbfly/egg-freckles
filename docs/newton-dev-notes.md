@@ -1574,12 +1574,13 @@ SHA-256 `edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e`;
 83 focused and 140 full tests pass. A seeded disposable Einstein produced one
 accept, marker, `HELLO NEWTON1 1.0-ef25`, server ACK, `STAT READY`, client ACK,
 clean EOF, and no second accept. The emulator did not retain the transient
-painted HS-A/B/C labels for capture. Exact source order establishes HS-A before
-marker output, HS-B at marker invocation, and HS-C before HELLO output
-(`examples/harness-client/Main.newt:1472-1534`); the wire log proves marker and
-HELLO reached the listener. This supports only the diagnostic path. Whether it
-changes the iOS result remains a physical, human-gated uncertainty. Evidence:
-`runtime/evidence/ef25-sync-connect/README.md`.
+painted HS-A/B/C labels for capture. The immutable EF25 source snapshot
+establishes HS-A before marker output, HS-B at marker invocation, and HS-C
+before HELLO output
+(`runtime/evidence/ef25-sync-connect/handshake-source.txt:23-95`); the wire log
+proves marker and HELLO reached the listener. This supports only the diagnostic
+path. Whether it changes the iOS result remains a physical, human-gated
+uncertainty. Evidence: `runtime/evidence/ef25-sync-connect/README.md`.
 
 ## 2026-08-11 — EF25 physical iPad result; EF2x parameter series parked
 
@@ -1600,11 +1601,12 @@ its lack of protocol lines is not evidence about bytes. The packet summary is
 the payload evidence.
 
 The visible `Connect exception` is EF25's `onexception |evt.ex.comm|` handler
-around the synchronous connect block (`examples/harness-client/Main.newt`,
-`Bound`). EF25 calls `endpoint:connect(..., {async: nil, reqTimeout: 10000})`
-and then `:Connected()`; the exception appeared before `:Connected()` could
-paint HS-A or send the marker and `HELLO`. The diagnostic reached the service's
-TCP stack but did not advance the harness handshake.
+around the synchronous `Bound` block preserved at
+`runtime/evidence/ef25-sync-connect/handshake-source.txt:2-21`. EF25 calls
+`endpoint:connect(..., {async: nil, reqTimeout: 10000})` and then
+`:Connected()`; the exception appeared before `:Connected()` could paint HS-A
+or send the marker and `HELLO`. The diagnostic reached the service's TCP stack
+but did not advance the harness handshake.
 
 This closes and parks the EF2x client-parameter series. The evidence is
 asymmetric: EF23 and EF25 packet captures prove zero iPad TCP payload, while

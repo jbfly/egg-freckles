@@ -44,11 +44,12 @@ a synchronous connect sat at "Connecting..." and never sent an HTTP request.
 - Reproduced in the loader: `docs/newton-dev-notes.md:535` ("r12a removed the
   unreachable synchronous-connect completion callback and called
   `Connected(nil, nil)` after `connect` returned").
-- EF25 applies that settled continuation shape to the primary chat connect as
-  a deliberately narrow diagnostic after EF24 physically failed at `Connect
-  error -16013` before HS-A/B/C. This tests whether the iOS async-connect
-  completion path is the blocker; emulator success does not prove the iOS
-  hypothesis (`runtime/evidence/ef25-sync-connect/README.md`).
+- EF25 historically applied that continuation shape to the primary chat connect
+  as a deliberately narrow diagnostic after EF24 failed before HS-A/B/C. The
+  physical EF25 result did not advance the handshake. Current EF26 supersedes
+  that diagnostic and restores the async completion form with a 45-second
+  request timeout; its disposable emulator gate passed, but hardware remains
+  unverified (`runtime/evidence/ef26-physical-candidate/README.md:13-30,51-78`).
 
 ### 1.3 Receive uses `SetInputSpec` and never calls synchronous `Input()`
 
@@ -245,7 +246,7 @@ The traps that cost real time.
 | **Idle link is a race, not a threshold** | Four idle trials at ~92–100 s disagreed; we kept trying to tune the gap. Gap length does not predict cost: 60 s cost 7.1 s, 300 s cost 0.19 s. What predicts cost is **who notices the dead link first**. | Don't tune the gap. If the ~7 s worst case matters, run a host-side keepalive that touches the link more often than it dies, so the 4 s watchdog always wins the race. Worst case is no worse than the 5.8–11.5 s baseline this replaced. | `docs/newtonscript-eval.md:398-413`; `runtime/evidence/idle-sweep.txt`; commit `6442573` |
 | **Watchdog period below heartbeat cadence** | A faster-than-3 s watchdog forced false reconnects and a 9.0 s warm call. | Watchdog period must stay **above the 3 s host-heartbeat cadence** (`pkg_publisher.py:70`); R10D uses 4 s. | `docs/newtonscript-eval.md:366-375` |
 | **Zombie package tears down without `Stop()`** | Closing the app's view left the source port alive (zombie) beside a fresh connection. | Add `ViewQuitScript` that calls `Stop()` (unbind, dispose, release NIE). | `docs/newtonscript-eval.md:377-383`; `examples/harness-client/Main.newt:219-226` (was `examples/harness-tools/Main.newt:26-30` before Track L1) |
-| **Startup `Bind`/`Connect`/`Output` can hold the app task for the full 45 s connect timeout** | Real-hardware bring-up exposed synchronous endpoint calls blocking the UI. | Production default: use endpoint callback specs with `async: true` for `Bind`, `Connect`, and both `Output` operations. EF25 is a diagnostic exception for only the primary chat connect, capped at 10 s, after the async path failed physically before HS-A/B/C; it is a hypothesis, not a new default. Input stays `SetInputSpec`-only. | `docs/newtonscript-eval.md:415-435` (R10I); `runtime/evidence/ef25-sync-connect/README.md` |
+| **Startup `Bind`/`Connect`/`Output` can hold the app task for the full connect timeout** | Real-hardware bring-up exposed synchronous endpoint calls blocking the UI. | Production default: use endpoint callback specs with `async: true` for `Bind`, `Connect`, and both `Output` operations. EF25's 10-second synchronous primary connect was a diagnostic only; current EF26 restores async connect with the historical 45-second request timeout. Input stays `SetInputSpec`-only. | `docs/newtonscript-eval.md:415-435` (R10I); `runtime/evidence/ef26-physical-candidate/README.md:13-30` |
 | **Missing `form: 'string` on the output spec** | Einstein established TCP but emitted no payload. | Every output spec includes `form: 'string`. | `docs/newtonscript-eval.md:431-435` |
 | **Treating replacement of the prior input spec as a communication error** | Caused connection churn. | Inline `SetInputSpec` is valid when changing or stopping the persistent spec; the same spec is automatically reposted if left unchanged. | `refs/NewtonProgrammerGuide20.txt:50167-50178`; `refs/NewtonProgrammerRef20.txt:56549-56557` |
 | **Unguarded header byte loop** | `SubStr(text, Length(text)-4, 4)` threw before four bytes existed. | ZC39 guards the four-byte comparison and keeps the whole HTTP receive in binary form; native string `endSequence` cannot safely hand off to binary. | `examples/harness-loader/Main.newt` (`HeaderReceived`); `refs/qa/inptspec.htm:4` |
@@ -336,15 +337,15 @@ footgun). The plan's stop-and-wait framing assumes a live link; the idle race
 ~7 s. Build the keepalive into `server.py`/`pkg_publisher.py` rather than
 tuning the Newton-side watchdog.
 
-### 4.4 The production default remains **async with completion callbacks**
-(`async: true`) for `Bind`, `Connect`, and `Output` (§1.7, §2 footgun). The
-plan's "endpoint call shape is already proven" (§1) is true for *emulator*
-bring-up, while real hardware exposed blocking synchronous calls. EF25 is one
-bounded diagnostic exception: only the primary chat connect is synchronous,
-with a 10 s request timeout and direct continuation, to test the unproved iOS
-async-completion hypothesis after EF24 failed before HS-A/B/C. Do not generalize
-EF25 to bind, output, tools, ink, package download, or a permanent redesign
-unless physical evidence supports it.
+### 4.4 The current EF26 candidate uses **async completion callbacks**
+(`async: true`) for `Bind`, `Connect`, and `Output` (§1.7, §2 footgun). It
+supersedes EF25's bounded synchronous primary-connect diagnostic and restores
+the final EF13 form: async primary connect with a 45-second request timeout.
+The seeded disposable EF26 gate completed one marker/HELLO/READY/MSG/progress/
+reply connection (`runtime/evidence/ef26-physical-candidate/README.md:51-78`).
+That is emulator evidence only; EF26 has not passed the physical MP2000 gates.
+EF25 remains useful as a historical diagnostic, not the current design and not
+a reason to make bind, output, tools, ink, or package download synchronous.
 
 ### 4.5 Every output spec needs `form: 'string` (§2 footgun). Without it
 Einstein connects but emits no payload — a silent failure that looks exactly

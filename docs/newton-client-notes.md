@@ -3,7 +3,23 @@
 ## Current source state
 
 - `examples/harness-loader/Main.newt` is the NewtonOS 2.1 package installer. The user enters a staged `.pkg` filename; it opens an NIE link, connects to `10.42.0.1:18081`, downloads that name with HTTP/1.0, validates a `Content-Length` from 1 to 524,288 bytes, stores the exact body in a VBO, and installs it with `SuckPackageFromBinary`.
-- `examples/harness-client/Main.newt` is **Egg Freckles 1.0-ef25** with fresh package identity `EggFrecklesEF25:jbfly` (package version 39). EF25 changes only the primary chat connect to synchronous `{async: nil, reqTimeout: 10000}` with an immediate `:Connected()` call after successful return; this is a bounded diagnostic of the iOS async-connect completion hypothesis, not a permanent transport redesign or proof of iOS success. Bind, the address options, endpoint/link ownership, the 12-second post-connect handshake watchdog, marker output's asynchronous 10,000 ms request timeout, framing, and tools/ink/package paths remain unchanged. Two normalized builds are byte-identical at 114,480 bytes with SHA-256 `edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e`; 83 focused and 140 full tests pass, and a disposable seeded Einstein completed exactly one local marker/HELLO/READY handshake (`runtime/evidence/ef25-sync-connect/README.md`). EF24 remains the latest physical iPad evidence: it visibly ended at `Connect error -16013` before HS-A/B/C or a reply; its pcap missed the Send, while the sanitized Mars journal records seven accepts and no protocol/application bytes. Hardware proof failed, and EF25 remains unverified on iOS (`runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38`; `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`).
+- `examples/harness-client/Main.newt` is **Egg Freckles 1.0-ef26** with fresh
+  package identity `EggFrecklesEF26:jbfly` (package version 40). EF26 removes
+  only EF25's synchronous primary-connect diagnostic and restores
+  `{async: true, reqTimeout: 45000}` plus its completion callback. That is the
+  exact primary-connect spec in the final hardware-proven EF13 client
+  (`c8b4148`, with the physical pass recorded by `39aa963`), not a guessed
+  timeout. It remained the production shape until M2 shortened only the timeout
+  (`3b2be4f`); EF24 restored 45 seconds (`629f20e`) before EF25 tried the
+  synchronous diagnostic (`338e3662`). Server selection, HS-A/B/C and the
+  12-second handshake watchdog, progress display, framing, package tools,
+  ink/Notes, scrolling, and UI are unchanged from EF25. Two normalized builds
+  are byte-identical at 114,704 bytes with SHA-256
+  `bcc36db8db643a1e9e1825699a52ffad9bf705617a4af97bed59641f5736b14f`;
+  61 focused and 140 full tests pass. A seeded disposable Einstein completed
+  exactly one chat connection through marker, HELLO, READY, real MSG,
+  `STAT PROGRESS 1/1`, final reply, and teardown. This is emulator evidence,
+  not physical MP2000 success (`runtime/evidence/ef26-physical-candidate/`).
 - `pkg_publisher.py` is the source-level reference server for `/egg-freckles.pkg` and `/status`. It still answers the old `/harness-client.pkg` path as an alias (`pkg_publisher.py:482-487`) so a loader with the old filename typed in keeps working. The separate live raw server is operational runtime state, not part of this build path.
 - Each app has a `.nprj` file and a small Makefile that invokes tntk against the Newton 2.1 platform file.
 
@@ -152,6 +168,9 @@ fragile on this Wi-Fi path, so dumps now request entries individually with
 The complete ignored directory exists on both Mars and the local workspace at
 `runtime/backups/mp2000-20260803-docktcp-a3`, with matching tree digest
 `8203cc2de461b51b3b62380804b011b4c1b35df51dd32393f98f8a250265ebc2`.
+This is a selective soup-entry export, not a full restorable hardware backup.
+The digest covers the exported tree only; no package/system rollback or proven
+restore path is claimed.
 
 The same path then backed up a second physical card in one uninterrupted
 connection: a 16 MB CF card in a PC Card ATA adapter. Newton identified its

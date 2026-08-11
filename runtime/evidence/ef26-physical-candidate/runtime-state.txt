@@ -1,0 +1,8 @@
+Final disposable EF26 runtime state
+
+Package probe: version 40
+Front application: Egg Freckles 1.0-ef26 (EggFrecklesEF26:jbfly)
+Status history: Connecting; HS-A BEFORE; HS-B CALLED; HS-C CALLBACK; Thinking; 1/1; Ready
+Final state: status Ready; retained reply EF26 GATE OK
+Isolation: unrelated tools poll disabled only in the disposable runtime view
+Teardown: private listener, emulator instance, and state volume absent

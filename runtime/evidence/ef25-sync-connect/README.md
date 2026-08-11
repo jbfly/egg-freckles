@@ -11,12 +11,15 @@ HS-A/B/C; its packet capture missed the Send and cannot identify a cause
 (`../ef24-ipad-physical-20260811/README.md:9-38`). EF25 tests only whether the
 iOS NIE async connect completion path is the blocker:
 
-- `Main.newt:1451-1468` keeps the existing address-options array and endpoint,
-  but changes the primary chat connect request to
-  `{async: nil, reqTimeout: 10000}` and calls `:Connected()` on the next line.
-- The chat connect block has no `CompletionScript`. Bind remains async.
-- `Main.newt:1472-1543` retains HS-A/B/C, the 12 s post-connect watchdog, the
-  marker's async 10 s output timeout, input arming, and framed HELLO.
+- `handshake-source.txt:2-21` preserves the EF25 address-options array and
+  endpoint call, synchronous `{async: nil, reqTimeout: 10000}` request, and
+  direct `:Connected()` continuation.
+- The captured chat connect block has no `CompletionScript`
+  (`handshake-source.txt:2-21`). Bind remains async in immutable commit
+  `338e3662`, `examples/harness-client/Main.newt:1400-1409`.
+- `handshake-source.txt:23-95` preserves HS-A/B/C, the 12 s post-connect
+  watchdog, the marker's async 10 s output timeout, input arming, and framed
+  HELLO.
 - No server, Loader, protocol, polling, retry, ticket, tools, ink,
   package-download, ownership, or cleanup code changed.
 

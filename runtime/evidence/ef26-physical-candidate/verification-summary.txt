@@ -1,0 +1,14 @@
+EF26 candidate verification summary
+
+Focused command: uv run --with pytest pytest -q test_newton_client_source.py test_pkg_publisher.py
+Focused result: 61 passed in 7.14s
+Full command: uv run --with pytest pytest -q
+Full result: 140 passed in 17.32s
+Reproducibility: two fresh archived-tree builds normalized to the repository source epoch were byte-identical to each other and the tracked package
+Package size: 114704 bytes
+Package SHA-256: bcc36db8db643a1e9e1825699a52ffad9bf705617a4af97bed59641f5736b14f
+Package inspector: Newton package, NOS 1.x, NoCompression, version 40
+Reviewed/current Main.newt blob: 6fd6dd0fd1f29d998b65a8d5f6c148e13e114394
+Reviewed/current project blob: c3d979163f55c4e94a7d873c863f18ad9aee3a42
+Reviewed/current package blob: 00be6af080a19a7aa8f87a313dc8c1e1caf3462f
+Reviewed/current source-test blob: 2068b67d2848c1884a2afce360ddc612e1f75232

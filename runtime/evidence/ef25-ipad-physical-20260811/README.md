@@ -14,10 +14,11 @@ No photo was taken, so it makes no visual claim.
   `Connect exception`.
 - No HS-A, HS-B, or HS-C status appeared, and no reply arrived.
 
-Both strings are EF25 source strings in `examples/harness-client/Main.newt`.
-`Connect exception` is the `onexception |evt.ex.comm|` path around the
-synchronous `connect` call in `Bound`; it runs before `:Connected()` can paint
-HS-A or send the marker and `HELLO`.
+EF25's synchronous `Bound` block is preserved at
+`../ef25-sync-connect/handshake-source.txt:2-21`. Its direct `:Connected()`
+continuation is at lines 17-18, followed by the `Connect exception` handler at
+line 19; an exception therefore occurs before `:Connected()` can paint HS-A or
+send the marker and `HELLO`.
 
 ## Curated packet and service evidence
 
