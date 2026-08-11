@@ -1,0 +1,11 @@
+Source: egg-freckles-chat.service journal, read-only query.
+Window: 2026-08-09T23:17:30Z through 2026-08-09T23:19:30Z.
+Normalization: retained service UTC timestamps; replaced the private peer
+address and ephemeral client ports with stable connection labels; removed
+journal host/process metadata and the capture host's local-timezone prefix.
+
+2026-08-09T23:18:49+00:00 connect iPad-to-Mars connection 1
+2026-08-09T23:18:52+00:00 connect iPad-to-Mars connection 2
+2026-08-09T23:18:55+00:00 connect iPad-to-Mars connection 3
+2026-08-09T23:18:58+00:00 connect iPad-to-Mars connection 4
+2026-08-09T23:18:59+00:00 connect iPad-to-Mars connection 5

@@ -1,0 +1,6 @@
+Capturing on 'any'
+dumpcap: Capturing in promiscuous mode is not supported on device "any".
+(Promiscuous mode not supported on the "any" device)
+File: ef23-ipad-handshake-20260809T231742Z.pcapng
+Packets: 1 Packets: 3 Packets: 4 Packets: 6 Packets: 7 Packets: 8 Packets: 10 Packets: 11 Packets: 12 Packets: 13 Packets: 15 Packets: 16 Packets: 17 Packets: 19 Packets: 20 Packets: 22 Packets: 23 Packets: 25 Packets: 26 Packets: 27 Packets: 28 Packets: 29 Packets captured: 29
+Packets received/dropped on interface 'any': 29/0 (pcap:0/dumpcap:0/flushed:0/ps_ifdrop:0) (100.0%)

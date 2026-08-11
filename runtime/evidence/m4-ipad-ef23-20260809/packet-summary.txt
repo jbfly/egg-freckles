@@ -1,0 +1,44 @@
+M4 iPad EF23 one-Send packet summary
+Derived read-only with TShark (Wireshark) 4.7.2 from the source pcapng.
+Private addresses, ephemeral ports, capture-host metadata, and local paths are
+omitted from this committed derivative.
+
+Human observation and acceptance
+- EF23 package version 37 was installed and open on the iPad.
+- The Mars LAN endpoint was pinned.
+- The operator entered /status, tapped Send exactly once, and did not retry.
+- The operator directly observed the exact visible message: Connect error -16005
+- No screenshot or photo was captured. Automated idevicescreenshot failed at
+  the screenshotr/developer-disk step, including: "Remember that you have to
+  mount the Developer disk image on your device if you want to use the
+  screenshotr service."
+- On 2026-08-11 the human explicitly waived the photo acceptance artifact. No
+  visual evidence is claimed.
+
+Capture facts
+- 29 packets captured; 0 dropped.
+- Capture duration: 11.009092227 seconds, starting
+  2026-08-09T23:18:49.497512534Z.
+- Five TCP three-way handshakes completed from the iPad to Mars:
+
+  connection  handshake frames  Mars payload
+  1           1/2/3             48 bytes; greeting frame retransmitted once
+  2           8/9/10            48 bytes
+  3           13/14/15          48 bytes; greeting frame retransmitted once
+  4           20/21/22          48 bytes
+  5           23/24/25          48 bytes
+
+- Each of the five 48-byte Mars greetings was (final byte `\x20` is an
+  ASCII space):
+  newton-harness ready. /help for commands.\r\n\r\nN>\x20
+- The iPad sent 0 TCP payload frames and 0 TCP payload bytes.
+- Payload search found 0 matches for ~NEWTONCLI, HELLO, ACK, or STAT.
+
+Traceability
+The source pcapng is deliberately not committed because it retains private
+capture metadata. The hashes below identify the preserved sources from which
+this sanitized derivative was made.
+- source pcapng SHA-256:
+  f257cce06f703677a927a0df2a3654d55eeaca0906272bce8d4c1b41f8fa6ea6
+- source capture log before path normalization SHA-256:
+  2049fb0dd2ac99d95556635a82bea91c536272f453937185450e9f53c6595068

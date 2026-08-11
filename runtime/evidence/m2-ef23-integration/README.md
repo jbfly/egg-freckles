@@ -58,6 +58,9 @@ with its state volume (`instance-up.txt`, `boot-health.txt`,
   `progress-final.png` show the answer only after `PROMPT`.
 - Teardown: `throwaway-server-teardown.txt` shows port <ephemeral-port> clear.
 
-This proves Linux Einstein behavior only. It cannot answer the iOS NIE
-zero-byte question. M4 remains exactly one human-gated iPad `/status` Send with
-the EF23 package, preserving and photographing the final HS-A/HS-B/HS-C status.
+This proves Linux Einstein behavior only. M4 later performed the human-gated
+iPad `/status` Send with EF23. The operator directly observed the exact visible
+message `Connect error -16005`; packet evidence proved five handshakes, five
+Mars greetings, and zero iPad application bytes. The human waived the missing
+photo artifact, so M4
+is complete; see `runtime/evidence/m4-ipad-ef23-20260809/`.

@@ -7,6 +7,18 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-11 — M4 complete after the human waived the photo artifact.** On
+  2026-08-09 the operator installed and opened EF23 v37, pinned the Mars LAN
+  endpoint, entered `/status`, tapped Send exactly once, and directly observed
+  the exact visible message `Connect error -16005`; no screenshot or photo was
+  captured. The sanitized 29-packet/0-drop derivative independently proves
+  five successful iPad-to-Mars TCP handshakes, five 48-byte Mars greetings,
+  and zero iPad application bytes; it contains no `~NEWTONCLI`, `HELLO`, `ACK`,
+  or `STAT`. The human explicitly waived the missing photo as an acceptance
+  artifact, so M4 is complete without invented visual evidence. Evidence:
+  `runtime/evidence/m4-ipad-ef23-20260809/packet-summary.txt` and
+  `runtime/evidence/m4-ipad-ef23-20260809/service-journal-excerpt.txt`.
+
 - **2026-08-09 — M3 emulator gate passed through EF23.** A real
   `EggFrecklesEF23:jbfly` client on disposable instance `m3ttt-0809` sent one
   fresh tic-tac-toe request to an isolated local `server.py`. The real
@@ -37,8 +49,8 @@ agent can complete one task and verify it.
   and showed `Writing source` then `Building package` while `responseText`
   remained empty; only `TEXT` + `PROMPT` committed `LOCAL PROGRESS OK`.
   Evidence: `runtime/evidence/m2-ef23-integration/`. No shared emulator,
-  hardware, Mars, service, or remote branch was changed. M4 remains exactly one
-  human-gated iPad Send to photograph the HS-A/HS-B/HS-C verdict.
+  hardware, Mars, service, or remote branch was changed. The later M4 one-Send
+  result is recorded above and is complete under the human's photo waiver.
 
 - **2026-08-09 — Recovery audit: branch reconciliation after the 2026-08-08
   overnight sessions.** This docs-only audit is replayed on the selected
@@ -96,9 +108,11 @@ agent can complete one task and verify it.
     (3) progress is invisible on the Newton, so every wait looked like a hang —
     server half done, the 2-line client render (`docs/stream-feedback.md:52-58`)
     deferred to the branch that owns `Main.newt`; (4) the iPad iOS NIE client
-    opens TCP but sends zero application bytes (five sockets, `bytes_sent:48,
-    bytes_acked:48`, nothing back), send-ordering ruled out, probe built to
-    answer which half of `Output()` fails.
+    opens TCP but sends zero application bytes. On each of five sockets, Mars
+    sent its 48-byte greeting and received a TCP acknowledgment for it;
+    `bytes_sent:48, bytes_acked:48` are Mars-side greeting counters. Send-ordering
+    was ruled out, and the probe was built to answer which half of `Output()`
+    fails.
   - The single path forward is **"Recovery plan (2026-08-09)"** below the
     Where-we-are section.
   - **Verification addendum (second recovery pass, same day).** This entry was
@@ -1212,12 +1226,17 @@ else. Every physical tap on the iPad or the MP2000 is a human-only gate.
   run satisfies the emulator gate without changing Mars or a shared service.
   **Hardware remains:** ZC40 install after a `store_info` free-space check, app
   launches, one game played on glass.
-- **M4 — iPad probe verdict.** The human-gated one-Send procedure in
-  `docs/ef22-server-autofind.md`, using the prepared EF23 M2 package. **Accept:** a
-  photographed HS-A/HS-B/HS-C verdict. The verdict — "Output() never called"
-  vs "completion never fired" — decides the next iPad fix; evaluate
-  `fix/loader-nie-async-connect` (308dd63) against it before writing anything
-  new.
+- **M4 — complete: iPad probe verdict accepted under a human photo waiver.**
+  The one-Send procedure in `docs/ef22-server-autofind.md` was performed once
+  with EF23 v37. The operator directly observed the exact visible message
+  `Connect error -16005`; no screenshot was captured. Packet evidence
+  independently proves five successful TCP handshakes, five Mars greetings,
+  zero iPad application bytes, and no HS-A/HS-B/HS-C protocol traffic. The
+  human
+  explicitly waived the photo acceptance artifact, so the observation plus
+  packet/journal record completes M4. Evidence:
+  `runtime/evidence/m4-ipad-ef23-20260809/packet-summary.txt` and
+  `runtime/evidence/m4-ipad-ef23-20260809/service-journal-excerpt.txt`.
 - **M5 — the low-tap loop, written down.** No new machinery: server choice is
   the EF22 Advanced slip (persisted in prefs, chosen once); progress is `STAT
   PROGRESS` on the status line; emulator gating is the isolated-instance

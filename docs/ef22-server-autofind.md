@@ -8,13 +8,19 @@
 > 1.0-ef23**, package version 37. The integrated package is 114,704 bytes,
 > SHA-256 `093d7784c8d097646cfdd1e7cb7b38cb68ef23e8330cc0fd6af9fc5b3cbe6d53`;
 > 139 tests and isolated-emulator proof are in
-> `runtime/evidence/m2-ef23-integration/`. M4 remains hardware-gated: run the
-> one-Send iPad procedure below with this EF23 package and photograph the final
-> HS-A/HS-B/HS-C status. Do not infer iOS NIE behavior from Linux Einstein.
+> `runtime/evidence/m2-ef23-integration/`. **M4 complete, 2026-08-11:** the
+> operator performed the one-Send iPad procedure once on 2026-08-09 and directly
+> observed the exact visible message `Connect error -16005`. No screenshot was
+> captured. Sanitized packet evidence independently proves five successful TCP
+> handshakes, five Mars greetings, and zero iPad application bytes. The human
+> explicitly waived the photo acceptance artifact; no visual evidence is
+> claimed. Evidence: `runtime/evidence/m4-ipad-ef23-20260809/`. Do not infer iOS
+> NIE behavior from Linux Einstein.
 
-Date: 2026-08-09. **Prepared only:** the current Output-boundary probe was built
-with the isolated host toolchain; nothing was deployed to the iPad, physical
-Newton, Mars service, or any live/shared emulator.
+Date: 2026-08-09; M4 acceptance updated 2026-08-11. The Output-boundary probe
+was built with the isolated host toolchain. M4 later installed it on the iPad
+and performed one human-gated Send; it did not change the physical Newton, Mars
+service, or any live/shared emulator.
 
 ## Result and provenance
 
@@ -42,10 +48,10 @@ out ordering alone as the explanation:
   The served physical package is independently recorded as the
   hardware-confirmed EF21 build at `docs/install-paths.md:108-116`.
 
-The marker-first ordering from `3f1bcdc` remains unchanged, but it is now a
-preserved experiment rather than a proven root cause. The next physical test
-must distinguish whether EF22 never reaches marker `Output()` from whether
-`Output()` is called but its `CompletionScript` never runs.
+The marker-first ordering from `3f1bcdc` remains unchanged, but it is a
+preserved experiment rather than a proven root cause. M4's later result did not
+show an HS-A/HS-B/HS-C stage: the operator saw `Connect error -16005`, while the
+wire showed established connections and no client application bytes.
 
 ### Minimal visible Output-boundary probe
 
@@ -160,18 +166,48 @@ text show the resulting `/status` turn completed in the client.
 Full machine-readable evidence is
 `runtime/evidence/m2-ef23-integration/reproducible-package.txt`.
 
-## Human-gated iPad sequence
+## M4 complete — one Send, no retry, photo waived
 
-These commands target only physical iPad UDID
-`00008027-000678A91130402E` and Einstein bundle
-`com.matthiasm.einstein.VPZ3H95WQJ`. Run each labeled block in order.
+On 2026-08-09 the operator installed and opened EF23 package version 37, pinned
+the Mars LAN endpoint, entered `/status`, and tapped **Send exactly once**. The
+operator directly observed the exact visible message `Connect error -16005`;
+there was no retry. No screenshot or photo was captured, and no visual evidence
+is claimed. On 2026-08-11 the human explicitly waived the photo acceptance
+artifact, making this observation plus the independent packet/journal evidence
+the complete M4 record.
+
+| Captured fact | Result | Evidence |
+|---|---:|---|
+| Packets captured / dropped | 29 / 0 | `ef23-ipad-handshake-20260809T231742Z.capture.log:5-6` |
+| Successful TCP handshakes | 5 | `packet-summary.txt:22-29`; `service-journal-excerpt.txt:7-11` |
+| Mars greetings | 5 × 48 bytes | `packet-summary.txt:22-32` |
+| iPad application payload | 0 frames / 0 bytes | `packet-summary.txt:33` |
+| `~NEWTONCLI` / `HELLO` / `ACK` / `STAT` | 0 matches | `packet-summary.txt:34` |
+| Directly observed visible message | `Connect error -16005` | `packet-summary.txt:9-10` |
+
+All evidence paths above are relative to
+`runtime/evidence/m4-ipad-ef23-20260809/`. The committed derivatives replace
+private addresses and ephemeral ports with connection labels. The source
+pcapng is not committed because it contains private capture metadata; its
+SHA-256 is retained in `packet-summary.txt:37-43` so the curated derivative can
+be traced to the preserved source.
+
+Automated `idevicescreenshot` failed at the screenshotr/developer-disk step.
+That failure and the absence of a screen artifact are recorded in
+`packet-summary.txt:9-14`. The waiver accepts the missing artifact; it does not
+turn the direct observation into a photograph.
+
+## Human-gated iPad sequence (performed once; retained for provenance)
+
+The executed plan is retained below for provenance with device-local values
+replaced by placeholders. Do not repeat the one-Send attempt: M4 is complete.
 
 ### A. Back up Einstein flash first
 
 ```sh
 set -euo pipefail
-UDID=00008027-000678A91130402E
-BUNDLE=com.matthiasm.einstein.VPZ3H95WQJ
+UDID='<ipad-udid>'
+BUNDLE='<einstein-bundle-id>'
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP="$HOME/newton-ipad-backups/einstein-$STAMP"
 mkdir -p "$BACKUP"
@@ -200,8 +236,8 @@ what is already in Newton flash.
 
 ```sh
 set -euo pipefail
-UDID=00008027-000678A91130402E
-BUNDLE=com.matthiasm.einstein.VPZ3H95WQJ
+UDID='<ipad-udid>'
+BUNDLE='<einstein-bundle-id>'
 LIST=$(mktemp)
 afcclient --container "$BUNDLE" -u "$UDID" ls Documents | tee "$LIST"
 
@@ -241,8 +277,8 @@ new package is copied:
 
 ```sh
 set -euo pipefail
-UDID=00008027-000678A91130402E
-BUNDLE=com.matthiasm.einstein.VPZ3H95WQJ
+UDID='<ipad-udid>'
+BUNDLE='<einstein-bundle-id>'
 PKG=/path/to/reviewed-m2-worktree/examples/harness-client/egg-freckles.pkg
 
 test -s "$PKG"
@@ -294,9 +330,9 @@ grep -aE 'Flags \[S\]|~NEWTONCLI 1|HELLO NEWTON1|ACK 00|STAT READY' "$TXT" \
 printf 'pcap=%s\ntext=%s\n' "$CAP" "$TXT"
 ```
 
-The **single physical Send** during that capture is: open **Egg Freckles** (title **Egg Freckles 1.0-ef23**), enter `/status`, and tap **Send exactly once**. Do not tap Send for any
-setup or retry; if the attempt fails, preserve the visible `HS-...` status and
-capture, then stop. Success evidence is one TCP connect on
-port 6801, client `~NEWTONCLI 1`, client framed `HELLO NEWTON1 1.0-ef23`, server
-`ACK 00`, and server framed `STAT READY`; the iPad then receives the normal
-`/status` reply in the transcript.
+The planned **single physical Send** was: open **Egg Freckles** (title **Egg
+Freckles 1.0-ef23**), enter `/status`, and tap **Send exactly once**, with no
+setup Send or retry. The planned success signature was one TCP connect on port
+6801, client `~NEWTONCLI 1`, client framed `HELLO NEWTON1 1.0-ef23`, server
+`ACK 00`, and server framed `STAT READY`, followed by the normal `/status`
+reply. The M4 result above records what occurred instead.

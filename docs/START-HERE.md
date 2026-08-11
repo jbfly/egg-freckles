@@ -193,7 +193,7 @@ than hand-rolling the sequence.
 - **The emulator is shared.** Other sessions are using it. Never stop,
   rebuild, or reconfigure `newton-harness_emulator_1` without asking.
 
-## Current state — updated 2026-08-09 (ages fastest; verify before trusting)
+## Current state — updated 2026-08-11 (ages fastest; verify before trusting)
 
 **2026-08-09 — read `docs/ROADMAP.md` "Recovery plan (2026-08-09)" before
 starting anything.** Published master is
@@ -226,8 +226,19 @@ retains EF22's no-Dock package tools and native arrows, adds the persisted
 Advanced server picker plus minimized HS-A/HS-B/HS-C probe from
 `prepare/ef22-autofind`, and paints transient `STAT PROGRESS` frames without
 adding them to the final reply. Its isolated-emulator proof and reproducible
-package hash are in `runtime/evidence/m2-ef23-integration/`; iPad behavior is
-still the exact human-gated M4 test in `docs/ef22-server-autofind.md`.
+package hash are in `runtime/evidence/m2-ef23-integration/`. M4's one-Send iPad
+attempt was performed once on 2026-08-09 with EF23 v37 installed and open, the
+Mars LAN endpoint pinned, and `/status` entered. The operator tapped **Send
+exactly once** and did not retry. The operator directly observed the exact
+visible message `Connect error -16005`. No screenshot or photo was captured.
+The sanitized 29-packet/0-drop derivative independently proves five
+successful TCP handshakes, five 48-byte Mars greetings, zero iPad application
+bytes, and no
+`~NEWTONCLI`, `HELLO`, `ACK`, or `STAT`; the journal independently records five
+connections. The human explicitly waived the photo acceptance artifact on
+2026-08-11, so M4 is complete without visual evidence. Exact evidence and the
+retained procedure are in `runtime/evidence/m4-ipad-ef23-20260809/` and
+`docs/ef22-server-autofind.md`.
 Since EF5 it has an Extras icon of its own: a little egg with freckles, the same
 one that now sits beside "Send to AI" in the Notes menu. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the
