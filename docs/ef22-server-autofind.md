@@ -58,12 +58,16 @@ wire showed established connections and no client application bytes.
 The independent EF22 probe commits changed no endpoint, timeout, protocol,
 server, or callback ordering. The later M2 integration did change the primary
 chat connect `reqTimeout` from 45,000 ms to 10,000 ms; the earlier wording was
-too broad. EF24 restores only that connect timeout to 45,000 ms as the smallest
-M4 follow-up hypothesis, while retaining the existing 12-second post-connect
-handshake watchdog and 10-second marker-output request timeout. Its isolated
-Linux Einstein handshake passes, but this is not iOS or physical-hardware
-proof (`runtime/evidence/ef24-chat-timeout/README.md`). One
-`handshakeStage` slot and status text mark exactly the required boundaries
+too broad. EF24 restores only that connect timeout to 45,000 ms while retaining
+the existing 12-second post-connect handshake watchdog and 10-second
+marker-output request timeout. Its isolated Linux Einstein handshake passes
+(`runtime/evidence/ef24-chat-timeout/README.md`), but the first physical iPad
+run did not: one `/status` Send with no retry showed `Connecting to server...
+will send` then `Connect error -16013`, with no photo, HS-A/B/C stage, or reply.
+The pcap ended before the Send and is not network evidence; the sanitized Mars
+journal records seven accepted connections and no protocol/application bytes.
+Hardware proof failed (`runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38`; `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`).
+One `handshakeStage` slot and status text mark exactly the required boundaries
 (`examples/harness-client/Main.newt:1480-1513,1535-1541`); the existing
 12-second watchdog turns a runnable stalled stage into a persistent visible
 verdict (`examples/harness-client/Main.newt:1045-1054`).

@@ -7,7 +7,21 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
-- **2026-08-11 — EF24 prepares the smallest M4 follow-up hypothesis.** M2
+- **2026-08-11 — EF24 physical iPad result: hardware proof failed.** Mars was
+  confirmed at the pinned address with its listener active. On one `/status`
+  Send with no retry, the operator directly observed `Connecting to server...
+  will send` followed by `Connect error -16013`; no photo was taken. No
+  HS-A/HS-B/HS-C status or reply appeared. The intentionally started 90-second
+  pcap ended before the Send and contains zero packets, so it is disclosed only
+  as a timing miss and is not network evidence. The sanitized authoritative
+  Mars journal records seven accepted connections from 16:41:36Z through
+  16:41:55Z at three-second intervals, but no protocol/application
+  bytes. Compared with EF23's `Connect error -16005`, restoring the connect
+  timeout changed the visible result to `-16013` but did not advance the
+  handshake. Evidence: `runtime/evidence/ef24-ipad-physical-20260811/README.md:9-22,24-38`
+  and `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.
+
+- **2026-08-11 — EF24 prepared the smallest M4 follow-up hypothesis.** M2
   integration commit `3b2be4f` changed the primary chat connect `reqTimeout`
   from 45,000 ms to 10,000 ms despite the EF22 probe document saying no timeout
   changed. EF24 restores only that request timeout, with fresh identity
@@ -17,8 +31,8 @@ agent can complete one task and verify it.
   byte-identical at SHA-256 `5147937cd38086aa2b5ac258630f7f51f03e04d246d41fe3c440cd8a735981ba`;
   45 focused and 140 full tests pass. A disposable seeded Einstein installed
   version 38 and completed marker/HELLO/READY against a local handshake-only
-  listener, then was removed. This is Linux emulator evidence and an M4
-  follow-up hypothesis, **not iOS or physical-hardware proof**. Evidence:
+  listener, then was removed. This preparation was Linux emulator evidence,
+  **not iOS or physical-hardware proof**. Evidence:
   `runtime/evidence/ef24-chat-timeout/README.md`.
 
 - **2026-08-11 — M4 complete after the human waived the photo artifact.** On

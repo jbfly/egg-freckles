@@ -1,8 +1,9 @@
 # EF24 chat-connect timeout evidence
 
-Date: 2026-08-11. This is the smallest M4 follow-up hypothesis, prepared
-directly atop published master `4c834a9a04231403beb15d5e155ae4d629090bdc`.
-It is Linux Einstein evidence, not iOS or physical-hardware proof.
+Date: 2026-08-11. This prepared the smallest M4 follow-up hypothesis directly
+atop published master `4c834a9a04231403beb15d5e155ae4d629090bdc`. This file
+records Linux Einstein evidence only; the later physical result is separately
+curated in `../ef24-ipad-physical-20260811/README.md`.
 
 ## Exact change
 
@@ -36,6 +37,6 @@ The first disposable attempt installed version 38, but its listener timed out be
 The emulator check used the established seeded isolated-instance path and a
 throwaway local listener for the handshake only. It sent no prompt and used no
 shared emulator, Mars host, iPad, physical Newton, shared service, or remote.
-The remaining uncertainty is whether iOS Einstein/NIE treats the restored
-45-second asynchronous connect timeout differently from EF23's 10-second
-value; only a later human-gated iOS run can answer that.
+A later human-gated iOS run visibly ended at `Connect error -16013`, rather than
+EF23's `-16005`, but reached no HS-A/B/C stage or reply. That result does not
+identify a root cause; see `../ef24-ipad-physical-20260811/README.md:9-38`.

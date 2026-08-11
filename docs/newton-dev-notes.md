@@ -1539,3 +1539,22 @@ the store-specific nil check returned true. Evidence is
 the run.
 Deployment/rollback gates and the physical follow-up are in
 `docs/mars-deploy-devloop.md`.
+
+
+## 2026-08-11 — EF24 first physical iPad result
+
+Mars was confirmed at the pinned address with its listener active. The operator
+entered `/status`, tapped Send once, and did not retry. The directly observed
+visible sequence was `Connecting to server... will send` followed by `Connect
+error -16013`. No photo was captured, no HS-A/B/C status appeared, and no reply
+arrived. Hardware proof failed.
+
+The intentionally started 90-second pcap ended before the Send and contains zero
+packets; it is a disclosed timing miss, not network evidence. The sanitized
+authoritative Mars journal records seven accepted connections from 16:41:36Z
+through 16:41:55Z at three-second intervals and no logged
+protocol/application bytes. Compared with EF23's earlier visible `Connect error
+-16005`, restoring the primary connect timeout changed the visible result to
+`-16013` but did not advance the handshake. Evidence:
+`runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38` and
+`runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.

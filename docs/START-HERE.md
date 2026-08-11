@@ -220,31 +220,35 @@ confirmed substantially easier to use. Preserve A1 as the installed fallback.
 (The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
 evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
-Published master `4c834a9` carries `EggFrecklesEF23:jbfly`. This child commit
-prepares `EggFrecklesEF24:jbfly` — user-visible name **"Egg Freckles"**, title
-"Egg Freckles 1.0-ef24", package version 38 — as the smallest M4 follow-up
-hypothesis. M2 had changed only the primary chat connect `reqTimeout` from
-45,000 ms to 10,000 ms; EF24 restores it to 45,000 ms while leaving the
-12-second post-connect handshake watchdog and 10-second marker-output timeout
-unchanged. Two normalized builds are byte-identical at 114,704 bytes, SHA-256
+Published master `4c834a9` carries `EggFrecklesEF23:jbfly`; parent commit
+`629f20e` prepared `EggFrecklesEF24:jbfly` — user-visible name **"Egg
+Freckles"**, title "Egg Freckles 1.0-ef24", package version 38. M2 had changed
+only the primary chat connect `reqTimeout` from 45,000 ms to 10,000 ms; EF24
+restores it to 45,000 ms while leaving the 12-second post-connect handshake
+watchdog and 10-second marker-output timeout unchanged. Two normalized builds
+are byte-identical at 114,704 bytes, SHA-256
 `5147937cd38086aa2b5ac258630f7f51f03e04d246d41fe3c440cd8a735981ba`; 140
 tests and a disposable isolated-emulator handshake pass are recorded in
-`runtime/evidence/ef24-chat-timeout/`. This is **not iOS or physical-hardware
-proof**. EF24 otherwise retains EF23's no-Dock package tools, native arrows,
-persisted Advanced server picker, minimized HS-A/HS-B/HS-C probe, and transient
-`STAT PROGRESS` painting. M4's one-Send iPad
-attempt was performed once on 2026-08-09 with EF23 v37 installed and open, the
-Mars LAN endpoint pinned, and `/status` entered. The operator tapped **Send
-exactly once** and did not retry. The operator directly observed the exact
-visible message `Connect error -16005`. No screenshot or photo was captured.
-The sanitized 29-packet/0-drop derivative independently proves five
-successful TCP handshakes, five 48-byte Mars greetings, zero iPad application
-bytes, and no
-`~NEWTONCLI`, `HELLO`, `ACK`, or `STAT`; the journal independently records five
-connections. The human explicitly waived the photo acceptance artifact on
-2026-08-11, so M4 is complete without visual evidence. Exact evidence and the
-retained procedure are in `runtime/evidence/m4-ipad-ef23-20260809/` and
-`docs/ef22-server-autofind.md`.
+`runtime/evidence/ef24-chat-timeout/`.
+
+The first physical EF24 iPad run did **not** prove the handshake. Mars was
+confirmed at the pinned address with its listener active. On one `/status`
+Send, with no retry, the operator directly observed `Connecting to server...
+will send` followed by `Connect error -16013`; no photo was taken, no
+HS-A/HS-B/HS-C status appeared, and no reply arrived. The 90-second pcap ended
+before the Send and contains zero packets, so it is only a disclosed timing
+miss. The sanitized authoritative Mars journal records seven accepted
+connections from 16:41:36Z through 16:41:55Z at three-second intervals
+and no protocol/application bytes. Compared with EF23's earlier `Connect error
+-16005`, timeout restoration changed the visible result to `-16013` but did not
+advance the handshake. Evidence:
+`runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38` and
+`runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.
+
+EF24 otherwise retains EF23's no-Dock package tools, native arrows, persisted
+Advanced server picker, minimized HS-A/HS-B/HS-C probe, and transient `STAT
+PROGRESS` painting. EF23's separate, completed M4 record remains in
+`runtime/evidence/m4-ipad-ef23-20260809/` and `docs/ef22-server-autofind.md`.
 Since EF5 it has an Extras icon of its own: a little egg with freckles, the same
 one that now sits beside "Send to AI" in the Notes menu. It
 supersedes `HarnessClientA9:jbfly` ("Chat A9", v2.4-a9), and it is the

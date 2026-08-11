@@ -1,0 +1,14 @@
+EF24 physical iPad Mars journal summary
+Source: authoritative Mars service journal, read-only observation.
+Normalization: retained only UTC timing and event counts. Omitted private
+addresses, client ports, process metadata, host identifiers, absolute paths,
+and raw provider log text.
+
+Window represented: 2026-08-11 16:41:36Z through 16:41:55Z
+Accepted connections: 7
+Observed cadence: 3-second intervals
+Protocol/application bytes logged: none
+
+This journal proves that Mars accepted seven connections in the stated window.
+It does not prove which client produced them, what the iPad transmitted, or
+that any Newton handshake stage completed.
