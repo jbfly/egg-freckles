@@ -24,14 +24,14 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef23_identity_is_fresh_and_named_for_a_human():
-    assert "kAppSymbol := '|EggFrecklesEF23:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef23";' in SOURCE
+def test_ef24_identity_is_fresh_and_named_for_a_human():
+    assert "kAppSymbol := '|EggFrecklesEF24:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef24";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF23:jbfly"' in PROJECT
-    assert "version: 37" in PROJECT
+    assert 'name: "EggFrecklesEF24:jbfly"' in PROJECT
+    assert "version: 38" in PROJECT
     assert "serverAddress: [10, 42, 0, 1]" in SOURCE
     assert "serverPort: 6801" in SOURCE
     assert "inkPort: 18081" in SOURCE
@@ -108,6 +108,17 @@ def test_server_favorites_persist_one_active_target_and_validate_ipv4():
     failed = SOURCE.index("Failed: func(message)")
     assert "AddDelayedCall(func(view) try view:Stop()" in SOURCE[failed:]
     assert "self.settingsSlip:Open();" in SOURCE
+
+
+def test_ef24_chat_connect_restores_timeout_without_changing_handshake_watchdogs():
+    bound = SOURCE.index("Bound: func()")
+    connected = SOURCE.index("Connected: func()", bound)
+    hello = SOURCE.index("Hello: func()", connected)
+    assert "async: true, reqTimeout: 45000" in SOURCE[bound:connected]
+    assert "[self, self.handshakeSeq], 12000);" in SOURCE[connected:hello]
+    marker = SOURCE.index('self.endpoint:output("~NEWTONCLI 1\\r\\n"', hello)
+    marker_sent = SOURCE.index("HelloMarkerSent: func()", marker)
+    assert "form: 'string, async: true, reqTimeout: 10000" in SOURCE[marker:marker_sent]
 
 
 def test_ef22_handshake_probe_distinguishes_output_and_completion():

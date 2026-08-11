@@ -7,6 +7,20 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-11 — EF24 prepares the smallest M4 follow-up hypothesis.** M2
+  integration commit `3b2be4f` changed the primary chat connect `reqTimeout`
+  from 45,000 ms to 10,000 ms despite the EF22 probe document saying no timeout
+  changed. EF24 restores only that request timeout, with fresh identity
+  `EggFrecklesEF24:jbfly`, title **Egg Freckles 1.0-ef24**, and package version
+  38. The 12-second post-connect handshake watchdog and 10-second marker-output
+  request timeout remain unchanged. Two normalized 114,704-byte builds are
+  byte-identical at SHA-256 `5147937cd38086aa2b5ac258630f7f51f03e04d246d41fe3c440cd8a735981ba`;
+  45 focused and 140 full tests pass. A disposable seeded Einstein installed
+  version 38 and completed marker/HELLO/READY against a local handshake-only
+  listener, then was removed. This is Linux emulator evidence and an M4
+  follow-up hypothesis, **not iOS or physical-hardware proof**. Evidence:
+  `runtime/evidence/ef24-chat-timeout/README.md`.
+
 - **2026-08-11 — M4 complete after the human waived the photo artifact.** On
   2026-08-09 the operator installed and opened EF23 v37, pinned the Mars LAN
   endpoint, entered `/status`, tapped Send exactly once, and directly observed

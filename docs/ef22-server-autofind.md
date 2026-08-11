@@ -55,7 +55,14 @@ wire showed established connections and no client application bytes.
 
 ### Minimal visible Output-boundary probe
 
-No endpoint, timeout, protocol, server, or callback ordering changed. One
+The independent EF22 probe commits changed no endpoint, timeout, protocol,
+server, or callback ordering. The later M2 integration did change the primary
+chat connect `reqTimeout` from 45,000 ms to 10,000 ms; the earlier wording was
+too broad. EF24 restores only that connect timeout to 45,000 ms as the smallest
+M4 follow-up hypothesis, while retaining the existing 12-second post-connect
+handshake watchdog and 10-second marker-output request timeout. Its isolated
+Linux Einstein handshake passes, but this is not iOS or physical-hardware
+proof (`runtime/evidence/ef24-chat-timeout/README.md`). One
 `handshakeStage` slot and status text mark exactly the required boundaries
 (`examples/harness-client/Main.newt:1480-1513,1535-1541`); the existing
 12-second watchdog turns a runnable stalled stage into a persistent visible

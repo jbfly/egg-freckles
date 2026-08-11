@@ -220,13 +220,19 @@ confirmed substantially easier to use. Preserve A1 as the installed fallback.
 (The physical MP2000 ran **A7** from the 2026-08-03 bench session; its last
 evidenced install is **EF13**, 2026-08-07 — see "Current state" below.)
 
-As of 2026-08-09 the published client is `EggFrecklesEF23:jbfly` — user-visible
-name **"Egg Freckles"**, title "Egg Freckles 1.0-ef23", package version 37. It
-retains EF22's no-Dock package tools and native arrows, adds the persisted
-Advanced server picker plus minimized HS-A/HS-B/HS-C probe from
-`prepare/ef22-autofind`, and paints transient `STAT PROGRESS` frames without
-adding them to the final reply. Its isolated-emulator proof and reproducible
-package hash are in `runtime/evidence/m2-ef23-integration/`. M4's one-Send iPad
+Published master `4c834a9` carries `EggFrecklesEF23:jbfly`. This child commit
+prepares `EggFrecklesEF24:jbfly` — user-visible name **"Egg Freckles"**, title
+"Egg Freckles 1.0-ef24", package version 38 — as the smallest M4 follow-up
+hypothesis. M2 had changed only the primary chat connect `reqTimeout` from
+45,000 ms to 10,000 ms; EF24 restores it to 45,000 ms while leaving the
+12-second post-connect handshake watchdog and 10-second marker-output timeout
+unchanged. Two normalized builds are byte-identical at 114,704 bytes, SHA-256
+`5147937cd38086aa2b5ac258630f7f51f03e04d246d41fe3c440cd8a735981ba`; 140
+tests and a disposable isolated-emulator handshake pass are recorded in
+`runtime/evidence/ef24-chat-timeout/`. This is **not iOS or physical-hardware
+proof**. EF24 otherwise retains EF23's no-Dock package tools, native arrows,
+persisted Advanced server picker, minimized HS-A/HS-B/HS-C probe, and transient
+`STAT PROGRESS` painting. M4's one-Send iPad
 attempt was performed once on 2026-08-09 with EF23 v37 installed and open, the
 Mars LAN endpoint pinned, and `/status` entered. The operator tapped **Send
 exactly once** and did not retry. The operator directly observed the exact
