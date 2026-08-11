@@ -11,12 +11,12 @@ PROJECT = (ROOT / "examples/harness-client/egg-freckles.nprj").read_text()
 CODE = re.sub(r"//[^\n]*", "", SOURCE)
 
 
-def test_chat_transport_stays_non_blocking():
-    assert "async: nil" not in SOURCE
+def test_chat_transport_keeps_only_the_primary_connect_synchronous():
+    assert SOURCE.count("async: nil") == 1
     assert "endpoint:Input(" not in SOURCE
-    # 6 chat + 3 ink + 5 tools + 3 package-download operations. Every network
-    # operation remains asynchronous.
-    assert SOURCE.count("async: true") == 17
+    # Bind, output, input, ink, tools, and package operations remain asynchronous;
+    # EF25 changes only the primary chat connect diagnostic.
+    assert SOURCE.count("async: true") == 16
     assert SOURCE.count("form: 'string") == 13
     assert "ViewQuitScript: func()" in SOURCE
     assert "self.endpoint:SetInputSpec(nil)" in SOURCE
@@ -24,14 +24,14 @@ def test_chat_transport_stays_non_blocking():
     assert "self.toolEndpoint:SetInputSpec(nil)" in SOURCE
 
 
-def test_ef24_identity_is_fresh_and_named_for_a_human():
-    assert "kAppSymbol := '|EggFrecklesEF24:jbfly|;" in SOURCE
-    assert 'kVersion := "1.0-ef24";' in SOURCE
+def test_ef25_identity_is_fresh_and_named_for_a_human():
+    assert "kAppSymbol := '|EggFrecklesEF25:jbfly|;" in SOURCE
+    assert 'kVersion := "1.0-ef25";' in SOURCE
     assert 'kAppTitle := "Egg Freckles " & kVersion;' in SOURCE
     assert 'kAppLabel := "Egg Freckles";' in SOURCE
     assert "text: kAppLabel" in SOURCE
-    assert 'name: "EggFrecklesEF24:jbfly"' in PROJECT
-    assert "version: 38" in PROJECT
+    assert 'name: "EggFrecklesEF25:jbfly"' in PROJECT
+    assert "version: 39" in PROJECT
     assert "serverAddress: [10, 42, 0, 1]" in SOURCE
     assert "serverPort: 6801" in SOURCE
     assert "inkPort: 18081" in SOURCE
@@ -110,11 +110,14 @@ def test_server_favorites_persist_one_active_target_and_validate_ipv4():
     assert "self.settingsSlip:Open();" in SOURCE
 
 
-def test_ef24_chat_connect_restores_timeout_without_changing_handshake_watchdogs():
+def test_ef25_chat_connect_is_synchronous_and_continues_directly():
     bound = SOURCE.index("Bound: func()")
     connected = SOURCE.index("Connected: func()", bound)
     hello = SOURCE.index("Hello: func()", connected)
-    assert "async: true, reqTimeout: 45000" in SOURCE[bound:connected]
+    connect_block = SOURCE[bound:connected]
+    assert "{async: nil, reqTimeout: 10000});\n            :Connected();" in connect_block
+    assert "CompletionScript" not in connect_block
+    assert "async: true" not in connect_block
     assert "[self, self.handshakeSeq], 12000);" in SOURCE[connected:hello]
     marker = SOURCE.index('self.endpoint:output("~NEWTONCLI 1\\r\\n"', hello)
     marker_sent = SOURCE.index("HelloMarkerSent: func()", marker)

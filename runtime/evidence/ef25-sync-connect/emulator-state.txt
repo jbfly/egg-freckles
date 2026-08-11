@@ -1,0 +1,5 @@
+Installed package: GetPkgRefInfo(...).version = 39
+Seed flash: 8388608 bytes, SHA-256 db79fbbbfd93fc8e3dbd7bfebbed9bc2533e9c2d9436563620f0138be24dc597, NE2K strings=4, Ethernet setup strings=3
+container=removed
+volume=removed
+listener=exited

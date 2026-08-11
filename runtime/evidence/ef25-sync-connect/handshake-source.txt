@@ -1,0 +1,96 @@
+  1450
+  1451	    Bound: func()
+  1452	    begin
+  1453	        if self.stopping then return nil;
+  1454	        self.bindRetried := nil;
+  1455	        local address := self.serverAddress;
+  1456	        try
+  1457	            self.endpoint:connect([
+  1458	                {
+  1459	                    label: "itrs", type: 'option, opCode: opSetRequired, result: nil,
+  1460	                    form: 'template,
+  1461	                    data: {
+  1462	                        arglist: [address[0], address[1], address[2], address[3], self.serverPort],
+  1463	                        typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
+  1464	                    },
+  1465	                },
+  1466	            ], {async: nil, reqTimeout: 10000});
+  1467	            :Connected();
+  1468	        onexception |evt.ex.comm| do :HandshakeFailed("Connect exception");
+  1469	        return nil;
+  1470	    end,
+  1471
+  1472	    Connected: func()
+  1473	    begin
+  1474	        if self.stopping then return nil;
+  1475	        self.handshakeStage := 'notCalled;
+  1476	        :SetStatus("HS-A BEFORE");
+  1477	        self.handshakeSeq := self.handshakeSeq + 1;
+  1478	        AddDelayedCall(func(view, ticket)
+  1479	                try view:HandshakeExpired(ticket) onexception |evt.ex| do nil,
+  1480	            [self, self.handshakeSeq], 12000);
+  1481	        :Hello();
+  1482	        return nil;
+  1483	    end,
+  1484
+  1485	    Hello: func()
+  1486	    begin
+  1487	        self.responseText := "";
+  1488	        self.txSeq := 1;
+  1489	        self.ready := nil;
+  1490	        // The native marker must be the first endpoint operation after connect.
+  1491	        // On iOS NIE, SetInputSpec here could stall before Output queued a byte.
+  1492	        :SetStatus("HS-B CALLED");
+  1493	        self.handshakeStage := 'called;
+  1494	        try self.endpoint:output("~NEWTONCLI 1\r\n", nil, {
+  1495	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1496	            CompletionScript: func(endpoint, options, result)
+  1497	                try
+  1498	                begin
+  1499	                    if result then self._parent:HandshakeFailed("Handshake error " & result)
+  1500	                    else self._parent:HelloMarkerSent();
+  1501	                end
+  1502	                onexception |evt.ex| do nil,
+  1503	        })
+  1504	        onexception |evt.ex.comm| do :HandshakeFailed("Handshake exception");
+  1505	        return nil;
+  1506	    end,
+  1507
+  1508	    ArmInput: func()
+  1509	    begin
+  1510	        if self.stopping or (self.endpoint = nil) then return nil;
+  1511	        try
+  1512	        self.endpoint:SetInputSpec({
+  1513	            _parent: self,
+  1514	            form: 'string,
+  1515	            // ponytail: protocol lines are capped at 240 bytes.
+  1516	            termination: {endSequence: "\r\n"},
+  1517	            discardAfter: 240,
+  1518	            InputScript: func(endpoint, data, terminator, options)
+  1519	                try self._parent:HandleLine(data) onexception |evt.ex| do nil,
+  1520	            CompletionScript: func(endpoint, options, result)
+  1521	                try self._parent:Dropped() onexception |evt.ex| do nil,
+  1522	        })
+  1523	        onexception |evt.ex.comm| do :ConnectionFailed("Input exception");
+  1524	        return nil;
+  1525	    end,
+  1526
+  1527	    HelloMarkerSent: func()
+  1528	    begin
+  1529	        if self.stopping then return nil;
+  1530	        self.handshakeStage := 'completed;
+  1531	        :SetStatus("HS-C CALLBACK");
+  1532	        :ArmInput();
+  1533	        try self.endpoint:output(:EncodeBody("00 HELLO NEWTON1 " & self.version), nil, {
+  1534	            form: 'string, async: true, reqTimeout: 10000, _parent: self,
+  1535	            CompletionScript: func(endpoint, options, result)
+  1536	                try
+  1537	                begin
+  1538	                    if result then self._parent:HandshakeFailed("Hello error " & result);
+  1539	                end
+  1540	                onexception |evt.ex| do nil,
+  1541	        })
+  1542	        onexception |evt.ex.comm| do :HandshakeFailed("Hello exception");
+  1543	        return nil;
+  1544	    end,
+  1545

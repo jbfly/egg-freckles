@@ -245,6 +245,21 @@ advance the handshake. Evidence:
 `runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38` and
 `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.
 
+EF25 is the smallest diagnostic response to that failure, directly atop
+published master `25c2cc56`: only the primary chat connect is synchronous with
+`async: nil, reqTimeout: 10000`, followed immediately by `:Connected()` after
+a successful return. It uses fresh `EggFrecklesEF25:jbfly`, title **Egg
+Freckles 1.0-ef25**, and package version 39. The hypothesis is that iOS NIE is
+failing in the async connect completion path; this build does **not** prove
+that hypothesis. Two normalized 114,480-byte builds are byte-identical at
+SHA-256 `edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e`;
+83 focused and 140 full tests pass. One seeded disposable Einstein accepted
+exactly one connection and completed marker, HELLO, ACK, `STAT READY`, client
+ACK, and teardown. Its screenshots did not preserve the transient painted
+HS-A/B/C states, so the exact evidence is source order plus the marker/HELLO
+wire path, not a visual claim. Evidence:
+`runtime/evidence/ef25-sync-connect/README.md`. iOS remains unverified.
+
 EF24 otherwise retains EF23's no-Dock package tools, native arrows, persisted
 Advanced server picker, minimized HS-A/HS-B/HS-C probe, and transient `STAT
 PROGRESS` painting. EF23's separate, completed M4 record remains in

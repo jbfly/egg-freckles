@@ -1558,3 +1558,25 @@ protocol/application bytes. Compared with EF23's earlier visible `Connect error
 `-16013` but did not advance the handshake. Evidence:
 `runtime/evidence/ef24-ipad-physical-20260811/README.md:9-38` and
 `runtime/evidence/ef24-ipad-physical-20260811/mars-journal-summary.txt:7-14`.
+
+## 2026-08-11 — EF25 synchronous primary-connect diagnostic
+
+EF24's physical iPad run ended at visible `Connect error -16013` before any
+HS-A/B/C state. EF25 tests one narrow hypothesis rather than declaring a fix:
+the primary chat `connect` alone now uses `{async: nil, reqTimeout: 10000}` and
+continues directly to `:Connected()` after return. The address options, bind,
+endpoint/link ownership, HS probe, 12-second post-connect watchdog, marker and
+HELLO outputs, tools/ink/package paths, server, and cleanup are unchanged.
+
+The fresh build is `EggFrecklesEF25:jbfly`, title `Egg Freckles 1.0-ef25`,
+package version 39. Two normalized builds are byte-identical at 114,480 bytes,
+SHA-256 `edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e`;
+83 focused and 140 full tests pass. A seeded disposable Einstein produced one
+accept, marker, `HELLO NEWTON1 1.0-ef25`, server ACK, `STAT READY`, client ACK,
+clean EOF, and no second accept. The emulator did not retain the transient
+painted HS-A/B/C labels for capture. Exact source order establishes HS-A before
+marker output, HS-B at marker invocation, and HS-C before HELLO output
+(`examples/harness-client/Main.newt:1472-1534`); the wire log proves marker and
+HELLO reached the listener. This supports only the diagnostic path. Whether it
+changes the iOS result remains a physical, human-gated uncertainty. Evidence:
+`runtime/evidence/ef25-sync-connect/README.md`.

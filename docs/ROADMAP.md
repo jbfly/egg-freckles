@@ -7,6 +7,26 @@ agent can complete one task and verify it.
 
 ## Status log (update this section as tracks complete)
 
+- **2026-08-11 — EF25 prepared a synchronous-connect diagnostic, not a fix.**
+  EF24 physically failed before HS-A/B/C with visible `Connect error -16013`;
+  that result is evidence of failure, not a root cause. EF25 changes only the
+  primary chat connect from the async completion form to `{async: nil,
+  reqTimeout: 10000}` and calls `:Connected()` immediately after a successful
+  return, testing the narrow hypothesis that iOS NIE is failing in the async
+  connect completion path. Fresh identity `EggFrecklesEF25:jbfly`, title **Egg
+  Freckles 1.0-ef25**, and package version 39 are used. Bind, the address option,
+  endpoint/link ownership, HS-A/B/C, the 12-second handshake watchdog, the
+  marker's 10-second output timeout, framing, tools/ink/package paths, server,
+  and teardown are unchanged. Two normalized 114,480-byte builds are
+  byte-identical at SHA-256
+  `edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e`; 83
+  focused and 140 full tests pass. A seeded disposable Einstein made exactly
+  one local accept, sent marker and `HELLO NEWTON1 1.0-ef25`, ACKed `STAT READY`,
+  and tore down cleanly. Einstein did not expose the transient painted HS-A/B/C
+  states; source order plus marker/HELLO wire evidence is the nearest exact
+  evidence. This is Linux emulator support for the hypothesis, **not iOS or
+  physical-hardware proof**. Evidence: `runtime/evidence/ef25-sync-connect/README.md`.
+
 - **2026-08-11 — EF24 physical iPad result: hardware proof failed.** Mars was
   confirmed at the pinned address with its listener active. On one `/status`
   Send with no retry, the operator directly observed `Connecting to server...

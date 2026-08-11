@@ -1,0 +1,11 @@
+command=make -B -C examples/harness-client; normalize package creation time with repository NEWTON_SOURCE_DATE_EPOCH=1767225600
+builds=2
+byte_identical=yes
+size=114480
+sha256=edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e
+file=Newton package, NOS 1.x, NoCompression, version 39
+identity_matches=1
+title_matches=1
+project_identity=EggFrecklesEF25:jbfly
+project_version=39
+interim_narration_correction=4ceedafe... appeared only in erroneous interim worker narration; it did not identify or correspond to any retained or committed artifact. The actual two-build output and every retained/committed package artifact use edf439e9a7bf6ec8051fcc1fb03d24ae5bae8368acb3c54655b78092190b3a0e.

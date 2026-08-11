@@ -1,0 +1,5 @@
+history_identity_matches:
+existing_branch_tree_matches_excluding_current_worktree:
+parent_client_identity_and_version:
+    name: "EggFrecklesEF24:jbfly",
+    version: 38,

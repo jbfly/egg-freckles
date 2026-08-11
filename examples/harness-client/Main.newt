@@ -7,8 +7,8 @@
 // The round tag lives only in the identity and the version string — EF1, EF2,
 // … — because the identity may never be reused (docs/phase3-chat-round.md,
 // "Package identity").
-kAppSymbol := '|EggFrecklesEF24:jbfly|;
-kVersion := "1.0-ef24";
+kAppSymbol := '|EggFrecklesEF25:jbfly|;
+kVersion := "1.0-ef25";
 kAppTitle := "Egg Freckles " & kVersion;
 kAppLabel := "Egg Freckles";
 kPrefsSymbol := '|EggFrecklesPrefs:jbfly|;
@@ -1463,16 +1463,8 @@ mainView := {
                         typeList: ['struct, 'byte, 'byte, 'byte, 'byte, 'short],
                     },
                 },
-            ], {
-                async: true, reqTimeout: 45000, _parent: self,
-                CompletionScript: func(endpoint, options, result)
-                    try
-                    begin
-                        if result then self._parent:HandshakeFailed("Connect error " & result)
-                        else self._parent:Connected();
-                    end
-                    onexception |evt.ex| do nil,
-            })
+            ], {async: nil, reqTimeout: 10000});
+            :Connected();
         onexception |evt.ex.comm| do :HandshakeFailed("Connect exception");
         return nil;
     end,
